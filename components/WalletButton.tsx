@@ -24,6 +24,12 @@ interface WalletButtonProps {
 }
 
 const buttonDetails: Record<string, ButtonDetails> = {
+  XBT: {
+    image: require('../img/addWallet/bitcoin.png'),
+    title: 'XBT',
+    explain: 'BLAKE2b mainnet',
+    borderColorActive: 'newBlue',
+  },
   Bitcoin: {
     image: require('../img/addWallet/bitcoin.png'),
     title: loc.wallets.add_bitcoin,

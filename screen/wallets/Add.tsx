@@ -408,7 +408,7 @@ const WalletsAdd: React.FC = () => {
         <BlueFormLabel>{loc.wallets.add_wallet_type}</BlueFormLabel>
         <View style={styles.buttons}>
           <WalletButton
-            buttonType="Bitcoin"
+            buttonType="XBT"
             testID="ActivateBitcoinButton"
             active={selectedWalletType === ButtonSelected.ONCHAIN}
             onPress={handleOnBitcoinButtonPressed}
