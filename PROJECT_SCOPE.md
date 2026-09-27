@@ -22,7 +22,7 @@
 
 Do not infer these values from Bitcoin defaults. Record the source and test vectors for each:
 
-1. Chain identity: expected genesis and fork checkpoint hashes, consensus/network identifiers, and exact XBT profile string.
+1. Chain identity: XBT and Bitcoin share the genesis hash, so verify the fork checkpoint. The first BLAKE2b block is height 961640, hash `0000000000000050c1e5f69672f459293be14f46e5a494e7a8c8541396f18eeb`; pin and test its 164-byte header against the selected Electrum server. The checkpoint was read from local Knots and matched byte-for-byte through local Fulcrum on 2026-09-27. Also verify any additional consensus/network identifiers and exact XBT profile string.
 2. Address encodings: Base58 prefixes, SegWit HRP, and supported output types.
 3. Key derivation: BIP44 coin type and accepted extended public/private key versions.
 4. Network services: Electrum protocol compatibility, independently verifiable server endpoints, broadcast API, fee estimates, explorer, and exchange-rate source.
@@ -35,7 +35,7 @@ Do not infer these values from Bitcoin defaults. Record the source and test vect
 2. **Chain profile:** verify the active XBT node, profile, fork checkpoints, and published test vectors; encode the values in one explicit profile with fail-closed checks.
 3. **Wallet foundation:** add the single P2WPKH account at `m/84'/0'/0'`, then verify seed recovery, xpub import, address derivation, change addresses, and receive history.
 4. **Transaction and signing:** implement the specified P2WPKH Unified Sighash digest and signature type (`SIGHASH_ALL | SIGHASH_UNIFIED`, `0x21`), verify against upstream vectors, and reject unsupported script types before signing. The current `bitcoinjs-lib` rejects `0x21` in partial-signature encoding and finalization; resolve that compatibility boundary with a narrowly scoped PSBT/finalizer implementation or a maintained library change, then verify signatures against consensus-level vectors. Specify any proprietary PSBT chain metadata separately; do not substitute it for the sighash.
-5. **Network services:** use a user-configurable, compatible XBT Electrum server; replace BTC-only fee, history, explorer, and broadcast assumptions; validate chain identity and never fall back to BTC.
+5. **Network services:** require a user-configured, compatible XBT Electrum server. RedWallet checks the pinned height-961640 header on save and every connection, ships no Bitcoin Electrum peers, and never falls back to BTC. Replace BTC-only fee, history, explorer, and broadcast assumptions.
 6. **iPhone and hardware QA:** test receive/send, QR and hardware signing, Unified Sighash preservation and approved metadata round-trip, replay separation, wrong-chain rejection, and offline recovery on physical devices and your Fulcrum-backed XBT test environment.
 7. **Private beta:** distribute builds to our own iPhones through TestFlight after signing and App Store Connect setup; use TestFlight feedback to find device and workflow issues.
 8. **Maintainer review and optional outside review:** review focused changes for chain separation, address validation, PSBT parsing, sighash construction, and broadcast before any public wallet release. The project does not depend on community participation; one knowledgeable outside reviewer is welcome if available.
@@ -43,7 +43,7 @@ Do not infer these values from Bitcoin defaults. Record the source and test vect
 
 ## Current implementation note
 
-The upstream code directly uses `bitcoinjs-lib` Bitcoin mainnet defaults in multiple wallet classes and transaction flows. A ticker or network selector alone would be unsafe: every address, key, fee, history, signer, and broadcast path must use the same selected chain profile. XBT and BTC should remain separate wallet identities even if dual-chain support is added later. The first PR validates digest construction only; it does not yet create or sign an XBT wallet transaction.
+The upstream code directly uses `bitcoinjs-lib` Bitcoin mainnet defaults in multiple wallet classes and transaction flows. A ticker or network selector alone would be unsafe: every address, key, fee, history, signer, and broadcast path must use the same selected chain profile. XBT and BTC should remain separate wallet identities even if dual-chain support is added later. The signing foundation and Electrum checkpoint gate exist as isolated components, but they are not yet connected to wallet creation/send flows and have not passed XBT node transaction acceptance tests.
 
 ## Consensus references
 

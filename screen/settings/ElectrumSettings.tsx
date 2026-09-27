@@ -199,7 +199,7 @@ const ElectrumSettings: React.FC = () => {
           const testConnect = await BlueElectrum.testConnection(serverHost, Number(serverPort), Number(serverSslPort));
           if (!testConnect) {
             return presentAlert({
-              message: serverHost.endsWith('.onion') ? loc.settings.electrum_error_connect_tor : loc.settings.electrum_error_connect,
+              message: 'Could not connect to a verified XBT Electrum server. Check the address, port, and chain.',
             });
           }
           await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
@@ -377,6 +377,7 @@ const ElectrumSettings: React.FC = () => {
       displayInline: true,
       subtitle: loc.settings.electrum_suggested_description,
       subactions: mapServers(suggestedServers, true),
+      hidden: suggestedServers.length === 0,
     };
 
     const actions: Action[] = [];
@@ -505,7 +506,10 @@ const ElectrumSettings: React.FC = () => {
 
         <SettingsSection title={loc.settings.electrum_preferred_server}>
           <View style={settingsCardContent}>
-            <SettingsFootnote>{loc.settings.electrum_preferred_server_description}</SettingsFootnote>
+            <SettingsFootnote>
+              Enter an XBT-compatible Electrum server. RedWallet checks the BLAKE2b fork checkpoint and refuses Bitcoin-only servers; it
+              never switches networks.
+            </SettingsFootnote>
 
             <View style={styles.inputGroupSpacing}>
               <AddressInput
