@@ -27,6 +27,7 @@ Do not infer these values from Bitcoin defaults. Record the source and test vect
 3. Key derivation: BIP44 coin type and accepted extended public/private key versions.
 4. Network services: Electrum protocol compatibility, independently verifiable server endpoints, broadcast API, fee estimates, explorer, and exchange-rate source.
 5. Hardware signing: PSBT fields and signing behavior supported by each intended signer, including the Unified Sighash type and any separately specified proprietary chain metadata through QR export/import.
+6. Coinbase spendability: detect coinbase UTXOs and apply the active XBT maturity rule from verified chain parameters. The current consensus window uses 6,480 confirmations for coinbases created at or after height 973440 through 979919; older coinbases retain the legacy 100-confirmation rule. Do not treat this temporary window as a permanent constant; add boundary tests and expose immature payouts as unavailable.
 
 ## Development plan
 
@@ -49,6 +50,7 @@ The upstream code directly uses `bitcoinjs-lib` Bitcoin mainnet defaults in mult
 - [Canonical BLAKE2b-chain developer guidance](https://bitcoin-blake2b.org/developers)
 - [Knots Unified Sighash specification](https://github.com/bitcoinknots/bitcoin/blob/v29.4.2.knots20260508/doc/unified-sighash.md)
 - [Knots consensus implementation PR #357](https://github.com/bitcoinknots/bitcoin/pull/357)
+- [Canonical developer guidance on long coinbase maturity](https://bitcoin-blake2b.org/developers)
 
 ## Test backend
 
