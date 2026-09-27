@@ -18,6 +18,22 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
   public readonly segwitType = 'p2wpkh';
   static readonly derivationPath = "m/84'/0'/0'";
 
+  allowPayJoin() {
+    return false;
+  }
+
+  allowCosignPsbt() {
+    return false;
+  }
+
+  allowBIP47() {
+    return false;
+  }
+
+  allowSilentPaymentSend() {
+    return false;
+  }
+
   createTransaction(...args: Parameters<AbstractHDElectrumWallet['createTransaction']>) {
     const [utxos, targets, feeRate, changeAddress, sequence, skipSigning, masterFingerprint] = args;
     const result = super.createTransaction(utxos, targets, feeRate, changeAddress, sequence, true, masterFingerprint);
