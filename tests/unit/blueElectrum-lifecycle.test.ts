@@ -8,9 +8,23 @@
  */
 
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import { XBT_MAINNET_CHECKPOINT_HEADER } from '../../class/xbt/electrum-checkpoint';
 
 // Jest hoists these above the import above. The factories close over `globalThis`
 // so the test body can swap implementations per-test without re-mocking.
+jest.mock('react-native-default-preference', () => ({
+  __esModule: true,
+  default: {
+    setName: jest.fn(),
+    get: jest.fn(async (key: string) => {
+      const values: Record<string, string> = { electrum_host: 'xbt.fulcrum.test', electrum_tcp_port: '', electrum_ssl_port: '50002' };
+      return values[key];
+    }),
+    set: jest.fn(),
+    clear: jest.fn(),
+  },
+}));
+
 jest.mock('electrum-client', () => {
   return jest.fn().mockImplementation(() => (globalThis as any).__createNextFakeClient());
 });
@@ -30,6 +44,7 @@ type FakeClient = {
   host: string;
   port: number;
   initElectrum: jest.Mock;
+  blockchainBlock_header: jest.Mock;
   blockchainHeaders_subscribe: jest.Mock;
   blockchainScripthash_getHistory: jest.Mock;
   blockchainTransaction_get: jest.Mock;
@@ -65,6 +80,7 @@ function makeFakeClient(host = 'fake.host', port = 50002): FakeClient {
   };
   fc.initElectrum = jest.fn(() => fc.initElectrumDeferred!.promise);
   fc.blockchainHeaders_subscribe = jest.fn(() => fc.headersDeferred!.promise);
+  fc.blockchainBlock_header = jest.fn(async () => XBT_MAINNET_CHECKPOINT_HEADER);
   fc.blockchainScripthash_getHistory = jest.fn();
   fc.blockchainTransaction_get = jest.fn();
   fc.server_ping = jest.fn(() => {
