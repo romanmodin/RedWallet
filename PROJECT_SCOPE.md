@@ -34,16 +34,16 @@ Do not infer these values from Bitcoin defaults. Record the source and test vect
 1. **Fork and app identity:** pin BlueWallet 8.0.1, keep upstream attribution, set the iPhone app display name to RedWallet, and establish a separate app/bundle identity before installing alongside BlueWallet.
 2. **Chain profile:** verify the active XBT node, profile, fork checkpoints, and published test vectors; encode the values in one explicit profile with fail-closed checks.
 3. **Wallet foundation:** add the single P2WPKH account at `m/84'/0'/0'`, then verify seed recovery, xpub import, address derivation, change addresses, and receive history.
-4. **Transaction and signing:** implement the specified P2WPKH Unified Sighash digest and signature type (`SIGHASH_ALL | SIGHASH_UNIFIED`, `0x21`), verify against upstream vectors, and reject unsupported script types before signing. Specify any proprietary PSBT chain metadata separately; do not substitute it for the sighash.
+4. **Transaction and signing:** implement the specified P2WPKH Unified Sighash digest and signature type (`SIGHASH_ALL | SIGHASH_UNIFIED`, `0x21`), verify against upstream vectors, and reject unsupported script types before signing. The current `bitcoinjs-lib` rejects `0x21` in partial-signature encoding and finalization; resolve that compatibility boundary with a narrowly scoped PSBT/finalizer implementation or a maintained library change, then verify signatures against consensus-level vectors. Specify any proprietary PSBT chain metadata separately; do not substitute it for the sighash.
 5. **Network services:** use a user-configurable, compatible XBT Electrum server; replace BTC-only fee, history, explorer, and broadcast assumptions; validate chain identity and never fall back to BTC.
 6. **iPhone and hardware QA:** test receive/send, QR and hardware signing, Unified Sighash preservation and approved metadata round-trip, replay separation, wrong-chain rejection, and offline recovery on physical devices and your Fulcrum-backed XBT test environment.
 7. **Private beta:** distribute builds to our own iPhones through TestFlight after signing and App Store Connect setup; use TestFlight feedback to find device and workflow issues.
-8. **Independent review and community sharing:** invite XBT Discord contributors to review focused changes for chain separation, address validation, PSBT parsing, sighash construction, and broadcast before any public wallet release.
+8. **Maintainer review and optional outside review:** review focused changes for chain separation, address validation, PSBT parsing, sighash construction, and broadcast before any public wallet release. The project does not depend on community participation; one knowledgeable outside reviewer is welcome if available.
 9. **Store release:** submit for App Review only after the security and compatibility gates pass, and through an organization-enrolled developer account as Apple's current wallet guideline requires.
 
 ## Current implementation note
 
-The upstream code directly uses `bitcoinjs-lib` Bitcoin mainnet defaults in multiple wallet classes and transaction flows. A ticker or network selector alone would be unsafe: every address, key, fee, history, signer, and broadcast path must use the same selected chain profile. XBT and BTC should remain separate wallet identities even if dual-chain support is added later.
+The upstream code directly uses `bitcoinjs-lib` Bitcoin mainnet defaults in multiple wallet classes and transaction flows. A ticker or network selector alone would be unsafe: every address, key, fee, history, signer, and broadcast path must use the same selected chain profile. XBT and BTC should remain separate wallet identities even if dual-chain support is added later. The first PR validates digest construction only; it does not yet create or sign an XBT wallet transaction.
 
 ## Consensus references
 
