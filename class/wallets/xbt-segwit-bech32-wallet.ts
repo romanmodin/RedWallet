@@ -3,11 +3,12 @@ import { ECPairFactory } from 'ecpair';
 import ecc from '../../blue_modules/noble_ecc';
 import { finalizeUnifiedP2wpkhInput, signUnifiedP2wpkhInput } from '../xbt/unified-psbt';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
+import { HDSegwitBech32Wallet } from './hd-segwit-bech32-wallet';
 
 const ECPair = ECPairFactory(ecc);
 
 /** XBT BIP84 wallet; its transaction signatures use Knots Unified Sighash. */
-export class XbtSegwitBech32Wallet extends AbstractHDElectrumWallet {
+export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
   static readonly type = 'HDsegwitBech32XBT';
   static readonly typeReadable = 'XBT SegWit (BIP84)';
   // @ts-ignore: override
