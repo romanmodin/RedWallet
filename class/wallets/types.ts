@@ -24,6 +24,7 @@ import { LightningArkWallet } from './lightning-ark-wallet.ts';
 export type Utxo = {
   // Returned by BlueElectrum
   height: number;
+  coinbase?: boolean;
   address: string;
   txid: string;
   vout: number;
@@ -38,7 +39,10 @@ export type Utxo = {
 /**
  * same as coinselect.d.ts/CoinSelectUtxo
  */
-export interface CreateTransactionUtxo extends CoinSelectUtxo {}
+export interface CreateTransactionUtxo extends CoinSelectUtxo {
+  coinbase?: boolean;
+  confirmations?: number;
+}
 
 /**
  * if address is missing and `script.hex` is set - this is a custom script (like OP_RETURN)

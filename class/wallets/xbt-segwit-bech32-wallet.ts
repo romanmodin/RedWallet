@@ -1,6 +1,7 @@
 import { ECPairFactory } from 'ecpair';
 
 import ecc from '../../blue_modules/noble_ecc';
+import { isCoinbaseTransaction, isMatureXbtCoinbase } from '../xbt/coinbase-maturity';
 import { finalizeUnifiedP2wpkhInput, signUnifiedP2wpkhInput } from '../xbt/unified-psbt';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
 import { HDSegwitBech32Wallet } from './hd-segwit-bech32-wallet';
@@ -34,9 +35,32 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
     return false;
   }
 
+  getUtxo(respectFrozen = false) {
+    const transactions = new Map(this.getTransactions().map(transaction => [transaction.txid, transaction]));
+    return super.getUtxo(respectFrozen).flatMap(utxo => {
+      const parent = transactions.get(utxo.txid);
+      if (!parent) return [];
+      const coinbase = isCoinbaseTransaction(parent.inputs);
+      const confirmations = utxo.confirmations ?? parent.confirmations;
+      if (coinbase && !isMatureXbtCoinbase(confirmations)) return [];
+      return [{ ...utxo, coinbase, confirmations }];
+    });
+  }
+
   createTransaction(...args: Parameters<AbstractHDElectrumWallet['createTransaction']>) {
     const [utxos, targets, feeRate, changeAddress, sequence, skipSigning, masterFingerprint] = args;
-    const result = super.createTransaction(utxos, targets, feeRate, changeAddress, sequence, true, masterFingerprint);
+    const transactions = new Map(this.getTransactions().map(transaction => [transaction.txid, transaction]));
+    const verifiedUtxos = utxos.map(utxo => {
+      const parent = transactions.get(utxo.txid);
+      if (!parent) throw new Error('Cannot verify XBT input transaction and coinbase maturity');
+      const coinbase = isCoinbaseTransaction(parent.inputs);
+      const confirmations = utxo.confirmations ?? parent.confirmations ?? 0;
+      if (coinbase && !isMatureXbtCoinbase(confirmations)) {
+        throw new Error('XBT coinbase outputs require 6480 confirmations before spending');
+      }
+      return { ...utxo, coinbase, confirmations };
+    });
+    const result = super.createTransaction(verifiedUtxos, targets, feeRate, changeAddress, sequence, true, masterFingerprint);
     if (skipSigning) return result;
 
     result.inputs.forEach((input, inputIndex) => {

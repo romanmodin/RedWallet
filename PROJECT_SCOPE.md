@@ -43,7 +43,7 @@ Do not infer these values from Bitcoin defaults. Record the source and test vect
 
 ## Current implementation note
 
-The upstream code directly uses `bitcoinjs-lib` Bitcoin mainnet defaults in multiple wallet classes and transaction flows. A ticker or network selector alone would be unsafe: every address, key, fee, history, signer, and broadcast path must use the same selected chain profile. XBT and BTC should remain separate wallet identities even if dual-chain support is added later. The signing foundation and Electrum checkpoint gate exist as isolated components, but they are not yet connected to wallet creation/send flows and have not passed XBT node transaction acceptance tests.
+The upstream code directly uses `bitcoinjs-lib` Bitcoin mainnet defaults in multiple wallet classes and transaction flows. A ticker or network selector alone would be unsafe: every address, key, fee, history, signer, and broadcast path must use the same selected chain profile. XBT and BTC should remain separate wallet identities even if dual-chain support is added later. The XBT BIP84 profile is connected to new-wallet creation and software P2WPKH send signing. It verifies the selected Electrum server's fork checkpoint and filters coinbase UTXOs until 6480 confirmations. These paths still have not passed XBT node transaction acceptance tests, and address/network parameters and broader fee, history, import, broadcast, QR, and hardware flows need separate verification.
 
 ## Consensus references
 
