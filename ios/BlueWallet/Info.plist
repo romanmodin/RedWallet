@@ -12,7 +12,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>BlueWallet</string>
+	<string>RedWallet</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

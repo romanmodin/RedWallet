@@ -1,137 +1,31 @@
-# BlueWallet - A Bitcoin & Lightning Wallet
+# RedWallet for iPhone
 
-[![GitHub tag](https://img.shields.io/badge/dynamic/json.svg?url=https://raw.githubusercontent.com/BlueWallet/BlueWallet/master/package.json&query=$.version&label=Version)](https://github.com/BlueWallet/BlueWallet)
-[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
-![](https://img.shields.io/github/license/BlueWallet/BlueWallet.svg)
+RedWallet is an iPhone wallet project based on [BlueWallet 8.0.1](https://github.com/BlueWallet/BlueWallet/releases/tag/8.0.1). The initial goal is an XBT-only wallet. BTC may be considered later as a separate, explicitly selected profile.
 
-Thin Bitcoin Wallet.
-Built with React Native and Electrum.
+The iOS app name is now **RedWallet**. This repository is an independent community project and is not an official BlueWallet release. The original BlueWallet source is MIT licensed; its license and upstream attributions are retained.
 
-[![Appstore](https://bluewallet.io/uploads/app-store-badge-blue.svg)](https://itunes.apple.com/us/app/bluewallet-bitcoin-wallet/id1376878040?l=ru&ls=1&mt=8)
-[![Playstore](https://bluewallet.io/uploads/play-store-badge-blue.svg)](https://play.google.com/store/apps/details?id=io.bluewallet.bluewallet)
+The first XBT release is intentionally narrow: one Native SegWit/P2WPKH account, one keystore, and no BTC fallback. Lightning, multisig, silent payments, and Taproot are outside the first release. See [PROJECT_SCOPE.md](PROJECT_SCOPE.md) for the implementation plan and chain safety requirements.
 
-Website: [bluewallet.io](https://bluewallet.io)
+## Project status
 
-Community: [telegram group](https://t.me/bluewallet)
+This is an early development fork. The upstream wallet currently assumes Bitcoin mainnet in several address, signing, derivation, fee, and service paths. XBT support must be implemented and tested as a separate chain profile before anyone should use it with funds.
 
-* Private keys never leave your device
-* Lightning Network supported
-* SegWit-first. Replace-By-Fee support
-* Encryption. Plausible deniability
-* And many more [features...](https://bluewallet.io/features)
+We need authoritative XBT network details before wiring transactions: address and extended-key versions, derivation coin type, genesis/network identity, trusted Electrum endpoints, fee and broadcast services, and explorer/rate sources. Until those are confirmed and reviewed, RedWallet must not imply that an XBT transaction is ready to sign or broadcast. Do not add signing or App Store Connect secrets to this repository while the inherited BlueWallet app identifiers and release workflows remain under review.
 
+## Scope
 
-<img src="https://i.imgur.com/hHYJnMj.png" width="100%">
+- iPhone app only; changes should target the iOS app and shared wallet code it uses.
+- Support XBT, with BTC retained as an optional chain if the chain profiles can stay clearly separated.
+- Keep chain-specific address parsing, derivation, transaction construction, signing, fee estimates, history, and broadcast behavior explicit.
+- Protect existing BlueWallet wallet data and BTC behavior while adding XBT.
+- Require independent review and test vectors for address derivation, PSBT construction, and signed transaction serialization before release.
 
+## Contributing
 
-## BUILD & RUN IT
+Use focused pull requests. Include reproducible tests and public test vectors for any chain or transaction change. Never include seed phrases, private keys, wallet backups, or real transaction secrets in issues, pull requests, screenshots, or test fixtures.
 
-Please refer to the engines field in package.json file for the minimum required versions of Node and npm. It is preferred that you use an even-numbered version of Node as these are LTS versions.
+The project welcomes independent review, especially for chain separation and transaction signing. Until XBT support passes the security and compatibility checks above, builds are for development and testing only.
 
-To view the version of Node and npm in your environment, run the following in your console:
+## License
 
-```
-node --version && npm --version
-```
-
-* In your console:
-
-```
-git clone https://github.com/BlueWallet/BlueWallet.git
-cd BlueWallet
-npm install
-```
-
-Please make sure that your console is running the most stable versions of npm and node (even-numbered versions).
-
-* To run on Android:
-
-You will now need to either connect an Android device to your computer or run an emulated Android device using AVD Manager which comes shipped with Android Studio. To run an emulator using AVD Manager:
-
-1. Download and run Android Studio
-2. Click on "Open an existing Android Studio Project"
-3. Open `build.gradle` file under `BlueWallet/android/` folder
-4. Android Studio will take some time to set things up. Once everything is set up, go to `Tools` -> `AVD Manager`.
-    * 📝 This option [may take some time to appear in the menu](https://stackoverflow.com/questions/47173708/why-avd-manager-options-are-not-showing-in-android-studio) if you're opening the project in a freshly-installed version of Android Studio.
-5. Click on "Create Virtual Device..." and go through the steps to create a virtual device
-6. Launch your newly created virtual device by clicking the `Play` button under `Actions` column
-
-Once you connected an Android device or launched an emulator, run this:
-
-```
-npx react-native run-android
-```
-
-The above command will build the app and install it. Once you launch the app it will take some time for all of the dependencies to load. Once everything loads up, you should have the built app running.
-
-* To run on iOS:
-
-```
-npx pod-install
-npm start
-```
-
-In another terminal window within the BlueWallet folder:
-```
-npx react-native run-ios
-```
-**To debug BlueWallet on the iOS Simulator, you must choose a Rosetta-compatible iOS Simulator. This can be done by navigating to the Product menu in Xcode, selecting Destination Architectures, and then opting for "Show Both." This action will reveal the simulators that support Rosetta.
-**
-
-* To run on macOS using Mac Catalyst:
-
-```
-npx pod-install
-npm start
-```
-
-Open ios/BlueWallet.xcworkspace. Once the project loads, select the scheme/target BlueWallet. Click Run.
-
-## TESTS
-
-```bash
-npm run test
-```
-
-
-## LICENSE
-
-MIT
-
-## WANT TO CONTRIBUTE?
-
-Grab an issue from [the backlog](https://github.com/BlueWallet/BlueWallet/issues), try to start or submit a PR, any doubts we will try to guide you. Contributors have a private telegram group, request access by email bluewallet@bluewallet.io
-
-## Translations
-
-We accept translations via [Transifex](https://explore.transifex.com/bluewallet/bluewallet/)
-
-To participate you need to:
-1. Sign up to Transifex
-2. Find BlueWallet project
-3. Send join request
-4. After we accept your request you will be able to start translating! That's it!
-
-Please note the values in curly braces should not be translated. These are the names of the variables that will be inserted into the translated string. For example, the original string `"{number} of {total}"` in Russian will be `"{number} из {total}"`.
-
-Transifex automatically creates Pull Request when language reaches 100% translation. We also trigger this by hand before each release, so don't worry if you can't translate everything, every word counts.
-
-### Vocabulary glossaries
-
-[`loc/vocabulary.md`](loc/vocabulary.md) + the per-language files under [`loc/vocabulary/`](loc/vocabulary/) are the canonical glossary of Bitcoin/Lightning terms (Wallet, Vault, Seed, Mnemonic, Passphrase, Multisig, Payment Code, Coin Control, …) and their chosen rendering in each locale, with the reasoning behind each choice and ⚠️ anti-meaning callouts (e.g. Passcode ≠ Password, Change-output ≠ verb "to change"). Use them as ground truth when translating by hand or when feeding `loc/<lang>.json` to an LLM — terminology consistency across screens is the difference between "looks translated" and "is correct for a Bitcoin wallet". When you change a shipped string, update the matching row in the same PR.
-
-## Q&A
-
-Builds automated and tested with BrowserStack
-
-<a href="https://www.browserstack.com/"><img src="https://i.imgur.com/syscHCN.png" width="160px"></a>
-
-Bugs reported via BugSnag
-
-<a href="https://www.bugsnag.com"><img src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" width="160px"></a>
-
-
-## RESPONSIBLE DISCLOSURE
-
-Found critical bugs/vulnerabilities? Please email them bluewallet@bluewallet.io
-Thanks!
+RedWallet inherits the MIT license from BlueWallet. See [LICENSE](LICENSE) and retain upstream copyright notices when modifying or redistributing source files.
