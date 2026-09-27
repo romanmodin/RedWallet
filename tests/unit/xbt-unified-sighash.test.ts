@@ -38,3 +38,38 @@ describe('XBT Unified Sighash for SegWit v0 SIGHASH_ALL', () => {
     );
   });
 });
+
+describe('bitcoinjs-lib Unified Sighash integration boundary', () => {
+  it('documents bitcoinjs-lib rejecting the XBT hash type while signing', () => {
+    const pubkey = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex');
+    const payment = bitcoin.payments.p2wpkh({ pubkey });
+    const psbt = new bitcoin.Psbt();
+    psbt.addInput({
+      hash: Buffer.alloc(32, 1),
+      index: 0,
+      witnessUtxo: { value: 100_000n, script: payment.output! },
+      sighashType: 0x21,
+    });
+    psbt.addOutput({ script: payment.output!, value: 99_000n });
+
+    expect(() => psbt.signInput(0, { publicKey: pubkey, sign: () => Buffer.alloc(64, 1) }, [0x21])).toThrow('Invalid hashType 33');
+  });
+
+  it('documents bitcoinjs-lib rejecting an XBT signature while finalizing', () => {
+    const pubkey = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex');
+    const payment = bitcoin.payments.p2wpkh({ pubkey });
+    const psbt = new bitcoin.Psbt();
+    psbt.addInput({
+      hash: Buffer.alloc(32, 1),
+      index: 0,
+      witnessUtxo: { value: 100_000n, script: payment.output! },
+      sighashType: 0x21,
+    });
+    psbt.addOutput({ script: payment.output!, value: 99_000n });
+    psbt.data.updateInput(0, {
+      partialSig: [{ pubkey, signature: Buffer.from('300602010102010121', 'hex') }],
+    });
+
+    expect(() => psbt.finalizeInput(0)).toThrow('Invalid hashType 33');
+  });
+});
