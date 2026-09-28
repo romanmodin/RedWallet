@@ -2,6 +2,7 @@ import { element, waitFor } from 'detox';
 
 import {
   dismissAlertByText,
+  dismissMnemonicKeyboard,
   getSwitchValue,
   goBack,
   waitForSwitchValue,
@@ -104,6 +105,7 @@ describe('RedWallet XBT-only release UI', () => {
     await element(by.id('ImportWallet')).tap();
     await waitForId('MnemonicInput');
     await element(by.id('MnemonicInput')).replaceText(mnemonic);
+    await dismissMnemonicKeyboard();
     await withoutIosAlertSynchronization(async () => {
       await element(by.id('DoImport')).tap();
       await waitForText('Your wallet has been successfully imported.');

@@ -123,6 +123,21 @@ export async function waitForSwitchValue(switchId, expectedValue, timeoutMs = 80
   rethrowWithCallsite(lastErr || new Error(`Timed out waiting for ${switchId} == ${expectedValue}`), callsite);
 }
 
+// iOS keeps the multiline import field focused after replaceText. Dismiss
+// its keyboard through the same Done accessory used on a phone before tapping
+// Import; do not bypass Detox visibility checks or alter the recovery assertions.
+export async function dismissMnemonicKeyboard() {
+  if (device.getPlatform() !== 'ios') return;
+  await element(by.id('MnemonicInput')).tap();
+  await waitFor(element(by.text('Done')))
+    .toBeVisible()
+    .withTimeout(10000);
+  await element(by.text('Done')).tap();
+  await waitFor(element(by.id('DoImport')))
+    .toBeVisible(100)
+    .withTimeout(10000);
+}
+
 export async function helperImportWallet(importText, walletType, expectedWalletLabel, expectedBalance, passphrase) {
   await waitForId('WalletsList');
   await waitFor(element(by.id('CreateAWallet')))
@@ -135,6 +150,7 @@ export async function helperImportWallet(importText, walletType, expectedWalletL
   if (walletType === 'watchOnly') throw new Error('Watch-only import is not supported in the XBT-only prototype.');
   await waitForId('MnemonicInput');
   await element(by.id('MnemonicInput')).replaceText(importText);
+  await dismissMnemonicKeyboard();
   if (passphrase) {
     await element(by.id('HeaderMenuButton')).tap();
     await element(by.text('Passphrase')).tap();
