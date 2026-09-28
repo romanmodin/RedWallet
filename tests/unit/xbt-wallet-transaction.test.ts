@@ -1,0 +1,71 @@
+import * as bitcoin from 'bitcoinjs-lib';
+
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
+
+jest.mock('../../blue_modules/BlueElectrum', () => ({}));
+
+const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+const coinbaseTxid = '0'.repeat(64);
+const ordinaryTxid = '11'.repeat(64);
+const fundingTxid = '0123456789abcdef'.repeat(4);
+
+describe('XBT wallet transaction flow', () => {
+  function createWalletWithParent(inputs: { txid: string; vout: number }[], confirmations: number) {
+    const wallet = new XbtSegwitBech32Wallet();
+    wallet.setSecret(mnemonic);
+    jest.spyOn(wallet, 'getTransactions').mockReturnValue([{ txid: fundingTxid, inputs, confirmations } as any]);
+    return wallet;
+  }
+
+  it('builds and signs a wallet transaction with Unified Sighash', () => {
+    const wallet = createWalletWithParent([{ txid: ordinaryTxid, vout: 0 }], 100);
+    const sourceAddress = wallet._getExternalAddressByIndex(0);
+    const destinationAddress = wallet._getExternalAddressByIndex(1);
+    const changeAddress = wallet._getInternalAddressByIndex(0);
+
+    const { tx, psbt } = wallet.createTransaction(
+      [{ txid: fundingTxid, vout: 0, address: sourceAddress, value: 100_000, confirmations: 100 }],
+      [{ address: destinationAddress, value: 50_000 }],
+      1,
+      changeAddress,
+    );
+
+    expect(tx).toBeDefined();
+    const decoded = bitcoin.Transaction.fromHex(tx!.toHex());
+    expect(decoded.ins).toHaveLength(1);
+    expect(Buffer.from(decoded.ins[0].hash)).toEqual(Buffer.from(fundingTxid, 'hex').reverse());
+    expect(decoded.ins[0].witness).toHaveLength(2);
+    expect(decoded.ins[0].witness[0][decoded.ins[0].witness[0].length - 1]).toBe(0x21);
+    expect(decoded.ins[0].witness[1]).toHaveLength(33);
+    expect(psbt.data.inputs[0].finalScriptWitness).toBeDefined();
+    const destinationScript = Buffer.from(bitcoin.address.toOutputScript(destinationAddress));
+    expect(decoded.outs.some(output => Buffer.from(output.script).equals(destinationScript))).toBe(true);
+  });
+
+  it('refuses to sign when the input parent is not available to verify coinbase status', () => {
+    const wallet = createWalletWithParent([{ txid: ordinaryTxid, vout: 0 }], 100);
+    jest.spyOn(wallet, 'getTransactions').mockReturnValue([]);
+
+    expect(() =>
+      wallet.createTransaction(
+        [{ txid: fundingTxid, vout: 0, address: wallet._getExternalAddressByIndex(0), value: 100_000, confirmations: 100 }],
+        [{ address: wallet._getExternalAddressByIndex(1), value: 50_000 }],
+        1,
+        wallet._getInternalAddressByIndex(0),
+      ),
+    ).toThrow('Cannot verify XBT input transaction and coinbase maturity');
+  });
+
+  it('refuses to sign an immature coinbase input', () => {
+    const wallet = createWalletWithParent([{ txid: coinbaseTxid, vout: 0xffffffff }], 6479);
+
+    expect(() =>
+      wallet.createTransaction(
+        [{ txid: fundingTxid, vout: 0, address: wallet._getExternalAddressByIndex(0), value: 100_000, confirmations: 6479 }],
+        [{ address: wallet._getExternalAddressByIndex(1), value: 50_000 }],
+        1,
+        wallet._getInternalAddressByIndex(0),
+      ),
+    ).toThrow('XBT coinbase outputs require 6480 confirmations before spending');
+  });
+});
