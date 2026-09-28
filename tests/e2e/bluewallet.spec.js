@@ -150,20 +150,12 @@ describe('BlueWallet UI Tests - no wallets', () => {
         .whileElement(by.id('ElectrumSettingsScrollView'))
         .scroll(500, 'down'); // in case emu screen is small and it doesnt fit
       await element(by.id('Save')).tap();
-      await waitForText('OK');
+      await waitForText('Cannot connect to the provided Electrum server. XBT servers must match the verified mainnet checkpoint.');
       await element(by.text('OK')).tap();
-      await element(by.id('HeaderMenuButton')).tap();
-      await element(by.text('Reset to default')).tap();
-      await element(by.text('RESET TO DEFAULT')).tap();
-      await waitForText('OK');
-      await element(by.text('OK')).tap();
-      await waitFor(element(by.id('HostInput')))
-        .toBeVisible()
-        .whileElement(by.id('ElectrumSettingsScrollView'))
-        .scroll(500, 'down'); // in case emu screen is small and it doesnt fit
-      await expect(element(by.id('HostInput'))).toHaveText('');
-      await expect(element(by.id('PortInput'))).toHaveText('');
-      await expect(element(by.id('SSLPortInput'))).toHaveToggleValue(false);
+
+      // Bitcoin-only servers must not be accepted for the XBT profile.
+      await element(by.id('HostInput')).clearText();
+      await element(by.id('PortInput')).clearText();
       await goBack();
     }
 

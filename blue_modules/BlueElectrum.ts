@@ -553,7 +553,11 @@ export async function ensureConnected(opts: EnsureConnectedOptions = {}): Promis
       }
 
       setConnectionState('disconnected');
-      if (ensureInFlightShowAlert) {
+      // A missing preferred server is a normal first-run state for RedWallet:
+      // users must configure an XBT-compatible endpoint before the wallet can sync.
+      // Keep the wallet screen usable and let the disconnected-state help action
+      // explain setup instead of blocking every launch with an alert.
+      if (ensureInFlightShowAlert && lastPeer) {
         // eslint-disable-next-line @typescript-eslint/no-use-before-define -- defined later in file
         presentNetworkErrorAlert(lastPeer);
       }
