@@ -80,8 +80,8 @@ slashes.
   fee calculation, signing, broadcast, confirmation, and change are exercised
   together in an isolated environment. Existing read-only Fulcrum checks and
   regtest signer acceptance do not establish this whole flow.
-- Independent Bitcoin-node rejection remains separate from the passing
-  BIP143 digest negative control.
+- Preserve the independent Bitcoin-node rejection regression recorded in
+  XBT_VALIDATION.md; the offline digest negative control is a separate check.
 - Physical iPhone checks cover first launch, recovery/restart, receive QR,
   camera scanning, VPN/server access, biometric/keychain behavior, and the
   send confirmation screen. Any real-funds transfer requires the owner's

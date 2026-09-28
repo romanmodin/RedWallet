@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "description": "Public BIP84 replay check on isolated Bitcoin Core regtest. No production funds or network.",
+  "observedAt": "2026-09-28T21:03:16Z",
+  "nodeVersion": "/Satoshi:29.0.0/",
+  "networkactive": false,
+  "connections": 0,
+  "fixture": {
+    "chain": "regtest",
+    "implementation": "Bitcoin Core",
+    "fundingHex": "020000000001012d7922931b708a81c1f2c848da4007154b3c2897b0894b96b63c9f3ad5a813720000000000fdffffff03b46a042a01000000160014d034d5ab174d46960b44e84f7122a1d86f7a3ed260ea000000000000160014c0cebcd6c3d3ca8c75dc5ec62ebe55330ef910e2409c0000000000001600149c90f934ea51fa0f6504177043e0908da69299830247304402201fdffceaaf176aa26383d3d8b6c45f83ab333a6486f95e493a5ba3f1e0636b0b02202403098268ec5edb47e14356e69644128d423b7729d7f569293d5f8c4ce2dcae012102292e54c945a09dc19b278249f55b43cec7bc27bfaa4c7767990a1de07db76a8a65000000",
+    "confirmations": 1
+  },
+  "signed": {
+    "purpose": "Public BIP84 fixture on isolated Bitcoin Core regtest only",
+    "txid": "2829c3303527361f72b2349d54599bf28d8714b61275a7c935e9a7c18d89e631",
+    "inputs": [
+      {
+        "txid": "d315dc65f666ac34af4a63f7bbaf2e3f60889e3ab12cb4132bcd61ddb3b362e6",
+        "vout": 1,
+        "value": 60000,
+        "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+        "confirmations": 1
+      },
+      {
+        "txid": "d315dc65f666ac34af4a63f7bbaf2e3f60889e3ab12cb4132bcd61ddb3b362e6",
+        "vout": 2,
+        "value": 40000,
+        "address": "bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g",
+        "confirmations": 1
+      }
+    ],
+    "unifiedHex": "02000000000102e662b3b3dd61cd2b13b42cb13a9e88603f2eafbbf7634aaf34ac66f665dc15d3010000000000000080e662b3b3dd61cd2b13b42cb13a9e88603f2eafbbf7634aaf34ac66f665dc15d302000000000000008002905f0100000000001600140d0a4c5855ee698ae52872a147248c189fdff7c33a260000000000001600143e34985dca6fddc9fb369940e4c7d8e2873f529c02483045022100d569a745eebe86ff10a90f482dfde3007fbcff2e31f601c1e7a806639bc4ce9602201b151d883f638fd01c1a2d5a1ec754eedb51b280e4fed0f556f2f04f53522c6521210330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c02473044022031847d9d0fb6b7dd1248e461a3a49a65d98c3811f6ccd75fcee58c614a509df6022057a4967398ebbb7315ab755f778ee1c7c3065b9dd3c0e5f89d659d5d4ea49d66212103e775fd51f0dfb8cd865d9ff1cca2a158cf651fe997fdc9fee9c1d3b5e995ea7700000000",
+    "strippedUnifiedHex": "02000000000102e662b3b3dd61cd2b13b42cb13a9e88603f2eafbbf7634aaf34ac66f665dc15d3010000000000000080e662b3b3dd61cd2b13b42cb13a9e88603f2eafbbf7634aaf34ac66f665dc15d302000000000000008002905f0100000000001600140d0a4c5855ee698ae52872a147248c189fdff7c33a260000000000001600143e34985dca6fddc9fb369940e4c7d8e2873f529c02483045022100d569a745eebe86ff10a90f482dfde3007fbcff2e31f601c1e7a806639bc4ce9602201b151d883f638fd01c1a2d5a1ec754eedb51b280e4fed0f556f2f04f53522c6501210330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c02473044022031847d9d0fb6b7dd1248e461a3a49a65d98c3811f6ccd75fcee58c614a509df6022057a4967398ebbb7315ab755f778ee1c7c3065b9dd3c0e5f89d659d5d4ea49d66012103e775fd51f0dfb8cd865d9ff1cca2a158cf651fe997fdc9fee9c1d3b5e995ea7700000000",
+    "bitcoinControlHex": "02000000000102e662b3b3dd61cd2b13b42cb13a9e88603f2eafbbf7634aaf34ac66f665dc15d3010000000000000080e662b3b3dd61cd2b13b42cb13a9e88603f2eafbbf7634aaf34ac66f665dc15d302000000000000008002905f0100000000001600140d0a4c5855ee698ae52872a147248c189fdff7c33a260000000000001600143e34985dca6fddc9fb369940e4c7d8e2873f529c02473044022054a826f373411c6acdc53e1e5d8c4e3490e64b365d750bf39cea99b01f8ac64a022042f677889e675d1e81cf0d729ddbc5d9cac4269631e8aeaadd7884c3225283bf01210330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c024730440220693044386789a91765a5165fad71ed1fe299c6f077ab6be3313eed921628836502201b9514487c08e9bcffd75fb1bfb9728a26397079f8e542ace82abb27051e701a012103e775fd51f0dfb8cd865d9ff1cca2a158cf651fe997fdc9fee9c1d3b5e995ea7700000000"
+  },
+  "receipts": {
+    "unifiedHex": {
+      "txid": "2829c3303527361f72b2349d54599bf28d8714b61275a7c935e9a7c18d89e631",
+      "wtxid": "abaf25f5b1dbb337267730b024d087c2f449014af2f00badd6a803abc5e1c2c0",
+      "allowed": false,
+      "reject-reason": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
+      "reject-details": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of 2829c3303527361f72b2349d54599bf28d8714b61275a7c935e9a7c18d89e631 (wtxid abaf25f5b1dbb337267730b024d087c2f449014af2f00badd6a803abc5e1c2c0), spending d315dc65f666ac34af4a63f7bbaf2e3f60889e3ab12cb4132bcd61ddb3b362e6:1"
+    },
+    "strippedUnifiedHex": {
+      "txid": "2829c3303527361f72b2349d54599bf28d8714b61275a7c935e9a7c18d89e631",
+      "wtxid": "327ee6486299488fa07eb238bd297d14a917567026f9e0864a2053578a4001a1",
+      "allowed": false,
+      "reject-reason": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
+      "reject-details": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of 2829c3303527361f72b2349d54599bf28d8714b61275a7c935e9a7c18d89e631 (wtxid 327ee6486299488fa07eb238bd297d14a917567026f9e0864a2053578a4001a1), spending d315dc65f666ac34af4a63f7bbaf2e3f60889e3ab12cb4132bcd61ddb3b362e6:1"
+    },
+    "bitcoinControlHex": {
+      "txid": "2829c3303527361f72b2349d54599bf28d8714b61275a7c935e9a7c18d89e631",
+      "wtxid": "5447aabe70156f7de5b930c8b78c424eca2300fea2f4cda0f78025ec94af7d0a",
+      "allowed": true,
+      "vsize": 208,
+      "fees": {
+        "base": 2.14e-06,
+        "effective-feerate": 1.028e-05,
+        "effective-includes": [
+          "5447aabe70156f7de5b930c8b78c424eca2300fea2f4cda0f78025ec94af7d0a"
+        ]
+      }
+    }
+  },
+  "bitcoinControlConfirmations": 1,
+  "archiveSha256": "a681e4f6ce524c338a105f214613605bac6c33d58c31dc5135bbc02bc458bb6c",
+  "implementationCommit": "c12e63271acbafe5f456653bf9dbdccb134bcf16"
+}
