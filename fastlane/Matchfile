@@ -7,20 +7,20 @@ git_url(ENV["GIT_URL"])
 # Default to "appstore" but can be overridden
 type(ENV["MATCH_TYPE"] || "appstore")
 
-# App identifiers for all BlueWallet apps
+# App identifiers for the RedWallet app and extensions
 app_identifier([
-  "io.bluewallet.bluewallet", 
-  "io.bluewallet.bluewallet.watch", 
-  "io.bluewallet.bluewallet.watch.extension", 
-  "io.bluewallet.bluewallet.Stickers", 
-  "io.bluewallet.bluewallet.MarketWidget"
+  "com.romanmodin.redwallet",
+  "com.romanmodin.redwallet.watch",
+  "com.romanmodin.redwallet.watch.extension",
+  "com.romanmodin.redwallet.Stickers",
+  "com.romanmodin.redwallet.MarketWidget"
 ])
 
 # Your Apple Developer account email address
 username(ENV["APPLE_ID"])
 
 # The ID of your Apple Developer team
-team_id(ENV["ITC_TEAM_ID"])
+team_id(ENV["TEAM_ID"])
 
 # Set readonly based on environment (default to true for safety)
 # Set to false explicitly when new profiles need to be created

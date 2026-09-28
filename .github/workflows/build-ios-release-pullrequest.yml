@@ -9,6 +9,12 @@ on:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: Upload this branch build to TestFlight after signing is configured
+        required: true
+        type: boolean
+        default: false
 
 concurrency:
   group: build-ios-release-${{ github.ref }}
@@ -301,6 +307,7 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           GIT_ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
           GIT_URL: ${{ secrets.GIT_URL }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
           ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
           ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
@@ -309,6 +316,8 @@ jobs:
 
       - name: Build App
         id: build_app
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
           echo -e "\033[1;34m==================== BUILD APP DEBUG ====================\033[0m"
           echo -e "\033[1;36mPre-Build Environment Check:\033[0m"
@@ -481,7 +490,7 @@ jobs:
   testflight-upload:
     needs: build
     runs-on: macos-26
-    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'testflight')
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight) || contains(github.event.pull_request.labels.*.name, 'testflight')
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       NEW_BUILD_NUMBER: ${{ needs.build.outputs.new_build_number }}
