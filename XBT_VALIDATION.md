@@ -137,3 +137,61 @@ checking deterministic signing, but does not replace a new isolated node run.
 
 [Knots activated-fork functional test at v29.4.2.knots20260508](https://github.com/bitcoinknots/bitcoin/blob/v29.4.2.knots20260508/test/functional/feature_unified_sighash.py)
 defines the activation parameters and Unified P2WPKH acceptance behavior.
+
+## Live Fulcrum read path — passed 2026-09-28
+
+The application network adapter connected from the development workstation to
+its privately configured XBT Fulcrum server and verified the pinned checkpoint.
+Knots independently reported mainnet height **974565**, no initial block download,
+and this public, unspent P2WPKH output from that block:
+
+- Transaction: `4daccb142526f1c60180b64d870d77dc61e83c8fe4784d6fc6e83c1249c11855`, output `0`.
+- Address: `bc1q54xzx6f3882ecl42sa8q56celep09jhkuhmet4`.
+- Value: **44,873,580 sats**; coinbase output.
+- Block: `0000000000000000b8f4aad46643974a0bf557df02fb0a83a51f4c4bbc4263ee`.
+
+The real `BlueElectrum` connection and batch history/UTXO/balance methods passed
+against this output. The observed address had 392 history entries and 233 raw
+UTXOs; the app reported tip 974565 and fee estimates of 2 sat/vB for each speed.
+These are observations at test time, not current balances or recommended fees.
+Raw UTXOs include immature coinbases; this test does not mark them spendable.
+Coinbase selection remains covered separately by maturity tests.
+
+The test uses the existing in-memory Jest preferences adapter and a real TCP
+socket. It does not exercise iOS storage, a phone VPN route, wallet history
+presentation, parent-transaction caching, spend selection, or broadcasting.
+No private wallet was loaded, and no mainnet transaction was signed or sent.
+
+Reproduce with a fresh public output independently checked using Knots
+`getblock` and `gettxout`. Save JSON containing `chain`, `height`, `address`,
+`txid`, `vout`, and integer `valueSats`; then run:
+
+```sh
+XBT_FULCRUM_HOST=<private-host> XBT_FULCRUM_TCP_PORT=<private-port> \
+  XBT_FULCRUM_FIXTURE=/tmp/public-output.json \
+  npx jest --runInBand tests/integration/xbt-fulcrum-live.test.ts
+```
+
+Both tests skip without explicit endpoint configuration. The broader read-path
+test also requires the fixture path. Endpoints and credentials are not committed.
+
+## Bitcoin digest rejection — passed 2026-09-28
+
+For both inputs of the Knots-accepted transaction, the recorded ECDSA signatures
+verify under Unified Sighash and fail under bitcoinjs-lib's independent Bitcoin
+[BIP143](https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki) digest.
+The negative check covers both the unchanged `0x21` signature type and an attacker
+stripping the Unified bit to `0x01`.
+
+This is a cryptographic regression check over the same transaction, scripts,
+amounts, public keys, and signatures. It does not replace rejection by an
+independent Bitcoin node, which remains a release gate. The three signing suites
+passed locally with 14 tests, including this new control.
+
+## Native CI checkpoint — commit 65d710ce6
+
+GitHub run 31 passed lint and 65 unit suites (601 tests passed, 1 skipped).
+Android compiled and passed all 3 selected UI suites (12 passed, 5 explicitly
+deferred tests skipped), including manual-price save/restart/clear. The iOS
+simulator build passed; its UI run was still active when this checkpoint was
+recorded. This is not a signed device build or a TestFlight upload.

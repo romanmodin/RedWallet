@@ -49,5 +49,6 @@ handling, request cancellation, persistence ordering, exact balance estimates,
 and operation locking without contacting the exchange.
 
 A Detox test covers manual save, app restart, restored quote, and clear.
-Simulator execution is a separate pending gate; local unit success does not
-establish native-device or TestFlight readiness.
+Android simulator execution passed on commit `65d710ce6` (GitHub run 31).
+iOS UI execution remains a separate pending gate; these checks do not establish
+physical-device or TestFlight readiness.

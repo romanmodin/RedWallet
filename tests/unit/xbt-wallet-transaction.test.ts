@@ -115,6 +115,36 @@ describe('XBT wallet transaction flow', () => {
     }
   });
 
+  it('rejects the Knots-accepted signatures under Bitcoin BIP143, including a stripped Unified flag', () => {
+    const tx = bitcoin.Transaction.fromHex(knotsAcceptance.signed.goodHex);
+    const parents = new Map(
+      knotsAcceptance.fixture.fundingTransactions.map(funding => {
+        const parent = bitcoin.Transaction.fromHex(funding.rawTx);
+        return [parent.getId(), parent];
+      }),
+    );
+    const spentOutputs = tx.ins.map(input => {
+      const parent = parents.get(Buffer.from(input.hash).reverse().toString('hex'))!;
+      expect(parent).toBeDefined();
+      return parent.outs[input.index];
+    });
+    tx.ins.forEach((input, index) => {
+      const [signature, publicKey] = input.witness;
+      expect(signature[signature.length - 1]).toBe(0x21);
+      const compact = derSignatureToCompact(Buffer.from(signature.subarray(0, -1)));
+      const scriptCode = bitcoin.payments.p2pkh({ hash: bitcoin.crypto.hash160(publicKey) }).output!;
+      const unifiedDigest = unifiedSegwitV0SighashAll(tx, index, spentOutputs, scriptCode);
+      expect(ecc.verify(unifiedDigest, publicKey, compact)).toBe(true);
+      // bitcoinjs-lib's independent BIP143 digest, not the custom Unified implementation.
+      // Check the actual 0x21 byte as well as an attacker changing it to SIGHASH_ALL.
+      for (const hashType of [0x21, bitcoin.Transaction.SIGHASH_ALL]) {
+        const bitcoinDigest = tx.hashForWitnessV0(index, scriptCode, spentOutputs[index].value, hashType);
+        expect(Buffer.from(bitcoinDigest).equals(unifiedDigest)).toBe(false);
+        expect(ecc.verify(bitcoinDigest, publicKey, compact)).toBe(false);
+      }
+    });
+  });
+
   it('refuses to sign when the input parent is not available to verify coinbase status', () => {
     const wallet = createWalletWithParent([{ txid: ordinaryTxid, vout: 0 }], 100);
     jest.spyOn(wallet, 'getTransactions').mockReturnValue([]);
