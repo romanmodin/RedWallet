@@ -26,6 +26,20 @@ See XBT_VALIDATION.md for recorded results and their limits.
    access must be explicitly authorized; do not place keys in source, chat,
    screenshots, logs, or public artifacts.
 
+## Apple setup checkpoint (2026-09-28)
+
+- Paid individual membership is active; organization conversion remains pending.
+- Main and sticker bundle IDs above are registered on the intended owner team.
+- `group.com.romanmodin.redwallet` is registered and assigned to the main app.
+- App Store Connect record created as **RedWallet XBT** (Apple app ID
+  `6817118871`, SKU `redwallet-ios`). The shorter store name was unavailable.
+  The device display name remains RedWallet.
+- Apple API access is not yet enabled. Its internal-use agreement is prepared
+  for account-owner confirmation. No API key, certificate, or provisioning
+  profile has been created by this setup work.
+- GitHub signing secrets are not yet configured. No signed IPA or TestFlight
+  build exists from this checkpoint.
+
 ## GitHub Actions configuration
 
 The iOS release workflow uses these repository secrets:
