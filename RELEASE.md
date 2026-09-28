@@ -34,9 +34,10 @@ See XBT_VALIDATION.md for recorded results and their limits.
 - App Store Connect record created as **RedWallet XBT** (Apple app ID
   `6817118871`, SKU `redwallet-ios`). The shorter store name was unavailable.
   The device display name remains RedWallet.
-- Apple API access is not yet enabled. Its internal-use agreement is prepared
-  for account-owner confirmation. No API key, certificate, or provisioning
-  profile has been created by this setup work.
+- Apple API access was approved after the account owner authorized the
+  internal-use agreement. The RedWallet GitHub Builds key is prepared with
+  the App Manager role, pending explicit creation and storage authorization.
+  No API key, certificate, or provisioning profile has been created yet.
 - GitHub signing secrets are not yet configured. No signed IPA or TestFlight
   build exists from this checkpoint.
 
