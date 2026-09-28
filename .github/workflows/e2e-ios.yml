@@ -219,6 +219,7 @@ jobs:
         timeout-minutes: 360
         run: |
           npm run e2e:test:ios-release -- \
+            tests/e2e/xbt-wallet.spec.js \
             --record-videos failing \
             --record-logs failing \
             --take-screenshots failing \
