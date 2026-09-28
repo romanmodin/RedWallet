@@ -222,7 +222,7 @@ jobs:
           git diff --name-only "$(cat simulator-source.txt)" HEAD > source-diff.txt
           python3 - <<'PYCODE'
           from pathlib import Path
-          allowed = ('tests/', '.github/', 'RELEASE.md', 'PROJECT_SCOPE.md', 'XBT_VALIDATION.md')
+          allowed = ('tests/', '.github/', 'RELEASE.md', 'PROJECT_SCOPE.md', 'XBT_VALIDATION.md', 'fastlane/Fastfile', 'fastlane/Matchfile')
           changed = Path('source-diff.txt').read_text().splitlines()
           if any(not path.startswith(allowed) for path in changed):
               raise SystemExit('App source differs: build a fresh simulator artifact')
