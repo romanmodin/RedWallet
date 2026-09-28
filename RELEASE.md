@@ -38,9 +38,29 @@ See XBT_VALIDATION.md for recorded results and their limits.
   The key is stored in the app repository's encrypted Actions secrets.
   Distribution signing material was created successfully by the release workflow.
 - Signing secrets and a private Match repository are configured. Its deploy
-  key can access only that repository. No signed IPA or TestFlight build exists
-  from this checkpoint. The internal Roman iPhone Testing group contains the
-  owner account, with automatic build distribution disabled until verification.
+  key can access only that repository. The signed IPA passed signature, profile,
+  entitlement, bundle identity and architecture verification. Apple processed
+  version 8.0.1 (1790631720), and the Roman iPhone Testing group now contains
+  one build and the invited owner account. Automatic distribution remains off.
+
+## First owner device-testing checkpoint (2026-09-28)
+
+- Signed source: `af92c80f3cf58a3d65fec870296280e133c05dd2`.
+- Native release run: `36487156965`; verification run: `36489720701`;
+  successful upload run: `36489908219`.
+- IPA SHA-256: `f9ae1b813d4216d7590426b74cab7cc9befb7ac1388ac2e5917a49fa638596b2`.
+- App Store Connect confirmed upload Complete, group assignment, and owner
+  Invited. This makes an initial physical-device smoke test possible.
+- Unit/lint checks passed (602 unit tests passed, one skipped); Android UI
+  run `36482992432` passed. iOS UI run `36482992401` remains in progress at
+  this checkpoint and must not be reported as passing.
+- The actual app adapter connected to the owner's home-LAN Fulcrum and passed
+  the pinned XBT checkpoint check. The laptop was not on the tailnet, so its
+  failed tailnet attempt does not validate or invalidate the phone VPN path.
+- Start physical testing with an empty disposable wallet: launch, create,
+  receive address/QR, restart persistence, recovery and server settings.
+  Do not treat installability as completion of the readiness gates below;
+  combined spend/broadcast/confirmation and physical-device checks remain open.
 
 ## GitHub Actions configuration
 
