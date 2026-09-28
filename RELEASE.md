@@ -36,10 +36,11 @@ See XBT_VALIDATION.md for recorded results and their limits.
   The device display name remains RedWallet.
 - Apple API access and the App Manager build key were approved by the owner.
   The key is stored in the app repository's encrypted Actions secrets.
-  No distribution certificate or provisioning profile has been created yet.
+  Distribution signing material was created successfully by the release workflow.
 - Signing secrets and a private Match repository are configured. Its deploy
   key can access only that repository. No signed IPA or TestFlight build exists
-  from this checkpoint.
+  from this checkpoint. The internal Roman iPhone Testing group contains the
+  owner account, with automatic build distribution disabled until verification.
 
 ## GitHub Actions configuration
 
