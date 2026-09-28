@@ -252,7 +252,8 @@ const startImport = (
 
     // check bip39 wallets
     yield { progress: 'bip39' };
-    const hd2 = new HDSegwitBech32Wallet();
+    // When discovery finds no used account, default a valid BIP39 seed to RedWallet XBT.
+    const hd2 = new XbtSegwitBech32Wallet();
     hd2.setSecret(text);
     if (password) {
       hd2.setPassphrase(password);
