@@ -1,6 +1,15 @@
 import { element, waitFor } from 'detox';
 
-import { helperCreateWallet, waitForId, waitForKeyboardToClose, tapAndTapAgainIfElementIsNotVisible } from './helperz';
+import {
+  dismissAlertByText,
+  helperCreateWallet,
+  scrollUpOnHomeScreen,
+  waitForId,
+  waitForKeyboardToClose,
+  waitForLabel,
+  waitForText,
+  tapAndTapAgainIfElementIsNotVisible,
+} from './helperz';
 
 /** UI smoke coverage for the features included in the first XBT release. */
 describe('RedWallet XBT-only release UI', () => {
@@ -39,5 +48,35 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForKeyboardToClose();
     await tapAndTapAgainIfElementIsNotVisible('CustomAmountSaveButton', 'CustomAmountDescriptionText');
     await expect(element(by.id('BitcoinAmountText'))).toHaveText('1 XBT');
+  });
+
+  it('restores the published BIP84 recovery phrase and preserves its receive address after restart', async () => {
+    // Public BIP84 test vector. This test never sends funds or uses a private recovery phrase.
+    const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+    const expectedAddress = 'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu';
+    const walletLabel = 'Imported XBT SegWit (BIP84)';
+
+    await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'ImportWallet');
+    await element(by.id('ImportWallet')).tap();
+    await waitForId('MnemonicInput');
+    await element(by.id('MnemonicInput')).replaceText(mnemonic);
+    await element(by.id('DoImport')).tap();
+    await waitForText('Your wallet has been successfully imported.');
+    if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss successful recovery confirmation');
+    await waitForId('WalletsList');
+    await scrollUpOnHomeScreen();
+    await waitForId(walletLabel);
+    await tapAndTapAgainIfElementIsNotVisible(walletLabel, 'ReceiveButton');
+    await element(by.id('ReceiveButton')).tap();
+    await waitForId('BitcoinAddressQRCode');
+    await waitForLabel(expectedAddress);
+
+    await device.launchApp({ newInstance: true });
+    await waitForId('WalletsList');
+    await waitForId(walletLabel);
+    await tapAndTapAgainIfElementIsNotVisible(walletLabel, 'ReceiveButton');
+    await element(by.id('ReceiveButton')).tap();
+    await waitForId('BitcoinAddressQRCode');
+    await waitForLabel(expectedAddress);
   });
 });

@@ -218,8 +218,9 @@ jobs:
       - name: Run detox tests
         timeout-minutes: 360
         run: |
+          # Retain supported inherited coverage; bluewallet2 requires a funded Bitcoin fixture.
           npm run e2e:test:ios-release -- \
-            tests/e2e/xbt-wallet.spec.js \
+            tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js \
             --record-videos failing \
             --record-logs failing \
             --take-screenshots failing \

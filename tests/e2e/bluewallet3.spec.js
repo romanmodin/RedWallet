@@ -22,6 +22,7 @@ describe('RedWallet XBT-only import', () => {
     );
     await element(by.id('DoImport')).tap();
     await waitForText('RedWallet currently imports a BIP39 recovery phrase for its XBT BIP84 wallet.', 30_000);
-    await dismissAlertByText('OK');
+    if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss unsupported import error');
+    await expect(element(by.text('Imported XBT SegWit (BIP84)'))).not.toExist();
   });
 });
