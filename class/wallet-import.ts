@@ -7,6 +7,7 @@ import { HDLegacyBreadwalletWallet } from './wallets/hd-legacy-breadwallet-walle
 import { HDLegacyElectrumSeedP2PKHWallet } from './wallets/hd-legacy-electrum-seed-p2pkh-wallet';
 import { HDLegacyP2PKHWallet } from './wallets/hd-legacy-p2pkh-wallet';
 import { HDSegwitBech32Wallet } from './wallets/hd-segwit-bech32-wallet';
+import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
 import { HDSegwitElectrumSeedP2WPKHWallet } from './wallets/hd-segwit-electrum-seed-p2wpkh-wallet';
 import { HDSegwitP2SHWallet } from './wallets/hd-segwit-p2sh-wallet';
 import { HDTaprootWallet } from './wallets/hd-taproot-wallet';
@@ -282,11 +283,14 @@ const startImport = (
             WalletClass = HDTaprootWallet;
             break;
           default:
-            // p2wpkh
+            // p2wpkh; the exact XBT account path selects its custom signer below.
             WalletClass = HDSegwitBech32Wallet;
         }
         for (const path of paths) {
-          const wallet = new WalletClass();
+          // RedWallet's BIP84 account uses the XBT Unified Sighash signer.
+          const WalletForPath =
+            i.script_type === 'p2wpkh' && path === XbtSegwitBech32Wallet.derivationPath ? XbtSegwitBech32Wallet : WalletClass;
+          const wallet = new WalletForPath();
           wallet.setSecret(text);
           if (password) {
             wallet.setPassphrase(password);

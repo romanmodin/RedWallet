@@ -6,7 +6,7 @@ import debounce from '../../blue_modules/debounce';
 import BlueFormLabel from '../../components/BlueFormLabel';
 import BlueTextCentered from '../../components/BlueTextCentered';
 import { HDLegacyP2PKHWallet } from '../../class/wallets/hd-legacy-p2pkh-wallet';
-import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { HDSegwitP2SHWallet } from '../../class/wallets/hd-segwit-p2sh-wallet';
 import { HDTaprootWallet } from '../../class/wallets/hd-taproot-wallet';
 import { validateBip32 } from '../../class/wallet-import';
@@ -61,7 +61,7 @@ const ImportCustomDerivationPath: React.FC = () => {
 
       // create wallets
       const newWallets: { [type: string]: TWallet } = {};
-      for (const Wallet of [HDLegacyP2PKHWallet, HDSegwitP2SHWallet, HDSegwitBech32Wallet, HDTaprootWallet]) {
+      for (const Wallet of [HDLegacyP2PKHWallet, HDSegwitP2SHWallet, XbtSegwitBech32Wallet, HDTaprootWallet]) {
         const wallet = new Wallet();
         wallet.setSecret(importText);
         if (password) {
@@ -107,7 +107,7 @@ const ImportCustomDerivationPath: React.FC = () => {
     return [
       [HDLegacyP2PKHWallet.type, HDLegacyP2PKHWallet.typeReadable, used[path]?.[HDLegacyP2PKHWallet.type]],
       [HDSegwitP2SHWallet.type, HDSegwitP2SHWallet.typeReadable, used[path]?.[HDSegwitP2SHWallet.type]],
-      [HDSegwitBech32Wallet.type, HDSegwitBech32Wallet.typeReadable, used[path]?.[HDSegwitBech32Wallet.type]],
+      [XbtSegwitBech32Wallet.type, XbtSegwitBech32Wallet.typeReadable, used[path]?.[XbtSegwitBech32Wallet.type]],
       [HDTaprootWallet.type, HDTaprootWallet.typeReadable, used[path]?.[HDTaprootWallet.type]],
     ];
   }, [path, used, wallets]);
