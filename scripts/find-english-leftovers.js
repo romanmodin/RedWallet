@@ -64,7 +64,6 @@ const KEY_EXCEPTIONS = new Set([
   'wallets.details_master_fingerprint',  // "Master Fingerprint" — BIP32
   'wallets.identity_pubkey',             // "Identity Pubkey" — LN
   'wallets.details_derivation_path',     // "derivation path" — BIP32/44
-  'wallets.import_derivation_title',     // "Derivation path"
   'wallets.details_multisig_type',       // "multisig"
   'wallets.xpub_title',                  // "Wallet XPUB"
   'settings.block_explorer',             // "Block Explorer"

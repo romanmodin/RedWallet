@@ -2,10 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { ActivityIndicator, FlatList, Platform, StyleSheet, View } from 'react-native';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
-import BlueButtonLink from '../../components/BlueButtonLink';
 import BlueFormLabel from '../../components/BlueFormLabel';
 import BlueText from '../../components/BlueText';
-import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import startImport, { TImport } from '../../class/wallet-import';
 import presentAlert from '../../components/Alert';
@@ -44,16 +42,9 @@ const ImportWalletDiscovery: React.FC = () => {
   const { addAndSaveWallet } = useStorage();
   const [loading, setLoading] = useState<boolean>(true);
   const [wallets, setWallets] = useState<WalletEntry[]>([]);
-  const [password, setPassword] = useState<string | undefined>();
   const [selected, setSelected] = useState<number>(0);
   const [progress, setProgress] = useState<string | undefined>();
   const importing = useRef<boolean>(false);
-  const bip39 = useMemo(() => {
-    const hd = new HDSegwitBech32Wallet();
-    hd.setSecret(importText);
-    return hd.validateMnemonic();
-  }, [importText]);
-
   const stylesHook = StyleSheet.create({
     root: {
       backgroundColor: colors.elevated,
@@ -107,7 +98,6 @@ const ImportWalletDiscovery: React.FC = () => {
     const onPassword = async (title: string, subtitle: string) => {
       try {
         const pass = await prompt(title, subtitle);
-        setPassword(pass);
         return pass;
       } catch (e: any) {
         if (e.message === 'Cancel Pressed') {
@@ -117,7 +107,7 @@ const ImportWalletDiscovery: React.FC = () => {
       }
     };
 
-    task.current = startImport(importText, askPassphrase, searchAccounts, isElectrumDisabled, onProgress, onWallet, onPassword);
+    task.current = startImport(importText, askPassphrase, searchAccounts, isElectrumDisabled, onProgress, onWallet, onPassword, true);
 
     task.current.promise
       .then(({ cancelled, wallets: w }) => {
@@ -149,11 +139,6 @@ const ImportWalletDiscovery: React.FC = () => {
       disableScreenProtect();
     };
   }, [isPrivacyBlurEnabled, enableScreenProtect, disableScreenProtect]);
-
-  const handleCustomDerivation = () => {
-    task.current?.stop();
-    navigation.navigate('ImportCustomDerivationPath', { importText, password });
-  };
 
   const renderItem = ({ item, index }: { item: WalletEntry; index: number }) => (
     <WalletToImport
@@ -241,13 +226,6 @@ const ImportWalletDiscovery: React.FC = () => {
         removeClippedSubviews={false}
       />
       <View style={[styles.center, stylesHook.center]}>
-        {bip39 && (
-          <BlueButtonLink
-            title={loc.wallets.import_discovery_derivation}
-            testID="CustomDerivationPathButton"
-            onPress={handleCustomDerivation}
-          />
-        )}
         <BlueSpacing10 />
         <View style={styles.buttonContainer}>
           <Button disabled={wallets?.length === 0} title={loc.wallets.import_do_import} onPress={handleSave} />

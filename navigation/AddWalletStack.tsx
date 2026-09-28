@@ -8,10 +8,7 @@ import { Action } from '../components/types';
 import navigationStyle, { CloseButtonPosition, withRouteParamHeaderOptions } from '../components/navigationStyle';
 import { isIOS26OrHigher } from '../blue_modules/environment';
 import { useTheme } from '../components/themes';
-import { HDLegacyP2PKHWallet } from '../class/wallets/hd-legacy-p2pkh-wallet';
-import { HDSegwitBech32Wallet } from '../class/wallets/hd-segwit-bech32-wallet';
-import { HDTaprootWallet } from '../class/wallets/hd-taproot-wallet';
-import { LightningCustodianWallet } from '../class/wallets/lightning-custodian-wallet';
+import { XbtSegwitBech32Wallet } from '../class/wallets/xbt-segwit-bech32-wallet';
 import loc from '../loc';
 import { Chain } from '../models/bitcoinUnits';
 import { CommonToolTipActions } from '../typings/CommonToolTipActions';
@@ -34,7 +31,6 @@ export type AddWalletStackParamList = {
     triggerImport?: boolean;
     onBarScanned?: string;
     askPassphraseMenuState?: boolean;
-    searchAccountsMenuState?: boolean;
     clearClipboardMenuState?: boolean;
     headerRight?: HeaderRightRenderer;
   };
@@ -99,9 +95,7 @@ export type AddWalletStackParamList = {
 const Stack = createNativeStackNavigator<AddWalletStackParamList>();
 
 const WalletsAdd = lazy(() => import('../screen/wallets/Add'));
-const ImportCustomDerivationPath = lazy(() => import('../screen/wallets/ImportCustomDerivationPath'));
 const ImportWalletDiscovery = lazy(() => import('../screen/wallets/ImportWalletDiscovery'));
-const ImportSpeed = lazy(() => import('../screen/wallets/ImportSpeed'));
 const ImportWallet = lazy(() => import('../screen/wallets/ImportWallet'));
 const PleaseBackup = lazy(() => import('../screen/wallets/PleaseBackup'));
 const PleaseBackupLNDHub = lazy(() => import('../screen/wallets/pleaseBackupLNDHub'));
@@ -117,9 +111,7 @@ const ScanQRCode = lazy(() => import('../screen/send/ScanQRCode'));
 
 const AddComponent = withLazySuspense(WalletsAdd);
 const ImportWalletDiscoveryComponent = withLazySuspense(ImportWalletDiscovery);
-const ImportCustomDerivationPathComponent = withLazySuspense(ImportCustomDerivationPath);
 const ImportWalletComponent = withLazySuspense(ImportWallet);
-const ImportSpeedComponent = withLazySuspense(ImportSpeed);
 const PleaseBackupComponent = withLazySuspense(PleaseBackup);
 const PleaseBackupLNDHubComponent = withLazySuspense(PleaseBackupLNDHub);
 const ProvideEntropyComponent = withLazySuspense(ProvideEntropy);
@@ -141,31 +133,16 @@ const styles = StyleSheet.create({
 
 const addWalletTypes = [
   {
-    id: HDSegwitBech32Wallet.type,
-    text: `${loc.multisig.native_segwit_title}`,
-    subtitle: 'p2wpkh/HD',
-  },
-  {
-    id: HDLegacyP2PKHWallet.type,
-    text: `${loc.multisig.legacy_title}`,
-    subtitle: 'p2pkh/HD',
-  },
-  {
-    id: HDTaprootWallet.type,
-    text: 'Taproot',
-    subtitle: 'p2tr/HD',
-  },
-  {
-    id: LightningCustodianWallet.type,
-    text: LightningCustodianWallet.typeReadable,
-    subtitle: LightningCustodianWallet.subtitleReadable,
+    id: XbtSegwitBech32Wallet.type,
+    text: 'RedWallet XBT',
+    subtitle: "P2WPKH · m/84'/0'/0'",
   },
 ];
 
 const createAddWalletOptions = (theme: ReturnType<typeof useTheme>) =>
   navigationStyle({ closeButtonPosition: CloseButtonPosition.Left, title: loc.wallets.add_title }, (options, { navigation, route }) => {
-    const selectedIndex = route.params?.selectedIndex ?? 0;
-    const selectedWalletType = route.params?.selectedWalletType ?? Chain.ONCHAIN;
+    const selectedIndex = 0;
+    const selectedWalletType = Chain.ONCHAIN;
     const words = route.params?.words;
     const entropyHex = route.params?.entropy;
     const hasEntropy = !!entropyHex;
@@ -177,9 +154,7 @@ const createAddWalletOptions = (theme: ReturnType<typeof useTheme>) =>
       : loc.wallets.add_entropy_provide;
 
     const onPressMenuItem = (id: string) => {
-      if (id === LightningCustodianWallet.type) {
-        navigation.setParams({ selectedWalletType: Chain.OFFCHAIN });
-      } else if (id === '12_words') {
+      if (id === '12_words') {
         navigation.navigate('ProvideEntropy', { words: 12, entropy: entropyHex });
       } else if (id === '24_words') {
         navigation.navigate('ProvideEntropy', { words: 24, entropy: entropyHex });
@@ -241,15 +216,12 @@ const createAddWalletOptions = (theme: ReturnType<typeof useTheme>) =>
 export const createImportWalletOptions = (theme: ReturnType<typeof useTheme>) =>
   navigationStyle({ title: loc.wallets.import_title }, (options, { navigation, route }) => {
     const askPassphraseMenuState = route.params?.askPassphraseMenuState ?? false;
-    const searchAccountsMenuState = route.params?.searchAccountsMenuState ?? false;
     const clearClipboardMenuState = route.params?.clearClipboardMenuState ?? true;
 
     const onPressMenuItem = (menuItem: string) => {
       Keyboard.dismiss();
       if (menuItem === CommonToolTipActions.Passphrase.id) {
         navigation.setParams({ askPassphraseMenuState: !askPassphraseMenuState });
-      } else if (menuItem === CommonToolTipActions.SearchAccount.id) {
-        navigation.setParams({ searchAccountsMenuState: !searchAccountsMenuState });
       } else if (menuItem === CommonToolTipActions.ClearClipboard.id) {
         navigation.setParams({ clearClipboardMenuState: !clearClipboardMenuState });
       }
@@ -257,7 +229,6 @@ export const createImportWalletOptions = (theme: ReturnType<typeof useTheme>) =>
 
     const actions: Action[] = [
       { ...CommonToolTipActions.Passphrase, menuState: askPassphraseMenuState },
-      { ...CommonToolTipActions.SearchAccount, menuState: searchAccountsMenuState },
       { ...CommonToolTipActions.ClearClipboard, menuState: clearClipboardMenuState },
     ];
 
@@ -290,17 +261,7 @@ const AddWalletStack = () => {
   return (
     <Stack.Navigator initialRouteName="AddWallet">
       <Stack.Screen name="AddWallet" component={AddComponent} options={createAddWalletOptions(theme)} />
-      <Stack.Screen
-        name="ImportCustomDerivationPath"
-        component={ImportCustomDerivationPathComponent}
-        options={navigationStyle({ statusBarStyle: 'light', title: loc.wallets.import_derivation_title })(theme)}
-      />
       <Stack.Screen name="ImportWallet" component={ImportWalletComponent} options={createImportWalletOptions(theme)} />
-      <Stack.Screen
-        name="ImportSpeed"
-        component={ImportSpeedComponent}
-        options={navigationStyle({ statusBarStyle: 'light', title: loc.wallets.import_title })(theme)}
-      />
       <Stack.Screen
         name="ImportWalletDiscovery"
         component={ImportWalletDiscoveryComponent}

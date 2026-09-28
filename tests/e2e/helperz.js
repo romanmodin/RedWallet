@@ -132,32 +132,15 @@ export async function helperImportWallet(importText, walletType, expectedWalletL
   // going to Import Wallet screen and importing mnemonic
   await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'ImportWallet');
   await element(by.id('ImportWallet')).tap();
-  await waitForId('SpeedBackdoor');
-  // tapping 5 times invisible button is a backdoor:
-  for (let c = 0; c < 5; c++) {
-    await element(by.id('SpeedBackdoor')).tap();
-  }
-  await waitForId('SpeedMnemonicInput');
-  await element(by.id('SpeedMnemonicInput')).replaceText(importText);
-  await element(by.id('SpeedWalletTypeInput')).replaceText(walletType);
-  if (device.getPlatform() === 'ios') {
-    await element(by.id('SpeedWalletTypeInput')).tapReturnKey();
-  }
+  if (walletType === 'watchOnly') throw new Error('Watch-only import is not supported in the XBT-only prototype.');
+  await waitForId('MnemonicInput');
+  await element(by.id('MnemonicInput')).replaceText(importText);
   if (passphrase) {
-    await element(by.id('SpeedPassphraseInput')).replaceText(passphrase);
-    await element(by.id('SpeedPassphraseInput')).tapReturnKey();
-    await waitForKeyboardToClose();
+    await element(by.id('HeaderMenuButton')).tap();
+    await element(by.text('Passphrase')).tap();
   }
-  await element(by.id('SpeedDoImport')).tap();
-
-  try {
-    await sleep(1_000);
-    await element(by.id('SpeedDoImport')).tap(); // sometimes doesnt work the 1st time
-  } catch (_) {}
-
-  // waiting for import result
-  await waitForText('OK', 3 * 61000);
-  await element(by.text('OK')).tap();
+  await element(by.id('DoImport')).tap();
+  await waitForText(expectedWalletLabel, 3 * 61000);
   await scrollUpOnHomeScreen();
 
   // lets go inside wallet

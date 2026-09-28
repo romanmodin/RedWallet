@@ -55,6 +55,7 @@ export type TImport = {
  * @param onProgress {function} Callback to report scanning progress
  * @param onWallet {function} Callback to report wallet found
  * @param onPassword {function} Callback to ask for password if needed
+ * @param xbtOnly {boolean} Restrict imports to the supported XBT BIP84 recovery profile
  * @returns {{promise: Promise, stop: function}}
  */
 const startImport = (
@@ -65,6 +66,7 @@ const startImport = (
   onProgress: (name: string) => void,
   onWallet: (wallet: TWallet) => void,
   onPassword: (title: string, text: string) => Promise<string>,
+  xbtOnly: boolean = false,
 ): TImport => {
   // state
   let promiseResolve: (arg: TStatus) => void;
@@ -125,6 +127,21 @@ const startImport = (
     // 8. check if its a json array from BC-UR with multiple accounts
     let text = importTextOrig.trim();
     let password;
+
+    if (xbtOnly) {
+      const xbtWallet = new XbtSegwitBech32Wallet();
+      xbtWallet.setSecret(text);
+      if (!xbtWallet.validateMnemonic()) {
+        throw new Error('RedWallet currently imports a BIP39 recovery phrase for its XBT BIP84 wallet.');
+      }
+      if (askPassphrase) {
+        password = await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message);
+        xbtWallet.setPassphrase(password);
+      }
+      yield { progress: 'XBT BIP84 recovery' };
+      yield { wallet: xbtWallet };
+      return;
+    }
 
     // BIP38 password required
     if (text.startsWith('6P')) {

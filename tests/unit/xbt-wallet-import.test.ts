@@ -24,6 +24,41 @@ describe('XBT mnemonic wallet restoration', () => {
     expect(wallet).toBeInstanceOf(XbtSegwitBech32Wallet);
   });
 
+  it('accepts a BIP39 recovery phrase in the XBT-only import flow without scanning Bitcoin accounts', async () => {
+    const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+    const { promise } = startImport(
+      mnemonic,
+      false,
+      true,
+      false,
+      () => {},
+      () => {},
+      async () => '',
+      true,
+    );
+
+    const result = await promise;
+
+    expect(result.wallets).toHaveLength(1);
+    expect(result.wallets[0]).toBeInstanceOf(XbtSegwitBech32Wallet);
+    expect((result.wallets[0] as XbtSegwitBech32Wallet).getDerivationPath()).toBe(XbtSegwitBech32Wallet.derivationPath);
+  });
+
+  it('rejects non-mnemonic imports in the XBT-only import flow', async () => {
+    const { promise } = startImport(
+      'not a recovery phrase',
+      false,
+      false,
+      true,
+      () => {},
+      () => {},
+      async () => '',
+      true,
+    );
+
+    await expect(promise).rejects.toThrow('RedWallet currently imports a BIP39 recovery phrase');
+  });
+
   it('defaults an unused online BIP39 seed to XBT when account discovery finds no history', async () => {
     const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
     const { promise } = startImport(
