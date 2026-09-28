@@ -1,5 +1,7 @@
 import * as bitcoin from 'bitcoinjs-lib';
+import ecc from 'tiny-secp256k1';
 
+import { unifiedSegwitV0SighashAll } from '../../class/xbt/unified-sighash';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({}));
@@ -8,6 +10,19 @@ const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abando
 const coinbaseTxid = '0'.repeat(64);
 const ordinaryTxid = '11'.repeat(64);
 const fundingTxid = '0123456789abcdef'.repeat(4);
+
+function derSignatureToCompact(signature: Buffer): Buffer {
+  const rLength = signature[3];
+  const rStart = 4;
+  const sLengthOffset = rStart + rLength + 1;
+  const sLength = signature[sLengthOffset];
+  const r = signature.subarray(rStart, rStart + rLength);
+  const s = signature.subarray(sLengthOffset + 1, sLengthOffset + 1 + sLength);
+  const compact = Buffer.alloc(64);
+  r.copy(compact, 32 - Math.min(r.length, 32), Math.max(0, r.length - 32));
+  s.copy(compact, 64 - Math.min(s.length, 32), Math.max(0, s.length - 32));
+  return compact;
+}
 
 describe('XBT wallet transaction flow', () => {
   function createWalletWithParent(inputs: { txid: string; vout: number }[], confirmations: number) {
@@ -38,6 +53,15 @@ describe('XBT wallet transaction flow', () => {
     expect(decoded.ins[0].witness[0][decoded.ins[0].witness[0].length - 1]).toBe(0x21);
     expect(decoded.ins[0].witness[1]).toHaveLength(33);
     expect(psbt.data.inputs[0].finalScriptWitness).toBeDefined();
+
+    const publicKey = decoded.ins[0].witness[1];
+    const previousOutputScript = Buffer.from(bitcoin.address.toOutputScript(sourceAddress));
+    const scriptCode = Buffer.from(bitcoin.payments.p2pkh({ hash: bitcoin.crypto.hash160(publicKey) }).output!);
+    const digest = unifiedSegwitV0SighashAll(decoded, 0, [{ value: 100_000n, script: previousOutputScript }], scriptCode);
+    const witnessSignature = decoded.ins[0].witness[0];
+    expect(witnessSignature[witnessSignature.length - 1]).toBe(0x21);
+    expect(ecc.verify(digest, publicKey, derSignatureToCompact(Buffer.from(witnessSignature.subarray(0, -1))))).toBe(true);
+
     const destinationScript = Buffer.from(bitcoin.address.toOutputScript(destinationAddress));
     expect(decoded.outs.some(output => Buffer.from(output.script).equals(destinationScript))).toBe(true);
   });
