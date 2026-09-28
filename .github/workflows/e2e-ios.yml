@@ -269,7 +269,7 @@ jobs:
           if [ "$IMPORT_DIAGNOSTICS" = "true" ]; then
             npm run e2e:test:ios-release -- \
               tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js \
-              --testNamePattern='restores the published|rejects a watch-only' \
+              --runTestsByPath \
               --record-videos all --record-logs all --take-screenshots all \
               --loglevel verbose --headless --retries 0 --reuse \
               --artifacts-location ./artifacts
