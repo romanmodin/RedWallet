@@ -72,10 +72,12 @@ slashes.
 
 1. First use `upload_to_testflight=false` to verify a signed Release archive
    and exported IPA.
-2. Inspect the IPA's bundle identities, entitlements, signing team, embedded
-   profiles, and extension signatures. Confirm it contains the intended source
-   revision and RedWallet display identity.
-3. Once validated, dispatch with `upload_to_testflight=true`. Confirm Apple's
+2. The macOS verifier checks bundle identities, entitlements, signing team,
+   embedded profiles, extension signatures, and arm64 architecture. It emits
+   an IPA SHA-256 receipt. Confirm the build source revision as well.
+3. To reuse the signed artifact without rebuilding, set `source_run_id` to its
+   successful release run. First keep `upload_to_testflight=false` for verification
+   only; then set it to `true` to upload that same package. Confirm Apple's
    processing result in App Store Connect; a successful upload alone does not
    mean testers can install it.
 4. Complete the applicable beta metadata, export-compliance questions, tester
