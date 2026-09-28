@@ -1,3 +1,4 @@
+// Preserve tests of the inherited BTC adapter; the XBT safety suite verifies the production disabled gate.
 import assert from 'assert';
 
 import { _setExchangeRate, _setPreferredFiatCurrency, _setSkipUpdateExchangeRate } from '../../blue_modules/currency';
@@ -13,6 +14,8 @@ import enJson from '../../loc/en.json';
 import ruJson from '../../loc/ru.json';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
 import { FiatUnit } from '../../models/fiatUnit';
+
+jest.mock('../../class/xbt/profile', () => ({ XBT_PROFILE: { fiatEnabled: true } }));
 
 describe('Localization', () => {
   it('switches active language and round-trips back to en', async () => {

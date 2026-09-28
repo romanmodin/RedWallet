@@ -1,3 +1,4 @@
+import { XBT_PROFILE } from '../../class/xbt/profile';
 import React, { useEffect } from 'react';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import BigNumber from 'bignumber.js';
@@ -11,7 +12,7 @@ import loc from '../../loc';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
 import HandOffComponent from '../../components/HandOffComponent';
 import { HandOffActivityType } from '../../components/types';
-import { useSettings } from '../../hooks/context/useSettings';
+import { getTransactionExplorerUrl } from '../../models/blockExplorer';
 import { SendDetailsStackParamList } from '../../navigation/SendDetailsStackParamList.ts';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -20,10 +21,10 @@ type NavigationProps = NativeStackNavigationProp<SendDetailsStackParamList, 'Suc
 
 const Success = () => {
   const { colors } = useTheme();
-  const { selectedBlockExplorer } = useSettings();
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavigationProps>();
   const { amount, fee, amountUnit = BitcoinUnit.BTC, invoiceDescription = '', txid } = route.params || {};
+  const explorerUrl = getTransactionExplorerUrl(txid);
   const stylesHook = StyleSheet.create({
     root: {
       backgroundColor: colors.elevated,
@@ -51,12 +52,8 @@ const Success = () => {
       <View style={styles.buttonContainer}>
         <Button onPress={onDonePressed} title={loc.send.success_done} />
       </View>
-      {txid && (
-        <HandOffComponent
-          title={loc.transactions.details_title}
-          type={HandOffActivityType.ViewInBlockExplorer}
-          url={`${selectedBlockExplorer.url}/tx/${txid}`}
-        />
+      {explorerUrl && (
+        <HandOffComponent title={loc.transactions.details_title} type={HandOffActivityType.ViewInBlockExplorer} url={explorerUrl} />
       )}
     </SafeArea>
   );
@@ -74,6 +71,8 @@ interface SuccessViewParam {
 
 export const SuccessView = ({ amount, amountUnit, fee, invoiceDescription, shouldAnimate = true }: SuccessViewParam) => {
   const { colors } = useTheme();
+  // A persisted fiat number has no verified XBT value; keep the success state without that amount.
+  const displayAmount = !XBT_PROFILE.fiatEnabled && amountUnit === BitcoinUnit.LOCAL_CURRENCY ? undefined : amount;
 
   let unit: string = '';
   switch (amountUnit) {
@@ -94,12 +93,12 @@ export const SuccessView = ({ amount, amountUnit, fee, invoiceDescription, shoul
 
   return (
     <View style={styles.root}>
-      {amount || (fee ?? 0) > 0 ? (
+      {displayAmount || (fee ?? 0) > 0 ? (
         <BlueCard style={styles.amount}>
           <View style={styles.view}>
-            {amount ? (
+            {displayAmount ? (
               <>
-                <Text style={[styles.amountValue, stylesHook.amountValue]}>{amount}</Text>
+                <Text style={[styles.amountValue, stylesHook.amountValue]}>{displayAmount}</Text>
                 <Text style={[styles.amountUnit, stylesHook.amountUnit]}>{' ' + unit}</Text>
               </>
             ) : null}

@@ -15,47 +15,8 @@ struct APIError: LocalizedError {
 extension MarketAPI {
 
     static func fetchNextBlockFee() async throws -> MarketData {
-        let client = SwiftTCPClient(hosts: hardcodedPeers)
-        defer {
-            client.close()
-            print("Closed SwiftTCPClient connection.") 
-        }
-
-        guard await client.connectToNextAvailable(validateCertificates: false) else {
-            print("Failed to connect to any Electrum peer.") 
-            throw APIError()
-        }
-
-        let message = "{\"id\": 1, \"method\": \"mempool.get_fee_histogram\", \"params\": []}\n"
-        guard let data = message.data(using: .utf8) else {
-            print("Failed to encode message to data.") 
-            throw APIError()
-        }
-
-        print("Sending fee histogram request: \(message)") 
-
-        guard await client.send(data: data) else {
-            print("Failed to send fee histogram request.") 
-            throw APIError()
-        }
-
-        do {
-            let receivedData = try await client.receive()
-            print("Received data: \(receivedData)") 
-
-            guard let json = try JSONSerialization.jsonObject(with: receivedData, options: .allowFragments) as? [String: AnyObject],
-                  let feeHistogram = json["result"] as? [[Double]] else {
-                print("Invalid JSON structure in response.") 
-                throw APIError()
-            }
-
-            let fastestFee = calcEstimateFeeFromFeeHistogram(numberOfBlocks: 1, feeHistogram: feeHistogram)
-            print("Calculated fastest fee: \(fastestFee)") 
-            return MarketData(nextBlock: String(format: "%.0f", fastestFee), sats: "0", price: "0", rate: 0, dateString: "")
-        } catch {
-            print("Error during fetchNextBlockFee: \(error.localizedDescription)") 
-            throw APIError()
-        }
+        // The inherited native client has BTC peers and no XBT checkpoint check.
+        throw APIError(errorDescription: "XBT market fee data is unavailable.")
     }
 
     static func fetchMarketData(currency: String) async throws -> MarketData {

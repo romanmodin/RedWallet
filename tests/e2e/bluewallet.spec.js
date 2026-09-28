@@ -105,13 +105,8 @@ describe('RedWallet UI Tests - no wallets', () => {
     await goBack();
 
     //
-    // currency
-    // change currency to ARS ($) and switch it back to USD ($)
-    await element(by.id('Currency')).tap();
-    await element(by.text('ARS ($)')).tap();
-    await expect(element(by.text('Rate is obtained from Yadio'))).toBeVisible();
-    await element(by.text('USD ($)')).tap();
-    await goBack();
+    // Legacy BTC currency selection is hidden; XBT quotes use the separate price setting.
+    await expect(element(by.id('Currency'))).not.toExist();
 
     // language
     // change language to Chinese (ZH), test it and switch back to English

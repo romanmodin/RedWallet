@@ -1,4 +1,13 @@
-import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import { fetchNeoxexPrice } from '../../blue_modules/neoxex-price';
+import {
+  XbtPriceQuote,
+  createManualXbtPriceQuote,
+  loadXbtPriceQuote,
+  saveXbtPriceQuote,
+  clearSavedXbtPriceQuote,
+} from '../../blue_modules/xbt-price';
+import { normalizeXbtUnit } from '../../class/xbt/units';
+import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DefaultPreference from 'react-native-default-preference';
 import { isReadClipboardAllowed, setReadClipboardAllowed } from '../../blue_modules/clipboard';
 import { getPreferredCurrency, GROUP_IO_BLUEWALLET, initCurrencyDaemon, setPreferredCurrency } from '../../blue_modules/currency';
@@ -55,7 +64,7 @@ export const getIsTotalBalanceViewEnabled = async (): Promise<boolean> => {
 export const setTotalBalancePreferredUnitStorageFunc = async (unit: BitcoinUnit): Promise<void> => {
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
-    await DefaultPreference.set(TotalWalletsBalancePreferredUnit, unit);
+    await DefaultPreference.set(TotalWalletsBalancePreferredUnit, normalizeXbtUnit(unit));
   } catch (e) {
     console.error('Error setting TotalBalancePreferredUnit:', e);
   }
@@ -65,7 +74,9 @@ export const getTotalBalancePreferredUnit = async (): Promise<BitcoinUnit> => {
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
     const unit = (await DefaultPreference.get(TotalWalletsBalancePreferredUnit)) as BitcoinUnit | null;
-    return unit ?? BitcoinUnit.BTC;
+    const supportedUnit = normalizeXbtUnit(unit);
+    if (unit !== supportedUnit) await DefaultPreference.set(TotalWalletsBalancePreferredUnit, supportedUnit);
+    return supportedUnit;
   } catch (e) {
     console.error('Error getting TotalBalancePreferredUnit:', e);
     return BitcoinUnit.BTC;
@@ -73,6 +84,10 @@ export const getTotalBalancePreferredUnit = async (): Promise<BitcoinUnit> => {
 };
 
 interface SettingsContextType {
+  xbtPriceQuote: XbtPriceQuote | null;
+  saveManualXbtPriceQuote: (price: string, currency: string) => Promise<void>;
+  clearXbtPriceQuote: () => Promise<void>;
+  refreshNeoxexXbtPriceQuote: () => Promise<void>;
   preferredFiatCurrency: TFiatUnit;
   setPreferredFiatCurrencyStorage: (currency: TFiatUnit) => Promise<void>;
   language: string;
@@ -102,6 +117,10 @@ interface SettingsContextType {
 }
 
 const defaultSettingsContext: SettingsContextType = {
+  xbtPriceQuote: null,
+  saveManualXbtPriceQuote: async () => {},
+  clearXbtPriceQuote: async () => {},
+  refreshNeoxexXbtPriceQuote: async () => {},
   preferredFiatCurrency: FiatUnit.USD,
   setPreferredFiatCurrencyStorage: async () => {},
   language: 'en',
@@ -133,6 +152,8 @@ const defaultSettingsContext: SettingsContextType = {
 export const SettingsContext = createContext<SettingsContextType>(defaultSettingsContext);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.memo(({ children }: { children: React.ReactNode }) => {
+  const [xbtPriceQuote, setXbtPriceQuote] = useState<XbtPriceQuote | null>(null);
+  const xbtPriceRevision = useRef(0);
   const [preferredFiatCurrency, setPreferredFiatCurrencyState] = useState<TFiatUnit>(FiatUnit.USD);
   const [language, setLanguage] = useState<string>('en');
   const [isHandOffUseEnabled, setIsHandOffUseEnabledState] = useState<boolean>(false);
@@ -158,6 +179,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
       }
 
       const promises: Promise<void>[] = [
+        loadXbtPriceQuote().then(quote => {
+          if (xbtPriceRevision.current === 0) setXbtPriceQuote(quote);
+        }),
         BlueElectrum.isDisabled().then(disabled => {
           setIsElectrumDisabled(disabled);
         }),
@@ -321,10 +345,31 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
   const setTotalBalancePreferredUnitStorage = useCallback(async (unit: BitcoinUnit): Promise<void> => {
     try {
       await setTotalBalancePreferredUnitStorageFunc(unit);
-      setTotalBalancePreferredUnit(unit);
+      setTotalBalancePreferredUnit(normalizeXbtUnit(unit));
     } catch (e) {
       console.error('Error setting totalBalancePreferredUnit:', e);
     }
+  }, []);
+
+  const saveManualXbtPriceQuote = useCallback(async (price: string, currency: string): Promise<void> => {
+    const quote = createManualXbtPriceQuote(price, currency);
+    const revision = ++xbtPriceRevision.current;
+    await saveXbtPriceQuote(quote);
+    if (revision === xbtPriceRevision.current) setXbtPriceQuote(quote);
+  }, []);
+
+  const refreshNeoxexXbtPriceQuote = useCallback(async (): Promise<void> => {
+    const revision = ++xbtPriceRevision.current;
+    const quote = await fetchNeoxexPrice();
+    if (revision !== xbtPriceRevision.current) return;
+    await saveXbtPriceQuote(quote);
+    if (revision === xbtPriceRevision.current) setXbtPriceQuote(quote);
+  }, []);
+
+  const clearXbtPriceQuote = useCallback(async (): Promise<void> => {
+    const revision = ++xbtPriceRevision.current;
+    await clearSavedXbtPriceQuote();
+    if (revision === xbtPriceRevision.current) setXbtPriceQuote(null);
   }, []);
 
   const setBlockExplorerStorage = useCallback(async (explorer: BlockExplorer): Promise<boolean> => {
@@ -342,6 +387,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
 
   const value = useMemo(
     () => ({
+      xbtPriceQuote,
+      saveManualXbtPriceQuote,
+      clearXbtPriceQuote,
+      refreshNeoxexXbtPriceQuote,
       preferredFiatCurrency,
       setPreferredFiatCurrencyStorage,
       language,
@@ -370,6 +419,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
       setIsElectrumDisabled,
     }),
     [
+      xbtPriceQuote,
+      saveManualXbtPriceQuote,
+      clearXbtPriceQuote,
+      refreshNeoxexXbtPriceQuote,
       preferredFiatCurrency,
       setPreferredFiatCurrencyStorage,
       language,

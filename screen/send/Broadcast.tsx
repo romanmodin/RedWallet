@@ -10,7 +10,7 @@ import Button from '../../components/Button';
 import { useTheme } from '../../components/themes';
 import { SettingsSection, SettingsScrollView, settingsCardContent } from '../../components/SettingsSection';
 import loc from '../../loc';
-import { useSettings } from '../../hooks/context/useSettings';
+import { getTransactionExplorerUrl } from '../../models/blockExplorer';
 import { majorTomToGroundControl } from '../../blue_modules/notifications';
 import { scanQrHelper } from '../../helpers/scan-qr';
 import { BlueSpacing10, BlueSpacing20 } from '../../components/BlueSpacing';
@@ -28,7 +28,6 @@ const Broadcast: React.FC = () => {
   const [txHex, setTxHex] = useState<string | undefined>();
   const { colors } = useTheme();
   const [broadcastResult, setBroadcastResult] = useState<string>(BROADCAST_RESULT.none);
-  const { selectedBlockExplorer } = useSettings();
 
   const handleScannedData = useCallback((scannedData: string) => {
     if (scannedData.indexOf('+') === -1 && scannedData.indexOf('=') === -1 && scannedData.indexOf('=') === -1) {
@@ -144,14 +143,14 @@ const Broadcast: React.FC = () => {
               <BlueSpacing20 />
             </>
           )}
-          {BROADCAST_RESULT.success === broadcastResult && tx && <SuccessScreen tx={tx} url={`${selectedBlockExplorer.url}/tx/${tx}`} />}
+          {BROADCAST_RESULT.success === broadcastResult && tx && <SuccessScreen tx={tx} url={getTransactionExplorerUrl(tx)} />}
         </View>
       </SettingsSection>
     </SettingsScrollView>
   );
 };
 
-const SuccessScreen: React.FC<{ tx: string; url: string }> = ({ tx, url }) => {
+const SuccessScreen: React.FC<{ tx: string; url?: string }> = ({ tx, url }) => {
   const { colors } = useTheme();
 
   if (!tx) {
@@ -164,7 +163,10 @@ const SuccessScreen: React.FC<{ tx: string; url: string }> = ({ tx, url }) => {
       <BlueSpacing20 />
       <Text style={[styles.successText, { color: colors.foregroundColor }]}>{loc.settings.success_transaction_broadcasted}</Text>
       <BlueSpacing10 />
-      <Button title={loc.settings.open_link_in_explorer} onPress={() => Linking.openURL(url)} />
+      <Text selectable style={[styles.successText, { color: colors.foregroundColor }]}>
+        {tx}
+      </Text>
+      {url && <Button title={loc.settings.open_link_in_explorer} onPress={() => Linking.openURL(url)} />}
     </View>
   );
 };

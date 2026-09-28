@@ -12,6 +12,7 @@ import type { BoltzReverseSwap } from '@arkade-os/boltz-swap';
 import loc from '../loc';
 import { arkadePaymentPushUri, groundControlUri } from './constants';
 import { fetch } from '../util/fetch';
+import { XBT_PROFILE } from '../class/xbt/profile';
 
 const PUSH_TOKEN = 'PUSH_TOKEN';
 const NOTIFICATIONS_STORAGE = 'NOTIFICATIONS_STORAGE';
@@ -66,6 +67,7 @@ const settlePendingRegistration = (value: boolean) => {
 };
 
 const waitForRemoteRegistration = (timeoutMs = 10_000): Promise<boolean> => {
+  if (!XBT_PROFILE.notificationsEnabled) return Promise.resolve(false);
   if (pendingRegistrationPromise) return pendingRegistrationPromise;
   pendingRegistrationPromise = new Promise<boolean>(resolve => {
     pendingRegistrationResolve = resolve;
@@ -78,6 +80,7 @@ const waitForRemoteRegistration = (timeoutMs = 10_000): Promise<boolean> => {
 };
 
 const ensureAndroidNotificationChannel = () => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   if (Platform.OS !== 'android') return;
 
   Notifications.setNotificationChannel({
@@ -137,6 +140,7 @@ const storeIncomingNotification = async (
   completion?: ((response: NotificationCompletion) => void) | ((response: NotificationBackgroundFetchResult) => void),
 ) => {
   try {
+    if (!XBT_PROFILE.notificationsEnabled) return;
     const payload = normalizeNotificationPayload(notification, status);
     const notificationKey = getNotificationKey(payload, notification);
     if (handledNotificationKeys.has(notificationKey)) {
@@ -168,6 +172,7 @@ const storeIncomingNotification = async (
 };
 
 const checkAndroidNotificationPermission = async () => {
+  if (!XBT_PROFILE.notificationsEnabled) return false;
   try {
     const { status } = await checkNotifications();
     console.log('Notification permission check:', status);
@@ -179,6 +184,7 @@ const checkAndroidNotificationPermission = async () => {
 };
 
 export const checkNotificationPermissionStatus = async () => {
+  if (!XBT_PROFILE.notificationsEnabled) return RESULTS.UNAVAILABLE;
   try {
     const { status } = await checkNotifications();
     return status;
@@ -191,6 +197,7 @@ export const checkNotificationPermissionStatus = async () => {
 // Listener to monitor notification permission status changes while app is running
 let currentPermissionStatus = 'unavailable';
 const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   try {
     if (nextAppState === 'active') {
       const isDisabledByUser = (await AsyncStorage.getItem(NOTIFICATIONS_NO_AND_DONT_ASK_FLAG)) === 'true';
@@ -209,9 +216,10 @@ const handleAppStateChange = async (nextAppState: AppStateStatus) => {
   }
 };
 
-AppState.addEventListener('change', handleAppStateChange);
+if (XBT_PROFILE.notificationsEnabled) AppState.addEventListener('change', handleAppStateChange);
 
 export const cleanUserOptOutFlag = async () => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   return AsyncStorage.removeItem(NOTIFICATIONS_NO_AND_DONT_ASK_FLAG);
 };
 
@@ -223,6 +231,7 @@ export const cleanUserOptOutFlag = async () => {
  * @returns {Promise<boolean>} TRUE if permissions were obtained, FALSE otherwise
  */
 export const tryToObtainPermissions = async (): Promise<boolean> => {
+  if (!XBT_PROFILE.notificationsEnabled) return false;
   console.log('tryToObtainPermissions: Starting user-triggered permission request');
 
   if (!isNotificationsCapable) {
@@ -254,6 +263,7 @@ export const tryToObtainPermissions = async (): Promise<boolean> => {
 };
 
 export const enqueueTestPushNotification = async (): Promise<void> => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   const pushToken = await getPushToken();
   if (!pushToken?.token || !pushToken?.os) {
     throw new Error('No push token available');
@@ -285,6 +295,7 @@ export const enqueueTestPushNotification = async (): Promise<void> => {
  * @returns {Promise<object>} Response object from API rest call
  */
 export const majorTomToGroundControl = async (addresses: string[], hashes: string[], txids: string[]) => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   console.log('majorTomToGroundControl: Starting notification registration', {
     addressCount: addresses?.length,
     hashCount: hashes?.length,
@@ -357,6 +368,7 @@ export const majorTomToGroundControl = async (addresses: string[], hashes: strin
  * preimage is always stripped before leaving the device.
  */
 export const registerArkPaymentPush = async (paymentHash: string, label: string, pendingSwap: BoltzReverseSwap): Promise<void> => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   if (!arkadePaymentPushUri) return;
   try {
     const noAndDontAskFlag = await AsyncStorage.getItem(NOTIFICATIONS_NO_AND_DONT_ASK_FLAG);
@@ -397,6 +409,7 @@ export const registerArkPaymentPush = async (paymentHash: string, label: string,
  * @returns {Promise<Object>}
  */
 export const checkPermissions = async () => {
+  if (!XBT_PROFILE.notificationsEnabled) return { alert: false, badge: false, sound: false, status: RESULTS.UNAVAILABLE };
   try {
     if (Platform.OS === 'ios') {
       return Notifications.ios.checkPermissions();
@@ -423,6 +436,7 @@ export const checkPermissions = async () => {
  * @returns {Promise<*>}
  */
 export const setLevels = async (levelAll: boolean) => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   const pushToken = await getPushToken();
   if (!pushToken || !pushToken.token || !pushToken.os) return;
 
@@ -468,6 +482,7 @@ export const setLevels = async (levelAll: boolean) => {
  * @returns {Promise<void>}
  */
 export const setRedactNotifications = async (redacted: boolean) => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   const pushToken = await getPushToken();
   if (!pushToken?.token || !pushToken?.os) {
     throw new Error('No push token available');
@@ -485,11 +500,13 @@ export const setRedactNotifications = async (redacted: boolean) => {
 };
 
 export const isNotificationsRedacted = async (): Promise<boolean> => {
+  if (!XBT_PROFILE.notificationsEnabled) return false;
   const levels = await getLevels();
   return !!levels?.redacted;
 };
 
 export const addNotification = async (notification: TPayload) => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   let notifications = [];
   try {
     const stringified = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE);
@@ -506,6 +523,7 @@ export const addNotification = async (notification: TPayload) => {
 };
 
 const postTokenConfig = async () => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   console.log('postTokenConfig: Starting token configuration');
   const pushToken = await getPushToken();
   console.log('postTokenConfig: Retrieved push token:', !!pushToken);
@@ -538,6 +556,7 @@ const postTokenConfig = async () => {
 };
 
 const _setPushToken = async (token: TPushToken) => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   try {
     return await AsyncStorage.setItem(PUSH_TOKEN, JSON.stringify(token));
   } catch (error) {
@@ -552,6 +571,7 @@ const _setPushToken = async (token: TPushToken) => {
  * @returns {Promise<boolean>} whether successfully registered for remote push notifications
  */
 const configureNotifications = async (onProcessNotifications?: () => void): Promise<boolean> => {
+  if (!XBT_PROFILE.notificationsEnabled) return false;
   console.log('configureNotifications()');
   if (onProcessNotifications) {
     onProcessNotificationsHandler = onProcessNotifications;
@@ -569,6 +589,10 @@ const configureNotifications = async (onProcessNotifications?: () => void): Prom
     if (notificationSubscriptions.length === 0) {
       notificationSubscriptions = [
         Notifications.events().registerRemoteNotificationsRegistered(async event => {
+          if (!XBT_PROFILE.notificationsEnabled) {
+            settlePendingRegistration(false);
+            return;
+          }
           console.log('processing event', event);
           const token = createPushToken(event.deviceToken);
           if (__DEV__) {
@@ -619,9 +643,10 @@ const configureNotifications = async (onProcessNotifications?: () => void): Prom
   }
 };
 
-export const isNotificationsCapable = hasGmsSync() || hasHmsSync() || Platform.OS !== 'android';
+export const isNotificationsCapable = XBT_PROFILE.notificationsEnabled && (hasGmsSync() || hasHmsSync() || Platform.OS !== 'android');
 
-export const getPushToken = async (): Promise<TPushToken> => {
+export const getPushToken = async (): Promise<TPushToken | null> => {
+  if (!XBT_PROFILE.notificationsEnabled) return null;
   try {
     const token = await AsyncStorage.getItem(PUSH_TOKEN);
     return JSON.parse(String(token)) as TPushToken;
@@ -638,6 +663,7 @@ export const getPushToken = async (): Promise<TPushToken> => {
  * @returns {Promise<{}|*>}
  */
 const getLevels = async () => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   const pushToken = await getPushToken();
   if (!pushToken || !pushToken.token || !pushToken.os) return;
 
@@ -667,6 +693,7 @@ const getLevels = async () => {
  * @returns {Promise<object>} Response object from API rest call
  */
 export const unsubscribe = async (addresses: string[], hashes: string[], txids: string[]) => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   if (!Array.isArray(addresses) || !Array.isArray(hashes) || !Array.isArray(txids)) {
     throw new Error('No addresses, hashes, or txids provided');
   }
@@ -718,6 +745,7 @@ export const clearStoredNotifications = async () => {
 };
 
 export const getDeliveredNotifications: () => Promise<Record<string, any>[]> = () => {
+  if (!XBT_PROFILE.notificationsEnabled) return Promise.resolve([]);
   try {
     if (Platform.OS !== 'ios') {
       return Promise.resolve([]);
@@ -751,6 +779,7 @@ export const removeAllDeliveredNotifications = () => {
 };
 
 export const isNotificationsEnabled = async () => {
+  if (!XBT_PROFILE.notificationsEnabled) return false;
   try {
     const levels = await getLevels();
     const token = await getPushToken();
@@ -768,6 +797,7 @@ export const isNotificationsEnabled = async () => {
 };
 
 export const getStoredNotifications = async (): Promise<TPayload[]> => {
+  if (!XBT_PROFILE.notificationsEnabled) return [];
   let notifications = [];
   try {
     notifications = JSON.parse(String(await AsyncStorage.getItem(NOTIFICATIONS_STORAGE)));
@@ -788,6 +818,7 @@ export const getStoredNotifications = async (): Promise<TPayload[]> => {
 
 // on app launch (load module):
 export const initializeNotifications = async (onProcessNotifications?: () => void) => {
+  if (!XBT_PROFILE.notificationsEnabled) return;
   console.log('initializeNotifications: Starting initialization');
 
   try {

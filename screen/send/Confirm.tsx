@@ -27,6 +27,7 @@ import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-walle
 import { useSettings } from '../../hooks/context/useSettings';
 import { majorTomToGroundControl } from '../../blue_modules/notifications';
 import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
+import { XBT_PROFILE } from '../../class/xbt/profile';
 
 enum ActionType {
   SET_LOADING = 'SET_LOADING',
@@ -299,9 +300,11 @@ const Confirm: React.FC = () => {
           </Text>
           <Text style={[styles.valueUnit, stylesHook.valueValue]}>{' ' + loc.units[BitcoinUnit.BTC]}</Text>
         </View>
-        <Text style={[styles.transactionAmountFiat, stylesHook.transactionAmountFiat]}>
-          {item.value && satoshiToLocalCurrency(item.value)}
-        </Text>
+        {XBT_PROFILE.fiatEnabled && (
+          <Text style={[styles.transactionAmountFiat, stylesHook.transactionAmountFiat]}>
+            {item.value && satoshiToLocalCurrency(item.value)}
+          </Text>
+        )}
         <BlueCard>
           <Text style={[styles.transactionDetailsTitle, stylesHook.transactionDetailsTitle]}>{loc.send.create_to}</Text>
           <Text testID="TransactionAddress" style={[styles.transactionDetailsSubtitle, stylesHook.transactionDetailsSubtitle]}>
@@ -351,7 +354,8 @@ const Confirm: React.FC = () => {
       <View style={styles.cardBottom}>
         <BlueCard>
           <Text style={styles.cardText} testID="TransactionFee">
-            {loc.send.create_fee}: {formatBalance(feeSatoshi, BitcoinUnit.BTC)} ({satoshiToLocalCurrency(feeSatoshi)})
+            {loc.send.create_fee}: {formatBalance(feeSatoshi, BitcoinUnit.BTC)}
+            {XBT_PROFILE.fiatEnabled ? ` (${satoshiToLocalCurrency(feeSatoshi)})` : ''}
           </Text>
           {state.isLoading ? (
             <ActivityIndicator />

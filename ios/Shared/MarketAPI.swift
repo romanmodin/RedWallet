@@ -165,19 +165,10 @@ class MarketAPI {
     }
 
      
-  static func fetchPrice(currency: String) async throws -> WidgetDataStore? {
-         let currencyToFiatUnit = fiatUnit(currency: currency)
-         guard let source = currencyToFiatUnit?.source, let endPointKey = currencyToFiatUnit?.endPointKey else {
-             throw CurrencyError(errorDescription: "Invalid currency unit or endpoint.")
-         }
-
-         let urlString = buildURLString(source: source, endPointKey: endPointKey)
-         guard let url = URL(string: urlString) else {
-             throw CurrencyError(errorDescription: "Invalid URL.")
-         }
-
-         return try await fetchData(url: url, source: source, endPointKey: endPointKey)
-     }
+    static func fetchPrice(currency _: String) async throws -> WidgetDataStore? {
+        // XBT display quotes use the app setting; this native adapter only supports BTC.
+        throw CurrencyError(errorDescription: "XBT fiat conversion is unavailable.")
+    }
 
      private static func fetchData(url: URL, source: String, endPointKey: String, retries: Int = 3) async throws -> WidgetDataStore? {
          do {

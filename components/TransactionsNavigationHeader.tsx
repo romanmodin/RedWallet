@@ -16,6 +16,8 @@ import { useSettings } from '../hooks/context/useSettings';
 import ToolTipMenu from './TooltipMenu';
 import { useLocale } from '@react-navigation/native';
 import ActionSheet from '../screen/ActionSheet';
+import { normalizeXbtUnit, nextXbtUnit } from '../class/xbt/units';
+import XbtFiatEstimate from './XbtFiatEstimate';
 
 const HERO_BASE_BODY_MIN_HEIGHT = 120;
 const HERO_MIN_BODY_HEIGHT = Math.round(HERO_BASE_BODY_MIN_HEIGHT * 1.2);
@@ -41,6 +43,7 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
   unit = BitcoinUnit.BTC,
   unitSwitching = false,
 }) => {
+  const displayUnit = normalizeXbtUnit(unit);
   const { colors } = useTheme();
   const { hideBalance } = wallet;
   const isLightningWallet = wallet.type === LightningCustodianWallet.type || wallet.type === LightningArkWallet.type;
@@ -83,17 +86,7 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
     if (hideBalance) {
       return;
     }
-    let newWalletPreferredUnit = wallet.getPreferredBalanceUnit();
-
-    if (newWalletPreferredUnit === BitcoinUnit.BTC) {
-      newWalletPreferredUnit = BitcoinUnit.SATS;
-    } else if (newWalletPreferredUnit === BitcoinUnit.SATS) {
-      newWalletPreferredUnit = BitcoinUnit.LOCAL_CURRENCY;
-    } else {
-      newWalletPreferredUnit = BitcoinUnit.BTC;
-    }
-
-    onWalletUnitChange(newWalletPreferredUnit);
+    onWalletUnitChange(nextXbtUnit(wallet.getPreferredBalanceUnit()));
   };
 
   const handleManageFundsPressed = useCallback(
@@ -138,10 +131,10 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
 
   const currentBalance = wallet ? wallet.getBalance() : 0;
   const formattedBalance = useMemo(() => {
-    return unit === BitcoinUnit.LOCAL_CURRENCY
-      ? formatBalance(currentBalance, unit, true)
-      : formatBalanceWithoutSuffix(currentBalance, unit, true);
-  }, [unit, currentBalance]);
+    return displayUnit === BitcoinUnit.LOCAL_CURRENCY
+      ? formatBalance(currentBalance, displayUnit, true)
+      : formatBalanceWithoutSuffix(currentBalance, displayUnit, true);
+  }, [displayUnit, currentBalance]);
 
   const balance = !wallet.hideBalance && formattedBalance;
 
@@ -213,11 +206,16 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
             {!hideBalance && (
               <TouchableOpacity style={styles.walletPreferredUnitView} onPress={changeWalletBalanceUnit} disabled={unitSwitching}>
                 <Text style={styles.walletPreferredUnitText}>
-                  {unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD) : unit}
+                  {displayUnit === BitcoinUnit.LOCAL_CURRENCY
+                    ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD)
+                    : displayUnit === BitcoinUnit.BTC
+                      ? loc.units.BTC
+                      : displayUnit}
                 </Text>
               </TouchableOpacity>
             )}
           </View>
+          {!hideBalance && <XbtFiatEstimate satoshis={currentBalance} style={styles.priceEstimate} />}
           {(wallet.type === LightningCustodianWallet.type || wallet.type === LightningArkWallet.type) && allowOnchainAddress && (
             <TouchableOpacity style={styles.manageFundsButton} accessibilityRole="button" onPress={showManageFundsActionSheet}>
               <Text style={styles.manageFundsButtonText}>{loc.lnd.title}</Text>
@@ -249,6 +247,11 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
 };
 
 const styles = StyleSheet.create({
+  priceEstimate: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    marginTop: 8,
+  },
   lineaderGradient: {
     justifyContent: 'flex-start',
     position: 'relative',

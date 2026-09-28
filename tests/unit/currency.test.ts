@@ -1,3 +1,4 @@
+// Preserve tests of the inherited BTC adapter; the XBT safety suite verifies the production disabled gate.
 import assert from 'assert';
 
 import {
@@ -8,6 +9,8 @@ import {
   satoshiToLocalCurrency,
 } from '../../blue_modules/currency';
 import { FiatUnit } from '../../models/fiatUnit';
+
+jest.mock('../../class/xbt/profile', () => ({ XBT_PROFILE: { fiatEnabled: true } }));
 
 describe('currency', () => {
   it('formats everything correctly', async () => {

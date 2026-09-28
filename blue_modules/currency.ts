@@ -2,13 +2,15 @@ import BigNumber from 'bignumber.js';
 import DefaultPreference from 'react-native-default-preference';
 import * as RNLocalize from 'react-native-localize';
 
+import { XBT_PROFILE } from '../class/xbt/profile';
+
 import { FiatUnit, FiatUnitType, getFiatRate } from '../models/fiatUnit';
 
 const PREFERRED_CURRENCY_STORAGE_KEY = 'preferredCurrency';
 const PREFERRED_CURRENCY_LOCALE_STORAGE_KEY = 'preferredCurrencyLocale';
 const EXCHANGE_RATES_STORAGE_KEY = 'exchangeRates';
 const LAST_UPDATED = 'LAST_UPDATED';
-export const GROUP_IO_BLUEWALLET = 'group.io.bluewallet.bluewallet';
+export const GROUP_IO_BLUEWALLET = 'group.com.romanmodin.redwallet';
 const BTC_PREFIX = 'BTC_';
 
 export interface CurrencyRate {
@@ -46,6 +48,7 @@ function getCurrencyFormatter(): Intl.NumberFormat {
 }
 
 async function setPreferredCurrency(item: FiatUnitType): Promise<void> {
+  if (!XBT_PROFILE.fiatEnabled) return;
   await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
   try {
     await DefaultPreference.set(PREFERRED_CURRENCY_STORAGE_KEY, item.endPointKey);
@@ -63,6 +66,7 @@ async function setPreferredCurrency(item: FiatUnitType): Promise<void> {
 }
 
 async function updateExchangeRate(): Promise<void> {
+  if (!XBT_PROFILE.fiatEnabled) return;
   if (skipUpdateExchangeRate) return;
   if (Date.now() - lastTimeUpdateExchangeRateWasCalled <= 10000) {
     // simple debounce so there's no race conditions
@@ -123,6 +127,7 @@ async function updateExchangeRate(): Promise<void> {
 }
 
 async function getPreferredCurrency(): Promise<FiatUnitType> {
+  if (!XBT_PROFILE.fiatEnabled) return FiatUnit.USD;
   await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
   const preferredCurrencyValue = await DefaultPreference.get(PREFERRED_CURRENCY_STORAGE_KEY);
   let preferredCurrency: string | null = null;
@@ -156,6 +161,16 @@ async function getPreferredCurrency(): Promise<FiatUnitType> {
 }
 
 async function _restoreSavedExchangeRatesFromStorage(): Promise<void> {
+  if (!XBT_PROFILE.fiatEnabled) {
+    exchangeRates = { LAST_UPDATED_ERROR: false };
+    try {
+      await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
+      await DefaultPreference.clear(EXCHANGE_RATES_STORAGE_KEY);
+    } catch (error) {
+      console.warn('Could not clear obsolete exchange-rate cache:', error);
+    }
+    return;
+  }
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
     const ratesValue = await DefaultPreference.get(EXCHANGE_RATES_STORAGE_KEY);
@@ -187,6 +202,7 @@ async function _restoreSavedExchangeRatesFromStorage(): Promise<void> {
 }
 
 async function _restoreSavedPreferredFiatCurrencyFromStorage(): Promise<void> {
+  if (!XBT_PROFILE.fiatEnabled) return;
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
     const storedCurrencyValue = await DefaultPreference.get(PREFERRED_CURRENCY_STORAGE_KEY);
@@ -224,6 +240,7 @@ async function _restoreSavedPreferredFiatCurrencyFromStorage(): Promise<void> {
 }
 
 async function isRateOutdated(): Promise<boolean> {
+  if (!XBT_PROFILE.fiatEnabled) return false;
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
     const rateValue = await DefaultPreference.get(EXCHANGE_RATES_STORAGE_KEY);
@@ -269,6 +286,7 @@ async function initCurrencyDaemon(clearLastUpdatedTime: boolean = false): Promis
 }
 
 function satoshiToLocalCurrency(satoshi: number, format: boolean = true): string {
+  if (!XBT_PROFILE.fiatEnabled) return '';
   const exchangeRateKey = BTC_PREFIX + preferredFiatCurrency.endPointKey;
   const exchangeRate = exchangeRates[exchangeRateKey];
 
@@ -303,6 +321,7 @@ function BTCToLocalCurrency(bitcoin: BigNumber.Value): string {
 }
 
 async function mostRecentFetchedRate(): Promise<CurrencyRate> {
+  if (!XBT_PROFILE.fiatEnabled) return { LastUpdated: null, Rate: null };
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
     const currencyInfoValue = await DefaultPreference.get(EXCHANGE_RATES_STORAGE_KEY);
@@ -347,6 +366,7 @@ function btcToSatoshi(btc: BigNumber.Value): number {
 }
 
 function fiatToBTC(fiatFloat: number): string {
+  if (!XBT_PROFILE.fiatEnabled) throw new Error('Fiat conversion is unavailable for XBT.');
   const exchangeRateKey = BTC_PREFIX + preferredFiatCurrency.endPointKey;
   const exchangeRate = exchangeRates[exchangeRateKey];
 
@@ -359,6 +379,7 @@ function fiatToBTC(fiatFloat: number): string {
 }
 
 function getCurrencySymbol(): string {
+  if (!XBT_PROFILE.fiatEnabled) return '';
   return preferredFiatCurrency.symbol;
 }
 

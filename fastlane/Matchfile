@@ -10,10 +10,7 @@ type(ENV["MATCH_TYPE"] || "appstore")
 # App identifiers for the RedWallet app and extensions
 app_identifier([
   "com.romanmodin.redwallet",
-  "com.romanmodin.redwallet.watch",
-  "com.romanmodin.redwallet.watch.extension",
-  "com.romanmodin.redwallet.Stickers",
-  "com.romanmodin.redwallet.MarketWidget"
+  "com.romanmodin.redwallet.Stickers"
 ])
 
 # Your Apple Developer account email address

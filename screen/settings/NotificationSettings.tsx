@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View, Pressable, AppState, Text } from 'react-native';
 import {
   getPushToken,
+  isNotificationsCapable,
   getStoredNotifications,
   isNotificationsEnabled,
   setLevels,
@@ -30,7 +31,7 @@ import {
   settingsCardContent,
 } from '../../components/SettingsSection';
 
-const NotificationSettings: React.FC = () => {
+const EnabledNotificationSettings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isNotificationsEnabledState, setNotificationsEnabledState] = useState<boolean | undefined>(undefined);
   const [isRedactedState, setRedactedState] = useState(false);
@@ -245,6 +246,23 @@ const NotificationSettings: React.FC = () => {
     </SettingsScrollView>
   );
 };
+
+const NotificationSettings: React.FC = () =>
+  isNotificationsCapable ? (
+    <EnabledNotificationSettings />
+  ) : (
+    <SettingsScrollView>
+      <SettingsSection>
+        <SettingsListItem
+          title="Notifications unavailable"
+          subtitle="Payment notifications are not available for XBT in this release."
+          subtitleNumberOfLines={0}
+          disabled
+          bottomDivider={false}
+        />
+      </SettingsSection>
+    </SettingsScrollView>
+  );
 
 export default NotificationSettings;
 

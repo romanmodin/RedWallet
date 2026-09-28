@@ -1,3 +1,4 @@
+import { normalizeXbtUnit } from '../class/xbt/units';
 // Translation glossary: see ./vocabulary.md for canonical Bitcoin/Lightning term renderings per language.
 // Update vocabulary.md whenever you add a new term or change a shipped translation in a locale .json.
 
@@ -446,6 +447,7 @@ export const removeTrailingZeros = (value: number | string): string => {
  * @returns {string}
  */
 export function formatBalance(balance: number, toUnit: string, withFormatting = false): string {
+  if (toUnit !== undefined) toUnit = normalizeXbtUnit(toUnit as BitcoinUnit);
   if (toUnit === undefined) {
     return balance + ' ' + loc.units[BitcoinUnit.BTC];
   }
@@ -468,6 +470,7 @@ export function formatBalance(balance: number, toUnit: string, withFormatting = 
  * @returns {string}
  */
 export function formatBalanceWithoutSuffix(balance = 0, toUnit: string, withFormatting = false): string | number {
+  if (toUnit !== undefined) toUnit = normalizeXbtUnit(toUnit as BitcoinUnit);
   if (toUnit === undefined) {
     return balance;
   }

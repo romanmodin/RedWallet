@@ -1,3 +1,5 @@
+import { XBT_PROFILE } from '../../class/xbt/profile';
+import { normalizeXbtUnit } from '../../class/xbt/units';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RouteProp, useFocusEffect, useRoute, useLocale } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -83,8 +85,8 @@ const SendDetails = () => {
   const selectedDataProcessor = useRef<ToolTipAction | undefined>(undefined);
   const setParams = navigation.setParams;
   const route = useRoute<RouteProps>();
-  const feeUnit = route.params?.feeUnit ?? BitcoinUnit.BTC;
-  const amountUnit = route.params?.amountUnit ?? BitcoinUnit.BTC;
+  const feeUnit = normalizeXbtUnit(route.params?.feeUnit);
+  const amountUnit = normalizeXbtUnit(route.params?.amountUnit);
   const frozenBalance = route.params?.frozenBalance ?? 0;
   const transactionMemo = route.params?.transactionMemo;
   const utxos = route.params?.utxos;
@@ -1392,12 +1394,17 @@ const SendDetails = () => {
 
                 switch (unit) {
                   case BitcoinUnit.SATS:
-                    addr.amountSats = parseInt(String(addr.amount), 10);
+                    addr.amountSats = parseInt(String(addr.amount || 0), 10);
                     break;
                   case BitcoinUnit.BTC:
-                    addr.amountSats = btcToSatoshi(String(addr.amount));
+                    addr.amountSats = btcToSatoshi(String(addr.amount || 0));
                     break;
                   case BitcoinUnit.LOCAL_CURRENCY:
+                    if (!XBT_PROFILE.fiatEnabled) {
+                      addr.amount = '';
+                      addr.amountSats = 0;
+                      break;
+                    }
                     // also accounting for cached fiat->sat conversion to avoid rounding error
                     addr.amountSats = AmountInput.getCachedSatoshis(String(addr.amount)) || btcToSatoshi(fiatToBTC(Number(addr.amount)));
                     break;
@@ -1407,7 +1414,7 @@ const SendDetails = () => {
                 return [...addrs];
               });
               setAddresses(addrs => {
-                addrs[index].unit = unit;
+                addrs[index].unit = normalizeXbtUnit(unit);
                 return [...addrs];
               });
             }}
@@ -1419,6 +1426,11 @@ const SendDetails = () => {
                     item.amountSats = btcToSatoshi(item.amount);
                     break;
                   case BitcoinUnit.LOCAL_CURRENCY:
+                    if (!XBT_PROFILE.fiatEnabled) {
+                      item.amount = '';
+                      item.amountSats = 0;
+                      break;
+                    }
                     item.amountSats = btcToSatoshi(fiatToBTC(Number(item.amount)));
                     break;
                   case BitcoinUnit.SATS:

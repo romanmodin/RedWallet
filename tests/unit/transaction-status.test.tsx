@@ -1,4 +1,5 @@
 import React from 'react';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import { _setSkipUpdateExchangeRate } from '../../blue_modules/currency';
@@ -284,6 +285,16 @@ describe('TransactionStatus regression', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('keeps transaction ID copying available while hiding unverified explorer links', async () => {
+    const { view } = setup(1, 1000);
+
+    await waitFor(() => expect(view.getByTestId('TransactionIdCopyButton')).toBeTruthy());
+    expect(view.queryByText('Explorer')).toBeNull();
+    fireEvent.press(view.getByTestId('TransactionIdCopyButton'));
+    expect(Clipboard.setString).toHaveBeenCalledWith('mock-tx');
+    view.unmount();
   });
 
   it('re-fetches wallet transactions when lastTxFetch changes', async () => {

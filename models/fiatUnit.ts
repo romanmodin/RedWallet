@@ -1,3 +1,4 @@
+import { XBT_PROFILE } from '../class/xbt/profile';
 import { fetch } from '../util/fetch';
 import untypedFiatUnit from './fiatUnits.json';
 
@@ -235,5 +236,6 @@ export type FiatUnitType = {
 };
 
 export async function getFiatRate(ticker: string): Promise<number> {
+  if (!XBT_PROFILE.fiatEnabled) throw new Error('Fiat conversion is unavailable for XBT.');
   return await RateExtractors[FiatUnit[ticker].source](ticker);
 }

@@ -1,3 +1,5 @@
+import { XBT_PROFILE } from '../class/xbt/profile';
+import { nextXbtUnit, normalizeXbtUnit } from '../class/xbt/units';
 import Clipboard from '@react-native-clipboard/clipboard';
 import BigNumber from 'bignumber.js';
 import dayjs from 'dayjs';
@@ -37,11 +39,11 @@ import { useTheme } from './themes';
 export const conversionCache: { [key: string]: string } = {};
 
 export const getCachedSatoshis = (amount: string): string | undefined => {
-  return conversionCache[amount + BitcoinUnit.LOCAL_CURRENCY];
+  return XBT_PROFILE.fiatEnabled ? conversionCache[amount + BitcoinUnit.LOCAL_CURRENCY] : undefined;
 };
 
 export const setCachedSatoshis = (amount: string, sats: string): void => {
-  conversionCache[amount + BitcoinUnit.LOCAL_CURRENCY] = sats;
+  if (XBT_PROFILE.fiatEnabled) conversionCache[amount + BitcoinUnit.LOCAL_CURRENCY] = sats;
 };
 
 const INPUT_HORIZONTAL_PADDING = 6;
@@ -103,10 +105,11 @@ type AmountInputProps = Omit<TextInputProps, 'onChangeText' | 'value'> & {
 export const AmountInput: React.FC<AmountInputProps> = props => {
   const textInputRef = useRef<TextInput>(null);
   const { colors } = useTheme();
-  const amount = props.amount || '0'; // internally amount is aways a string with a correct number
+  const staleFiatAmount = !XBT_PROFILE.fiatEnabled && props.unit === BitcoinUnit.LOCAL_CURRENCY;
+  const amount = staleFiatAmount ? '' : props.amount || '0'; // internally amount is aways a string with a correct number
   const {
     onChangeText,
-    unit,
+    unit: requestedUnit,
     onAmountUnitChange,
     disabled = false,
     isLoading = false,
@@ -115,6 +118,14 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
     style: styleOverride,
     ...otherProps
   } = props;
+  const unit = normalizeXbtUnit(requestedUnit);
+  useEffect(() => {
+    if (staleFiatAmount) {
+      // A fiat number cannot be reinterpreted as XBT after changing the display preference.
+      onChangeText('');
+      onAmountUnitChange(BitcoinUnit.BTC);
+    }
+  }, [staleFiatAmount, onChangeText, onAmountUnitChange]);
   const [isRateBeingUpdatedLocal, setIsRateBeingUpdatedLocal] = useState(false);
   const [outdatedRefreshRate, setOutdatedRefreshRate] = useState<CurrencyRate | undefined>();
 
@@ -147,6 +158,7 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
   }, [amount, unit]);
 
   const secondaryDisplayCurrency = useMemo(() => {
+    if (!XBT_PROFILE.fiatEnabled) return '';
     if (amount === BitcoinUnit.MAX) {
       return '';
     }
@@ -173,6 +185,7 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
   }, [amount, unit]);
 
   useEffect(() => {
+    if (!XBT_PROFILE.fiatEnabled) return;
     (async () => {
       if (await isRateOutdated()) {
         const recent = await mostRecentFetchedRate();
@@ -196,19 +209,8 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
   }, []);
 
   const changeAmountUnit = useCallback(() => {
-    let previousUnit = unit;
-    let newUnit;
-    // cycle through units BTC -> SAT -> LOCAL_CURRENCY -> BTC
-    if (previousUnit === BitcoinUnit.BTC) {
-      newUnit = BitcoinUnit.SATS;
-    } else if (previousUnit === BitcoinUnit.SATS) {
-      newUnit = BitcoinUnit.LOCAL_CURRENCY;
-    } else if (previousUnit === BitcoinUnit.LOCAL_CURRENCY) {
-      newUnit = BitcoinUnit.BTC;
-    } else {
-      newUnit = BitcoinUnit.BTC;
-      previousUnit = BitcoinUnit.SATS;
-    }
+    const previousUnit = unit;
+    const newUnit = nextXbtUnit(unit);
 
     /**
      * here we must recalculate old amont value (which was denominated in `previousUnit`) to new denomination `newUnit`
@@ -404,7 +406,7 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
                   placeholder="0"
                   maxLength={maxLength}
                   ref={textInputRef}
-                  editable={!isLoading && !disabled}
+                  editable={!isLoading && !disabled && !staleFiatAmount}
                   value={displayAmount}
                   placeholderTextColor={inputTextColor}
                   cursorColor={inputTextColor}
@@ -438,11 +440,13 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
               <Text style={[styles.cryptoCurrency, stylesHook.cryptoCurrency]}>{loc.units[unit]}</Text>
             )}
           </View>
-          <View style={styles.secondaryRoot}>
-            <Text style={styles.secondaryText} selectable>
-              {secondaryDisplayCurrency}
-            </Text>
-          </View>
+          {XBT_PROFILE.fiatEnabled && (
+            <View style={styles.secondaryRoot}>
+              <Text style={styles.secondaryText} selectable>
+                {secondaryDisplayCurrency}
+              </Text>
+            </View>
+          )}
         </View>
         {!disabled &&
           (amount !== BitcoinUnit.MAX ? (

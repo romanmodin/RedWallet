@@ -206,7 +206,6 @@
 			dstSubfolderSpec = 13;
 			files = (
 				6D2A6468258BA92D0092292B /* Stickers.appex in Embed Foundation Extensions */,
-				6DD410A7266CADF40087DE03 /* WidgetsExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -787,7 +786,6 @@
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
-				B40D4E2D225841C300428FCC /* Embed Watch Content */,
 				3271B0B6236E2E0700DA766F /* Embed Foundation Extensions */,
 				A8D9893AE3CD454A9094B651 /* Upload source maps to Bugsnag */,
 				4B36CFF6FE55027DCA5CB6E1 /* Upload Bugsnag dSYM */,
@@ -797,10 +795,8 @@
 			buildRules = (
 			);
 			dependencies = (
-				B40D4E4C225841ED00428FCC /* PBXTargetDependency */,
 				6D9946682555A661000E52E8 /* PBXTargetDependency */,
 				6D2A6467258BA92D0092292B /* PBXTargetDependency */,
-				6DD410A6266CADF40087DE03 /* PBXTargetDependency */,
 			);
 			name = BlueWallet;
 			productName = "Hello World";
@@ -1149,7 +1145,6 @@
 				B48630E72CCEE91900A8425C /* PriceWidgetProvider.swift in Sources */,
 				B4B3EC252D69FF8700327F3D /* EventEmitter.swift in Sources */,
 				B4F0A4A42FA1BC0000AAAA03 /* EventEmitter.mm in Sources */,
-				B48630ED2CCEEEB000A8425C /* WalletAppShortcuts.swift in Sources */,
 				B409AB062D71E07500BA06F8 /* MenuElementsEmitter.swift in Sources */,
 				B44033CE2BCC352900162242 /* UserDefaultsGroup.swift in Sources */,
 				B461B852299599F800E431AA /* AppDelegate.swift in Sources */,
@@ -1158,7 +1153,6 @@
 				B4AA75242DAA339E00CF5CBE /* MenuElementsEmitter.m in Sources */,
 				B49A28BF2CD18A9A006B08E4 /* FiatUnitEnum.swift in Sources */,
 				B44033C42BCC332400162242 /* Balance.swift in Sources */,
-				B48630EE2CCEEEE900A8425C /* PriceIntent.swift in Sources */,
 				B44034072BCC38A000162242 /* FiatUnit.swift in Sources */,
 				B44034002BCC37F800162242 /* Bundle+decode.swift in Sources */,
 				B44033E22BCC36CB00162242 /* Placeholders.swift in Sources */,

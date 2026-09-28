@@ -18,14 +18,8 @@
       <dict>
           <key>com.romanmodin.redwallet</key>
           <string>match AppStore com.romanmodin.redwallet</string>
-          <key>com.romanmodin.redwallet.watch</key>
-          <string>match AppStore com.romanmodin.redwallet.watch</string>
-          <key>com.romanmodin.redwallet.watch.extension</key>
-          <string>match AppStore com.romanmodin.redwallet.watch.extension</string>
           <key>com.romanmodin.redwallet.Stickers</key>
           <string>match AppStore com.romanmodin.redwallet.Stickers</string>
-          <key>com.romanmodin.redwallet.MarketWidget</key>
-          <string>match AppStore com.romanmodin.redwallet.MarketWidget</string>
       </dict>
   </dict>
 </plist>

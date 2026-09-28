@@ -4,6 +4,7 @@ import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import loc from '../../loc';
 import { SettingsSection, SettingsListItem, SettingsScrollView } from '../../components/SettingsSection';
 import { useSettings } from '../../hooks/context/useSettings';
+import { XBT_PROFILE } from '../../class/xbt/profile';
 
 const Settings = () => {
   const { navigate, setOptions } = useExtendedNavigation();
@@ -48,13 +49,16 @@ const Settings = () => {
           testID="GeneralSettings"
           chevron
         />
-        <SettingsListItem
-          title={loc.settings.currency}
-          iconName="currency"
-          onPress={() => navigate('Currency')}
-          testID="Currency"
-          chevron
-        />
+        <SettingsListItem title="XBT price" iconName="currency" onPress={() => navigate('XbtPrice')} testID="XbtPriceSettings" chevron />
+        {XBT_PROFILE.fiatEnabled && (
+          <SettingsListItem
+            title={loc.settings.currency}
+            iconName="currency"
+            onPress={() => navigate('Currency')}
+            testID="Currency"
+            chevron
+          />
+        )}
         <SettingsListItem
           title={loc.settings.language}
           iconName="language"

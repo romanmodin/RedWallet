@@ -37,7 +37,8 @@ import { SettingsSection } from '../../components/SettingsSection';
 import SafeAreaScrollView from '../../components/SafeAreaScrollView';
 import { useTheme } from '../../components/themes';
 import prompt from '../../helpers/prompt';
-import { useSettings } from '../../hooks/context/useSettings';
+import { getTransactionExplorerUrl } from '../../models/blockExplorer';
+import { XBT_PROFILE } from '../../class/xbt/profile';
 import { useStorage } from '../../hooks/context/useStorage';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import useWalletSubscribe from '../../hooks/useWalletSubscribe';
@@ -175,7 +176,7 @@ const TransactionStatus: React.FC = () => {
   const { navigate, goBack, setOptions } = useExtendedNavigation<NavigationProps>();
   const { colors } = useTheme();
   const { width: windowWidth, fontScale } = useWindowDimensions();
-  const { selectedBlockExplorer } = useSettings();
+  const explorerUrl = getTransactionExplorerUrl(tx?.hash);
   const fetchTxInterval = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const scaledStyles = useMemo(() => {
@@ -793,12 +794,11 @@ const TransactionStatus: React.FC = () => {
   }, [tx, txMetadata, saveToDisk]);
 
   const handleOpenBlockExplorer = useCallback(() => {
-    if (!tx?.hash || !selectedBlockExplorer) return;
-    const url = `${selectedBlockExplorer.url}/tx/${tx.hash}`;
-    Linking.canOpenURL(url)
+    if (!explorerUrl) return;
+    Linking.canOpenURL(explorerUrl)
       .then(supported => {
         if (supported) {
-          Linking.openURL(url).catch(e => {
+          Linking.openURL(explorerUrl).catch(e => {
             console.log('openURL failed in handleOpenBlockExplorer');
             console.log(e.message);
             triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
@@ -816,7 +816,7 @@ const TransactionStatus: React.FC = () => {
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
         presentAlert({ message: e.message });
       });
-  }, [tx?.hash, selectedBlockExplorer]);
+  }, [explorerUrl]);
 
   const renderCPFP = (transaction: Transaction, w: TWallet) => {
     if (isCPFPPossible === ButtonStatus.Unknown) {
@@ -934,7 +934,9 @@ const TransactionStatus: React.FC = () => {
   const parsedConfirmations = Number(tx?.confirmations);
   const isOnChainTx = isOnChainTransaction(tx);
   const isPending = resolveTxDisplayState(tx) === 'pending';
-  const preferredBalanceUnit = wallet?.preferredBalanceUnit ?? BitcoinUnit.BTC;
+  const savedBalanceUnit = wallet?.preferredBalanceUnit ?? BitcoinUnit.BTC;
+  const preferredBalanceUnit =
+    !XBT_PROFILE.fiatEnabled && savedBalanceUnit === BitcoinUnit.LOCAL_CURRENCY ? BitcoinUnit.BTC : savedBalanceUnit;
 
   const showBlocksAccordion = isOnChainTx && !isPending && parsedConfirmations > 0;
 
@@ -1087,7 +1089,7 @@ const TransactionStatus: React.FC = () => {
               </Text>
             )}
           </Text>
-          {txValue !== null && (
+          {XBT_PROFILE.fiatEnabled && txValue !== null && (
             <Text style={[styles.localCurrency, stylesHook.localCurrency, scaledStyles.localCurrency]}>
               {preferredBalanceUnit === BitcoinUnit.LOCAL_CURRENCY
                 ? `${formatBalanceWithoutSuffix(Math.abs(txValue), BitcoinUnit.BTC, true)} ${loc.units.BTC}`
@@ -1208,7 +1210,7 @@ const TransactionStatus: React.FC = () => {
         title={loc.transactions.details_section}
         containerStyle={styles.sectionMargins}
         headerRight={
-          tx?.hash ? (
+          explorerUrl ? (
             <TouchableOpacity
               onPress={handleOpenBlockExplorer}
               style={[styles.explorerButton, stylesHook.explorerButton, scaledStyles.explorerButton]}
@@ -1233,7 +1235,7 @@ const TransactionStatus: React.FC = () => {
             <CopyTextToClipboard
               text={
                 calculatedFee !== null && calculatedFee !== undefined
-                  ? `${formatBalanceWithoutSuffix(calculatedFee, BitcoinUnit.SATS, true)} sats / ${satoshiToLocalCurrency(calculatedFee)}`
+                  ? `${formatBalanceWithoutSuffix(calculatedFee, BitcoinUnit.SATS, true)} sats${XBT_PROFILE.fiatEnabled ? ` / ${satoshiToLocalCurrency(calculatedFee)}` : ''}`
                   : '-'
               }
               style={StyleSheet.flatten([styles.detailValue, stylesHook.detailValue])}

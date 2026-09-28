@@ -2,10 +2,7 @@
 def app_identifiers
   [
     "com.romanmodin.redwallet",
-    "com.romanmodin.redwallet.watch",
-    "com.romanmodin.redwallet.watch.extension",
-    "com.romanmodin.redwallet.Stickers",
-    "com.romanmodin.redwallet.MarketWidget"
+    "com.romanmodin.redwallet.Stickers"
   ]
 end
 
@@ -515,8 +512,7 @@ platform :ios do
   # Only these targets support Mac Catalyst (watch/stickers do not)
   def catalyst_app_identifiers
     [
-      "com.romanmodin.redwallet",
-      "com.romanmodin.redwallet.MarketWidget"
+      "com.romanmodin.redwallet"
     ]
   end
 
@@ -612,8 +608,7 @@ platform :ios do
 
       # Only these targets support Mac Catalyst
       catalyst_identifiers = [
-        "com.romanmodin.redwallet",
-        "com.romanmodin.redwallet.MarketWidget"
+        "com.romanmodin.redwallet"
       ]
 
       has_signing_creds = ENV['CATALYST_SIGNING_IDENTITY'] && !ENV['CATALYST_SIGNING_IDENTITY'].empty? &&
