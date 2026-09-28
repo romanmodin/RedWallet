@@ -37,6 +37,7 @@ jobs:
       branch_name: ${{ steps.get_latest_commit_details.outputs.branch_name }}
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
+      SKIP_APP_STORE_CONNECT_AUTH: "1"
       MATCH_READONLY: ${{ inputs.create_signing_material && 'false' || 'true' }}
 
     steps:
@@ -50,16 +51,15 @@ jobs:
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
-          ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
           ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
           GIT_URL: ${{ secrets.GIT_URL }}
-          GIT_ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
+          GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
           missing=0
-          for name in APPLE_ID TEAM_ID ITC_TEAM_ID ITC_TEAM_NAME GIT_URL GIT_ACCESS_TOKEN MATCH_PASSWORD KEYCHAIN_PASSWORD APP_STORE_CONNECT_API_KEY_CONTENT; do
+          for name in APPLE_ID TEAM_ID ITC_TEAM_NAME GIT_URL GIT_PRIVATE_KEY_CONTENT MATCH_PASSWORD KEYCHAIN_PASSWORD APP_STORE_CONNECT_API_KEY_CONTENT; do
             if [ -z "${!name}" ]; then
               echo "::error::Signing configuration missing: $name"
               missing=1
@@ -302,6 +302,17 @@ jobs:
           echo "project_version=$MARKETING_VERSION" >> $GITHUB_OUTPUT
         working-directory: ios
 
+      - name: Prepare signing repository key
+        env:
+          GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          printf '%s\n' "$GIT_PRIVATE_KEY_CONTENT" > "$RUNNER_TEMP/redwallet-signing-key"
+          mkdir -p "$HOME/.ssh"
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' >> "$HOME/.ssh/known_hosts"
+          echo "MATCH_GIT_PRIVATE_KEY=$RUNNER_TEMP/redwallet-signing-key" >> "$GITHUB_ENV"
+
       - name: Create Temporary Keychain
         run: bundle exec fastlane ios create_temp_keychain
         env:
@@ -310,10 +321,9 @@ jobs:
       - name: Setup Provisioning Profiles
         env:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          GIT_ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
+          GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
           GIT_URL: ${{ secrets.GIT_URL }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
-          ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
           ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           MATCH_READONLY: ${{ inputs.create_signing_material && 'false' || 'true' }}
@@ -321,6 +331,7 @@ jobs:
           APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/appstore_api_key.json
           SKIP_APP_STORE_CONNECT_AUTH: "1"
         run: |
+          umask 077
           printf '%s' "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$APP_STORE_CONNECT_API_KEY_PATH"
           bundle exec fastlane ios setup_provisioning_profiles
 
@@ -550,9 +561,8 @@ jobs:
         env:
           SKIP_APP_STORE_CONNECT_AUTH: "1"
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          GIT_ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
+          GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
           GIT_URL: ${{ secrets.GIT_URL }}
-          ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
           ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
           APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
           APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}

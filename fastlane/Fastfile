@@ -479,7 +479,7 @@ platform :ios do
 
   desc "Synchronize certificates and provisioning profiles"
   lane :setup_provisioning_profiles do
-    required_vars = ["GIT_ACCESS_TOKEN", "GIT_URL", "TEAM_ID", "ITC_TEAM_ID", "ITC_TEAM_NAME", "KEYCHAIN_PASSWORD", "APP_STORE_CONNECT_API_KEY_PATH"]
+    required_vars = ["MATCH_GIT_PRIVATE_KEY", "GIT_URL", "TEAM_ID", "ITC_TEAM_NAME", "KEYCHAIN_PASSWORD", "APP_STORE_CONNECT_API_KEY_PATH"]
     ensure_env_vars(required_vars)
     
     UI.message("Setting up provisioning profiles...")
@@ -489,7 +489,7 @@ platform :ios do
       with_retry(3, "Fetching provisioning profile for #{app_identifier}") do
         UI.message("Fetching provisioning profile for #{app_identifier}...")
         match(
-          git_basic_authorization: ENV["GIT_ACCESS_TOKEN"],
+          git_private_key: ENV["MATCH_GIT_PRIVATE_KEY"],
           git_url: ENV["GIT_URL"],
           api_key_path: ENV["APP_STORE_CONNECT_API_KEY_PATH"],
           type: "appstore",

@@ -34,12 +34,12 @@ See XBT_VALIDATION.md for recorded results and their limits.
 - App Store Connect record created as **RedWallet XBT** (Apple app ID
   `6817118871`, SKU `redwallet-ios`). The shorter store name was unavailable.
   The device display name remains RedWallet.
-- Apple API access was approved after the account owner authorized the
-  internal-use agreement. The RedWallet GitHub Builds key is prepared with
-  the App Manager role, pending explicit creation and storage authorization.
-  No API key, certificate, or provisioning profile has been created yet.
-- GitHub signing secrets are not yet configured. No signed IPA or TestFlight
-  build exists from this checkpoint.
+- Apple API access and the App Manager build key were approved by the owner.
+  The key is stored in the app repository's encrypted Actions secrets.
+  No distribution certificate or provisioning profile has been created yet.
+- Signing secrets and a private Match repository are configured. Its deploy
+  key can access only that repository. No signed IPA or TestFlight build exists
+  from this checkpoint.
 
 ## GitHub Actions configuration
 
@@ -49,15 +49,14 @@ The iOS release workflow uses these repository secrets:
 | --- | --- |
 | `APPLE_ID` | Apple Account email for the selected team |
 | `TEAM_ID` | Apple Developer team ID |
-| `ITC_TEAM_ID` | App Store Connect team ID |
 | `ITC_TEAM_NAME` | Exact selected team name |
-| `GIT_URL` | HTTPS URL of the private Match signing repository |
-| `GIT_ACCESS_TOKEN` | Base64 encoding of `github_username:token`, as Match's basic authorization header; **not** a raw token |
+| `GIT_URL` | SSH URL of the private Match signing repository |
+| `GIT_PRIVATE_KEY_CONTENT` | Deploy private key restricted to the signing repository |
 | `MATCH_PASSWORD` | Password encrypting the Match repository |
 | `KEYCHAIN_PASSWORD` | Temporary build-keychain password |
 | `APP_STORE_CONNECT_API_KEY_CONTENT` | Fastlane API-key JSON with `key_id`, `issuer_id`, and PEM `key` content |
 
-Initialize the Match repository's `master` branch before using
+Initialize the Match repository's `main` branch before using
 `clone_branch_directly`. Restrict its credential to that repository.
 A normal build uses existing profiles in read-only mode. A bootstrap run with
 `create_signing_material=true` can create certificates/profiles and write them
