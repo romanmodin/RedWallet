@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "description": "Public BIP84 fixture and isolated Knots regtest observation. No production funds or credentials.",
+  "implementationCommit": "49e06af1fd115cf5bde7733cd8b258a98d9ee566",
+  "fixture": {
+    "chain": "regtest",
+    "blake2bHeight": 150,
+    "height": 152,
+    "fundingTransactions": [
+      {
+        "rawTx": "02000000000101432d7226d7aba01e7eac8f4e67de6564ab6dd7b086fe5065c2f8d561d6b8746a0000000000fdffffff03b16a042a010000001976a9145803be7328655cbf7ab330dacd1adb51b65bffaa88ac409c0000000000001600149c90f934ea51fa0f6504177043e0908da692998360ea000000000000160014c0cebcd6c3d3ca8c75dc5ec62ebe55330ef910e20247304402205b519532fe48caa9bd7769bfc70e57c8f6ea3eb456deaddaa64a8397c3e107e302200fcd3571eb8f213e950531ead847e76f303b29fb8c5a02b71daf019fb5073c552121021b130b4f002b1b88767f3937634a44b22063feeb55c7e99f1fdfffe0bfac743e97000000",
+        "confirmations": 1
+      }
+    ]
+  },
+  "signed": {
+    "mode": "signed",
+    "schemaVersion": 1,
+    "purpose": "Public BIP84 fixture on network-isolated regtest only",
+    "derivationPath": "m/84'/0'/0'",
+    "sources": [
+      {
+        "index": 0,
+        "value": 60000,
+        "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+        "regtestAddress": "bcrt1qcr8te4kr609gcawutmrza0j4xv80jy8zeqchgx",
+        "scriptHex": "0014c0cebcd6c3d3ca8c75dc5ec62ebe55330ef910e2"
+      },
+      {
+        "index": 1,
+        "value": 40000,
+        "address": "bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g",
+        "regtestAddress": "bcrt1qnjg0jd8228aq7egyzacy8cys3knf9xvr3v5hfj",
+        "scriptHex": "00149c90f934ea51fa0f6504177043e0908da6929983"
+      }
+    ],
+    "destination": {
+      "value": 90000,
+      "address": "bc1qp59yckz4ae5c4efgw2s5wfyvrz0ala7rgvuz8z",
+      "regtestAddress": "bcrt1qp59yckz4ae5c4efgw2s5wfyvrz0ala7rqr7utc",
+      "scriptHex": "00140d0a4c5855ee698ae52872a147248c189fdff7c3"
+    },
+    "change": {
+      "address": "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el",
+      "regtestAddress": "bcrt1q8c6fshw2dlwun7ekn9qwf37cu2rn755ufhry49",
+      "scriptHex": "00143e34985dca6fddc9fb369940e4c7d8e2873f529c"
+    },
+    "feeRateSatPerVbyte": 1,
+    "chain": "regtest",
+    "blake2bHeight": 150,
+    "fixtureHeight": 152,
+    "inputs": [
+      {
+        "txid": "c80bab7a9f56f3cae5e3a45a82616823424577eb2811d4a1af23e8fa59d45467",
+        "vout": 2,
+        "value": 60000,
+        "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+        "confirmations": 1
+      },
+      {
+        "txid": "c80bab7a9f56f3cae5e3a45a82616823424577eb2811d4a1af23e8fa59d45467",
+        "vout": 1,
+        "value": 40000,
+        "address": "bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g",
+        "confirmations": 1
+      }
+    ],
+    "expectedTxid": "6fef0e2039d1a0fb78981c845d30b4b90560514bb892ebd6b1f86292ee8769c7",
+    "expectedOutputs": [
+      {
+        "vout": 0,
+        "value": 90000,
+        "scriptHex": "00140d0a4c5855ee698ae52872a147248c189fdff7c3"
+      },
+      {
+        "vout": 1,
+        "value": 9786,
+        "scriptHex": "00143e34985dca6fddc9fb369940e4c7d8e2873f529c"
+      }
+    ],
+    "feeSats": 214,
+    "virtualSize": 209,
+    "goodHex": "020000000001026754d459fae823afa1d41128eb774542236861825aa4e3e5caf3569f7aab0bc80200000000000000806754d459fae823afa1d41128eb774542236861825aa4e3e5caf3569f7aab0bc801000000000000008002905f0100000000001600140d0a4c5855ee698ae52872a147248c189fdff7c33a260000000000001600143e34985dca6fddc9fb369940e4c7d8e2873f529c024730440220202979ab61940b3298d6e04a3927ae625b10f977341f5fd2a2541ed9072b11b602207d8de19a891dd8059eed4dbfbbe9aab8b3a5b87ab51cd82487d1a481261aa7ac21210330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c02483045022100fc2363e4ce902e5f9b7f6e9c307797ba59f7fcc7d3d432ab52d7a26e42a06a0302207e7eb87df08e9b6991db0afe7ba8fd5997bba10c84816c241765df4320895b9a212103e775fd51f0dfb8cd865d9ff1cca2a158cf651fe997fdc9fee9c1d3b5e995ea7700000000",
+    "finalizedPsbt": "cHNidP8BAJoCAAAAAmdU1Fn66COvodQRKOt3RUIjaGGCWqTj5crzVp96qwvIAgAAAAAAAACAZ1TUWfroI6+h1BEo63dFQiNoYYJapOPlyvNWn3qrC8gBAAAAAAAAAIACkF8BAAAAAAAWABQNCkxYVe5piuUocqFHJIwYn9/3wzomAAAAAAAAFgAUPjSYXcpv3cn7NplA5MfY4oc/UpwAAAAAAAEBH2DqAAAAAAAAFgAUwM681sPTyox13F7GLr5VMw75EOIBCGsCRzBEAiAgKXmrYZQLMpjW4Eo5J65iWxD5dzQfX9KiVB7ZBysRtgIgfY3hmokd2AWe7U2/u+mquLOluHq1HNgkh9GkgSYap6whIQMw1U/Q3UIKbl+NNiT180gsrjUPedXwdTv1vu+cLZGvPAABAR9AnAAAAAAAABYAFJyQ+TTqUfoPZQQXcEPgkI2mkpmDAQhsAkgwRQIhAPwjY+TOkC5fm39unDB3l7pZ9/zH09Qyq1LXom5CoGoDAiB+frh98I6baZHbCv57qP1Zl7uhDISBbCQXZd9DIIlbmiEhA+d1/VHw37jNhl2f8cyioVjPZR/pl/3J/unB07Xplep3AAAiAgMCUySIjkKauOPbrx94AmSLnNAem0GEhcX6TBubVwDhphgAAAAAVAAAgAAAAIAAAACAAQAAAAAAAAAA",
+    "negativeControls": {
+      "changedOutputHex": "020000000001026754d459fae823afa1d41128eb774542236861825aa4e3e5caf3569f7aab0bc80200000000000000806754d459fae823afa1d41128eb774542236861825aa4e3e5caf3569f7aab0bc8010000000000000080028f5f0100000000001600140d0a4c5855ee698ae52872a147248c189fdff7c33a260000000000001600143e34985dca6fddc9fb369940e4c7d8e2873f529c024730440220202979ab61940b3298d6e04a3927ae625b10f977341f5fd2a2541ed9072b11b602207d8de19a891dd8059eed4dbfbbe9aab8b3a5b87ab51cd82487d1a481261aa7ac21210330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c02483045022100fc2363e4ce902e5f9b7f6e9c307797ba59f7fcc7d3d432ab52d7a26e42a06a0302207e7eb87df08e9b6991db0afe7ba8fd5997bba10c84816c241765df4320895b9a212103e775fd51f0dfb8cd865d9ff1cca2a158cf651fe997fdc9fee9c1d3b5e995ea7700000000",
+      "removedUnifiedBitHex": "020000000001026754d459fae823afa1d41128eb774542236861825aa4e3e5caf3569f7aab0bc80200000000000000806754d459fae823afa1d41128eb774542236861825aa4e3e5caf3569f7aab0bc801000000000000008002905f0100000000001600140d0a4c5855ee698ae52872a147248c189fdff7c33a260000000000001600143e34985dca6fddc9fb369940e4c7d8e2873f529c024730440220202979ab61940b3298d6e04a3927ae625b10f977341f5fd2a2541ed9072b11b602207d8de19a891dd8059eed4dbfbbe9aab8b3a5b87ab51cd82487d1a481261aa7ac01210330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c02483045022100fc2363e4ce902e5f9b7f6e9c307797ba59f7fcc7d3d432ab52d7a26e42a06a0302207e7eb87df08e9b6991db0afe7ba8fd5997bba10c84816c241765df4320895b9a212103e775fd51f0dfb8cd865d9ff1cca2a158cf651fe997fdc9fee9c1d3b5e995ea7700000000"
+    }
+  },
+  "node": {
+    "observedAt": "2026-09-28T18:14:12.090418+00:00",
+    "nodeVersion": "/Satoshi:29.4.2/Knots:20260508/",
+    "networkactive": false,
+    "connections": 0,
+    "chain": "regtest",
+    "blake2b": {
+      "height": 150,
+      "active": true
+    },
+    "fundingHeight": 152,
+    "acceptance": {
+      "txid": "6fef0e2039d1a0fb78981c845d30b4b90560514bb892ebd6b1f86292ee8769c7",
+      "wtxid": "e6ee8e8dc604714b33168ce0ac589e87d83377d335c37e5ef3b5da5cdf1ed882",
+      "usage": 992,
+      "allowed": true,
+      "vsize": 209,
+      "fees": {
+        "base": 0.00000214,
+        "effective-feerate": 0.00001023,
+        "effective-includes": [
+          "e6ee8e8dc604714b33168ce0ac589e87d83377d335c37e5ef3b5da5cdf1ed882"
+        ]
+      }
+    },
+    "negativeControls": {
+      "changedOutputHex": {
+        "txid": "780cdb87fe27d0ce648dc3ede43c5a5385544dff0977785b3260c3d65916c34d",
+        "wtxid": "af151b9d06013e0e8ce45f7064ea00e97732f32c423aa670c2c9259323d9531d",
+        "usage": 992,
+        "allowed": false,
+        "reject-reason": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation)",
+        "reject-details": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation), input 0 of 780cdb87fe27d0ce648dc3ede43c5a5385544dff0977785b3260c3d65916c34d (wtxid af151b9d06013e0e8ce45f7064ea00e97732f32c423aa670c2c9259323d9531d), spending c80bab7a9f56f3cae5e3a45a82616823424577eb2811d4a1af23e8fa59d45467:2"
+      },
+      "removedUnifiedBitHex": {
+        "txid": "6fef0e2039d1a0fb78981c845d30b4b90560514bb892ebd6b1f86292ee8769c7",
+        "wtxid": "bbe1d5052e1d98a4452b30dc4bac69d1c34029efa73e9177a5992fd81b0fd6a2",
+        "usage": 992,
+        "allowed": false,
+        "reject-reason": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation)",
+        "reject-details": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation), input 0 of 6fef0e2039d1a0fb78981c845d30b4b90560514bb892ebd6b1f86292ee8769c7 (wtxid bbe1d5052e1d98a4452b30dc4bac69d1c34029efa73e9177a5992fd81b0fd6a2), spending c80bab7a9f56f3cae5e3a45a82616823424577eb2811d4a1af23e8fa59d45467:2"
+      }
+    },
+    "confirmation": {
+      "txid": "6fef0e2039d1a0fb78981c845d30b4b90560514bb892ebd6b1f86292ee8769c7",
+      "blockhash": "743c1e16a8836908dcd993428e5ec9ac6bfc7e30924ee5fa8d007109f552b86c",
+      "height": 153,
+      "confirmations": 1
+    },
+    "expectedOutputs": [
+      {
+        "vout": 0,
+        "value": 90000,
+        "scriptHex": "00140d0a4c5855ee698ae52872a147248c189fdff7c3"
+      },
+      {
+        "vout": 1,
+        "value": 9786,
+        "scriptHex": "00143e34985dca6fddc9fb369940e4c7d8e2873f529c"
+      }
+    ],
+    "feeSats": 214
+  }
+}

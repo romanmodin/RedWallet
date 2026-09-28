@@ -3,6 +3,7 @@ import ecc from 'tiny-secp256k1';
 
 import { unifiedSegwitV0SighashAll } from '../../class/xbt/unified-sighash';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
+import knotsAcceptance from '../fixtures/xbt-knots-regtest-acceptance.json';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({}));
 
@@ -64,6 +65,54 @@ describe('XBT wallet transaction flow', () => {
 
     const destinationScript = Buffer.from(bitcoin.address.toOutputScript(destinationAddress));
     expect(decoded.outs.some(output => Buffer.from(output.script).equals(destinationScript))).toBe(true);
+  });
+
+  it('reproduces the two-input transaction accepted and mined by Knots in the recorded regtest fixture', () => {
+    // Offline golden vector: CI replays production signing, without contacting a node.
+    const wallet = new XbtSegwitBech32Wallet();
+    wallet.setSecret(mnemonic);
+    const parents = knotsAcceptance.fixture.fundingTransactions.map(funding => ({
+      transaction: bitcoin.Transaction.fromHex(funding.rawTx),
+      confirmations: funding.confirmations,
+    }));
+    const parentById = new Map(parents.map(parent => [parent.transaction.getId(), parent]));
+    const utxos = knotsAcceptance.signed.inputs.map(input => {
+      const parent = parentById.get(input.txid)!;
+      expect(parent).toBeDefined();
+      const output = parent.transaction.outs[input.vout];
+      expect(output.value).toBe(BigInt(input.value));
+      expect(Buffer.from(output.script)).toEqual(Buffer.from(bitcoin.address.toOutputScript(input.address)));
+      return { ...input, value: Number(output.value), confirmations: parent.confirmations };
+    });
+    const parentSpy = jest.spyOn(wallet, 'getTransactions').mockReturnValue(
+      parents.map(({ transaction, confirmations }) => ({
+        txid: transaction.getId(),
+        confirmations,
+        inputs: transaction.ins.map(input => ({
+          txid: Buffer.from(input.hash).reverse().toString('hex'),
+          vout: input.index,
+        })),
+      })) as any,
+    );
+    try {
+      const { tx, fee } = wallet.createTransaction(
+        utxos,
+        [{ address: wallet._getExternalAddressByIndex(2), value: knotsAcceptance.signed.destination.value }],
+        knotsAcceptance.signed.feeRateSatPerVbyte,
+        wallet._getInternalAddressByIndex(0),
+      );
+      expect(tx).toBeDefined();
+      expect(tx!.toHex()).toBe(knotsAcceptance.signed.goodHex);
+      expect(tx!.getId()).toBe(knotsAcceptance.node.confirmation.txid);
+      expect(fee).toBe(knotsAcceptance.node.feeSats);
+      expect(tx!.ins).toHaveLength(2);
+      for (const input of tx!.ins) {
+        expect(input.witness).toHaveLength(2);
+        expect(input.witness[0][input.witness[0].length - 1]).toBe(0x21);
+      }
+    } finally {
+      parentSpy.mockRestore();
+    }
   });
 
   it('refuses to sign when the input parent is not available to verify coinbase status', () => {
