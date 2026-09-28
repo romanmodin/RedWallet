@@ -10,6 +10,11 @@ on:
       - master
   workflow_dispatch:
     inputs:
+      create_signing_material:
+        description: Create or update encrypted signing certificates and profiles on Apple and in the private Match repository
+        required: true
+        type: boolean
+        default: false
       upload_to_testflight:
         description: Upload this branch build to TestFlight after signing is configured
         required: true
@@ -32,7 +37,7 @@ jobs:
       branch_name: ${{ steps.get_latest_commit_details.outputs.branch_name }}
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
-      MATCH_READONLY: "true"
+      MATCH_READONLY: ${{ inputs.create_signing_material && 'false' || 'true' }}
 
     steps:
       - name: Checkout Project
@@ -311,13 +316,19 @@ jobs:
           ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
           ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          MATCH_READONLY: ${{ inputs.create_signing_material && 'false' || 'true' }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/appstore_api_key.json
+          SKIP_APP_STORE_CONNECT_AUTH: "1"
         run: |
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$APP_STORE_CONNECT_API_KEY_PATH"
           bundle exec fastlane ios setup_provisioning_profiles
 
       - name: Build App
         id: build_app
         env:
           TEAM_ID: ${{ secrets.TEAM_ID }}
+          SKIP_APP_STORE_CONNECT_AUTH: "1"
         run: |
           echo -e "\033[1;34m==================== BUILD APP DEBUG ====================\033[0m"
           echo -e "\033[1;36mPre-Build Environment Check:\033[0m"
@@ -490,7 +501,7 @@ jobs:
   testflight-upload:
     needs: build
     runs-on: macos-26
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight) || contains(github.event.pull_request.labels.*.name, 'testflight')
+    if: (github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'testflight'))
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       NEW_BUILD_NUMBER: ${{ needs.build.outputs.new_build_number }}
@@ -518,7 +529,9 @@ jobs:
           path: ./
 
       - name: Create App Store Connect API Key JSON
-        run: echo '${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}' > ./appstore_api_key.json
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: printf '%s' "$APP_STORE_CONNECT_API_KEY_CONTENT" > ./appstore_api_key.json
 
       - name: Set IPA Path Environment Variable
         run: echo "IPA_OUTPUT_PATH=$(pwd)/BlueWallet_${{ needs.build.outputs.project_version }}_${{ needs.build.outputs.new_build_number }}.ipa" >> $GITHUB_ENV
@@ -544,7 +557,7 @@ jobs:
       - name: Upload to TestFlight
         run: bundle exec fastlane ios upload_to_testflight_lane
         env:
-          APP_STORE_CONNECT_API_KEY_PATH: $(pwd)/appstore_api_key.p8
+          SKIP_APP_STORE_CONNECT_AUTH: "1"
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           GIT_ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
           GIT_URL: ${{ secrets.GIT_URL }}
