@@ -26,8 +26,8 @@ readonly(ENV["MATCH_READONLY"] == "false" ? false : true)
 # Define the platform to use
 platform("ios")
 
-# Git basic authentication through access token
-# This is useful for CI/CD environments where SSH keys aren't available
+# Base64-encoded username:token for the private signing repository (not a raw PAT).
+# Match applies this header only to its repository access; see RELEASE.md.
 git_basic_authorization(ENV["GIT_ACCESS_TOKEN"])
 
 # Storage mode (git by default)

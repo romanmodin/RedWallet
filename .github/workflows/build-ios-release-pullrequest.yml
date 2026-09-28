@@ -46,6 +46,30 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Validate signing configuration
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
+          ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
+          GIT_URL: ${{ secrets.GIT_URL }}
+          GIT_ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          missing=0
+          for name in APPLE_ID TEAM_ID ITC_TEAM_ID ITC_TEAM_NAME GIT_URL GIT_ACCESS_TOKEN MATCH_PASSWORD KEYCHAIN_PASSWORD APP_STORE_CONNECT_API_KEY_CONTENT; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Signing configuration missing: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "See RELEASE.md before running a signed build."
+            exit 1
+          fi
+
       - name: Get Latest Commit Details
         id: get_latest_commit_details
         run: |
@@ -278,13 +302,6 @@ jobs:
           echo "project_version=$MARKETING_VERSION" >> $GITHUB_OUTPUT
         working-directory: ios
 
-      - name: Set Up Git Authentication
-        env:
-          ACCESS_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
-        run: |
-          git config --global credential.helper 'cache --timeout=3600'
-          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $(echo -n x-access-token:${ACCESS_TOKEN} | base64)"
-
       - name: Create Temporary Keychain
         run: bundle exec fastlane ios create_temp_keychain
         env:
@@ -438,15 +455,6 @@ jobs:
           vm_stat | grep -E "(Pages free|Pages active)" | head -2
           
           echo -e "\033[1;31m========================================================\033[0m"
-
-      - name: Upload Bugsnag Sourcemaps
-        if: success()
-        run: bundle exec fastlane ios upload_bugsnag_sourcemaps
-        env:
-          BUGSNAG_API_KEY: ${{ secrets.BUGSNAG_API_KEY }}
-          BUGSNAG_RELEASE_STAGE: production
-          PROJECT_VERSION: ${{ env.PROJECT_VERSION }}
-          NEW_BUILD_NUMBER: ${{ env.NEW_BUILD_NUMBER }}
 
       - name: Upload Build Logs
         if: always()
