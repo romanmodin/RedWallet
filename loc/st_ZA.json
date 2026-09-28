@@ -160,7 +160,7 @@
     "details_create": "Etsa Invoisi",
     "details_error_decode": "Ha ho kgonehe ho manolla aterese ya Bitcoin",
     "details_fee_field_is_not_valid": "Tefiso ha e a nepahala.",
-    "details_frozen": "{amount} BTC e kwetswe.",
+    "details_frozen": "{amount} XBT e kwetswe.",
     "details_next": "E latelang",
     "details_no_signed_tx": "Faele e kgethilweng ha e na tshebetsano e ka kenngwang.",
     "details_note_placeholder": "Lengolwana ho Wena",
@@ -546,7 +546,7 @@
     "vault_key": "Senotlolo sa Polokelo {number}",
     "required_keys_out_of_total": "Dinotlolo tse hlokahalang ho tse kaofela",
     "fee": "Tefiso: {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "Netefatsa",
     "header": "Romela",
     "share": "Arolelana...",
@@ -647,7 +647,7 @@
     "sort_by": "Hlophisa ka"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "Max",
     "sat_vbyte": "sat/vByte",
     "sats": "sats"

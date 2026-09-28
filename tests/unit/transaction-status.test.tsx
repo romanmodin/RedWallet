@@ -158,6 +158,7 @@ jest.mock('../../blue_modules/BlueElectrum', () => ({
 jest.mock('../../loc', () => ({
   __esModule: true,
   default: {
+    units: { BTC: 'XBT' },
     formatString: (template: string, params: Record<string, any>) => {
       return Object.entries(params).reduce((acc, [key, value]) => acc.replace(`{${key}}`, String(value)), template);
     },

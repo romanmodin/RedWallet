@@ -345,7 +345,10 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   const { label: transactionTypeLabel, icon: avatar } = determineTransactionTypeAndAvatar();
 
   const amountWithUnit = useMemo(() => {
-    const unitSuffix = itemPriceUnit === BitcoinUnit.BTC || itemPriceUnit === BitcoinUnit.SATS ? ` ${itemPriceUnit}` : ' ';
+    const unitSuffix =
+      itemPriceUnit === BitcoinUnit.BTC || itemPriceUnit === BitcoinUnit.SATS
+        ? ` ${itemPriceUnit === BitcoinUnit.BTC ? loc.units.BTC : itemPriceUnit}`
+        : ' ';
     return `${formattedAmount}${unitSuffix}`;
   }, [formattedAmount, itemPriceUnit]);
 

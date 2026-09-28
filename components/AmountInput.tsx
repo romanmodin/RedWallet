@@ -212,7 +212,7 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
 
     /**
      * here we must recalculate old amont value (which was denominated in `previousUnit`) to new denomination `newUnit`
-     * and fill this value in input box, so user can switch between, for example, 0.001 BTC <=> 100000 sats
+     * and fill this value in input box, so user can switch between, for example, 0.001 XBT <=> 100000 sats
      */
     let sats: string = '0';
     switch (previousUnit) {

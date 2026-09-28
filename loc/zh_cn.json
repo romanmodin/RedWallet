@@ -160,7 +160,7 @@
     "details_create": "创建发票",
     "details_error_decode": "无法解析比特币地址",
     "details_fee_field_is_not_valid": "矿工费无效。",
-    "details_frozen": "{amount} BTC 已被冻结。",
+    "details_frozen": "{amount} XBT 已被冻结。",
     "details_next": "下一步",
     "details_no_signed_tx": "所选文件不包含可导入的交易。",
     "details_note_placeholder": "给自己的备注",
@@ -546,7 +546,7 @@
     "vault_key": "金库密钥 {number}",
     "required_keys_out_of_total": "总密钥数量中所需的密钥数量",
     "fee": "矿工费：{number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "确认",
     "header": "发送",
     "share": "共享……",
@@ -647,7 +647,7 @@
     "sort_by": "排序方式"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "最大",
     "sat_vbyte": "聪/字节",
     "sats": "聪"

@@ -160,7 +160,7 @@
     "details_create": "Opprett Faktura",
     "details_error_decode": "Kan ikke dekode Bitcoin-adressen",
     "details_fee_field_is_not_valid": "Gebyret er ikke gyldig.",
-    "details_frozen": "{amount} BTC er fryst.",
+    "details_frozen": "{amount} XBT er fryst.",
     "details_next": "Neste",
     "details_no_signed_tx": "Den valgte filen inneholder ikke en transaksjon som kan importeres.",
     "details_note_placeholder": "Notat til meg selv",
@@ -546,7 +546,7 @@
     "vault_key": "Vault-nøkkel {number}",
     "required_keys_out_of_total": "Nødvendige nøkler av totalen",
     "fee": "Gebyr: {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "Bekreft",
     "header": "Send",
     "share": "Del...",
@@ -647,7 +647,7 @@
     "sort_by": "Sorter etter"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "Maks",
     "sat_vbyte": "sat/vByte",
     "sats": "sats"

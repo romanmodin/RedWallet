@@ -160,7 +160,7 @@
     "details_create": "ਇਨਵੌਇਸ ਬਣਾਓ",
     "details_error_decode": "Bitcoin ਪਤਾ ਡੀਕੋਡ ਕਰਨ ਵਿੱਚ ਅਸਮਰੱਥ",
     "details_fee_field_is_not_valid": "ਫ਼ੀਸ ਵੈਧ ਨਹੀਂ ਹੈ।",
-    "details_frozen": "{amount} BTC ਜੰਮਿਆ ਹੋਇਆ ਹੈ।",
+    "details_frozen": "{amount} XBT ਜੰਮਿਆ ਹੋਇਆ ਹੈ।",
     "details_next": "ਅੱਗੇ",
     "details_no_signed_tx": "ਚੁਣੀ ਗਈ ਫਾਈਲ ਵਿੱਚ ਅਜਿਹਾ ਕੋਈ ਲੈਣ-ਦੇਣ ਨਹੀਂ ਹੈ ਜੋ ਆਯਾਤ ਕੀਤਾ ਜਾ ਸਕੇ।",
     "details_note_placeholder": "ਆਪਣੇ ਲਈ ਨੋਟ",
@@ -546,7 +546,7 @@
     "vault_key": "ਤਿਜੋਰੀ ਕੁੰਜੀ {number}",
     "required_keys_out_of_total": "ਕੁੱਲ ਵਿੱਚੋਂ ਲੋੜੀਂਦੀਆਂ ਕੁੰਜੀਆਂ",
     "fee": "ਫ਼ੀਸ: {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "ਪੁਸ਼ਟੀ ਕਰੋ",
     "header": "ਭੇਜੋ",
     "share": "ਸਾਂਝਾ ਕਰੋ...",
@@ -647,7 +647,7 @@
     "sort_by": "ਇਸ ਅਨੁਸਾਰ ਕ੍ਰਮਬੱਧ ਕਰੋ"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "ਵੱਧ ਤੋਂ ਵੱਧ",
     "sat_vbyte": "sat/vByte",
     "sats": "ਸੈਟਸ"

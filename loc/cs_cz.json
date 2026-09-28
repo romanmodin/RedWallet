@@ -160,7 +160,7 @@
     "details_create": "Vytvořit fakturu",
     "details_error_decode": "Bitcoinovou adresu nelze dekódovat",
     "details_fee_field_is_not_valid": "Poplatek není správně vyplněn.",
-    "details_frozen": "{amount} BTC je zmrazeno.",
+    "details_frozen": "{amount} XBT je zmrazeno.",
     "details_next": "Další",
     "details_no_signed_tx": "Vybraný soubor neobsahuje transakci, kterou lze importovat.",
     "details_note_placeholder": "Poznámka pro sebe",
@@ -546,7 +546,7 @@
     "vault_key": "{number}. klíč Úložiště",
     "required_keys_out_of_total": "Požadovaných klíčů z celkového počtu",
     "fee": "Poplatek: {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "Potvrdit",
     "header": "Odeslat",
     "share": "Sdílet…",
@@ -647,7 +647,7 @@
     "sort_by": "Seřadit podle"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "Max.",
     "sat_vbyte": "sat/vByte",
     "sats": "sats"

@@ -546,7 +546,7 @@
     "vault_key": "کیلیت گاوصندوق {number}",
     "required_keys_out_of_total": "کلیدا لازم ز کول",
     "fee": "کارمزد: {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "تاییڌ",
     "header": "فشناڌن",
     "share": "یک رسۊوی...",
@@ -647,7 +647,7 @@
     "sort_by": "ترتیو ری ٱر"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "بیشترین",
     "sat_vbyte": "ساتۊشی سی هر بایت مجازی",
     "sats": "ساتۊشی"

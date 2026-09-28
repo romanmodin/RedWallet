@@ -160,7 +160,7 @@
     "details_create": "ඉන්වොයිසියක් සාදන්න",
     "details_error_decode": "බිට්කොයින් ලිපිනය විකේතනය කළ නොහැක",
     "details_fee_field_is_not_valid": "ගාස්තුව වලංගු නොවේ.",
-    "details_frozen": "{amount} BTC කැටි කර ඇත.",
+    "details_frozen": "{amount} XBT කැටි කර ඇත.",
     "details_next": "ඊළඟ",
     "details_no_signed_tx": "තෝරාගත් ගොනුවේ ආනයනය කළ හැකි ගනුදෙනුවක් අඩංගු නොවේ.",
     "details_note_placeholder": "ස්වයං සටහන්",
@@ -546,7 +546,7 @@
     "vault_key": "සුරක්ෂිතාගාර යතුර {number}",
     "required_keys_out_of_total": "යතුරු එකතුවෙන් අවශ්‍ය යතුරු",
     "fee": "ගාස්තුව: {number}",
-    "fee_btc": "{number} බී.ටී.සී",
+    "fee_btc": "{number} XBT",
     "confirm": "තහවුරු කරන්න",
     "header": "යවන්න",
     "share": "බෙදා ගන්න...",
@@ -647,7 +647,7 @@
     "sort_by": "අනුව වර්ග කරන්න"
   },
   "units": {
-    "BTC": "බී.ටී.සී",
+    "BTC": "XBT",
     "MAX": "උපරිම",
     "sat_vbyte": "සැට්/වීබයිට්",
     "sats": "සැට්ස්"

@@ -160,7 +160,7 @@
     "details_create": "Crear",
     "details_error_decode": "No s'ha pogut descodificar l'adreça de Bitcoin",
     "details_fee_field_is_not_valid": "Comissió no vàlida",
-    "details_frozen": "{amount} BTC està congelat.",
+    "details_frozen": "{amount} XBT està congelat.",
     "details_next": "Següent",
     "details_no_signed_tx": "El fitxer seleccionat no conté una transacció que es pugui importar.",
     "details_note_placeholder": "comentari (útil per tu)",
@@ -546,7 +546,7 @@
     "vault_key": "Clau de caixa forta {number}",
     "required_keys_out_of_total": "Claus requerides del total",
     "fee": "Comissió: {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "Confirmar",
     "header": "Enviar",
     "share": "Compartir...",
@@ -647,7 +647,7 @@
     "sort_by": "Ordenar per"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "Màx",
     "sat_vbyte": "sat/vByte",
     "sats": "sats"

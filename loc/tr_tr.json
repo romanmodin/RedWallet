@@ -160,7 +160,7 @@
     "details_create": "Oluştur",
     "details_error_decode": "Bitcoin adresi tanımlanamadı",
     "details_fee_field_is_not_valid": "Ücret miktarı geçerli değil.",
-    "details_frozen": "{amount} BTC donmuş.",
+    "details_frozen": "{amount} XBT donmuş.",
     "details_next": "İleri",
     "details_no_signed_tx": "Seçilen dosya içe aktarılabilecek bir işlem içermiyor.",
     "details_note_placeholder": "Kendime not",
@@ -546,7 +546,7 @@
     "vault_key": "Kasa Anahtarı {number}",
     "required_keys_out_of_total": "Toplam içinden gerekli anahtar sayısı",
     "fee": "Ücret: {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "Onayla",
     "header": "Gönder",
     "share": "Paylaş...",
@@ -647,7 +647,7 @@
     "sort_by": "Sırala"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "Maks",
     "sat_vbyte": "sat/vByte",
     "sats": "sat"

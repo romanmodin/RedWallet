@@ -160,7 +160,7 @@
     "details_create": "Ստեղծել հաշիվ-ֆակտուրա",
     "details_error_decode": "Հնարավոր չէ վերծանել Bitcoin հասցեն",
     "details_fee_field_is_not_valid": "Վճարը վավեր չէ։",
-    "details_frozen": "{amount} BTC սառեցված է։",
+    "details_frozen": "{amount} XBT սառեցված է։",
     "details_next": "Հաջորդ",
     "details_no_signed_tx": "Ընտրված ֆայլը չի պարունակում գործարք, որը կարելի է ներմուծել:",
     "details_note_placeholder": "Նշում ինքս ինձ",
@@ -546,7 +546,7 @@
     "vault_key": "Սեյֆի բանալի {number}",
     "required_keys_out_of_total": "Պահանջվող բանալիներ ընդհանուրից",
     "fee": "Վճար՝ {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "Հաստատել",
     "header": "Ուղարկել",
     "share": "Կիսվել...",
@@ -647,7 +647,7 @@
     "sort_by": "Դասավորել ըստ"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "Առավելագույն",
     "sat_vbyte": "sat/vByte",
     "sats": "սատոշի"

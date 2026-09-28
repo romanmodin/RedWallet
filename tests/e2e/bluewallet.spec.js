@@ -282,7 +282,7 @@ describe('BlueWallet UI Tests - no wallets', () => {
     await waitForKeyboardToClose();
     await tapAndTapAgainIfElementIsNotVisible('CustomAmountSaveButton', 'CustomAmountDescriptionText');
     await expect(element(by.id('CustomAmountDescriptionText'))).toHaveText('test');
-    await expect(element(by.id('BitcoinAmountText'))).toHaveText('1 BTC');
+    await expect(element(by.id('BitcoinAmountText'))).toHaveText('1 XBT');
 
     await waitForId('BitcoinAddressQRCode');
     await waitForId('CopyTextToClipboard');

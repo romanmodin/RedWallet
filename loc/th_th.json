@@ -160,7 +160,7 @@
     "details_create": "สร้าง",
     "details_error_decode": "ไม่สามารถถอดรหัสแอดเดรส Bitcoin ได้",
     "details_fee_field_is_not_valid": "ค่าธรรมเนียมไม่ถูกต้อง",
-    "details_frozen": "{amount} BTC ถูกระงับ",
+    "details_frozen": "{amount} XBT ถูกระงับ",
     "details_next": "ถัดไป",
     "details_no_signed_tx": "ไฟล์ที่เลือกไม่มีธุรกรรมที่สามารถนำเข้าได้",
     "details_note_placeholder": "หมายเหตุถึงตัวท่านเอง",
@@ -546,7 +546,7 @@
     "vault_key": "กุญแจห้องนิรภัย {number}",
     "required_keys_out_of_total": "กุญแจที่ต้องการจากทั้งหมด",
     "fee": "ค่าธรรมเนียม: {number}",
-    "fee_btc": "{number} บิตคอยน์",
+    "fee_btc": "{number} XBT",
     "confirm": "ยืนยัน",
     "header": "ส่ง",
     "share": "แชร์...",
@@ -647,7 +647,7 @@
     "sort_by": "เรียงตาม"
   },
   "units": {
-    "BTC": "บิตคอยน์",
+    "BTC": "XBT",
     "MAX": "สูงสุด",
     "sat_vbyte": "sat/vByte",
     "sats": "แซท"

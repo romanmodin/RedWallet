@@ -160,7 +160,7 @@
     "details_create": "إنشاء برقية",
     "details_error_decode": "يتعذَّر فك ترميز عنوان البتكوين",
     "details_fee_field_is_not_valid": "حقل الرسوم غير صالح",
-    "details_frozen": "{amount} BTC مجمدة.",
+    "details_frozen": "{amount} XBT مجمدة.",
     "details_next": "التالي",
     "details_no_signed_tx": "لا يحتوي الملف المحدَّد على معاملة موقَّعة يمكن استيرادها.",
     "details_note_placeholder": "ملاحظة شخصية",
@@ -546,7 +546,7 @@
     "vault_key": "مفتاح الخزنة {number}",
     "required_keys_out_of_total": "المفاتيح المطلوبة من الإجمالي",
     "fee": "الرسوم: {number}",
-    "fee_btc": "{number} BTC",
+    "fee_btc": "{number} XBT",
     "confirm": "تأكيد",
     "header": "إرسال",
     "share": "مشاركة...",
@@ -647,7 +647,7 @@
     "sort_by": "الترتيب حسب"
   },
   "units": {
-    "BTC": "BTC",
+    "BTC": "XBT",
     "MAX": "الحد الاقصى",
     "sat_vbyte": "ساتوشي/بايت افتراضي",
     "sats": "ساتوشي"

@@ -92,7 +92,7 @@ describe('BlueWallet UI Tests - import BIP84 wallet', () => {
     await waitForId('TransactionValue');
     await expect(element(by.id('TransactionValue'))).toHaveText('0.0001');
     const transactionFee = await extractTextFromElementById('TransactionFee');
-    assert.ok(transactionFee.startsWith('Fee: 0.00000292 BTC'), 'Unexpected tx fee: ' + transactionFee);
+    assert.ok(transactionFee.startsWith('Fee: 0.00000292 XBT'), 'Unexpected tx fee: ' + transactionFee);
     await element(by.id('TransactionDetailsButton')).tap();
 
     let txhex = await extractTextFromElementById('TxhexInput');
@@ -849,7 +849,7 @@ describe('BlueWallet UI Tests - import BIP84 wallet', () => {
     // ^^^ its supposed to refetch txs and balance
 
     // asserting balance and txs loaded:
-    await waitForText('0.00105526 BTC '); // the wait inside allows network request to propagate. also, stupid space in the end of the string
+    await waitForText('0.00105526 XBT '); // the wait inside allows network request to propagate. also, stupid space in the end of the string
     assert.ok((await countElements('TransactionListItem')) >= 2); // 2 is arbitrary, real txs on screen depend on screen size
   });
 });
