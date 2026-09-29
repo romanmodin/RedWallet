@@ -21,12 +21,6 @@
 
 ## Learnings
 
-- The isolated XBT signing core under src/frontend/src/lib/xbt is imported only by its own tests and harness; it must stay disconnected from every route and service.
-- The PocketIC backend lane runs in this environment (sidecar reachable, wasm installs) and its 8 tests exercise the real compiled canister; it is not a skip.
-- The bridge is already live at https://umbrel-3.tailaa2bb4.ts.net:10000; the operator configures the backend privately with configure-canister.mjs after deploy, so live connectivity must not be claimed before that.
-- NetworkStatusProvider is mounted once in App.tsx above the router; NetworkIndicator and StatusPage read the shared context, so no per-mount fetch remains and refresh() broadcasts one result to every consumer.
-- bridgeService.getNetworkStatus caches a single in-flight promise and clears it on settle, so concurrent reads dedupe while a later refresh starts fresh.
-- QuickActions hints are static watch-only copy (Send 'Sending unavailable — watch-only', Receive 'Share your public address'); no wallet-state branching is needed because Send/seed/recovery are disabled app-wide.
 - The migration 20260929_083000.mo sets adminAssigned := true, disabling first-user admin promotion; getApiDoc prose must state admin is pre-assigned by operator configuration/migration.
 - The Settings Support RedWallet disclosure lives in src/frontend/src/components/settings/SupportSetting.tsx and is mounted as the last card in SettingsPage's right column; it reuses the canonical copy-to-clipboard pattern and the raw-address QRCodeSVG approach (no URI scheme).
 - Radix CollapsibleTrigger renders a native button with aria-expanded/aria-controls automatically, so a collapsed disclosure needs no manual ARIA wiring.
@@ -46,3 +40,9 @@
 - The PocketIC backend lane ran with 13 tests; the configured-but-unreachable outcall path cannot complete under PocketIC's ingress budget, so the new parsers' success paths are covered only by pure Motoko unit tests.
 - The live Umbrel bridge does not yet expose address.utxos/transaction.raw; the operator will review/export/deploy it privately and verify the actual canister afterward. No live UTXO/raw read has been performed or claimed.
 - Verification results are recorded in src/frontend/src/lib/xbt/SPENDING-DATA-VERIFICATION.md (non-secret).
+- The bridge UTXO height check in src/bridge/src/server.ts validateUtxos() now uses Number.isSafeInteger(height) && height >= 0, matching the tip-height, address.balance and address.history checks; a regression test in src/bridge/test/spending-data-bounds.test.ts rejects unsafe/non-integer heights.
+- VaultController captures both a wall-clock (Date.now) and a monotonic (performance.now) five-minute deadline at unlock and enforces both synchronously in withUnlocked()/locked via #expired(), so a delayed timer or a backwards wall clock cannot extend the session; optional injectable now()/monotonicNow() clocks make the regressions testable.
+- In this environment the bridge node:test suite reports 67 passing tests and the frontend vitest suite reports 31 files / 219 tests; the PocketIC backend lane has 13 tests.
+- The PocketIC backend lane (13 tests) covers input validation, authentication, unconfigured state and API-docs only; a configured-but-unreachable HTTPS outcall cannot complete under PocketIC's ingress budget, so successful outcall parsers are covered by pure Motoko unit tests and live probes follow privately.
+- src/frontend/src/lib/xbt/FULL-WALLET-UI-GATES.md records the subsequent wallet integration requirements before any signing/seed UI is wired in.
+- The attached review-fixes ZIP under .platform/attachments/ cannot be extracted in this environment (no shell tool; binary read denied; image inspector rejects non-images), so review fixes must be applied from the user's written specification plus discovery of the current source.

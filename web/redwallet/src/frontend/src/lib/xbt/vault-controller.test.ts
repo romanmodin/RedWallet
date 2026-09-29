@@ -6,6 +6,7 @@ const phrase =
 const password = "public fixture vault password";
 const cryptoApi = webcrypto as unknown as Crypto;
 const key = "redwallet.vault.v1.test";
+const WINDOW_MS = 5 * 60_000;
 afterEach(() => vi.useRealTimers());
 describe("encrypted vault persistence and lock lifecycle", () => {
   it("persists only ciphertext, refuses overwrite, and leaves failed writes locked", async () => {
@@ -64,30 +65,87 @@ describe("encrypted vault persistence and lock lifecycle", () => {
     expect(c.locked).toBe(true);
     detach();
   });
-  it("expires at access time even if the browser has not delivered its timer", async () => {
-    const c = new VaultController(key, localStorage, cryptoApi);
+  it("locks at the deadline even when the timer fires late", async () => {
+    let wall = 1_000_000;
+    let mono = 500;
+    const c = new VaultController(
+      key,
+      localStorage,
+      cryptoApi,
+      () => wall,
+      () => mono,
+    );
     await c.create({ mnemonic: phrase, passphrase: "" }, password);
+    vi.useFakeTimers();
     await c.unlock(password);
-    const retained = c.withUnlocked((keys) => keys);
-    // Fake Date only: the real timeout callback has not run.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(Date.now() + 300001);
+    // The wall clock and monotonic clock advance past the deadline, but the
+    // scheduled timer never runs (a throttled or delayed timer).
+    wall += WINDOW_MS + 1;
+    mono += WINDOW_MS + 1;
+    expect(c.locked).toBe(true);
     expect(() => c.withUnlocked(() => true)).toThrow("locked");
-    expect(retained.locked).toBe(true);
   });
-  it("does not extend the unlock lease when the wall clock moves backwards", async () => {
-    const c = new VaultController(key, localStorage, cryptoApi);
+  it("does not extend the session when the wall clock moves backwards", async () => {
+    let wall = 1_000_000;
+    let mono = 500;
+    const c = new VaultController(
+      key,
+      localStorage,
+      cryptoApi,
+      () => wall,
+      () => mono,
+    );
     await c.create({ mnemonic: phrase, passphrase: "" }, password);
+    vi.useFakeTimers();
     await c.unlock(password);
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(Date.now() - 3600000);
-    const clock = vi.spyOn(performance, "now").mockReturnValue(performance.now() + 300001);
-    try {
-      expect(c.locked).toBe(true);
-      expect(() => c.withUnlocked(() => true)).toThrow("locked");
-    } finally {
-      clock.mockRestore();
-      c.lock();
-    }
+    // A backwards wall-clock adjustment would push the wall deadline far into
+    // the future, but the monotonic deadline still governs.
+    wall -= WINDOW_MS * 10;
+    mono += WINDOW_MS + 1;
+    expect(c.locked).toBe(true);
+    expect(() => c.withUnlocked(() => true)).toThrow("locked");
+  });
+  it("expires on the monotonic deadline even if the wall clock is moved backwards", async () => {
+    let wall = 1_000_000;
+    let mono = 500;
+    const c = new VaultController(
+      key,
+      localStorage,
+      cryptoApi,
+      () => wall,
+      () => mono,
+    );
+    await c.create({ mnemonic: phrase, passphrase: "" }, password);
+    vi.useFakeTimers();
+    await c.unlock(password);
+    expect(c.withUnlocked(() => "ok")).toBe("ok");
+    // Wall clock jumps backwards before the deadline; monotonic time crosses it.
+    wall -= WINDOW_MS * 10;
+    mono += WINDOW_MS;
+    expect(c.locked).toBe(true);
+    expect(() => c.withUnlocked(() => true)).toThrow("locked");
+  });
+  it("preserves normal unlock and lock behavior within the window", async () => {
+    let wall = 1_000_000;
+    let mono = 500;
+    const c = new VaultController(
+      key,
+      localStorage,
+      cryptoApi,
+      () => wall,
+      () => mono,
+    );
+    await c.create({ mnemonic: phrase, passphrase: "" }, password);
+    vi.useFakeTimers();
+    await c.unlock(password);
+    expect(c.locked).toBe(false);
+    expect(c.withUnlocked(() => "ok")).toBe("ok");
+    wall += WINDOW_MS - 1;
+    mono += WINDOW_MS - 1;
+    expect(c.locked).toBe(false);
+    expect(c.withUnlocked(() => "still ok")).toBe("still ok");
+    c.lock();
+    expect(c.locked).toBe(true);
+    expect(() => c.withUnlocked(() => true)).toThrow("locked");
   });
 });

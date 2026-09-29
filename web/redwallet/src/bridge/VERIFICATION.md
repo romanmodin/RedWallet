@@ -12,19 +12,21 @@ Run in `src/bridge` on 2026-09-29.
 ### `npm test`
 
 ```
-ℹ tests 61
+ℹ tests 67
 ℹ suites 0
-ℹ pass 61
+ℹ pass 67
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 702.714009
+ℹ duration_ms 758.626079
 ```
 
-All 61 tests pass, including the new allowlist, validation, bounds, and
+All 67 tests pass, including the new allowlist, validation, bounds, and
 server result-shape tests. Upstreams are local TCP/TLS mocks; no real network
-is contacted.
+is contacted. (An earlier revision of this file recorded 61; the suite has
+since grown, and the count above is the one observed when the suite is run in
+this environment.)
 
 ### `npm run build`
 
@@ -53,6 +55,16 @@ Exit code 0, no diagnostics.
 - **server**: malformed `listunspent` entries and verbose `transaction.get`
   objects map to `upstream_malformed`; a bad txid is rejected before upstream
   contact; no broadcast/signing/private-key method is reachable.
+
+## Coverage boundary
+
+These are pure Node `node:test` unit tests over the bridge's own allowlist,
+validation, bounds, and result-shape logic. They do not exercise a live
+upstream and do not constitute a live probe. The backend PocketIC lane is a
+separate suite and does **not** cover these successful outcall parser paths:
+PocketIC covers input validation, authentication, the unconfigured state, and
+API-docs paths only. The successful outcall parsers are covered by pure Motoko
+unit tests, and actual live probes follow privately.
 
 ## Not yet verified
 

@@ -210,6 +210,72 @@ test("address.utxos: a non-array result and non-object entries are explicit erro
   }
 });
 
+test("address.utxos: unsafe-integer heights are rejected and safe-integer heights are accepted", async () => {
+  const entry = (height: unknown) => ({
+    tx_hash: VALID_TXID,
+    tx_pos: 0,
+    height,
+    value: 1,
+  });
+
+  // Unsafe or non-integer heights must be rejected as malformed.
+  const unsafeHeights: unknown[] = [
+    Number.MAX_SAFE_INTEGER + 1,
+    Number.MAX_SAFE_INTEGER + 2,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    1.5,
+    -1,
+    "1",
+    null,
+  ];
+  for (const height of unsafeHeights) {
+    const upstream = await startMockUpstream({
+      handler: () => [entry(height)],
+    });
+    const bridge = await startBridge({}, upstream);
+    try {
+      const { status, json } = await rpc(bridge.baseUrl, {
+        method: "address.utxos",
+        params: [VALID_ADDRESS],
+      });
+      assert.equal(status, 502, JSON.stringify(height));
+      assert.equal(
+        (json as { error: { code: string } }).error.code,
+        "upstream_malformed",
+        JSON.stringify(height),
+      );
+    } finally {
+      await bridge.close();
+      await upstream.close();
+    }
+  }
+
+  // Valid non-negative safe-integer heights must still be accepted.
+  const safeHeights = [0, 1, 850_000, Number.MAX_SAFE_INTEGER];
+  for (const height of safeHeights) {
+    const upstream = await startMockUpstream({
+      handler: () => [entry(height)],
+    });
+    const bridge = await startBridge({}, upstream);
+    try {
+      const { status, json } = await rpc(bridge.baseUrl, {
+        method: "address.utxos",
+        params: [VALID_ADDRESS],
+      });
+      assert.equal(status, 200, JSON.stringify(height));
+      assert.deepEqual(
+        (json as { result: unknown }).result,
+        [{ txid: VALID_TXID, vout: 0, height, value: 1 }],
+        JSON.stringify(height),
+      );
+    } finally {
+      await bridge.close();
+      await upstream.close();
+    }
+  }
+});
+
 test("transaction.raw: a non-string result is rejected", async () => {
   const malformed = [42, true, null, ["00"], { hex: "00" }];
   for (const result of malformed) {
@@ -232,13 +298,3 @@ test("transaction.raw: a non-string result is rejected", async () => {
     }
   }
 });
-
- test("address.utxos rejects unsafe upstream heights", async () => {
- const upstream = await startMockUpstream({handler: () => [{tx_hash: VALID_TXID, tx_pos: 0, height: Number.MAX_SAFE_INTEGER + 1, value: 1}]});
- const bridge = await startBridge({}, upstream);
- try {
- const response = await rpc(bridge.baseUrl, {method: "address.utxos", params: [VALID_ADDRESS]});
- assert.equal(response.status, 502);
- assert.equal((response.json as {error: {code: string}}).error.code, "upstream_malformed");
- } finally { await bridge.close(); await upstream.close(); }
- });

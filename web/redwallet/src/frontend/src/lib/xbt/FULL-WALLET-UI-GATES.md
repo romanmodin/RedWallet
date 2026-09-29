@@ -1,0 +1,76 @@
+# Full-wallet UI integration gates
+
+Non-secret record of the gates that must be satisfied before any signing or
+seed UI is wired into RedWallet. It contains no bridge URL, bridge secret,
+operator principal, draft access-token URL, seed, or private key.
+
+This document does not enable anything. Live Caffeine v7 remains watch-only:
+send, seed, and recovery stay disabled, and the isolated signing core under
+`src/frontend/src/lib/xbt` stays disconnected from every route, service, and
+backend file. The gates below are the conditions that must hold before that
+posture changes.
+
+## Current posture
+
+- The isolated foundation (`key-material.ts`, `vault.ts`, `vault-controller.ts`,
+  `spend-plan.ts`, `discovery.ts`) is imported only by its own tests and
+  harness. No route, hook, context, or service imports it.
+- The read-only spending-data layer (`address.utxos`, `transaction.raw`) is a
+  service-layer capability only; it is not wired into any page.
+- The live Umbrel bridge does not yet expose `address.utxos` or
+  `transaction.raw`. No live UTXO or raw-transaction read has been performed or
+  claimed.
+- No broadcast, signing, or private-key endpoint exists in the bridge or the
+  canister.
+
+## Gates before any signing or seed UI is connected
+
+These extend the release gates in `KEY-VAULT-AND-SPEND-PLAN.md`; they do not
+replace them.
+
+1. **Live read path verified.** The operator has reviewed, exported, and
+   deployed the bridge privately, and the actual canister has been verified to
+   return real `address.utxos` and `transaction.raw` results. Until then, no
+   signing UI may depend on those reads.
+2. **Fresh checkpoint-verified status.** Integration requires a fresh
+   checkpoint-verified bridge status and current UTXOs before signing; the
+   planner trusts the caller's chain-height observation and provides no SPV
+   proof validation.
+3. **Backup confirmation and recovery UI.** Backup confirmation, recovery UI,
+   and storage-loss messaging exist and are exercised, including the discovery
+   limits (account 0 only, default gap 20, 1,000 addresses per branch, hard
+   maximum 2,000) with an explicit path for larger-gap recovery.
+4. **HD discovery wired and tested.** `discoverAccount` is connected through a
+   bounded, cancellable transport with persistent issued indices and
+   multiaddress balances/UTXOs, and recovery UI tests cover failed, malformed,
+   and incomplete history reads.
+5. **Review-state lifecycle.** The review digest that binds every input,
+   recipient, amount, change index, and fee has a defined lifecycle: changed
+   reviews are rejected, and locked or mismatched wallets cannot sign.
+6. **Constrained broadcast.** Broadcast is constrained with exact txid checking
+   and deduplication, and remains off until the acceptance and replay tests
+   below pass.
+7. **Acceptance and replay tests.** Fresh activated-XBT acceptance and
+   BTC replay-negative tests pass, and actual browser and iPhone validation is
+   completed.
+8. **Production CSP and dependency review.** A production CSP and dependency
+   review is complete, acknowledging that password encryption does not protect
+   an unlocked wallet from malicious page code or a compromised origin, and
+   that the public xpub is stored unencrypted and is sensitive wallet-activity
+   metadata.
+9. **Coinbase maturity.** Coinbase inputs remain rejected until native and
+   network-specific maturity integration is finished.
+
+## Explicitly out of scope until the gates pass
+
+Unconfirmed inputs, Taproot, legacy outputs, RBF UI, HD gap discovery beyond
+the documented limits, and multi-account recovery are not implemented. The
+browser harness uses public, unfunded test vectors only and must never be used
+as wallet keys. Existing recorded Knots acceptance remains fixture parity, not
+a new transaction accepted by a live node in this continuation.
+
+## References
+
+- `KEY-VAULT-AND-SPEND-PLAN.md` — implemented foundation and release gates.
+- `DISCOVERY.md` — discovery limits and integration requirements.
+- `SPENDING-DATA-VERIFICATION.md` — read-only spending-data verification.

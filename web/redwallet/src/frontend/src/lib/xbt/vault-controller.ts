@@ -6,38 +6,47 @@ export interface VaultStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
+/** Five-minute unlocked window enforced by both a wall clock and a monotonic clock. */
+const UNLOCK_WINDOW_MS = 5 * 60_000;
 export class VaultController {
   #session: XbtKeySession | null = null;
   #generation = 0;
   #timer: ReturnType<typeof setTimeout> | undefined;
-  #expiresAt = 0;
+  #wallDeadline = 0;
   #monotonicDeadline = 0;
   constructor(
     readonly storageKey: string,
     private storage: VaultStorage,
     private cryptoApi: Crypto = globalThis.crypto,
+    private now: () => number = () => Date.now(),
+    private monotonicNow: () => number = () => performance.now(),
   ) {
     if (!/^redwallet\.vault\.v1\.[a-zA-Z0-9-]{1,64}$/.test(storageKey))
       throw Error("Invalid vault storage key");
   }
   get locked(): boolean {
-    // Browser timers may be delayed while a page is suspended. Enforce the
-    // deadline at access time too; a backwards wall-clock adjustment must not
-    // extend the lease, so either clock reaching its deadline expires it.
-    if (this.#session &&
-        (Date.now() >= this.#expiresAt || performance.now() >= this.#monotonicDeadline)) {
+    if (this.#session === null || this.#session.locked) return true;
+    if (this.#expired()) {
       this.lock();
+      return true;
     }
-    return this.#session === null || this.#session.locked;
+    return false;
+  }
+  /** True when either deadline has passed; a backwards wall clock cannot extend the monotonic one. */
+  #expired(): boolean {
+    return (
+      this.now() >= this.#wallDeadline ||
+      this.monotonicNow() >= this.#monotonicDeadline
+    );
   }
   lock(): void {
     this.#generation++;
     this.#session?.destroy();
     this.#session = null;
-    this.#expiresAt = 0;
-    this.#monotonicDeadline = 0;
     if (this.#timer !== undefined) clearTimeout(this.#timer);
     this.#timer = undefined;
+    this.#wallDeadline = 0;
+    this.#monotonicDeadline = 0;
   }
   /** Creation persists ciphertext only and never replaces an existing vault. */
   async create(
@@ -75,14 +84,18 @@ export class VaultController {
     )
       throw Error("Vault operation cancelled");
     this.#session = new XbtKeySession(secrets.mnemonic, secrets.passphrase);
-    this.#expiresAt = Date.now() + 5 * 60_000;
-    this.#monotonicDeadline = performance.now() + 5 * 60_000;
-    this.#timer = setTimeout(() => this.lock(), 5 * 60_000);
+    this.#wallDeadline = this.now() + UNLOCK_WINDOW_MS;
+    this.#monotonicDeadline = this.monotonicNow() + UNLOCK_WINDOW_MS;
+    this.#timer = setTimeout(() => this.lock(), UNLOCK_WINDOW_MS);
     return this.#session.account;
   }
   /** Only synchronous reviewed signing is allowed; never return secret seed bytes. */
   withUnlocked<T>(operation: (keys: XbtKeySession) => T): T {
-    if (this.locked || !this.#session) throw Error("Wallet is locked");
+    if (!this.#session || this.#session.locked) throw Error("Wallet is locked");
+    if (this.#expired()) {
+      this.lock();
+      throw Error("Wallet is locked");
+    }
     const result = operation(this.#session);
     if (result instanceof Promise)
       throw Error("Asynchronous access to unlocked keys is not supported");

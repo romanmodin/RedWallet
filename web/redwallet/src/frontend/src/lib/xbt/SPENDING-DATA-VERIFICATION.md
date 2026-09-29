@@ -61,8 +61,8 @@ node:test suite, and the backend PocketIC lane. All three ran and passed.
 
 ```
  Test Files  31 passed (31)
-      Tests  215 passed (215)
-   Duration  23.85s
+      Tests  219 passed (219)
+   Duration  28.90s
 ```
 
 The new file `src/test/bridge-spending-data.test.ts` contributes 18 tests
@@ -73,21 +73,23 @@ read-only/unwired invariant scan.
 **Lane 2 — bridge node:test (`pnpm --filter @caffeine/redwallet-fulcrum-bridge test`):**
 
 ```
-ℹ tests 61
-ℹ pass 61
+ℹ tests 67
+ℹ pass 67
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 619.853159
+ℹ duration_ms 758.626079
 ```
 
-61/61 pass, 0 fail. This includes the new `address.utxos` and
+67/67 pass, 0 fail. This includes the new `address.utxos` and
 `transaction.raw` cases: malformed listunspent entries, >1000 entries as an
 explicit error (not a truncation), exactly 1000 entries accepted, verbose
 objects and malformed hex rejected, bad txid rejected before upstream contact,
 and the allowlist invariant that no broadcast/signing/private-key method is
-reachable.
+reachable. (An earlier revision of this file recorded 61; the suite has since
+grown, and the count above is the one observed when the suite is run in this
+environment.)
 
 **Lane 3 — backend PocketIC (`pnpm run test:backend`):**
 
@@ -131,9 +133,12 @@ Exit code 0. (The frontend build prints a non-fatal Browserslist
 ### Backend PocketIC lane detail
 
 The lane file `test/pocketic/backend.test.ts` has 13 tests, all passing, and
-exercises the real compiled canister for input validation, authorization,
-unconfigured behavior, and API documentation. Successful outcall parsing is
-covered by pure Motoko tests, not this PocketIC lane.
+exercises the real compiled canister. Its coverage is deliberately bounded:
+input validation, authentication/authorization, the unconfigured state, and
+API-docs paths. It does **not** cover the successful outcall parser paths —
+the configured-but-unreachable outcall cannot complete under PocketIC's ingress
+budget. The successful `parseAddressUtxos`/`parseRawTransaction` paths are
+covered by pure Motoko unit tests, and actual live probes follow privately.
 
 New tests added for the two read-only methods:
 
