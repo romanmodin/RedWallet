@@ -263,6 +263,8 @@ describe("In-flight status deduplication", () => {
       })),
       getAddressBalance: vi.fn(),
       getAddressHistory: vi.fn(),
+      getAddressUtxos: vi.fn(),
+      getRawTransaction: vi.fn(),
       getFeeEstimate: vi.fn(),
       getServerStatus,
     };

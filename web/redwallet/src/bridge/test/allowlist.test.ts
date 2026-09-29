@@ -33,6 +33,8 @@ import {
 import { loadConfig, type BridgeConfig } from "../src/config.js";
 import { createServer } from "../src/server.js";
 import { errorBody, errorStatus } from "../src/errors.js";
+import { BridgeError } from "../src/errors.js";
+import { validateRequest } from "../src/validation.js";
 import { startMockUpstream, type MockUpstream } from "./helpers.js";
 
 const SECRET = "0123456789abcdef0123456789abcdef";
@@ -115,12 +117,40 @@ test("allowlist: contains only read-only methods and no write route", () => {
   assert.equal(isBridgeMethod("blockchain.transaction.get"), false);
 });
 
+test("allowlist: address.utxos and transaction.raw are present and read-only", () => {
+  assert.equal(isBridgeMethod("address.utxos"), true);
+  assert.equal(isBridgeMethod("transaction.raw"), true);
+  assert.equal(ALLOWLIST["address.utxos"].upstreamMethod, "blockchain.scripthash.listunspent");
+  assert.equal(ALLOWLIST["address.utxos"].params, "scripthash");
+  assert.equal(ALLOWLIST["transaction.raw"].upstreamMethod, "blockchain.transaction.get");
+  assert.equal(ALLOWLIST["transaction.raw"].params, "txid");
+
+  // No broadcast, signing, or private-key method exists in the allowlist.
+  const forbidden = /(broadcast|send|sign|submit|push|create|spend|private|key)/i;
+  for (const name of bridgeMethodNames()) {
+    assert.equal(forbidden.test(name), false, `allowlisted method "${name}" looks like a write route`);
+    assert.equal(forbidden.test(ALLOWLIST[name].upstreamMethod), false, `upstream method "${ALLOWLIST[name].upstreamMethod}" looks like a write route`);
+  }
+  assert.equal(isBridgeMethod("blockchain.transaction.broadcast"), false);
+  assert.equal(isBridgeMethod("signrawtransaction"), false);
+  assert.equal(isBridgeMethod("dumpprivkey"), false);
+});
+
+test("allowlist: address.utxos and transaction.raw enforce exactly one param", () => {
+  assert.throws(() => validateRequest({ method: "address.utxos", params: [] }), BridgeError);
+  assert.throws(() => validateRequest({ method: "address.utxos", params: [VALID_ADDRESS, VALID_ADDRESS] }), BridgeError);
+  assert.throws(() => validateRequest({ method: "transaction.raw", params: [] }), BridgeError);
+  assert.throws(() => validateRequest({ method: "transaction.raw", params: ["00".repeat(32), false] }), BridgeError);
+});
+
 test("allowlist: every bridge method maps to its fixed upstream method", () => {
   const expected: Record<BridgeMethod, string> = {
     "server.version": "server.version",
     "server.features": "server.features",
     "address.balance": "blockchain.scripthash.get_balance",
     "address.history": "blockchain.scripthash.get_history",
+    "address.utxos": "blockchain.scripthash.listunspent",
+    "transaction.raw": "blockchain.transaction.get",
     "fee.estimate": "blockchain.estimatefee",
     "headers.checkpoint": "blockchain.block.header",
     "server.status": "blockchain.headers.subscribe",
@@ -174,6 +204,50 @@ test("success: maps address.history to the fixed upstream method", async () => {
     const forwarded = upstream.requests[0]?.params[0];
     assert.match(String(forwarded), /^[0-9a-f]{64}$/);
     assert.notEqual(forwarded, VALID_ADDRESS);
+  } finally {
+    await bridge.close();
+    await upstream.close();
+  }
+});
+
+test("success: maps address.utxos to the fixed upstream method", async () => {
+  const upstream = await startMockUpstream({
+    handler: () => [{ tx_hash: "ab".repeat(32), tx_pos: 0, height: 961640, value: 12345 }],
+  });
+  const bridge = await startBridge({}, upstream);
+  try {
+    const { status, json } = await rpc(bridge.baseUrl, {
+      method: "address.utxos",
+      params: [VALID_ADDRESS],
+    });
+    assert.equal(status, 200);
+    assert.equal(upstream.requests[0]?.method, "blockchain.scripthash.listunspent");
+    const forwarded = upstream.requests[0]?.params[0];
+    assert.match(String(forwarded), /^[0-9a-f]{64}$/);
+    assert.notEqual(forwarded, VALID_ADDRESS);
+    assert.deepEqual((json as { result: unknown }).result, [
+      { txid: "ab".repeat(32), vout: 0, height: 961640, value: 12345 },
+    ]);
+  } finally {
+    await bridge.close();
+    await upstream.close();
+  }
+});
+
+test("success: maps transaction.raw to the fixed upstream method with verbose=false", async () => {
+  const raw = "0100000001" + "00".repeat(20);
+  const upstream = await startMockUpstream({ handler: () => raw });
+  const bridge = await startBridge({}, upstream);
+  try {
+    const txid = "cd".repeat(32);
+    const { status, json } = await rpc(bridge.baseUrl, {
+      method: "transaction.raw",
+      params: [txid],
+    });
+    assert.equal(status, 200);
+    assert.equal(upstream.requests[0]?.method, "blockchain.transaction.get");
+    assert.deepEqual(upstream.requests[0]?.params, [txid, false]);
+    assert.equal((json as { result: unknown }).result, raw);
   } finally {
     await bridge.close();
     await upstream.close();

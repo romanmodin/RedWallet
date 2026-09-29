@@ -33,8 +33,12 @@ const BACKEND_WASM = process.env.BACKEND_WASM ?? "";
  */
 const ADMIN = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
 const OTHER = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+/** A principal that is never promoted to bridge operator by any test. */
+const STRANGER = Principal.fromText("r7inp-6aaaa-aaaaa-aaabq-cai");
 
 const DEMO_ADDRESS = "bc1q86uhqahctvu7ygjenrcpp9c6dmxu6s8wzktfd4";
+/** A syntactically valid 64-character lowercase hex txid (all zeros). */
+const DEMO_TXID = "0".repeat(64);
 const BRIDGE_URL = "https://bridge.example.invalid";
 const BRIDGE_SECRET = "super-secret-deployment-token-32-characters";
 
@@ -81,6 +85,12 @@ it("returns an explicit not-configured error for every read before configuration
 
   const server = await actor.getServerStatus();
   expect(server).toEqual({ err: { not_configured: null } });
+
+  const utxos = await actor.getAddressUtxos(DEMO_ADDRESS);
+  expect(utxos).toEqual({ err: { not_configured: null } });
+
+  const raw = await actor.getRawTransaction(DEMO_TXID);
+  expect(raw).toEqual({ err: { not_configured: null } });
 });
 
 it("rejects an empty address as invalid input without contacting the bridge", async () => {
@@ -89,6 +99,27 @@ it("rejects an empty address as invalid input without contacting the bridge", as
 
   const history = await actor.getAddressHistory("");
   expect(history).toEqual({ err: { invalid_input: "invalid address format" } });
+
+  const utxos = await actor.getAddressUtxos("");
+  expect(utxos).toEqual({ err: { invalid_input: "invalid address format" } });
+});
+
+it("rejects a malformed transaction id as invalid input before any upstream call", async () => {
+  // Non-hex, odd-length, empty, and wrong-length ids must all be rejected by
+  // the cheap pre-outcall check, so an unconfigured bridge never matters here.
+  const malformed = [
+    "",
+    "not-hex",
+    "0".repeat(63),
+    "0".repeat(65),
+    "g".repeat(64),
+    "A".repeat(64),
+    "0".repeat(63) + "z",
+  ];
+  for (const txid of malformed) {
+    const raw = await actor.getRawTransaction(txid);
+    expect(raw).toEqual({ err: { invalid_input: "invalid transaction id" } });
+  }
 });
 
 it("rejects a non-HTTPS bridge base URL", async () => {
@@ -140,6 +171,13 @@ it("documents admin as operator-assigned, not first-user promotion", async () =>
   expect(doc).not.toMatch(/first (user|caller)[^.]*is (made )?admin/i);
 });
 
+it("documents the two read-only methods and the absence of any write endpoint", async () => {
+  const doc = await actor.getApiDoc();
+  expect(doc).toContain("getAddressUtxos");
+  expect(doc).toContain("getRawTransaction");
+  expect(doc).toContain("no broadcast, signing, or private-key endpoint");
+});
+
 it("strips volatile headers in the consensus transform", async () => {
   const transformed = await actor.transformBridgeResponse({
     context: new Uint8Array(),
@@ -167,4 +205,37 @@ it("public role bootstrap cannot grant bridge configuration authority", async ()
   await actor.setBridgeConfig(BRIDGE_URL, BRIDGE_SECRET);
   await actor.clearBridgeConfig();
   actor.setPrincipal(ADMIN);
+});
+
+it("a non-operator caller cannot grant itself bridge authority for the new reads", async () => {
+  // A principal that no earlier test promoted to operator.
+  actor.setPrincipal(STRANGER);
+  await actor._initialize_access_control();
+  // The new read-only methods are unrestricted reads, but they must not confer
+  // or accept bridge authority: a public caller still cannot configure the
+  // bridge or appoint itself operator.
+  expect((await actor.getBridgeOperatorStatus()).isOperator).toBe(false);
+  await expect(actor.setBridgeConfig(BRIDGE_URL, BRIDGE_SECRET)).rejects.toThrow();
+  await expect(actor.setBridgeOperator(STRANGER)).rejects.toThrow();
+  // With no bridge configured, the new reads return the explicit not-configured
+  // error rather than succeeding or leaking configuration.
+  expect(await actor.getAddressUtxos(DEMO_ADDRESS)).toEqual({ err: { not_configured: null } });
+  expect(await actor.getRawTransaction(DEMO_TXID)).toEqual({ err: { not_configured: null } });
+  actor.setPrincipal(ADMIN);
+});
+
+it("never leaks the bridge URL or secret through the new read error paths", async () => {
+  await actor.setBridgeConfig(BRIDGE_URL, BRIDGE_SECRET);
+
+  // Invalid input is rejected before any outcall, so the error carries only the
+  // fixed message and never the configured URL or secret.
+  const badAddress = await actor.getAddressUtxos("");
+  expect(JSON.stringify(badAddress)).not.toContain(BRIDGE_URL);
+  expect(JSON.stringify(badAddress)).not.toContain(BRIDGE_SECRET);
+
+  const badTxid = await actor.getRawTransaction("not-hex");
+  expect(JSON.stringify(badTxid)).not.toContain(BRIDGE_URL);
+  expect(JSON.stringify(badTxid)).not.toContain(BRIDGE_SECRET);
+
+  await actor.clearBridgeConfig();
 });

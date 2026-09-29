@@ -38,9 +38,16 @@ export async function discoverAccount(
   const gap = options.gapLimit ?? 20;
   const cap = options.maxAddressesPerBranch ?? 1000;
   const issued = options.issuedThrough ?? [-1, -1];
-  if (!Number.isInteger(gap) || gap < 20 || gap > 100 ||
-      !Number.isInteger(cap) || cap < gap || cap > 2000 ||
-      issued.length !== 2 || issued.some(i => !Number.isInteger(i) || i < -1 || i + gap >= cap)) {
+  if (
+    !Number.isInteger(gap) ||
+    gap < 20 ||
+    gap > 100 ||
+    !Number.isInteger(cap) ||
+    cap < gap ||
+    cap > 2000 ||
+    issued.length !== 2 ||
+    issued.some((i) => !Number.isInteger(i) || i < -1 || i + gap >= cap)
+  ) {
     throw Error("Invalid discovery bounds");
   }
   const cancelled = () => {
@@ -57,7 +64,8 @@ export async function discoverAccount(
       const address = publicAddress(accountXpub, branch, index);
       const active = await hasHistory(address, options.signal);
       cancelled();
-      if (typeof active !== "boolean") throw Error("Invalid history observation");
+      if (typeof active !== "boolean")
+        throw Error("Invalid history observation");
       if (active) {
         used.push({ branch, index, address });
         lastUsed = index;
@@ -70,7 +78,11 @@ export async function discoverAccount(
         const nextIndex = Math.max(lastUsed, issued[branch]) + 1;
         result = {
           used,
-          next: { branch, index: nextIndex, address: publicAddress(accountXpub, branch, nextIndex) },
+          next: {
+            branch,
+            index: nextIndex,
+            address: publicAddress(accountXpub, branch, nextIndex),
+          },
           scanned: index + 1,
         };
         break;

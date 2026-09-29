@@ -90,6 +90,66 @@ function readBody(
   });
 }
 
+/** Maximum number of UTXO entries the bridge will return. */
+const MAX_UTXOS = 1000;
+
+/** Maximum satoshi value accepted in a single UTXO (21,000,000 BTC). */
+const MAX_SATOSHIS = 2_100_000_000_000_000;
+
+/** Maximum raw transaction hex length: 200,000 hex chars = 100 KB. */
+const MAX_RAW_TX_HEX = 200_000;
+
+const TXID_HEX = /^[0-9a-f]{64}$/;
+const RAW_TX_HEX = /^(?:[0-9a-f]{2})+$/;
+
+/**
+ * Validate a `blockchain.scripthash.listunspent` result.
+ *
+ * The upstream must return an array of objects with exactly the expected
+ * fields. Every entry is checked for a lowercase 64-hex txid, a uint32 vout, a
+ * non-negative integer height, and an integer satoshi value within range.
+ * Duplicate outpoints and more than MAX_UTXOS entries are explicit errors —
+ * the bridge never truncates silently.
+ */
+function validateUtxos(result: unknown): Array<{ txid: string; vout: number; height: number; value: number }> {
+  if (!Array.isArray(result)) throw new BridgeError("upstream_malformed");
+  if (result.length > MAX_UTXOS) throw new BridgeError("upstream_malformed");
+  const seen = new Set<string>();
+  const utxos: Array<{ txid: string; vout: number; height: number; value: number }> = [];
+  for (const entry of result) {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) throw new BridgeError("upstream_malformed");
+    const keys = Object.keys(entry);
+    if (keys.length !== 4 || !keys.includes("tx_hash") || !keys.includes("tx_pos") || !keys.includes("height") || !keys.includes("value")) throw new BridgeError("upstream_malformed");
+    const txid = (entry as Record<string, unknown>)["tx_hash"];
+    const vout = (entry as Record<string, unknown>)["tx_pos"];
+    const height = (entry as Record<string, unknown>)["height"];
+    const value = (entry as Record<string, unknown>)["value"];
+    if (typeof txid !== "string" || !TXID_HEX.test(txid)) throw new BridgeError("upstream_malformed");
+    if (typeof vout !== "number" || !Number.isInteger(vout) || vout < 0 || vout > 0xffffffff) throw new BridgeError("upstream_malformed");
+    if (typeof height !== "number" || !Number.isSafeInteger(height) || height < 0) throw new BridgeError("upstream_malformed");
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > MAX_SATOSHIS) throw new BridgeError("upstream_malformed");
+    const outpoint = `${txid}:${vout}`;
+    if (seen.has(outpoint)) throw new BridgeError("upstream_malformed");
+    seen.add(outpoint);
+    utxos.push({ txid, vout, height, value });
+  }
+  return utxos;
+}
+
+/**
+ * Validate a `blockchain.transaction.get` result with verbose=false.
+ *
+ * The result must be a nonempty, even-length, lowercase hex string no longer
+ * than MAX_RAW_TX_HEX characters. A verbose object (or any non-string) is
+ * rejected.
+ */
+function validateRawTransaction(result: unknown): string {
+  if (typeof result !== "string" || result.length === 0 || result.length > MAX_RAW_TX_HEX || !RAW_TX_HEX.test(result)) {
+    throw new BridgeError("upstream_malformed");
+  }
+  return result;
+}
+
 export function createServer(deps: ServerDeps): http.Server {
   const { config } = deps;
   const now = deps.now ?? (() => Date.now());
@@ -163,6 +223,8 @@ export function createServer(deps: ServerDeps): http.Server {
     }
     if (method === "address.balance" && (result === null || typeof result !== "object" || !("confirmed" in result) || !("unconfirmed" in result) || !Number.isSafeInteger(result.confirmed) || !Number.isSafeInteger(result.unconfirmed) || (result.confirmed as number) < 0)) throw new BridgeError("upstream_malformed");
     if (method === "address.history" && (!Array.isArray(result) || result.some(tx => tx === null || typeof tx !== "object" || !/^[a-f0-9]{64}$/i.test(tx.tx_hash) || !Number.isSafeInteger(tx.height) || tx.height < -1))) throw new BridgeError("upstream_malformed");
+    if (method === "address.utxos") return validateUtxos(result);
+    if (method === "transaction.raw") return validateRawTransaction(result);
     if (method === "fee.estimate" && (typeof result !== "number" || !Number.isFinite(result) || (result < 0 && result !== -1))) throw new BridgeError("upstream_malformed");
     return result;
   }

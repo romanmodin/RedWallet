@@ -16,6 +16,8 @@ export type BridgeMethod =
   | "server.status"
   | "address.balance"
   | "address.history"
+  | "address.utxos"
+  | "transaction.raw"
   | "fee.estimate"
   | "headers.checkpoint";
 
@@ -23,7 +25,7 @@ export interface MethodSpec {
   /** The fixed upstream Electrum method this bridge method maps to. */
   readonly upstreamMethod: string;
   /** How the bridge validates and forwards the request params. */
-  readonly params: "none" | "scripthash" | "target_blocks" | "height";
+  readonly params: "none" | "scripthash" | "txid" | "target_blocks" | "height";
 }
 
 export const ALLOWLIST: Readonly<Record<BridgeMethod, MethodSpec>> = {
@@ -46,6 +48,14 @@ export const ALLOWLIST: Readonly<Record<BridgeMethod, MethodSpec>> = {
   "address.history": {
     upstreamMethod: "blockchain.scripthash.get_history",
     params: "scripthash",
+  },
+  "address.utxos": {
+    upstreamMethod: "blockchain.scripthash.listunspent",
+    params: "scripthash",
+  },
+  "transaction.raw": {
+    upstreamMethod: "blockchain.transaction.get",
+    params: "txid",
   },
   "fee.estimate": {
     upstreamMethod: "blockchain.estimatefee",

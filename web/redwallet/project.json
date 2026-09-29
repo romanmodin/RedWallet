@@ -1,19 +1,19 @@
 {
-  "overview": "A watch-only XBT wallet that shows balance, history and receive details for an address you enter, with a manual price and honest connection status.",
+  "overview": "A watch-only Bitcoin wallet for the Internet Computer with a bounded read-only spending-data layer.",
   "features": [
-    "Enter an address to watch its balance and history",
-    "Receive screen with QR code and copy",
-    "Manual price entry for fiat value",
-    "Honest connection status when the bridge is not configured",
-    "Send, seed and recovery stay disabled"
+    "Watch-only address balance, history and receive",
+    "Read-only UTXO and raw transaction lookups",
+    "Bounded address discovery with gap and cap limits",
+    "Strict validation of all spending-data reads",
+    "Voluntary donation support"
   ],
   "category": "wallet",
   "tags": [
-    "xbt",
+    "bitcoin",
     "wallet",
     "watch-only",
-    "read-only",
-    "self-hosted"
+    "internet-computer",
+    "read-only"
   ],
-  "last_updated": "2026-09-29T13:37:20.435Z"
+  "last_updated": "2026-09-29T19:10:06.143Z"
 }

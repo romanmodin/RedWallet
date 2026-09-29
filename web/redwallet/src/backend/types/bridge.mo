@@ -77,6 +77,29 @@ module {
     satoshisPerKb : Nat;
   };
 
+  /// One unspent transaction output for an address, as reported by the bridge.
+  /// `txid` is a 64-character lowercase hex string; `vout` is the output index
+  /// within that transaction; `height` is the confirming block height (0 for an
+  /// unconfirmed output); `value` is the output amount in satoshis.
+  public type Utxo = {
+    txid : Text;
+    vout : Nat32;
+    height : Nat;
+    value : Nat;
+  };
+
+  /// Unspent outputs for one address. The list is capped at 1000 entries; a
+  /// larger upstream result is an explicit error, never a silent truncation.
+  public type AddressUtxos = {
+    utxos : [Utxo];
+  };
+
+  /// Raw transaction bytes as reported by the bridge, hex-encoded and
+  /// lowercased. Nonempty, even length, at most 200000 hex characters.
+  public type RawTransaction = {
+    hex : Text;
+  };
+
   /// Server/network status as reported by the bridge. The checkpoint is
   /// reported as unconfigured because no verified project source defines an
   /// XBT checkpoint/network identity; no BTC-compatibility claim is made.

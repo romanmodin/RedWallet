@@ -405,3 +405,116 @@ test("RPC: rejects wrong IDs and non-object response envelopes", async () => {
     finally { await upstream.close(); }
   }
 });
+
+const VALID_ADDRESS = "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2";
+const VALID_TXID = "ab".repeat(32);
+
+test("address.utxos: rejects malformed listunspent entries", async () => {
+  const malformed = [
+    "not-an-array",
+    [{ tx_hash: "AB".repeat(32), tx_pos: 0, height: 1, value: 1 }], // uppercase txid
+    [{ tx_hash: "ab".repeat(31), tx_pos: 0, height: 1, value: 1 }], // short txid
+    [{ tx_hash: VALID_TXID, tx_pos: -1, height: 1, value: 1 }], // negative vout
+    [{ tx_hash: VALID_TXID, tx_pos: 4294967296, height: 1, value: 1 }], // vout > uint32
+    [{ tx_hash: VALID_TXID, tx_pos: 0, height: -1, value: 1 }], // negative height
+    [{ tx_hash: VALID_TXID, tx_pos: 0, height: 1, value: -1 }], // negative value
+    [{ tx_hash: VALID_TXID, tx_pos: 0, height: 1, value: 2_100_000_000_000_001 }], // value over cap
+    [{ tx_hash: VALID_TXID, tx_pos: 0, height: 1, value: 1.5 }], // non-integer value
+    [{ tx_hash: VALID_TXID, tx_pos: 0, height: 1, value: 1, extra: true }], // extra field
+    [{ tx_hash: VALID_TXID, tx_pos: 0, height: 1 }], // missing value
+    [{ tx_hash: VALID_TXID, tx_pos: 0, height: 1, value: 1 }, { tx_hash: VALID_TXID, tx_pos: 0, height: 2, value: 2 }], // duplicate outpoint
+  ];
+  for (const result of malformed) {
+    const upstream = await startMockUpstream({ handler: () => result });
+    const bridge = await startBridge({}, upstream);
+    try {
+      const { status, json } = await rpc(bridge.baseUrl, { method: "address.utxos", params: [VALID_ADDRESS] });
+      assert.equal(status, 502, JSON.stringify(result));
+      assert.equal((json as { error: { code: string } }).error.code, "upstream_malformed");
+    } finally {
+      await bridge.close();
+      await upstream.close();
+    }
+  }
+});
+
+test("address.utxos: more than 1000 entries is an explicit error, not a truncation", async () => {
+  const entries = Array.from({ length: 1001 }, (_, i) => ({ tx_hash: VALID_TXID, tx_pos: i, height: 1, value: 1 }));
+  const upstream = await startMockUpstream({ handler: () => entries });
+  const bridge = await startBridge({}, upstream);
+  try {
+    const { status, json } = await rpc(bridge.baseUrl, { method: "address.utxos", params: [VALID_ADDRESS] });
+    assert.equal(status, 502);
+    assert.equal((json as { error: { code: string } }).error.code, "upstream_malformed");
+  } finally {
+    await bridge.close();
+    await upstream.close();
+  }
+});
+
+test("address.utxos: exactly 1000 entries is accepted", async () => {
+  const entries = Array.from({ length: 1000 }, (_, i) => ({ tx_hash: VALID_TXID, tx_pos: i, height: 1, value: 1 }));
+  const upstream = await startMockUpstream({ handler: () => entries });
+  const bridge = await startBridge({}, upstream);
+  try {
+    const { status, json } = await rpc(bridge.baseUrl, { method: "address.utxos", params: [VALID_ADDRESS] });
+    assert.equal(status, 200);
+    assert.equal((json as { result: unknown[] }).result.length, 1000);
+  } finally {
+    await bridge.close();
+    await upstream.close();
+  }
+});
+
+test("transaction.raw: rejects verbose objects and malformed hex", async () => {
+  const malformed = [
+    { hex: "00", txid: VALID_TXID }, // verbose object
+    "",
+    "abc", // odd length
+    "zz", // non-hex
+    "AB", // uppercase
+    "00".repeat(100_001), // over 200000 hex chars
+  ];
+  for (const result of malformed) {
+    const upstream = await startMockUpstream({ handler: () => result });
+    const bridge = await startBridge({}, upstream);
+    try {
+      const { status, json } = await rpc(bridge.baseUrl, { method: "transaction.raw", params: [VALID_TXID] });
+      assert.equal(status, 502, JSON.stringify(result).slice(0, 40));
+      assert.equal((json as { error: { code: string } }).error.code, "upstream_malformed");
+    } finally {
+      await bridge.close();
+      await upstream.close();
+    }
+  }
+});
+
+test("transaction.raw: a bad txid is rejected before upstream contact", async () => {
+  const upstream = await startMockUpstream();
+  const bridge = await startBridge({}, upstream);
+  try {
+    const { status, json } = await rpc(bridge.baseUrl, { method: "transaction.raw", params: ["not-a-txid"] });
+    assert.equal(status, 400);
+    assert.equal((json as { error: { code: string } }).error.code, "invalid_request");
+    assert.equal(upstream.requests.length, 0);
+  } finally {
+    await bridge.close();
+    await upstream.close();
+  }
+});
+
+test("allowlist: no broadcast, signing, or private-key method is reachable", async () => {
+  const upstream = await startMockUpstream();
+  const bridge = await startBridge({}, upstream);
+  try {
+    for (const method of ["blockchain.transaction.broadcast", "signrawtransaction", "dumpprivkey", "wallet.send"]) {
+      const { status, json } = await rpc(bridge.baseUrl, { method, params: [] });
+      assert.equal(status, 400, method);
+      assert.equal((json as { error: { code: string } }).error.code, "method_not_allowed", method);
+    }
+    assert.equal(upstream.requests.length, 0);
+  } finally {
+    await bridge.close();
+    await upstream.close();
+  }
+});

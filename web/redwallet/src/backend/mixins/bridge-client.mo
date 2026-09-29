@@ -92,6 +92,28 @@ mixin (bridgeConfig : Types.BridgeConfig, bridgeSecurity : Types.BridgeSecurity)
     };
   };
 
+  public shared ({ caller }) func getAddressUtxos(address : Text) : async Types.BridgeResult<Types.AddressUtxos> {
+    if (not BridgeLib.validAddress(address)) return #err(#invalid_input("invalid address format"));
+    switch (await fetch(caller, BridgeLib.methodAddressUtxos, BridgeLib.addressUtxosParams(address))) {
+      case (#err e) #err e;
+      case (#ok body) switch (BridgeLib.parseAddressUtxos(body)) {
+        case (?value) #ok value;
+        case null #err(#malformed_response("bridge utxo response is invalid"));
+      };
+    };
+  };
+
+  public shared ({ caller }) func getRawTransaction(txid : Text) : async Types.BridgeResult<Types.RawTransaction> {
+    if (not BridgeLib.isLowerHex64(txid)) return #err(#invalid_input("invalid transaction id"));
+    switch (await fetch(caller, BridgeLib.methodRawTransaction, BridgeLib.rawTransactionParams(txid))) {
+      case (#err e) #err e;
+      case (#ok body) switch (BridgeLib.parseRawTransaction(body)) {
+        case (?value) #ok value;
+        case null #err(#malformed_response("bridge raw transaction response is invalid"));
+      };
+    };
+  };
+
   public shared ({ caller }) func getFeeEstimate() : async Types.BridgeResult<Types.FeeEstimate> {
     switch (await fetch(caller, BridgeLib.methodFeeEstimate, "[" # BridgeLib.defaultFeeTargetBlocks.toText() # "]")) {
       case (#err e) #err e;

@@ -1,4 +1,5 @@
 import { test; suite } "mo:test";
+import List "mo:core/List";
 import BridgeLib "../lib/bridge";
 import IC "mo:ic/Types";
 
@@ -74,6 +75,66 @@ suite("bridge client live contract", func() {
     assert BridgeLib.parseServerStatus("{\"result\":[\"Fulcrum\",\"1.4\"]}") == null;
     let unconfigured = "{\"result\":{\"height\":1,\"serverVersion\":\"Fulcrum\",\"protocolVersion\":\"1.4\",\"checkpointVerified\":false,\"checkpointHeight\":null,\"checkpointHash\":null}}";
     switch (BridgeLib.parseServerStatus(unconfigured)) { case (?v) assert not v.checkpointConfigured; case null assert false };
+  });
+  test("utxo parser accepts a well-formed list and rejects malformed shapes", func() {
+    let body = "{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":123,\"value\":5000},{\"txid\":\"" # txid # "\",\"vout\":1,\"height\":0,\"value\":0}]}";
+    switch (BridgeLib.parseAddressUtxos(body)) {
+      case (?v) {
+        assert v.utxos.size() == 2;
+        assert v.utxos[0].txid == txid;
+        assert v.utxos[0].vout == 0;
+        assert v.utxos[0].height == 123;
+        assert v.utxos[0].value == 5000;
+        assert v.utxos[1].height == 0;
+      };
+      case null assert false;
+    };
+    assert BridgeLib.parseAddressUtxos("{\"result\":{}}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":1}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":1,\"value\":1}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"vout\":1,\"height\":1,\"value\":1}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"error\":{},\"result\":[]}") == null;
+    assert BridgeLib.parseAddressUtxos("") == null;
+  });
+  test("utxo parser enforces numeric and outpoint bounds", func() {
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":-1,\"value\":1}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":4294967296,\"height\":1,\"value\":1}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":-1,\"height\":1,\"value\":1}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":1,\"value\":-1}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":1,\"value\":2100000000000001}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":1,\"value\":1.5}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":1,\"value\":1},{\"txid\":\"" # txid # "\",\"vout\":0,\"height\":2,\"value\":2}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"AB" # "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # "\",\"vout\":0,\"height\":1,\"value\":1}]}") == null;
+    assert BridgeLib.parseAddressUtxos("{\"result\":[{\"txid\":\"ab\",\"vout\":0,\"height\":1,\"value\":1}]}") == null;
+  });
+  test("utxo parser rejects more than 1000 entries without truncating", func() {
+    let entries = List.empty<Text>();
+    var i = 0;
+    while (i < 1001) {
+      entries.add("{\"txid\":\"" # txid # "\",\"vout\":" # i.toText() # ",\"height\":1,\"value\":1}");
+      i += 1;
+    };
+    let body = "{\"result\":[" # entries.toArray().values().join(",") # "]}";
+    assert BridgeLib.parseAddressUtxos(body) == null;
+  });
+  test("raw transaction parser enforces hex shape and length", func() {
+    switch (BridgeLib.parseRawTransaction("{\"result\":\"00ff\"}")) {
+      case (?v) assert v.hex == "00ff";
+      case null assert false;
+    };
+    assert BridgeLib.parseRawTransaction("{\"result\":\"\"}") == null;
+    assert BridgeLib.parseRawTransaction("{\"result\":\"0\"}") == null;
+    assert BridgeLib.parseRawTransaction("{\"result\":\"00FF\"}") == null;
+    assert BridgeLib.parseRawTransaction("{\"result\":\"zz\"}") == null;
+    assert BridgeLib.parseRawTransaction("{\"result\":{\"hex\":\"00ff\"}}") == null;
+    assert BridgeLib.parseRawTransaction("{\"result\":\"00ff\",\"result\":\"00ff\"}") == null;
+    assert BridgeLib.parseRawTransaction("{\"error\":{},\"result\":\"00ff\"}") == null;
+    let chunks = List.empty<Text>();
+    var i = 0;
+    while (i < 100_001) { chunks.add("00"); i += 1 };
+    let over = chunks.toArray().values().join("");
+    assert over.size() > BridgeLib.maxRawTransactionHex;
+    assert BridgeLib.parseRawTransaction("{\"result\":\"" # over # "\"}") == null;
   });
   test("HTTP auth and timeout errors never produce fake balances", func() {
     switch (BridgeLib.decodeResponse(response(401, "denied"), BridgeLib.parseBalance)) { case (#err(#backend_unavailable(_))) {}; case _ assert false };

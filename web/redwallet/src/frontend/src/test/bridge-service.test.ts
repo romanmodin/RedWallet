@@ -20,6 +20,18 @@ function makeActor(overrides: Partial<BridgeActor> = {}): BridgeActor {
         entries: [{ txid: "a".repeat(64), height: 974000n, value: undefined }],
       },
     })),
+    getAddressUtxos: vi.fn(async () => ({
+      __kind__: "ok" as const,
+      ok: {
+        utxos: [
+          { txid: "a".repeat(64), vout: 0, height: 974000n, value: 100000000n },
+        ],
+      },
+    })),
+    getRawTransaction: vi.fn(async () => ({
+      __kind__: "ok" as const,
+      ok: { hex: "0200000001" },
+    })),
     getFeeEstimate: vi.fn(async () => ({
       __kind__: "ok" as const,
       ok: { satoshisPerKb: 12000n },

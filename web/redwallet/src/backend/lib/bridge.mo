@@ -16,10 +16,16 @@ module {
   public let methodServerStatus = "server.status";
   public let methodAddressBalance = "address.balance";
   public let methodAddressHistory = "address.history";
+  public let methodAddressUtxos = "address.utxos";
+  public let methodRawTransaction = "transaction.raw";
   public let methodFeeEstimate = "fee.estimate";
   public let methodCheckpoint = "headers.checkpoint";
   public let defaultFeeTargetBlocks : Nat = 2;
   public let maxSafeInteger : Int = 9_007_199_254_740_991;
+  public let maxUtxos : Nat = 1000;
+  public let maxRawTransactionHex : Nat = 200_000;
+  public let maxVout : Nat = 4_294_967_295;
+  public let maxSatoshiValue : Nat = 2_100_000_000_000_000;
 
   /// Cheap bounds before paid outcalls. The bridge verifies checksums/network.
   public func validAddress(address : Text) : Bool {
@@ -32,6 +38,18 @@ module {
 
   public func addressParams(address : Text) : Text {
     Json.stringify(#array([#string(address)]), null);
+  };
+
+  /// Exactly one parameter: the validated address. The bridge derives the
+  /// scripthash itself; the backend never sends a scripthash.
+  public func addressUtxosParams(address : Text) : Text {
+    Json.stringify(#array([#string(address)]), null);
+  };
+
+  /// Exactly one parameter: the 64-character hex transaction id. The bridge
+  /// always requests the non-verbose raw transaction.
+  public func rawTransactionParams(txid : Text) : Text {
+    Json.stringify(#array([#string(txid)]), null);
   };
 
   public func buildRequestBody(method : Text, params : Text) : Text {
@@ -165,6 +183,25 @@ module {
     true;
   };
 
+  /// Lowercase hex only: the bridge contract requires canonical lowercase txids.
+  public func isLowerHex64(value : Text) : Bool {
+    if (value.size() != 64) return false;
+    for (c in value.chars()) {
+      if (not ((c >= '0' and c <= '9') or (c >= 'a' and c <= 'f'))) return false;
+    };
+    true;
+  };
+
+  /// Nonempty, even-length, lowercase hex, bounded to `maxRawTransactionHex`.
+  public func isRawTransactionHex(value : Text) : Bool {
+    let size = value.size();
+    if (size == 0 or size > maxRawTransactionHex or size % 2 != 0) return false;
+    for (c in value.chars()) {
+      if (not ((c >= '0' and c <= '9') or (c >= 'a' and c <= 'f'))) return false;
+    };
+    true;
+  };
+
   public func parseBalance(body : Text) : ?Types.AddressBalance {
     let result = unwrapResult(body) ?? return null;
     let confirmed = integer(field(result, "confirmed") ?? return null) ?? return null;
@@ -192,6 +229,46 @@ module {
       entries.add({ txid; height; value });
     };
     ?{ entries = entries.toArray() };
+  };
+
+  /// Strict parse of `blockchain.scripthash.listunspent` results. Rejects
+  /// duplicate JSON fields, non-integer/unsafe numbers, negative heights,
+  /// out-of-range vout, out-of-range values, duplicate outpoints, and more
+  /// than `maxUtxos` entries (never a silent truncation).
+  public func parseAddressUtxos(body : Text) : ?Types.AddressUtxos {
+    let result = unwrapResult(body) ?? return null;
+    let items = switch (result) { case (#array(v)) v; case _ return null };
+    if (items.size() > maxUtxos) return null;
+    let utxos = List.empty<Types.Utxo>();
+    let seen = List.empty<Text>();
+    for (item in items.values()) {
+      let txid = text(field(item, "txid") ?? return null) ?? return null;
+      if (not isLowerHex64(txid)) return null;
+      let voutInt = integer(field(item, "vout") ?? return null) ?? return null;
+      if (voutInt < 0 or voutInt > maxVout) return null;
+      let height = integer(field(item, "height") ?? return null) ?? return null;
+      if (height < 0) return null;
+      let value = integer(field(item, "value") ?? return null) ?? return null;
+      if (value < 0 or value > maxSatoshiValue) return null;
+      let outpoint : Text = txid # ":" # voutInt.toText();
+      if (seen.contains(outpoint)) return null;
+      seen.add(outpoint);
+      let vout : Nat32 = voutInt.toNat().toNat32();
+      let utxoHeight : Nat = height.toNat();
+      let utxoValue : Nat = value.toNat();
+      utxos.add({ txid; vout; height = utxoHeight; value = utxoValue });
+    };
+    ?{ utxos = utxos.toArray() };
+  };
+
+  /// Strict parse of `blockchain.transaction.get(txid, false)`. The result must
+  /// be a nonempty, even-length, lowercase hex string of at most
+  /// `maxRawTransactionHex` characters; verbose objects are rejected.
+  public func parseRawTransaction(body : Text) : ?Types.RawTransaction {
+    let result = unwrapResult(body) ?? return null;
+    let hex = text(result) ?? return null;
+    if (not isRawTransactionHex(hex)) return null;
+    ?{ hex };
   };
 
   public func parseFeeEstimate(body : Text) : ?Types.FeeEstimate {

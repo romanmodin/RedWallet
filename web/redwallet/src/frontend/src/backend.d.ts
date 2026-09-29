@@ -14,6 +14,9 @@ export interface AddressBalance {
 export interface AddressHistory {
     entries: Array<HistoryEntry>;
 }
+export interface AddressUtxos {
+    utxos: Array<Utxo>;
+}
 export type BridgeError = {
     __kind__: "not_configured";
     not_configured: null;
@@ -40,19 +43,33 @@ export type BridgeResult = {
 };
 export type BridgeResult_1 = {
     __kind__: "ok";
-    ok: FeeEstimate;
+    ok: RawTransaction;
 } | {
     __kind__: "err";
     err: BridgeError;
 };
 export type BridgeResult_2 = {
     __kind__: "ok";
-    ok: AddressHistory;
+    ok: FeeEstimate;
 } | {
     __kind__: "err";
     err: BridgeError;
 };
 export type BridgeResult_3 = {
+    __kind__: "ok";
+    ok: AddressUtxos;
+} | {
+    __kind__: "err";
+    err: BridgeError;
+};
+export type BridgeResult_4 = {
+    __kind__: "ok";
+    ok: AddressHistory;
+} | {
+    __kind__: "err";
+    err: BridgeError;
+};
+export type BridgeResult_5 = {
     __kind__: "ok";
     ok: AddressBalance;
 } | {
@@ -128,6 +145,9 @@ export interface HttpRequestResult {
     body: Uint8Array;
     headers: Array<HttpHeader>;
 }
+export interface RawTransaction {
+    hex: string;
+}
 export interface Result {
     hasMore: boolean;
     rows: Array<Array<Cell>>;
@@ -146,6 +166,12 @@ export interface ServerStatus {
     serverVersion: string;
     checkpointHeight?: bigint;
     checkpointHash?: string;
+}
+export interface Utxo {
+    height: bigint;
+    value: bigint;
+    txid: string;
+    vout: number;
 }
 export type Value = {
     __kind__: "int";
@@ -175,13 +201,15 @@ export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     clearBridgeConfig(): Promise<void>;
     execute(qJson: string): Promise<Result>;
-    getAddressBalance(address: string): Promise<BridgeResult_3>;
-    getAddressHistory(address: string): Promise<BridgeResult_2>;
+    getAddressBalance(address: string): Promise<BridgeResult_5>;
+    getAddressHistory(address: string): Promise<BridgeResult_4>;
+    getAddressUtxos(address: string): Promise<BridgeResult_3>;
     getApiDoc(): Promise<string>;
     getBridgeOperatorStatus(): Promise<BridgeOperatorStatus>;
     getBridgeStatus(): Promise<BridgeStatus>;
     getCallerUserRole(): Promise<UserRole>;
-    getFeeEstimate(): Promise<BridgeResult_1>;
+    getFeeEstimate(): Promise<BridgeResult_2>;
+    getRawTransaction(txid: string): Promise<BridgeResult_1>;
     getServerStatus(): Promise<BridgeResult>;
     isCallerAdmin(): Promise<boolean>;
     schema(): Promise<string>;

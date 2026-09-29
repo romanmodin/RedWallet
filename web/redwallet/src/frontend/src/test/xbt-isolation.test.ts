@@ -23,12 +23,13 @@ const FRONTEND_SRC = resolve(process.cwd(), "src");
 const APP_ROOT = resolve(process.cwd(), "..", "..");
 const XBT_DIR = join(FRONTEND_SRC, "lib", "xbt");
 
-/** The four reviewed foundation modules and their public entry points. */
+/** The reviewed foundation modules and their public entry points. */
 const XBT_MODULES = [
   "key-material",
   "vault",
   "vault-controller",
   "spend-plan",
+  "discovery",
 ] as const;
 
 /** This scan file itself contains sample import strings and is not production. */

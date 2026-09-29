@@ -12,6 +12,7 @@ import type { Principal } from '@icp-sdk/core/principal';
 
 export interface AddressBalance { 'unconfirmed' : bigint, 'confirmed' : bigint }
 export interface AddressHistory { 'entries' : Array<HistoryEntry> }
+export interface AddressUtxos { 'utxos' : Array<Utxo> }
 export type BridgeError = { 'not_configured' : null } |
   { 'malformed_response' : string } |
   { 'invalid_input' : string } |
@@ -22,11 +23,15 @@ export interface BridgeOperatorStatus {
 }
 export type BridgeResult = { 'ok' : ServerStatus } |
   { 'err' : BridgeError };
-export type BridgeResult_1 = { 'ok' : FeeEstimate } |
+export type BridgeResult_1 = { 'ok' : RawTransaction } |
   { 'err' : BridgeError };
-export type BridgeResult_2 = { 'ok' : AddressHistory } |
+export type BridgeResult_2 = { 'ok' : FeeEstimate } |
   { 'err' : BridgeError };
-export type BridgeResult_3 = { 'ok' : AddressBalance } |
+export type BridgeResult_3 = { 'ok' : AddressUtxos } |
+  { 'err' : BridgeError };
+export type BridgeResult_4 = { 'ok' : AddressHistory } |
+  { 'err' : BridgeError };
+export type BridgeResult_5 = { 'ok' : AddressBalance } |
   { 'err' : BridgeError };
 export interface BridgeStatus {
   'checkpointConfigured' : boolean,
@@ -60,6 +65,7 @@ export interface HttpRequestResult {
   'body' : Uint8Array,
   'headers' : Array<HttpHeader>,
 }
+export interface RawTransaction { 'hex' : string }
 export interface Result { 'hasMore' : boolean, 'rows' : Array<Array<Cell>> }
 export type Result__1 = { 'ok' : null } |
   { 'err' : Error };
@@ -74,6 +80,12 @@ export interface ServerStatus {
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface Utxo {
+  'height' : bigint,
+  'value' : bigint,
+  'txid' : string,
+  'vout' : number,
+}
 export type Value = { 'int' : bigint } |
   { 'nat' : bigint } |
   { 'float' : number } |
@@ -87,13 +99,15 @@ export interface _SERVICE {
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'clearBridgeConfig' : ActorMethod<[], undefined>,
   'execute' : ActorMethod<[string], Result>,
-  'getAddressBalance' : ActorMethod<[string], BridgeResult_3>,
-  'getAddressHistory' : ActorMethod<[string], BridgeResult_2>,
+  'getAddressBalance' : ActorMethod<[string], BridgeResult_5>,
+  'getAddressHistory' : ActorMethod<[string], BridgeResult_4>,
+  'getAddressUtxos' : ActorMethod<[string], BridgeResult_3>,
   'getApiDoc' : ActorMethod<[], string>,
   'getBridgeOperatorStatus' : ActorMethod<[], BridgeOperatorStatus>,
   'getBridgeStatus' : ActorMethod<[], BridgeStatus>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getFeeEstimate' : ActorMethod<[], BridgeResult_1>,
+  'getFeeEstimate' : ActorMethod<[], BridgeResult_2>,
+  'getRawTransaction' : ActorMethod<[string], BridgeResult_1>,
   'getServerStatus' : ActorMethod<[], BridgeResult>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'schema' : ActorMethod<[], string>,

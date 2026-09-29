@@ -87,6 +87,34 @@ export interface FeeEstimate {
   estimatedBlocks: number;
 }
 
+/**
+ * One unspent transaction output for a watched address, as reported by the
+ * bridge. Read-only: this shape is never used to construct or sign a spend.
+ *
+ * `txid` is a 64-character lowercase hex string, `vout` is the output index
+ * within that transaction, `height` is the confirming block height (0 for an
+ * unconfirmed output), and `value` is the output amount in satoshis.
+ */
+export interface Utxo {
+  txid: string;
+  vout: number;
+  height: bigint;
+  value: bigint;
+}
+
+/** Unspent outputs for one address. Capped at 1000 entries by the bridge. */
+export interface AddressUtxos {
+  utxos: Utxo[];
+}
+
+/**
+ * Raw transaction bytes as reported by the bridge, hex-encoded and lowercased.
+ * Read-only: the app never parses this into a spend or broadcasts it.
+ */
+export interface RawTransaction {
+  hex: string;
+}
+
 /** Result of a server connection test. */
 export interface ServerTestResult {
   ok: boolean;

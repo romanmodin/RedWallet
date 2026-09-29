@@ -10,16 +10,20 @@ import type {
   BridgeResult_1,
   BridgeResult_2,
   BridgeResult_3,
+  BridgeResult_4,
+  BridgeResult_5,
   BridgeStatus,
 } from "@/backend";
 import { createActorWithConfig } from "@caffeineai/core-infrastructure";
 import { settingsService } from "./settingsService";
 import {
+  type AddressUtxos,
   type DemoSendResult,
   type FeeEstimate,
   type FiatRate,
   type NetworkConfig,
   type NetworkStatus,
+  type RawTransaction,
   type ServerTestResult,
   type ServiceError,
   type ServiceResult,
@@ -34,9 +38,11 @@ import { MockWalletService, type WalletService } from "./walletService";
 /** The subset of the generated backend actor the bridge reads use. */
 export interface BridgeActor {
   getBridgeStatus(): Promise<BridgeStatus>;
-  getAddressBalance(address: string): Promise<BridgeResult_3>;
-  getAddressHistory(address: string): Promise<BridgeResult_2>;
-  getFeeEstimate(): Promise<BridgeResult_1>;
+  getAddressBalance(address: string): Promise<BridgeResult_5>;
+  getAddressHistory(address: string): Promise<BridgeResult_4>;
+  getAddressUtxos(address: string): Promise<BridgeResult_3>;
+  getFeeEstimate(): Promise<BridgeResult_2>;
+  getRawTransaction(txid: string): Promise<BridgeResult_1>;
   getServerStatus(): Promise<BridgeResult>;
 }
 
@@ -294,6 +300,65 @@ export class BridgeWalletService implements WalletService {
     }
   }
 
+  /**
+   * Read the unspent outputs for a watched address. Read-only: the result is
+   * never used to construct, sign, or broadcast a spend. Not wired into any
+   * page or hook — it is a service-layer capability only.
+   */
+  async getAddressUtxos(address: string): Promise<ServiceResult<AddressUtxos>> {
+    const trimmed = address.trim();
+    if (!trimmed) {
+      return err("invalid_input", "Enter a public XBT address.");
+    }
+    const live = await this.liveActor();
+    if (!live.ok) return live;
+    try {
+      const result = await live.value.getAddressUtxos(trimmed);
+      if (result.__kind__ === "err") {
+        const e = mapBridgeError(result.err);
+        return err(e.code, e.message);
+      }
+      return ok({ utxos: result.ok.utxos });
+    } catch {
+      return err(
+        "backend_unavailable",
+        "Unspent outputs unavailable. Retry when the backend is connected.",
+      );
+    }
+  }
+
+  /**
+   * Read the raw hex bytes of a transaction. Read-only: the app never parses
+   * this into a spend or broadcasts it. Not wired into any page or hook — it
+   * is a service-layer capability only.
+   */
+  async getRawTransaction(
+    txid: string,
+  ): Promise<ServiceResult<RawTransaction>> {
+    const trimmed = txid.trim();
+    if (!/^[0-9a-f]{64}$/.test(trimmed)) {
+      return err(
+        "invalid_input",
+        "Enter a 64-character lowercase hex transaction id.",
+      );
+    }
+    const live = await this.liveActor();
+    if (!live.ok) return live;
+    try {
+      const result = await live.value.getRawTransaction(trimmed);
+      if (result.__kind__ === "err") {
+        const e = mapBridgeError(result.err);
+        return err(e.code, e.message);
+      }
+      return ok({ hex: result.ok.hex });
+    } catch {
+      return err(
+        "backend_unavailable",
+        "Raw transaction unavailable. Retry when the backend is connected.",
+      );
+    }
+  }
+
   async listTransactions(
     walletId: string,
     filters: TransactionFilters = {},
@@ -376,7 +441,7 @@ export class BridgeWalletService implements WalletService {
     const actor = await this.configuredActor();
     if (!actor) return this.demo.estimateFee(amountXbt);
 
-    let result: BridgeResult_1;
+    let result: BridgeResult_2;
     try {
       result = await actor.getFeeEstimate();
     } catch {

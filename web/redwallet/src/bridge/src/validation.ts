@@ -242,6 +242,23 @@ function requireString(value: unknown): string {
   return value;
 }
 
+/** A transaction id is exactly 64 lowercase hex characters. */
+const TXID_PATTERN = /^[0-9a-f]{64}$/;
+
+/**
+ * Validate a transaction id param.
+ *
+ * Rejects non-strings, empty strings, odd-length hex, non-hex characters, and
+ * any length other than 64. Uppercase hex is rejected rather than normalized so
+ * the caller cannot smuggle a differently-cased id past the check.
+ */
+export function requireTxid(value: unknown): string {
+  if (typeof value !== "string" || !TXID_PATTERN.test(value)) {
+    throw new BridgeError("invalid_request");
+  }
+  return value;
+}
+
 /**
  * Validate a raw parsed JSON body into a normalized bridge request.
  *
@@ -278,6 +295,13 @@ export function validateRequest(body: unknown): ValidatedRequest {
       const scripthash = addressToScripthash(address);
       if (scripthash === null) throw new BridgeError("invalid_request");
       return { method, upstreamParams: [scripthash] };
+    }
+    case "txid": {
+      if (params.length !== 1) throw new BridgeError("invalid_request");
+      const txid = requireTxid(params[0]);
+      // verbose=false is fixed by the bridge; the caller cannot request a
+      // verbose object.
+      return { method, upstreamParams: [txid, false] };
     }
     case "target_blocks": {
       if (params.length !== 1) throw new BridgeError("invalid_request");

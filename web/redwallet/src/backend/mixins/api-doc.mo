@@ -61,6 +61,22 @@ mixin () {
     "  unconfirmed transaction. `value` is in satoshis and is `null` when the\n" #
     "  upstream history entry carries no amount - absence stays unknown rather than\n" #
     "  being defaulted to zero.\n" #
+    "- `getAddressUtxos(address : Text) -> BridgeResult<AddressUtxos>`\n" #
+    "  `AddressUtxos = { utxos : [Utxo] }` with\n" #
+    "  `Utxo = { txid : Text; vout : Nat32; height : Nat; value : Nat }`. Exactly\n" #
+    "  one parameter: the address. The bridge derives the scripthash from the\n" #
+    "  validated address; the backend never sends a scripthash. `txid` is a\n" #
+    "  64-character lowercase hex string, `vout` is a uint32 output index,\n" #
+    "  `height` is the confirming block height (0 for an unconfirmed output), and\n" #
+    "  `value` is the output amount in **satoshis**. The list is capped at 1000\n" #
+    "  entries: a larger upstream result is an explicit `#malformed_response`,\n" #
+    "  never a silent truncation. Duplicate outpoints (`txid:vout`) are rejected.\n" #
+    "- `getRawTransaction(txid : Text) -> BridgeResult<RawTransaction>`\n" #
+    "  `RawTransaction = { hex : Text }`. Exactly one parameter: the\n" #
+    "  64-character lowercase hex transaction id. The bridge always requests the\n" #
+    "  **non-verbose** raw transaction; `hex` is a nonempty, even-length,\n" #
+    "  lowercase hex string of at most 200000 characters (100 KB). Verbose\n" #
+    "  objects and over-length results are rejected as `#malformed_response`.\n" #
     "- `getFeeEstimate() -> BridgeResult<FeeEstimate>`\n" #
     "  `FeeEstimate = { satoshisPerKb : Nat }` - **satoshis per kilobyte**, derived\n" #
     "  from the upstream coins-per-kilobyte estimate for a 2-block target.\n" #
@@ -123,7 +139,11 @@ mixin () {
     "  operator's server. These are watch-only reads, not consensus-verified\n" #
     "  financial proofs.\n" #
     "- Addresses are validated cheaply before any paid outcall: 14-90 characters,\n" #
-    "  alphanumeric only.\n" #
+    "  alphanumeric only. Transaction ids are validated as 64-character lowercase\n" #
+    "  hex before any paid outcall.\n" #
+    "- There is **no broadcast, signing, or private-key endpoint**. The canister\n" #
+    "  holds no keys and cannot spend; `getAddressUtxos` and `getRawTransaction`\n" #
+    "  are read-only.\n" #
     "- The bridge base URL must use `https://`, must not end with a trailing slash,\n" #
     "  and the secret must be 32-256 printable ASCII characters.\n" #
     "- `transformBridgeResponse` is the IC HTTP-outcall transform; it is an\n" #

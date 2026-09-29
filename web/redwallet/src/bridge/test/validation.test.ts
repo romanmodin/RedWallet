@@ -150,6 +150,44 @@ test("validation: rejects a non-array params field", () => {
   );
 });
 
+test("validation: address.utxos derives a scripthash and rejects malformed addresses", () => {
+  const address = "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2";
+  const request = validateRequest({ method: "address.utxos", params: [address] });
+  assert.equal(request.upstreamParams.length, 1);
+  assert.equal(request.upstreamParams[0], addressToScripthash(address));
+  for (const bad of ["not-an-address", "", "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN3", "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7"]) {
+    assert.throws(() => validateRequest({ method: "address.utxos", params: [bad] }), BridgeError, bad);
+  }
+});
+
+test("validation: transaction.raw requires exactly one 64-hex txid", () => {
+  const txid = "ab".repeat(32);
+  const request = validateRequest({ method: "transaction.raw", params: [txid] });
+  assert.deepEqual(request.upstreamParams, [txid, false]);
+
+  const bad = [
+    "",
+    "ab".repeat(31),
+    "ab".repeat(33),
+    "abc",
+    "zz".repeat(32),
+    "AB".repeat(32),
+    "0x" + "ab".repeat(31),
+  ];
+  for (const value of bad) {
+    assert.throws(() => validateRequest({ method: "transaction.raw", params: [value] }), BridgeError, value);
+  }
+  assert.throws(() => validateRequest({ method: "transaction.raw", params: [txid, true] }), BridgeError);
+  assert.throws(() => validateRequest({ method: "transaction.raw", params: [42] }), BridgeError);
+});
+
+test("validation: unsafe numeric input is rejected for fee.estimate and headers.checkpoint", () => {
+  for (const value of [Number.NaN, Number.POSITIVE_INFINITY, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => validateRequest({ method: "fee.estimate", params: [value] }), BridgeError, String(value));
+    assert.throws(() => validateRequest({ method: "headers.checkpoint", params: [value] }), BridgeError, String(value));
+  }
+});
+
 
 test("address: BIP350 native SegWit vector has the correct script and scripthash", () => {
   assert.equal(addressToScripthash("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4"), "9623df75239b5daa7f5f03042d325b51498c4bb7059c7748b17049bf96f73888");

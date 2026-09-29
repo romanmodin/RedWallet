@@ -46,6 +46,8 @@ Only `method` and `params` fields are accepted; params must be an array.
 | `server.status` | `blockchain.headers.subscribe` + `server.version` | `[]` |
 | `address.balance` | `blockchain.scripthash.get_balance` | `[address]` |
 | `address.history` | `blockchain.scripthash.get_history` | `[address]` |
+| `address.utxos` | `blockchain.scripthash.listunspent` | `[address]` |
+| `transaction.raw` | `blockchain.transaction.get` | `[txid]` (verbose fixed to `false`) |
 | `fee.estimate` | `blockchain.estimatefee` | `[targetBlocks]`, 1–1008 |
 | `headers.checkpoint` | `blockchain.block.header` | `[height]` |
 
@@ -66,6 +68,45 @@ are null. A configured checkpoint mismatch blocks **all reads** with
 `{height, hex, verified, hash}`; `hash` is null for any unverified height.
 `fee.estimate` returns Fulcrum's coin/kB number; `-1` means unavailable, not a
 negative fee. History contains tx hashes and heights, not transaction details.
+
+### `address.utxos`
+
+`{"method":"address.utxos","params":["<valid mainnet address>"]}` returns the
+unspent outputs for the address's derived scripthash:
+
+```json
+{"result":[{"txid":"<64 lowercase hex>","vout":0,"height":961640,"value":12345}]}
+```
+
+Each entry is validated before it is returned:
+
+- `txid` is exactly 64 lowercase hex characters.
+- `vout` is an integer in the uint32 range `[0, 4294967295]`.
+- `height` is an integer `>= 0`.
+- `value` is an integer number of satoshis in `[0, 2100000000000000]`.
+
+Duplicate `txid:vout` outpoints, non-integer or unsafe numeric values, and any
+entry with fields other than `tx_hash`, `tx_pos`, `height`, and `value` are
+rejected as `upstream_malformed`. At most **1000** entries are returned; an
+upstream response with more than 1000 entries is an explicit
+`upstream_malformed` error, never a silent truncation.
+
+### `transaction.raw`
+
+`{"method":"transaction.raw","params":["<64 lowercase hex txid>"]}` returns the
+raw serialized transaction hex. The bridge always calls
+`blockchain.transaction.get` with `verbose=false`; the caller cannot request a
+verbose object.
+
+- The `txid` param must be exactly 64 lowercase hex characters. Non-hex,
+  odd-length, empty, uppercase, and wrong-length ids are rejected as
+  `invalid_request` before any upstream contact.
+- The result must be a nonempty, even-length, lowercase hex string of at most
+  **200000** hex characters (100 KB). A verbose object (any non-string) or an
+  over-length result is rejected as `upstream_malformed`.
+
+Neither method broadcasts, signs, or touches private keys; the bridge exposes no
+such route.
 
 ## Checkpoint verification
 
