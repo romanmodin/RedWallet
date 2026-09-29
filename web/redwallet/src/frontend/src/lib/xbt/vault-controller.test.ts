@@ -64,4 +64,30 @@ describe("encrypted vault persistence and lock lifecycle", () => {
     expect(c.locked).toBe(true);
     detach();
   });
+  it("expires at access time even if the browser has not delivered its timer", async () => {
+    const c = new VaultController(key, localStorage, cryptoApi);
+    await c.create({ mnemonic: phrase, passphrase: "" }, password);
+    await c.unlock(password);
+    const retained = c.withUnlocked((keys) => keys);
+    // Fake Date only: the real timeout callback has not run.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 300001);
+    expect(() => c.withUnlocked(() => true)).toThrow("locked");
+    expect(retained.locked).toBe(true);
+  });
+  it("does not extend the unlock lease when the wall clock moves backwards", async () => {
+    const c = new VaultController(key, localStorage, cryptoApi);
+    await c.create({ mnemonic: phrase, passphrase: "" }, password);
+    await c.unlock(password);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() - 3600000);
+    const clock = vi.spyOn(performance, "now").mockReturnValue(performance.now() + 300001);
+    try {
+      expect(c.locked).toBe(true);
+      expect(() => c.withUnlocked(() => true)).toThrow("locked");
+    } finally {
+      clock.mockRestore();
+      c.lock();
+    }
+  });
 });
