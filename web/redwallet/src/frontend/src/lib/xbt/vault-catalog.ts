@@ -21,13 +21,21 @@ function checkedId(id: string): string {
 }
 function label(name: string): string {
   const trimmed = name.trim();
-  if (!trimmed || trimmed.length > 80 || /[\u0000-\u001f\u007f]/.test(trimmed)) throw Error("Use a wallet name of 1–80 characters");
+  if (
+    !trimmed ||
+    trimmed.length > 80 ||
+    [...trimmed].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)
+  )
+    throw Error("Use a wallet name of 1–80 characters");
   return trimmed;
 }
 
 export class VaultCatalog {
   #controllers = new Map<string, VaultController>();
-  constructor(private readonly storage: CatalogStorage, private readonly cryptoApi: Crypto = globalThis.crypto) {}
+  constructor(
+    private readonly storage: CatalogStorage,
+    private readonly cryptoApi: Crypto = globalThis.crypto,
+  ) {}
 
   /** Enumerates ciphertext keys directly, so a failed label/list write cannot orphan a wallet. */
   list(): SavedVault[] {
@@ -37,15 +45,24 @@ export class VaultCatalog {
       if (!key?.startsWith(PREFIX)) continue;
       const id = key.slice(PREFIX.length);
       if (!ID.test(id)) continue;
-      if (entries.length >= 100) throw Error("Too many saved wallets to display safely");
+      if (entries.length >= 100)
+        throw Error("Too many saved wallets to display safely");
       const raw = this.storage.getItem(key);
       if (raw === null) continue;
       let damaged = false;
-      try { parseVault(raw); } catch { damaged = true; }
+      try {
+        parseVault(raw);
+      } catch {
+        damaged = true;
+      }
       const nameRaw = this.storage.getItem(LABEL_PREFIX + id);
       let name = `Encrypted wallet ${id.slice(0, 8)}`;
       if (nameRaw !== null) {
-        try { name = label(nameRaw); } catch { /* Cosmetic labels are untrusted. */ }
+        try {
+          name = label(nameRaw);
+        } catch {
+          /* Cosmetic labels are untrusted. */
+        }
       }
       // Never return xpub/address/ciphertext from unauthenticated envelopes.
       entries.push({ id, name, damaged });
@@ -57,13 +74,21 @@ export class VaultCatalog {
     checkedId(id);
     let controller = this.#controllers.get(id);
     if (!controller) {
-      controller = new VaultController(PREFIX + id, this.storage, this.cryptoApi);
+      controller = new VaultController(
+        PREFIX + id,
+        this.storage,
+        this.cryptoApi,
+      );
       this.#controllers.set(id, controller);
     }
     return controller;
   }
 
-  async create(name: string, secrets: VaultSecrets, password: string): Promise<{ id: string; labelSaved: boolean }> {
+  async create(
+    name: string,
+    secrets: VaultSecrets,
+    password: string,
+  ): Promise<{ id: string; labelSaved: boolean }> {
     const normalized = label(name);
     // Fail before encrypting if existing inventory cannot be read.
     if (this.list().length >= 100) throw Error("Saved wallet limit reached");
@@ -74,7 +99,9 @@ export class VaultCatalog {
     try {
       this.storage.setItem(LABEL_PREFIX + id, normalized);
       labelSaved = this.storage.getItem(LABEL_PREFIX + id) === normalized;
-    } catch { /* Ciphertext remains discoverable directly by its own key. */ }
+    } catch {
+      /* Ciphertext remains discoverable directly by its own key. */
+    }
     return { id, labelSaved };
   }
 

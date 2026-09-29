@@ -1,7 +1,7 @@
 {
   "name": "RedWallet",
   "short_name": "RedWallet",
-  "description": "A calm, security-focused XBT wallet demo. All balances, addresses, and transactions are demo data.",
+  "description": "A calm, security-focused watch-only XBT wallet. Read-only address balance, history and receive; send, seed and recovery stay disabled.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

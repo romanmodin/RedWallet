@@ -10,6 +10,44 @@ const ii_url =
 
 process.env.II_URL = process.env.II_URL || ii_url;
 
+// Build-time guard: the restrictive Content-Security-Policy meta must be the
+// first element inside <head> of the emitted dist/index.html, before any
+// script, stylesheet, or other resource reference. This asserts only; it never
+// rewrites or reorders the policy.
+function assertCspFirstInHead() {
+  return {
+    name: "assert-csp-first-in-head",
+    enforce: "post",
+    transformIndexHtml: {
+      order: "post",
+      handler(html) {
+        const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+        if (!headMatch) {
+          throw new Error(
+            "[csp-guard] No <head> element found in emitted index.html.",
+          );
+        }
+        const head = headMatch[1];
+        const firstElement = head.match(/<[a-zA-Z][^>]*>/);
+        const isCspMeta =
+          firstElement !== null &&
+          /^<meta\b/i.test(firstElement[0]) &&
+          /http-equiv\s*=\s*["']?Content-Security-Policy["']?/i.test(
+            firstElement[0],
+          );
+        if (!isCspMeta) {
+          throw new Error(
+            "[csp-guard] The Content-Security-Policy meta must be the first " +
+              "element inside <head>, before any script, stylesheet, or other " +
+              "resource reference. Fix src/frontend/index.html.",
+          );
+        }
+        return html;
+      },
+    },
+  };
+}
+
 export default defineConfig({
   logLevel: "error",
   build: {
@@ -37,6 +75,7 @@ export default defineConfig({
     environment("all", { prefix: "DFX_" }),
     environment(["II_URL"]),
     react(),
+    assertCspFirstInHead(),
   ],
   resolve: {
     alias: [

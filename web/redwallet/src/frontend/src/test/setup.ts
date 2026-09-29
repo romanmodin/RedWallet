@@ -33,7 +33,16 @@ function installMatchMedia(matches = false): void {
   });
 }
 
+/**
+ * The DOM baseline only applies under jsdom. A test file that opts into the
+ * Node environment (for example to load the Vite config, which pulls in
+ * esbuild) shares this setup module but has no `window`; those hooks must be
+ * skipped rather than crash the file at collection time.
+ */
+const hasDom = typeof window !== "undefined";
+
 beforeEach(() => {
+  if (!hasDom) return;
   installMatchMedia(false);
   // jsdom does not implement scrollTo; the router's scroll restoration calls it.
   Object.defineProperty(window, "scrollTo", {
@@ -53,6 +62,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (!hasDom) return;
   cleanup();
   window.localStorage.clear();
 });

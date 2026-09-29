@@ -30,6 +30,9 @@ const XBT_MODULES = [
   "vault-controller",
   "spend-plan",
   "discovery",
+  "discovery-session",
+  "vault-catalog",
+  "spend-review",
 ] as const;
 
 /** This scan file itself contains sample import strings and is not production. */
@@ -81,10 +84,17 @@ function importsXbtModule(line: string): boolean {
 
 describe("XBT foundation isolation", () => {
   it("keeps the prepared local vault form disconnected from all application routes", () => {
-    const offenders = walk(FRONTEND_SRC).filter(file => {
+    const offenders = walk(FRONTEND_SRC).filter((file) => {
       const rel = relative(FRONTEND_SRC, file).split("\\").join("/");
-      if (rel.startsWith("lib/xbt/") || file === SELF || rel === "components/vault/LocalVaultPanel.tsx") return false;
-      return /(?:from\s*|import\s*\()["'][^"']*LocalVaultPanel/.test(readFileSync(file, "utf8"));
+      if (
+        rel.startsWith("lib/xbt/") ||
+        file === SELF ||
+        rel === "components/vault/LocalVaultPanel.tsx"
+      )
+        return false;
+      return /(?:from\s*|import\s*\()["'][^"']*LocalVaultPanel/.test(
+        readFileSync(file, "utf8"),
+      );
     });
     expect(offenders).toEqual([]);
   });

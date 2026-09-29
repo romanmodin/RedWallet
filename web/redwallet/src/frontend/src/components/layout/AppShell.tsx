@@ -138,7 +138,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {activeWallet?.isDemo
               ? "Demo wallet — balances, addresses, and transactions are simulated."
               : activeWallet
-                ? "Watch-only XBT address — live reads; sending unavailable."
+                ? "Watch-only address — live reads from the XBT network; sending is unavailable."
                 : "Select an XBT wallet to view its status."}
           </p>
           <NetworkIndicator />
