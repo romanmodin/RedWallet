@@ -1,6 +1,6 @@
 /** Local encrypted persistence and explicit lock lifecycle; UI integration pending. */
-import { XbtKeySession, type PublicXbtAccount } from "./key-material";
-import { openVault, parseVault, sealVault, type VaultSecrets } from "./vault";
+import { type PublicXbtAccount, XbtKeySession } from "./key-material";
+import { type VaultSecrets, openVault, parseVault, sealVault } from "./vault";
 
 export interface VaultStorage {
   getItem(key: string): string | null;

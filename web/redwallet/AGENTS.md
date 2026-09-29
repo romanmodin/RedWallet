@@ -1,15 +1,5 @@
 # Project Guidance
 
-## Current continuation — user authorized full web wallet implementation
-
-- Live Caffeine v7 remains watch-only with the Settings donation option.
-- User passed the iPhone donation check and instructed continued implementation on 2026-09-29.
-- Isolated key-material, encrypted vault, lock lifecycle, and offline spend-plan modules are now permitted toward that goal. They are not connected to production UI or networking.
-- Never embed actual user seeds/private keys or operator secrets in source, logs, prompts, tests, canisters, or the bridge. Public test vectors are clearly labelled and must never hold funds.
-- Before enabling spending: complete recovery/backup UI, verified HD discovery and bounded UTXO/raw-parent bridge APIs, review/lock integration, constrained broadcast and fresh isolated XBT acceptance/Bitcoin replay-negative tests.
-- The older watch-only restrictions below describe deployed scope and remain the release gate; they do not prohibit the newly authorized isolated foundation work.
-
-
 ## User Preferences
 
 - Mobile-first, polished, iPhone and desktop
@@ -19,7 +9,6 @@
 - Send, seed and recovery stay disabled; the isolated signing core stays disconnected
 - Never put keys, seeds, bridge secrets or operator identity into the frontend
 - Bridge upstream is operator-configured only; no default or public upstream
-- No private keys, transaction data, signing, construction, or broadcast anywhere
 - Keep the pinned operator principal, red UI, checkpoint and migration chain intact
 
 ## Verified Commands
@@ -30,12 +19,6 @@
 
 ## Learnings
 
-- A shared function (including the http_request transform) cannot be declared in a lib module — it must be a public field of the actor/mixin; pass it into lib helpers as an optional parameter.
-- The IC http_request transform signature is a single record argument: shared query { context : Blob; response : HttpRequestResult } -> async HttpRequestResult.
-- A generic helper returning Types.BridgeResult<T> cannot be used from a shared function (M0033); return a concrete type such as BridgeResult<Text>.
-- Blob.fromArray is deprecated; use [].toBlob().
-- mops test discovers *.test.mo under a test/ directory; mops check --fix verifies stable compatibility against .old/src/backend/dist/backend.most and the new migration's OldActor must equal the previous migration's NewActor.
-- The app's test harness mounts <App /> without InternetIdentityProvider/QueryClientProvider; the React-free service layer resolves the canister lazily via createActorWithConfig(createActor) and degrades to the demo service when CANISTER_ID_BACKEND is unset.
 - Docker is unavailable in this environment, so the bridge Dockerfile is authored but not build-verified.
 - A real HTTPS outcall to a non-answering host exhausts PocketIC's 100-round ingress budget (BadIngressMessage), so the configured-but-unreachable path is covered only by pure Motoko unit tests and the mocked frontend service seam.
 - The reviewed RedWallet source (romanmodin/RedWallet commit 77837a6d4, branch web/caffeine-bridge-deployment) is the source of record; the archive is extracted at .recon/redwallet-archive.
@@ -55,3 +38,9 @@
 - The Settings Support RedWallet disclosure lives in src/frontend/src/components/settings/SupportSetting.tsx and is mounted as the last card in SettingsPage's right column; it reuses the canonical copy-to-clipboard pattern and the raw-address QRCodeSVG approach (no URI scheme).
 - Radix CollapsibleTrigger renders a native button with aria-expanded/aria-controls automatically, so a collapsed disclosure needs no manual ARIA wiring.
 - The headless local-test browser denies clipboard access, so copy-success feedback cannot be exercised there; the app's failure feedback path is what the local tester observes.
+- The isolated XBT wallet foundation under src/frontend/src/lib/xbt now includes key-material.ts, vault.ts, vault-controller.ts and spend-plan.ts plus their tests and KEY-VAULT-AND-SPEND-PLAN.md; it is imported only by its own tests and harness and must stay disconnected from every route, service and backend file.
+- The foundation archive is extracted at .recon/foundation-81dbe45ab; this environment has only python3 and tar, so extraction uses `python3 -m zipfile -e`.
+- The foundation adds bip32 5.0.1 and @scure/bip39 1.6.0 to src/frontend/package.json; pnpm-lock.yaml is regenerated with `pnpm install --no-frozen-lockfile` at the workspace root, and pnpm-workspace.yaml keeps the Caffeine-safe onlyBuiltDependencies/ignoredBuiltDependencies policy.
+- Biome's useTemplate rule rejects string concatenation in the imported xbt tests; `pnpm --dir src/frontend fix` applies the safe fixes and the lint gate is `caffeine check --fix`.
+- An app-only src/frontend/src/test/xbt-isolation.test.ts statically scans pages/services/components/App.tsx/backend/bridge to enforce the signing-core isolation invariant.
+- The imported xbt files may diverge from the archive only by biome import-member ordering from `pnpm fix`; compare semantics, not raw bytes, for those files.

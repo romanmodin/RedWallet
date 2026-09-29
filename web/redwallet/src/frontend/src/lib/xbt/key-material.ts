@@ -2,7 +2,6 @@
 import { hmac } from "@noble/hashes/hmac";
 import { sha256 } from "@noble/hashes/sha2";
 import * as secp from "@noble/secp256k1";
-import { BIP32Factory, type TinySecp256k1Interface } from "bip32";
 import {
   entropyToMnemonic,
   mnemonicToEntropy,
@@ -10,6 +9,7 @@ import {
   validateMnemonic,
 } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
+import { BIP32Factory, type TinySecp256k1Interface } from "bip32";
 import { networks, payments } from "bitcoinjs-lib";
 
 export const XBT_ACCOUNT_PATH = "m/84'/0'/0'";

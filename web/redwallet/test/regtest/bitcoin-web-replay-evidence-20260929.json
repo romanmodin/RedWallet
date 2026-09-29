@@ -1,0 +1,37 @@
+{
+  "verifiedAt": "2026-09-29T19:02:25.385034+00:00",
+  "implementation": "Bitcoin Core29.0",
+  "chain": "regtest",
+  "networkactive": false,
+  "connections": 0,
+  "height": 102,
+  "receipts": {
+    "hex": {
+      "txid": "e98d1836477b27b2cc20d8633b46db29cdebf999789bfc8888afaafbff7d81fc",
+      "wtxid": "71cde09ae870c04a4a8ec64525a0d1449a5c3d2857a641cf83a0b603379e40a3",
+      "allowed": false,
+      "reject-reason": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
+      "reject-details": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of e98d1836477b27b2cc20d8633b46db29cdebf999789bfc8888afaafbff7d81fc (wtxid 71cde09ae870c04a4a8ec64525a0d1449a5c3d2857a641cf83a0b603379e40a3), spending 8cf3844abc20c946606c1fe99fc52cf338507d6dd42de9d19a76745387d4e3d6:0"
+    },
+    "strippedUnifiedHex": {
+      "txid": "e98d1836477b27b2cc20d8633b46db29cdebf999789bfc8888afaafbff7d81fc",
+      "wtxid": "39ed17b394e1077f8afb5426d25bf029f88cfe96bdab5d71433757c938a07104",
+      "allowed": false,
+      "reject-reason": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
+      "reject-details": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of e98d1836477b27b2cc20d8633b46db29cdebf999789bfc8888afaafbff7d81fc (wtxid 39ed17b394e1077f8afb5426d25bf029f88cfe96bdab5d71433757c938a07104), spending 8cf3844abc20c946606c1fe99fc52cf338507d6dd42de9d19a76745387d4e3d6:0"
+    },
+    "bitcoinControlHex": {
+      "txid": "e98d1836477b27b2cc20d8633b46db29cdebf999789bfc8888afaafbff7d81fc",
+      "wtxid": "de6145657046e2d4fb81432149dd448ed7a28cd6e0c260672a48e377148a332a",
+      "allowed": true,
+      "vsize": 209,
+      "fees": {
+        "base": 0.00000211,
+        "effective-feerate": 0.00001009,
+        "effective-includes": [
+          "de6145657046e2d4fb81432149dd448ed7a28cd6e0c260672a48e377148a332a"
+        ]
+      }
+    }
+  }
+}

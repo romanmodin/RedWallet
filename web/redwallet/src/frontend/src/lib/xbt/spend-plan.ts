@@ -1,11 +1,11 @@
+import { Buffer } from "buffer";
 /** Offline, P2WPKH-only transaction review/signing. No network or broadcast. */
 import { sha256 } from "@noble/hashes/sha2";
-import { address, networks, Psbt, Transaction } from "bitcoinjs-lib";
-import { Buffer } from "buffer";
+import { Psbt, Transaction, address, networks } from "bitcoinjs-lib";
 import {
+  type XbtKeySession,
   publicAddress,
   publicKeyAt,
-  XbtKeySession,
   xbtEcc,
 } from "./key-material";
 import {

@@ -1,0 +1,63 @@
+{
+  "verifiedAt": "2026-09-29T19:00:19.541005+00:00",
+  "chain": "regtest",
+  "height": 152,
+  "networkactive": false,
+  "connections": 0,
+  "blake2b": {
+    "height": 150,
+    "active": true
+  },
+  "receipts": {
+    "hex": {
+      "txid": "f2d07953bea3403b2c1e4581eed2fb7e446d6b08a6ea6280e3aa8493ecd3c05b",
+      "wtxid": "7f247d16a40e1eeafbcd35c49570796651b05513d87f741f79b7b9c62f04150b",
+      "usage": 992,
+      "allowed": true,
+      "vsize": 209,
+      "fees": {
+        "base": 0.00000211,
+        "effective-feerate": 0.00001009,
+        "effective-includes": [
+          "7f247d16a40e1eeafbcd35c49570796651b05513d87f741f79b7b9c62f04150b"
+        ]
+      }
+    },
+    "changedOutputHex": {
+      "txid": "6ebc529d996a55d3f0023b8ae804cc25b4885abfd90197a99de0306c3ffa98a4",
+      "wtxid": "2984b766ffaeb9cb3a1a5a561677c6cea4a8accc8f4039fd1e75c420679be4fc",
+      "usage": 992,
+      "allowed": false,
+      "reject-reason": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation)",
+      "reject-details": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation), input 0 of 6ebc529d996a55d3f0023b8ae804cc25b4885abfd90197a99de0306c3ffa98a4 (wtxid 2984b766ffaeb9cb3a1a5a561677c6cea4a8accc8f4039fd1e75c420679be4fc), spending 61d74b72d6de7bf51e2276dfa8a20ca5a15dec2dad711192362287b07f6409b7:0"
+    },
+    "strippedUnifiedHex": {
+      "txid": "f2d07953bea3403b2c1e4581eed2fb7e446d6b08a6ea6280e3aa8493ecd3c05b",
+      "wtxid": "89f375951fb16c4dd4c7666c2c4bce2ef506b8f95c684da8338673dfb689a9ea",
+      "usage": 992,
+      "allowed": false,
+      "reject-reason": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation)",
+      "reject-details": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation), input 0 of f2d07953bea3403b2c1e4581eed2fb7e446d6b08a6ea6280e3aa8493ecd3c05b (wtxid 89f375951fb16c4dd4c7666c2c4bce2ef506b8f95c684da8338673dfb689a9ea), spending 61d74b72d6de7bf51e2276dfa8a20ca5a15dec2dad711192362287b07f6409b7:0"
+    },
+    "bitcoinControlHex": {
+      "txid": "f2d07953bea3403b2c1e4581eed2fb7e446d6b08a6ea6280e3aa8493ecd3c05b",
+      "wtxid": "3888280dd87634e7b62fdaa539025f1e91e36b5a185f7ed4f4996ef8196f7806",
+      "usage": 992,
+      "allowed": true,
+      "vsize": 208,
+      "fees": {
+        "base": 0.00000211,
+        "effective-feerate": 0.00001014,
+        "effective-includes": [
+          "3888280dd87634e7b62fdaa539025f1e91e36b5a185f7ed4f4996ef8196f7806"
+        ]
+      }
+    }
+  },
+  "confirmation": {
+    "txid": "f2d07953bea3403b2c1e4581eed2fb7e446d6b08a6ea6280e3aa8493ecd3c05b",
+    "blockhash": "5eddb827374a50dd94bc638d046d7bf2b099bb91581b0e59518f0da12af25e4e",
+    "height": 153,
+    "confirmations": 1
+  }
+}

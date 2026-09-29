@@ -1,10 +1,10 @@
 /** Versioned encrypted browser vault primitive; intentionally not connected to UI. */
 import { Buffer } from "buffer";
 import {
+  type PublicXbtAccount,
   XBT_KEY_PROFILE,
   XbtKeySession,
   normalizeMnemonic,
-  type PublicXbtAccount,
 } from "./key-material";
 
 const ITERATIONS = 600_000;

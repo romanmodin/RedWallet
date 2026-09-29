@@ -7,14 +7,14 @@ import {
 } from "./accepted-fixture";
 import vectors from "./fixtures/unified-sighash-segwit-v0.json";
 import fixture from "./fixtures/xbt-knots-regtest-acceptance.json";
+import { XbtKeySession, publicAddress } from "./key-material";
 import { testEcc } from "./test-helpers";
 import {
   finalizeUnifiedP2wpkhInput,
   signUnifiedP2wpkhInput,
 } from "./unified-psbt";
 import { unifiedSegwitV0SighashAll } from "./unified-sighash";
-import { XbtKeySession, publicAddress } from "./key-material";
-import { sealVault, openVault } from "./vault";
+import { openVault, sealVault } from "./vault";
 
 export async function runBrowserVaultChecks() {
   const phrase =

@@ -1,13 +1,13 @@
-import { address, Transaction } from "bitcoinjs-lib";
+import { Transaction, address } from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 import { XbtKeySession, publicAddress } from "./key-material";
 import {
+  type CandidateCoin,
   parseXbtAmount,
   planSpend,
   reviewDigest,
   signReviewedPlan,
   verifyCoin,
-  type CandidateCoin,
 } from "./spend-plan";
 const PHRASE =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
@@ -63,7 +63,7 @@ describe("offline verified transaction planning", () => {
       { ...coin, index: 1 },
       { ...coin, height: 0 },
       { ...coin, height: args.tipHeight + 1 },
-      { ...coin, parentHex: coin.parentHex + "00" },
+      { ...coin, parentHex: `${coin.parentHex}00` },
     ])
       expect(() => verifyCoin(bad, args.accountXpub, args.tipHeight)).toThrow();
     keys.destroy();
