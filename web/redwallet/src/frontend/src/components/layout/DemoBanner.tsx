@@ -13,9 +13,14 @@ interface DemoBannerProps {
   className?: string;
   /** Compact variant used inside the mobile header. */
   compact?: boolean;
+  walletManagement?: boolean;
 }
 
-export function DemoBanner({ className, compact = false }: DemoBannerProps) {
+export function DemoBanner({
+  className,
+  compact = false,
+  walletManagement = false,
+}: DemoBannerProps) {
   const { activeWallet } = useWallet();
   const isDemo = activeWallet?.isDemo !== false;
   return (
@@ -38,13 +43,19 @@ export function DemoBanner({ className, compact = false }: DemoBannerProps) {
           compact ? "text-[10px]" : "text-[11px]",
         )}
       >
-        {isDemo ? "Demo mode" : "Watch only"}
+        {walletManagement
+          ? "Wallet tools"
+          : isDemo
+            ? "Demo mode"
+            : "Watch only"}
       </span>
       {!compact ? (
         <span className="text-[11px] font-medium text-accent/80">
-          {isDemo
-            ? "— all data is simulated"
-            : "— live address reads · sending unavailable"}
+          {walletManagement
+            ? "— XBT storage and reads · sending unavailable"
+            : isDemo
+              ? "— all data is simulated"
+              : "— live address reads · sending unavailable"}
         </span>
       ) : null}
     </div>

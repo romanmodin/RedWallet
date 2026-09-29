@@ -1,3 +1,41 @@
+# Current authorized phase: local encrypted account workspace
+
+The user explicitly authorizes continued full-wallet implementation and deployment.
+The production v15 CSP gate passed: its native enforced securitypolicyviolation
+observer reported that the hosting analytics script was blocked, while the UI
+remained Connected. This supersedes earlier preparation-only and seed-disabled
+scope notes below for these exact client components: LocalWalletWorkspace,
+LocalVaultPanel, AccountReadPanel on WalletsPage. They support local encrypted
+create/recover/unlock and bounded public account reads. The workspace remains
+unavailable unless the same-page browser block is actually observed.
+
+No signing or broadcasting is mounted. Sending remains disabled. The service,
+backend and bridge must never receive private key/seed/password material.
+Never hardcode, upload, log, commit or paste real user secrets. User-entered
+recovery material is processed only in the local form and encrypted vault.
+The exact-source Import code flow must be used; chat attachments are not exact
+imports. Public fixture testing is permitted; no mainnet funds are transferred.
+The existing native worktrees and operator credentials remain untouched.
+
+Older notes below are historical; apply this current scope and the latest
+production record when they conflict. The prepared SpendReview/signing core
+and bridge transaction parser stay disconnected pending full send integration.
+
+# Latest verified continuation — 2026-09-29
+
+Production v14 is live and watch-only. Direct menu Import code preserves exact
+ZIP contents; chat attachments were reconstructed incorrectly and must not be
+used as an exact import mechanism. v14 export matched all 255 uploaded files.
+Local frontend 41 files / 278 tests passed, typecheck/build/Biome passed.
+Live production canister probe at20:36:18Z passed status/checkpoint height974742,
+balance/history/fees, empty UTXOs, raw175bytes and invalid-input rejection.
+Older notes below saying UTXO/raw are undeployed are superseded. XBT activated
+regtest acceptance and Bitcoin replay-negative evidence are in test/regtest.
+CSP is first in deployed HEAD and real connection works; the new csp-monitor
+and Settings observer are a narrow native browser-block diagnostic. Do not
+claim runtime block enforcement until the production UI actually observes it.
+LocalVaultPanel remains unmounted; no spending or broadcast UI is live.
+
 # Project Guidance
 
 ## Current authorized integration preparation

@@ -88,7 +88,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Wordmark />
         </div>
         <div className="px-4 pb-4">
-          <DemoBanner className="w-full justify-center" />
+          <DemoBanner
+            className="w-full justify-center"
+            walletManagement={pathname === "/wallets"}
+          />
         </div>
         <nav
           aria-label="Primary"
@@ -127,7 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-border bg-card/90 px-4 backdrop-blur-md safe-top lg:hidden">
           <Wordmark compact />
           <div className="flex items-center gap-2">
-            <DemoBanner compact />
+            <DemoBanner compact walletManagement={pathname === "/wallets"} />
             <NetworkIndicator compact />
           </div>
         </header>
@@ -135,11 +138,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Desktop top bar */}
         <header className="sticky top-0 z-20 hidden h-16 items-center justify-between gap-4 border-b border-border bg-card/90 px-6 backdrop-blur-md lg:flex">
           <p className="text-sm text-muted-foreground">
-            {activeWallet?.isDemo
-              ? "Demo wallet — balances, addresses, and transactions are simulated."
-              : activeWallet
-                ? "Watch-only address — live reads from the XBT network; sending is unavailable."
-                : "Select an XBT wallet to view its status."}
+            {pathname === "/wallets"
+              ? "Manage watched addresses and encrypted local wallets. Sending unavailable."
+              : activeWallet?.isDemo
+                ? "Demo wallet — balances, addresses, and transactions are simulated."
+                : activeWallet
+                  ? "Watch-only address — live reads from the XBT network; sending is unavailable."
+                  : "Select an XBT wallet to view its status."}
           </p>
           <NetworkIndicator />
         </header>

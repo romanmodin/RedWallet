@@ -7,7 +7,7 @@ import {
   normalizeMnemonic,
 } from "@/lib/xbt/key-material";
 import type { SavedVault, VaultCatalog } from "@/lib/xbt/vault-catalog";
-/** Local-only vault form, not mounted in the app until the deployed CSP gate passes. */
+/** Local-only vault form; mounted only behind the verified browser protection gate. */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface LocalVaultPanelProps {
@@ -43,6 +43,13 @@ export function LocalVaultPanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const generation = useRef(0);
+  const formDeadline = useRef({ wall: 0, monotonic: 0 });
+  const formExpired = useCallback(
+    () =>
+      Date.now() >= formDeadline.current.wall ||
+      performance.now() >= formDeadline.current.monotonic,
+    [],
+  );
   const callbacks = useRef({ onUnlocked, onLocked });
   callbacks.current = { onUnlocked, onLocked };
 
@@ -120,14 +127,44 @@ export function LocalVaultPanel({
     return () => clearInterval(timer);
   }, [unlocked, catalog, clearSecrets]);
 
+  useEffect(() => {
+    if (mode === "idle") return;
+    const timer = setInterval(() => {
+      if (!formExpired()) return;
+      generation.current++;
+      catalog.lockAll();
+      setUnlocked(null);
+      callbacks.current.onLocked?.();
+      clearSecrets();
+      setMode("idle");
+      setBusy(false);
+      setNotice(
+        "Setup timed out after five minutes. Secret fields were cleared; start again to continue.",
+      );
+    }, 250);
+    return () => clearInterval(timer);
+  }, [mode, catalog, clearSecrets, formExpired]);
+  function requireActiveForm() {
+    if (formExpired()) {
+      cancel();
+      throw Error(
+        "Setup timed out after five minutes. Secret fields were cleared.",
+      );
+    }
+  }
   function begin(next: "create" | "recover" | "unlock", id = "") {
     cancel();
+    formDeadline.current = {
+      wall: Date.now() + 300_000,
+      monotonic: performance.now() + 300_000,
+    };
     setNotice("");
     setName("");
     setSelected(id);
     setMode(next);
   }
   function validatePassword() {
+    requireActiveForm();
     if (password.length < 12 || password.length > 1024)
       throw Error("Use a password of 12–1024 characters.");
     if (password !== confirmation) throw Error("Passwords do not match.");
@@ -208,6 +245,12 @@ export function LocalVaultPanel({
     }
   }
   async function unlock() {
+    try {
+      requireActiveForm();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Setup expired.");
+      return;
+    }
     const operation = ++generation.current;
     const secretPassword = password;
     setPassword("");
@@ -218,6 +261,13 @@ export function LocalVaultPanel({
       const account = await catalog.controller(selected).unlock(secretPassword);
       if (generation.current !== operation) {
         catalog.lockAll();
+        return;
+      }
+      if (formExpired()) {
+        catalog.lockAll();
+        clearSecrets();
+        setMode("idle");
+        setNotice("Unlock expired; try again.");
         return;
       }
       setUnlocked({ id: selected, account });
@@ -333,8 +383,8 @@ export function LocalVaultPanel({
                 {unlocked.account.firstAddress}
               </p>
               <p className="text-xs text-muted-foreground">
-                Address discovery and spending integration are still required.
-                This panel does not send funds.
+                Scan this public account below to recover its balance and
+                history. Sending is not enabled in this revision.
               </p>
             </div>
           )}

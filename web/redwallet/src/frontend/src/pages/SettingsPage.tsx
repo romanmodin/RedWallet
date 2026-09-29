@@ -10,6 +10,7 @@
  */
 
 import { PageHeader } from "@/components/layout/PageHeader";
+import { BrowserProtection } from "@/components/settings/BrowserProtection";
 import { DisplayUnitSetting } from "@/components/settings/DisplayUnitSetting";
 import { NetworkSetting } from "@/components/settings/NetworkSetting";
 import { SupportSetting } from "@/components/settings/SupportSetting";
@@ -165,7 +166,8 @@ export function SettingsPage() {
           </p>
           <p className="text-xs leading-relaxed text-muted-foreground">
             Preferences and watched public addresses are saved in this browser.
-            Spending keys remain in your original wallet.
+            Local encrypted wallets are managed in Wallets. Watched addresses
+            remain public-only.
           </p>
         </div>
       </div>
@@ -242,6 +244,7 @@ export function SettingsPage() {
             </Button>
           </SettingsSection>
 
+          <BrowserProtection />
           <SupportSetting />
         </div>
       </div>

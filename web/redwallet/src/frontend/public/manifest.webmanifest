@@ -1,14 +1,17 @@
 {
   "name": "RedWallet",
   "short_name": "RedWallet",
-  "description": "A calm, security-focused watch-only XBT wallet. Read-only address balance, history and receive; send, seed and recovery stay disabled.",
+  "description": "RedWallet \u2014 XBT watch-only addresses and local encrypted wallets with read-only recovery scans. Sending is unavailable.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#141013",
   "theme_color": "#141013",
-  "categories": ["finance", "utilities"],
+  "categories": [
+    "finance",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/assets/generated/icon-192.dim_192x192.png",

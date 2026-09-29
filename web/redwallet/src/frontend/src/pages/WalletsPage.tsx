@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LocalWalletWorkspace } from "@/components/vault/LocalWalletWorkspace";
 import { WalletList } from "@/components/wallets/WalletList";
 import { useSettings } from "@/hooks/useSettings";
 import { useWallet } from "@/hooks/useWallet";
@@ -106,7 +107,7 @@ export function WalletsPage() {
     <section data-ocid="wallets.page" className="flex flex-col">
       <PageHeader
         title="Wallets"
-        description="Choose a watched XBT address or a demo account"
+        description="Manage watched addresses and local encrypted XBT wallets"
         action={addAction}
       />
 
@@ -150,6 +151,8 @@ export function WalletsPage() {
           onSelect={(walletId) => void handleSelect(walletId)}
         />
       )}
+
+      <LocalWalletWorkspace />
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent data-ocid="wallets.add_dialog">

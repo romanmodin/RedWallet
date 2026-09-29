@@ -33,6 +33,8 @@ const XBT_MODULES = [
   "discovery-session",
   "vault-catalog",
   "spend-review",
+  "issued-addresses",
+  "account-reader",
 ] as const;
 
 /** This scan file itself contains sample import strings and is not production. */
@@ -46,7 +48,14 @@ function isPermittedImporter(file: string): boolean {
   // Authorized full-wallet preparation: this client-only form is deliberately
   // not mounted. The next invariant prevents it entering any production route
   // before the deployed CSP and subsequent integration review are complete.
-  if (rel === "components/vault/LocalVaultPanel.tsx") return true;
+  if (
+    [
+      "components/vault/LocalVaultPanel.tsx",
+      "components/vault/LocalWalletWorkspace.tsx",
+      "components/vault/AccountReadPanel.tsx",
+    ].includes(rel)
+  )
+    return true;
   return false;
 }
 
@@ -83,22 +92,28 @@ function importsXbtModule(line: string): boolean {
 }
 
 describe("XBT foundation isolation", () => {
-  it("keeps the prepared local vault form disconnected from all application routes", () => {
-    const offenders = walk(FRONTEND_SRC).filter((file) => {
+  it("exposes local vault components only through the explicitly gated workspace", () => {
+    const offenders: string[] = [];
+    for (const file of walk(FRONTEND_SRC)) {
       const rel = relative(FRONTEND_SRC, file).split("\\").join("/");
+      if (rel.startsWith("lib/xbt/") || file === SELF) continue;
+      const source = readFileSync(file, "utf8");
       if (
-        rel.startsWith("lib/xbt/") ||
-        file === SELF ||
-        rel === "components/vault/LocalVaultPanel.tsx"
+        /(?:from\s*|import\s*\()["'][^"']*(?:LocalVaultPanel|AccountReadPanel)/.test(
+          source,
+        ) &&
+        rel !== "components/vault/LocalWalletWorkspace.tsx"
       )
-        return false;
-      return /(?:from\s*|import\s*\()["'][^"']*LocalVaultPanel/.test(
-        readFileSync(file, "utf8"),
-      );
-    });
+        offenders.push(rel);
+      if (
+        /(?:from\s*|import\s*\()["'][^"']*LocalWalletWorkspace/.test(source) &&
+        rel !== "pages/WalletsPage.tsx"
+      )
+        offenders.push(rel);
+    }
     expect(offenders).toEqual([]);
   });
-  it("is imported by no page, service, component, App.tsx, or backend/bridge file", () => {
+  it("keeps key imports in the exact approved client workspace, never backend or services", () => {
     const offenders: string[] = [];
     const scanned = new Set<string>();
 

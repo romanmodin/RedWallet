@@ -86,7 +86,7 @@ export function mapBridgeError(error: BridgeError): ServiceError {
  */
 let actorPromise: Promise<BridgeActor | null> | null = null;
 
-function resolveBridgeActor(): Promise<BridgeActor | null> {
+export function resolveBridgeActor(): Promise<BridgeActor | null> {
   if (!actorPromise) {
     actorPromise = createActorWithConfig(createActor)
       .then((actor) => actor as BridgeActor)

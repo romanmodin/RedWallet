@@ -19,7 +19,33 @@ function fillDetails() {
     target: { value: password },
   });
 }
-describe("prepared local-only vault form (not mounted in the app)", () => {
+describe("local-only encrypted vault form", () => {
+  it("rejects an expired recovery form even when the timer has not run", () => {
+    let now = 1000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      const catalog = new VaultCatalog(localStorage, cryptoApi);
+      const create = vi.spyOn(catalog, "create");
+      render(<LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />);
+      fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+      fillDetails();
+      fireEvent.change(screen.getByLabelText("Recovery phrase"), {
+        target: { value: phrase },
+      });
+      fireEvent.click(screen.getByRole("checkbox"));
+      now += 300001;
+      fireEvent.click(
+        screen.getByRole("button", { name: "Save encrypted wallet" }),
+      );
+      expect(create).not.toHaveBeenCalled();
+      expect(
+        screen.queryByLabelText("Recovery phrase"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText(/Setup timed out/)).toBeInTheDocument();
+    } finally {
+      clock.mockRestore();
+    }
+  });
   it("cancels an in-flight encryption without saving a hidden wallet", async () => {
     const catalog = new VaultCatalog(localStorage, cryptoApi);
     const create = vi.spyOn(catalog, "create");
