@@ -1,0 +1,23 @@
+{
+  "overview": "A mobile-first XBT wallet app with a secure, separately deployable bridge that connects the app to a self-hosted Fulcrum server for read-only balance, history, fee, and status data.",
+  "features": [
+    "Dashboard with wallet balance and fiat equivalent",
+    "Wallet management and switching",
+    "Transaction history with filters and detail view",
+    "Fee estimation for sends",
+    "Receive screen with QR code",
+    "Network status and server settings",
+    "Separately deployable HTTPS-to-Fulcrum bridge service",
+    "Secure read-only bridge client with admin-only configuration"
+  ],
+  "category": "wallet",
+  "tags": [
+    "xbt",
+    "wallet",
+    "fulcrum",
+    "bridge",
+    "self-hosted",
+    "read-only"
+  ],
+  "last_updated": "2026-09-29T06:05:08.318Z"
+}

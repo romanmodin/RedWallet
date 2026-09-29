@@ -1,0 +1,7 @@
+packages:
+  - src/**/*
+allowBuilds:
+  '@biomejs/biome': true
+  '@dfinity/pic': true
+  esbuild: true
+  sharp: true

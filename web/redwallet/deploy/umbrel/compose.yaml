@@ -1,0 +1,35 @@
+name: redwallet-bridge
+services:
+  bridge:
+    build:
+      context: ./repository/web/redwallet/src/bridge
+    image: redwallet-fulcrum-bridge:local
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    environment:
+      LISTEN_HOST: 127.0.0.1
+      PORT: "8090"
+      FULCRUM_HOST: 127.0.0.1
+      FULCRUM_PORT: "55001"
+      FULCRUM_TLS: "false"
+      NODE_ENV: production
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 192m
+    cpus: 0.75
+    tmpfs:
+      - /tmp:size=8m,noexec,nosuid
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8090/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

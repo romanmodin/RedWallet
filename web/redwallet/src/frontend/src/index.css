@@ -1,0 +1,119 @@
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/assets/fonts/SpaceGrotesk.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Figtree";
+  src: url("/assets/fonts/Figtree.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/assets/fonts/JetBrainsMono.woff2") format("woff2");
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+
+    --font-display: "Space Grotesk";
+    --font-body: "Figtree";
+    --font-mono: "JetBrains Mono";
+    --radius: 1rem;
+
+    --background: 0.15 0.012 25;
+    --foreground: 0.96 0.004 25;
+    --card: 0.195 0.014 25;
+    --card-foreground: 0.96 0.004 25;
+    --popover: 0.225 0.015 25;
+    --popover-foreground: 0.96 0.004 25;
+
+    --primary: 0.545 0.205 27;
+    --primary-foreground: 0.985 0.004 27;
+
+    --secondary: 0.245 0.016 25;
+    --secondary-foreground: 0.9 0.006 25;
+    --muted: 0.235 0.014 25;
+    --muted-foreground: 0.665 0.012 25;
+
+    --accent: 0.78 0.115 85;
+    --accent-foreground: 0.16 0.02 85;
+
+    --destructive: 0.62 0.21 25;
+    --destructive-foreground: 0.985 0.004 25;
+    --success: 0.72 0.155 150;
+    --success-foreground: 0.16 0.02 150;
+    --warning: 0.8 0.14 85;
+    --warning-foreground: 0.16 0.02 85;
+
+    --border: 0.3 0.014 25;
+    --input: 0.3 0.014 25;
+    --ring: 0.545 0.205 27;
+
+    --chart-1: 0.545 0.205 27;
+    --chart-2: 0.78 0.115 85;
+    --chart-3: 0.72 0.155 150;
+    --chart-4: 0.62 0.13 250;
+    --chart-5: 0.66 0.11 320;
+
+    --sidebar: 0.175 0.013 25;
+    --sidebar-foreground: 0.96 0.004 25;
+    --sidebar-primary: 0.545 0.205 27;
+    --sidebar-primary-foreground: 0.985 0.004 27;
+    --sidebar-accent: 0.245 0.016 25;
+    --sidebar-accent-foreground: 0.9 0.006 25;
+    --sidebar-border: 0.3 0.014 25;
+    --sidebar-ring: 0.545 0.205 27;
+
+    --gradient-primary: linear-gradient(
+      135deg,
+      oklch(0.545 0.205 27),
+      oklch(0.44 0.175 22)
+    );
+    --gradient-subtle: linear-gradient(
+      180deg,
+      oklch(0.21 0.014 25),
+      oklch(0.18 0.012 25)
+    );
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.3);
+    --shadow-elevated: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 12px 32px -8px
+      rgb(0 0 0 / 0.45);
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+}
+
+@layer utilities {
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  .bg-gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+  .bg-gradient-subtle {
+    background-image: var(--gradient-subtle);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "RedWallet",
+  "short_name": "RedWallet",
+  "description": "A calm, security-focused XBT wallet demo. All balances, addresses, and transactions are demo data.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#141013",
+  "theme_color": "#141013",
+  "categories": ["finance", "utilities"],
+  "icons": [
+    {
+      "src": "/assets/generated/icon-192.dim_192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/generated/icon-512.dim_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/generated/icon-maskable-512.dim_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
