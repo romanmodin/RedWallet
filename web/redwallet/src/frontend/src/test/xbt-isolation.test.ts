@@ -40,6 +40,10 @@ function isPermittedImporter(file: string): boolean {
   if (file === SELF) return true;
   const rel = relative(FRONTEND_SRC, file).split("\\").join("/");
   if (rel.startsWith("lib/xbt/")) return true;
+  // Authorized full-wallet preparation: this client-only form is deliberately
+  // not mounted. The next invariant prevents it entering any production route
+  // before the deployed CSP and subsequent integration review are complete.
+  if (rel === "components/vault/LocalVaultPanel.tsx") return true;
   return false;
 }
 
@@ -76,6 +80,14 @@ function importsXbtModule(line: string): boolean {
 }
 
 describe("XBT foundation isolation", () => {
+  it("keeps the prepared local vault form disconnected from all application routes", () => {
+    const offenders = walk(FRONTEND_SRC).filter(file => {
+      const rel = relative(FRONTEND_SRC, file).split("\\").join("/");
+      if (rel.startsWith("lib/xbt/") || file === SELF || rel === "components/vault/LocalVaultPanel.tsx") return false;
+      return /(?:from\s*|import\s*\()["'][^"']*LocalVaultPanel/.test(readFileSync(file, "utf8"));
+    });
+    expect(offenders).toEqual([]);
+  });
   it("is imported by no page, service, component, App.tsx, or backend/bridge file", () => {
     const offenders: string[] = [];
     const scanned = new Set<string>();

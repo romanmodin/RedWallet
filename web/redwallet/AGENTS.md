@@ -1,5 +1,16 @@
 # Project Guidance
 
+## Current authorized integration preparation
+
+The user authorizes continued work toward a full local-key wallet. The prepared
+`components/vault/LocalVaultPanel.tsx` is a client-only create/recover/unlock form
+tested with disposable/public fixtures, but it is deliberately not mounted in
+any application route. The isolation test permits only this exact prepared form
+and separately rejects imports that would mount it. Production remains
+watch-only until actual deployed CSP enforcement and the subsequent UI review
+pass. Do not expose this form by merely removing the isolation check. No keys
+may enter a backend, bridge, network request, telemetry, log, or plaintext store.
+
 ## User Preferences
 
 - Mobile-first, polished, iPhone and desktop
