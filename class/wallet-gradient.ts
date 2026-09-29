@@ -1,3 +1,4 @@
+import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
 import { HDAezeedWallet } from './wallets/hd-aezeed-wallet';
 import { HDLegacyBreadwalletWallet } from './wallets/hd-legacy-breadwallet-wallet';
 import { HDLegacyElectrumSeedP2PKHWallet } from './wallets/hd-legacy-electrum-seed-p2pkh-wallet';
@@ -24,7 +25,8 @@ export default class WalletGradient {
   static hdLegacyP2PKHWallet: string[] = ['#FD7478', '#E73B40'];
   static hdLegacyBreadWallet: string[] = ['#fe6381', '#f99c42'];
   static multisigHdWallet: string[] = ['#1ce6eb', '#296fc5', '#3500A2'];
-  static defaultGradients: string[] = ['#B770F6', '#9013FE'];
+  static defaultGradients: string[] = ['#B42332', '#741B2A'];
+  static xbtWallet: string[] = ['#B42332', '#741B2A'];
   static lightningCustodianWallet: string[] = ['#F1AA07', '#FD7E37']; // Corrected property with missing colors
   static aezeedWallet: string[] = ['#8584FF', '#5351FB'];
 
@@ -35,6 +37,9 @@ export default class WalletGradient {
   static gradientsFor(type: string): string[] {
     let gradient: string[];
     switch (type) {
+      case XbtSegwitBech32Wallet.type:
+        gradient = WalletGradient.xbtWallet;
+        break;
       case WatchOnlyWallet.type:
         gradient = WalletGradient.watchOnlyWallet;
         break;
