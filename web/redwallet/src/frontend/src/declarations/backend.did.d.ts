@@ -16,6 +16,10 @@ export type BridgeError = { 'not_configured' : null } |
   { 'malformed_response' : string } |
   { 'invalid_input' : string } |
   { 'backend_unavailable' : string };
+export interface BridgeOperatorStatus {
+  'isOperator' : boolean,
+  'operatorConfigured' : boolean,
+}
 export type BridgeResult = { 'ok' : ServerStatus } |
   { 'err' : BridgeError };
 export type BridgeResult_1 = { 'ok' : FeeEstimate } |
@@ -24,7 +28,6 @@ export type BridgeResult_2 = { 'ok' : AddressHistory } |
   { 'err' : BridgeError };
 export type BridgeResult_3 = { 'ok' : AddressBalance } |
   { 'err' : BridgeError };
-export interface BridgeOperatorStatus { 'isOperator' : boolean, 'operatorConfigured' : boolean }
 export interface BridgeStatus {
   'checkpointConfigured' : boolean,
   'configured' : boolean,
@@ -61,12 +64,12 @@ export interface Result { 'hasMore' : boolean, 'rows' : Array<Array<Cell>> }
 export type Result__1 = { 'ok' : null } |
   { 'err' : Error };
 export interface ServerStatus {
-  'checkpointHeight' : [] | [bigint],
-  'checkpointHash' : [] | [string],
   'height' : bigint,
   'protocolVersion' : string,
   'checkpointConfigured' : boolean,
   'serverVersion' : string,
+  'checkpointHeight' : [] | [bigint],
+  'checkpointHash' : [] | [string],
 }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -82,50 +85,23 @@ export interface _SERVICE {
   '_internet_identity_sign_in_finish' : ActorMethod<[], Result__1>,
   '_internet_identity_sign_in_start' : ActorMethod<[], Uint8Array>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  /**
-   * / Clears the bridge configuration. Admin-only. After this, every read
-   * / returns `#not_configured`.
-   */
   'clearBridgeConfig' : ActorMethod<[], undefined>,
   'execute' : ActorMethod<[string], Result>,
-  /**
-   * / Reads an address balance through the bridge.
-   */
   'getAddressBalance' : ActorMethod<[string], BridgeResult_3>,
-  /**
-   * / Reads address history through the bridge.
-   */
   'getAddressHistory' : ActorMethod<[string], BridgeResult_2>,
-  /**
-   * / Reports only whether a bridge is configured. Never returns the URL or
-   * / secret.
-   */
-  'getBridgeStatus' : ActorMethod<[], BridgeStatus>,
+  'getApiDoc' : ActorMethod<[], string>,
   'getBridgeOperatorStatus' : ActorMethod<[], BridgeOperatorStatus>,
-  'setBridgeOperator' : ActorMethod<[Principal], undefined>,
+  'getBridgeStatus' : ActorMethod<[], BridgeStatus>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  /**
-   * / Reads a fee estimate through the bridge. The bridge requires a target
-   * / block count in `[1, 1008]`; the canister uses a fixed default.
-   */
   'getFeeEstimate' : ActorMethod<[], BridgeResult_1>,
-  /**
-   * / Reads server/network status through the bridge. Uses the allowlisted
-   * / `server.version` method (there is no `server.status` on the bridge). The
-   * / checkpoint is reported as unconfigured.
-   */
   'getServerStatus' : ActorMethod<[], BridgeResult>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'schema' : ActorMethod<[], string>,
-  /**
-   * / Sets the bridge base URL and deployment secret. Admin-only. The URL must
-   * / be HTTPS. Neither value is echoed back.
-   */
   'setBridgeConfig' : ActorMethod<[string, string], undefined>,
   /**
-   * / Consensus-safe transform: strips volatile headers so all replicas agree
-   * / on the response. The body is passed through unchanged.
+   * / Recovery/rotation is controller-only. Public login roles confer no power.
    */
+  'setBridgeOperator' : ActorMethod<[Principal], undefined>,
   'transformBridgeResponse' : ActorMethod<
     [{ 'context' : Uint8Array, 'response' : HttpRequestResult }],
     HttpRequestResult

@@ -72,6 +72,10 @@ export const BridgeResult_2 = IDL.Variant({
   'ok' : AddressHistory,
   'err' : BridgeError,
 });
+export const BridgeOperatorStatus = IDL.Record({
+  'isOperator' : IDL.Bool,
+  'operatorConfigured' : IDL.Bool,
+});
 export const BridgeStatus = IDL.Record({
   'checkpointConfigured' : IDL.Bool,
   'configured' : IDL.Bool,
@@ -85,9 +89,9 @@ export const ServerStatus = IDL.Record({
   'height' : IDL.Int,
   'protocolVersion' : IDL.Text,
   'checkpointConfigured' : IDL.Bool,
+  'serverVersion' : IDL.Text,
   'checkpointHeight' : IDL.Opt(IDL.Nat),
   'checkpointHash' : IDL.Opt(IDL.Text),
-  'serverVersion' : IDL.Text,
 });
 export const BridgeResult = IDL.Variant({
   'ok' : ServerStatus,
@@ -109,15 +113,16 @@ export const idlService = IDL.Service({
   'execute' : IDL.Func([IDL.Text], [Result], ['query']),
   'getAddressBalance' : IDL.Func([IDL.Text], [BridgeResult_3], []),
   'getAddressHistory' : IDL.Func([IDL.Text], [BridgeResult_2], []),
+  'getApiDoc' : IDL.Func([], [IDL.Text], ['query']),
+  'getBridgeOperatorStatus' : IDL.Func([], [BridgeOperatorStatus], ['query']),
   'getBridgeStatus' : IDL.Func([], [BridgeStatus], ['query']),
-  'getBridgeOperatorStatus' : IDL.Func([], [IDL.Record({ 'isOperator': IDL.Bool, 'operatorConfigured': IDL.Bool })], ['query']),
-  'setBridgeOperator' : IDL.Func([IDL.Principal], [], []),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getFeeEstimate' : IDL.Func([], [BridgeResult_1], []),
   'getServerStatus' : IDL.Func([], [BridgeResult], []),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'schema' : IDL.Func([], [IDL.Text], ['query']),
   'setBridgeConfig' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'setBridgeOperator' : IDL.Func([IDL.Principal], [], []),
   'transformBridgeResponse' : IDL.Func(
       [
         IDL.Record({
@@ -197,6 +202,10 @@ export const idlFactory = ({ IDL }) => {
     'ok' : AddressHistory,
     'err' : BridgeError,
   });
+  const BridgeOperatorStatus = IDL.Record({
+    'isOperator' : IDL.Bool,
+    'operatorConfigured' : IDL.Bool,
+  });
   const BridgeStatus = IDL.Record({
     'checkpointConfigured' : IDL.Bool,
     'configured' : IDL.Bool,
@@ -210,9 +219,9 @@ export const idlFactory = ({ IDL }) => {
     'height' : IDL.Int,
     'protocolVersion' : IDL.Text,
     'checkpointConfigured' : IDL.Bool,
+    'serverVersion' : IDL.Text,
     'checkpointHeight' : IDL.Opt(IDL.Nat),
     'checkpointHash' : IDL.Opt(IDL.Text),
-    'serverVersion' : IDL.Text,
   });
   const BridgeResult = IDL.Variant({
     'ok' : ServerStatus,
@@ -234,15 +243,16 @@ export const idlFactory = ({ IDL }) => {
     'execute' : IDL.Func([IDL.Text], [Result], ['query']),
     'getAddressBalance' : IDL.Func([IDL.Text], [BridgeResult_3], []),
     'getAddressHistory' : IDL.Func([IDL.Text], [BridgeResult_2], []),
+    'getApiDoc' : IDL.Func([], [IDL.Text], ['query']),
+    'getBridgeOperatorStatus' : IDL.Func([], [BridgeOperatorStatus], ['query']),
     'getBridgeStatus' : IDL.Func([], [BridgeStatus], ['query']),
-  'getBridgeOperatorStatus' : IDL.Func([], [IDL.Record({ 'isOperator': IDL.Bool, 'operatorConfigured': IDL.Bool })], ['query']),
-  'setBridgeOperator' : IDL.Func([IDL.Principal], [], []),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getFeeEstimate' : IDL.Func([], [BridgeResult_1], []),
     'getServerStatus' : IDL.Func([], [BridgeResult], []),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'schema' : IDL.Func([], [IDL.Text], ['query']),
     'setBridgeConfig' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'setBridgeOperator' : IDL.Func([IDL.Principal], [], []),
     'transformBridgeResponse' : IDL.Func(
         [
           IDL.Record({

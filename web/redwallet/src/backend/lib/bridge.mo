@@ -203,7 +203,7 @@ module {
     };
     // Also rejects NaN, infinity, overflow and Fulcrum's unavailable sentinel.
     if (not (coinsPerKb >= 0.0 and coinsPerKb <= 100.0)) return null;
-    let satoshisPerKb = Float.toInt(Float.nearest(coinsPerKb * 100_000_000.0));
+    let satoshisPerKb = Float.nearest(coinsPerKb * 100_000_000.0).toInt();
     ?{ satoshisPerKb = satoshisPerKb.toNat() };
   };
 

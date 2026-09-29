@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { rebuildAcceptedTransaction, verifyRecordedTransaction } from "./accepted-fixture";
+import {
+  rebuildAcceptedTransaction,
+  verifyRecordedTransaction,
+} from "./accepted-fixture";
 import fixture from "./fixtures/xbt-knots-regtest-acceptance.json";
 
 describe("native Knots acceptance fixture parity", () => {
@@ -12,10 +15,18 @@ describe("native Knots acceptance fixture parity", () => {
   });
 
   it("rejects the recorded changed-output negative control", () => {
-    expect(verifyRecordedTransaction(fixture.signed.negativeControls.changedOutputHex)).toBe(false);
+    expect(
+      verifyRecordedTransaction(
+        fixture.signed.negativeControls.changedOutputHex,
+      ),
+    ).toBe(false);
   });
 
   it("rejects the recorded removed-Unified-bit negative control", () => {
-    expect(verifyRecordedTransaction(fixture.signed.negativeControls.removedUnifiedBitHex)).toBe(false);
+    expect(
+      verifyRecordedTransaction(
+        fixture.signed.negativeControls.removedUnifiedBitHex,
+      ),
+    ).toBe(false);
   });
 });

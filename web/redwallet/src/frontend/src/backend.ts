@@ -73,6 +73,10 @@ export type BridgeError = {
     __kind__: "backend_unavailable";
     backend_unavailable: string;
 };
+export interface BridgeOperatorStatus {
+    isOperator: boolean;
+    operatorConfigured: boolean;
+}
 export type BridgeResult = {
     __kind__: "ok";
     ok: ServerStatus;
@@ -101,10 +105,6 @@ export type BridgeResult_3 = {
     __kind__: "err";
     err: BridgeError;
 };
-export interface BridgeOperatorStatus {
-    isOperator: boolean;
-    operatorConfigured: boolean;
-}
 export interface BridgeStatus {
     checkpointConfigured: boolean;
     configured: boolean;
@@ -186,12 +186,12 @@ export type Result__1 = {
     err: Error_;
 };
 export interface ServerStatus {
-    checkpointHeight?: bigint;
-    checkpointHash?: string;
     height: bigint;
     protocolVersion: string;
     checkpointConfigured: boolean;
     serverVersion: string;
+    checkpointHeight?: bigint;
+    checkpointHash?: string;
 }
 export type Value = {
     __kind__: "int";
@@ -222,56 +222,29 @@ export interface backendInterface {
     _internet_identity_sign_in_finish(): Promise<Result__1>;
     _internet_identity_sign_in_start(): Promise<Uint8Array>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    /**
-     * / Clears the bridge configuration. Admin-only. After this, every read
-     * / returns `#not_configured`.
-     */
     clearBridgeConfig(): Promise<void>;
     execute(qJson: string): Promise<Result>;
-    /**
-     * / Reads an address balance through the bridge.
-     */
     getAddressBalance(address: string): Promise<BridgeResult_3>;
-    /**
-     * / Reads address history through the bridge.
-     */
     getAddressHistory(address: string): Promise<BridgeResult_2>;
-    /**
-     * / Reports only whether a bridge is configured. Never returns the URL or
-     * / secret.
-     */
-    getBridgeStatus(): Promise<BridgeStatus>;
+    getApiDoc(): Promise<string>;
     getBridgeOperatorStatus(): Promise<BridgeOperatorStatus>;
-    setBridgeOperator(operator: Principal): Promise<void>;
+    getBridgeStatus(): Promise<BridgeStatus>;
     getCallerUserRole(): Promise<UserRole>;
-    /**
-     * / Reads a fee estimate through the bridge. The bridge requires a target
-     * / block count in `[1, 1008]`; the canister uses a fixed default.
-     */
     getFeeEstimate(): Promise<BridgeResult_1>;
-    /**
-     * / Reads server/network status through the bridge. Uses the allowlisted
-     * / `server.version` method (there is no `server.status` on the bridge). The
-     * / checkpoint is reported as unconfigured.
-     */
     getServerStatus(): Promise<BridgeResult>;
     isCallerAdmin(): Promise<boolean>;
     schema(): Promise<string>;
-    /**
-     * / Sets the bridge base URL and deployment secret. Admin-only. The URL must
-     * / be HTTPS. Neither value is echoed back.
-     */
     setBridgeConfig(baseUrl: string, secret: string): Promise<void>;
     /**
-     * / Consensus-safe transform: strips volatile headers so all replicas agree
-     * / on the response. The body is passed through unchanged.
+     * / Recovery/rotation is controller-only. Public login roles confer no power.
      */
+    setBridgeOperator(operator: Principal): Promise<void>;
     transformBridgeResponse(args: {
         context: Uint8Array;
         response: HttpRequestResult;
     }): Promise<HttpRequestResult>;
 }
-import type { AddressBalance as _AddressBalance, AddressHistory as _AddressHistory, BridgeError as _BridgeError, BridgeResult as _BridgeResult, BridgeResult_1 as _BridgeResult_1, BridgeResult_2 as _BridgeResult_2, BridgeResult_3 as _BridgeResult_3, Cell as _Cell, Error as _Error, FeeEstimate as _FeeEstimate, Result as _Result, Result__1 as _Result__1, ServerStatus as _ServerStatus, UserRole as _UserRole, Value as _Value } from "./declarations/backend.did.d.ts";
+import type { AddressBalance as _AddressBalance, AddressHistory as _AddressHistory, BridgeError as _BridgeError, BridgeResult as _BridgeResult, BridgeResult_1 as _BridgeResult_1, BridgeResult_2 as _BridgeResult_2, BridgeResult_3 as _BridgeResult_3, Cell as _Cell, Error as _Error, FeeEstimate as _FeeEstimate, HistoryEntry as _HistoryEntry, Result as _Result, Result__1 as _Result__1, ServerStatus as _ServerStatus, UserRole as _UserRole, Value as _Value } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initialize_access_control(): Promise<void> {
@@ -386,11 +359,33 @@ export class Backend implements backendInterface {
             return from_candid_BridgeResult_2_n18(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getBridgeOperatorStatus(): Promise<BridgeOperatorStatus> {
-        return this.actor.getBridgeOperatorStatus();
+    async getApiDoc(): Promise<string> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getApiDoc();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getApiDoc();
+            return result;
+        }
     }
-    async setBridgeOperator(operator: Principal): Promise<void> {
-        return this.actor.setBridgeOperator(operator);
+    async getBridgeOperatorStatus(): Promise<BridgeOperatorStatus> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getBridgeOperatorStatus();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getBridgeOperatorStatus();
+            return result;
+        }
     }
     async getBridgeStatus(): Promise<BridgeStatus> {
         if (this.processError) {
@@ -410,42 +405,42 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n20(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n26(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n20(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n26(this._uploadFile, this._downloadFile, result);
         }
     }
     async getFeeEstimate(): Promise<BridgeResult_1> {
         if (this.processError) {
             try {
                 const result = await this.actor.getFeeEstimate();
-                return from_candid_BridgeResult_1_n21(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_1_n27(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getFeeEstimate();
-            return from_candid_BridgeResult_1_n21(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_1_n27(this._uploadFile, this._downloadFile, result);
         }
     }
     async getServerStatus(): Promise<BridgeResult> {
         if (this.processError) {
             try {
                 const result = await this.actor.getServerStatus();
-                return from_candid_BridgeResult_n23(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_n29(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getServerStatus();
-            return from_candid_BridgeResult_n23(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_n29(this._uploadFile, this._downloadFile, result);
         }
     }
     async isCallerAdmin(): Promise<boolean> {
@@ -490,6 +485,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async setBridgeOperator(arg0: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setBridgeOperator(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setBridgeOperator(arg0);
+            return result;
+        }
+    }
     async transformBridgeResponse(arg0: {
         context: Uint8Array;
         response: HttpRequestResult;
@@ -508,11 +517,14 @@ export class Backend implements backendInterface {
         }
     }
 }
+function from_candid_AddressHistory_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AddressHistory): AddressHistory {
+    return from_candid_record_n21(_uploadFile, _downloadFile, value);
+}
 function from_candid_BridgeError_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeError): BridgeError {
     return from_candid_variant_n17(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_1_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_1): BridgeResult_1 {
-    return from_candid_variant_n22(_uploadFile, _downloadFile, value);
+function from_candid_BridgeResult_1_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_1): BridgeResult_1 {
+    return from_candid_variant_n28(_uploadFile, _downloadFile, value);
 }
 function from_candid_BridgeResult_2_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_2): BridgeResult_2 {
     return from_candid_variant_n19(_uploadFile, _downloadFile, value);
@@ -520,8 +532,8 @@ function from_candid_BridgeResult_2_n18(_uploadFile: (file: ExternalBlob) => Pro
 function from_candid_BridgeResult_3_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_3): BridgeResult_3 {
     return from_candid_variant_n15(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult): BridgeResult {
-    return from_candid_variant_n24(_uploadFile, _downloadFile, value);
+function from_candid_BridgeResult_n29(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult): BridgeResult {
+    return from_candid_variant_n30(_uploadFile, _downloadFile, value);
 }
 function from_candid_Cell_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Cell): Cell {
     return from_candid_record_n11(_uploadFile, _downloadFile, value);
@@ -529,17 +541,32 @@ function from_candid_Cell_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8
 function from_candid_Error_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Error): Error_ {
     return from_candid_variant_n4(_uploadFile, _downloadFile, value);
 }
+function from_candid_HistoryEntry_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _HistoryEntry): HistoryEntry {
+    return from_candid_record_n24(_uploadFile, _downloadFile, value);
+}
 function from_candid_Result__1_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Result__1): Result__1 {
     return from_candid_variant_n2(_uploadFile, _downloadFile, value);
 }
 function from_candid_Result_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Result): Result {
     return from_candid_record_n7(_uploadFile, _downloadFile, value);
 }
-function from_candid_UserRole_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+function from_candid_ServerStatus_n31(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ServerStatus): ServerStatus {
+    return from_candid_record_n32(_uploadFile, _downloadFile, value);
+}
+function from_candid_UserRole_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
 function from_candid_Value_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Value): Value {
     return from_candid_variant_n13(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n33(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
+    return value.length === 0 ? null : value[0];
 }
 function from_candid_record_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     value: _Value;
@@ -551,6 +578,54 @@ function from_candid_record_n11(_uploadFile: (file: ExternalBlob) => Promise<Uin
     return {
         value: from_candid_Value_n12(_uploadFile, _downloadFile, value.value),
         name: value.name
+    };
+}
+function from_candid_record_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    entries: Array<_HistoryEntry>;
+}): {
+    entries: Array<HistoryEntry>;
+} {
+    return {
+        entries: from_candid_vec_n22(_uploadFile, _downloadFile, value.entries)
+    };
+}
+function from_candid_record_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    height: bigint;
+    value: [] | [bigint];
+    txid: string;
+}): {
+    height: bigint;
+    value?: bigint;
+    txid: string;
+} {
+    return {
+        height: value.height,
+        value: record_opt_to_undefined(from_candid_opt_n25(_uploadFile, _downloadFile, value.value)),
+        txid: value.txid
+    };
+}
+function from_candid_record_n32(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    height: bigint;
+    protocolVersion: string;
+    checkpointConfigured: boolean;
+    serverVersion: string;
+    checkpointHeight: [] | [bigint];
+    checkpointHash: [] | [string];
+}): {
+    height: bigint;
+    protocolVersion: string;
+    checkpointConfigured: boolean;
+    serverVersion: string;
+    checkpointHeight?: bigint;
+    checkpointHash?: string;
+} {
+    return {
+        height: value.height,
+        protocolVersion: value.protocolVersion,
+        checkpointConfigured: value.checkpointConfigured,
+        serverVersion: value.serverVersion,
+        checkpointHeight: record_opt_to_undefined(from_candid_opt_n33(_uploadFile, _downloadFile, value.checkpointHeight)),
+        checkpointHash: record_opt_to_undefined(from_candid_opt_n34(_uploadFile, _downloadFile, value.checkpointHash))
     };
 }
 function from_candid_record_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -683,7 +758,7 @@ function from_candid_variant_n19(_uploadFile: (file: ExternalBlob) => Promise<Ui
 } {
     return "ok" in value ? {
         __kind__: "ok",
-        ok: { entries: value.ok.entries.map((entry) => ({ ...entry, value: entry.value[0] })) }
+        ok: from_candid_AddressHistory_n20(_uploadFile, _downloadFile, value.ok)
     } : "err" in value ? {
         __kind__: "err",
         err: from_candid_BridgeError_n16(_uploadFile, _downloadFile, value.err)
@@ -708,7 +783,7 @@ function from_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uin
         err: from_candid_Error_n3(_uploadFile, _downloadFile, value.err)
     } : value;
 }
-function from_candid_variant_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     ok: _FeeEstimate;
 } | {
     err: _BridgeError;
@@ -727,7 +802,7 @@ function from_candid_variant_n22(_uploadFile: (file: ExternalBlob) => Promise<Ui
         err: from_candid_BridgeError_n16(_uploadFile, _downloadFile, value.err)
     } : value;
 }
-function from_candid_variant_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n30(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     ok: _ServerStatus;
 } | {
     err: _BridgeError;
@@ -740,7 +815,7 @@ function from_candid_variant_n24(_uploadFile: (file: ExternalBlob) => Promise<Ui
 } {
     return "ok" in value ? {
         __kind__: "ok",
-        ok: { ...value.ok, checkpointHeight: value.ok.checkpointHeight[0], checkpointHash: value.ok.checkpointHash[0] }
+        ok: from_candid_ServerStatus_n31(_uploadFile, _downloadFile, value.ok)
     } : "err" in value ? {
         __kind__: "err",
         err: from_candid_BridgeError_n16(_uploadFile, _downloadFile, value.err)
@@ -854,6 +929,9 @@ function from_candid_variant_n4(_uploadFile: (file: ExternalBlob) => Promise<Uin
         __kind__: "FrontendOriginMismatch",
         FrontendOriginMismatch: value.FrontendOriginMismatch
     } : value;
+}
+function from_candid_vec_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_HistoryEntry>): Array<HistoryEntry> {
+    return value.map((x)=>from_candid_HistoryEntry_n23(_uploadFile, _downloadFile, x));
 }
 function from_candid_vec_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<Array<_Cell>>): Array<Array<Cell>> {
     return value.map((x)=>from_candid_vec_n9(_uploadFile, _downloadFile, x));

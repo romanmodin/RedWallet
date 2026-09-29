@@ -39,7 +39,7 @@ mixin (bridgeConfig : Types.BridgeConfig, bridgeSecurity : Types.BridgeSecurity)
 
   func resetConnection() {
     generation += 1;
-    cache := Map.empty<Text, { body : Text; at : Int }>();
+    cache := Map.empty();
     bridgeSecurity.checkpointVerified := false;
     bridgeSecurity.checkpointVerifiedAt := 0;
   };
@@ -138,7 +138,7 @@ mixin (bridgeConfig : Types.BridgeConfig, bridgeSecurity : Types.BridgeSecurity)
     if (quotaMinute != minute) {
       quotaMinute := minute;
       minuteCalls := 0;
-      callers := Map.empty<Principal, Nat>();
+      callers := Map.empty();
     };
     if (activeCalls >= 6 or minuteCalls >= 120 or bridgeSecurity.quotaCalls >= 3000) return false;
     let used = switch (callers.get(caller)) { case (?n) n; case null 0 };
@@ -171,7 +171,7 @@ mixin (bridgeConfig : Types.BridgeConfig, bridgeSecurity : Types.BridgeSecurity)
     let result = BridgeLib.decodeBody(response);
     switch (result) {
       case (#ok body) {
-        if (cache.size() >= 128) cache := Map.empty<Text, { body : Text; at : Int }>();
+        if (cache.size() >= 128) cache := Map.empty();
         cache.add(key, { body; at = Time.now() });
       };
       case (#err _) {};

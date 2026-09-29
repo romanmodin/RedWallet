@@ -5,24 +5,12 @@
 - Mobile-first, polished, iPhone and desktop
 - Installable as a PWA
 - Clear RedWallet branding with a calm, trustworthy, security-focused visual design
-- Demo wallets remain clearly labeled; watch-only wallets use only live bridge data and explicit unavailable states
-- Mock data behind a clean typed service interface, replaceable later
-- Backend adapters kept separate from UI components
-- Dashboard shown first
-- UI is for XBT; avoid Bitcoin-specific wording and never present demo addresses as usable
-- Demo cards use the neutral label; watch-only cards may show only the actual address explicitly entered by the user
-- A live XBT connection requires the operator bridge and verified XBT checkpoint; otherwise show an explicit unavailable state
-- Contact only the configured operator bridge via the canister; live fiat valuation is unavailable unless the user supplies a manual rate
+- Watch-only: entered-address balance/history/receive, manual price, honest connection status
+- Send, seed and recovery stay disabled; the isolated signing core stays disconnected
+- Never put keys, seeds, bridge secrets or operator identity into the frontend
 - Bridge upstream is operator-configured only; no default or public upstream
-- The released UI remains watch-only. The user authorized continued spending-wallet implementation on 2026-09-29. Develop the native XBT signing core in isolation and keep it disconnected from the UI until vault, recovery, UTXO verification, transaction review and broadcast gates pass. Never send wallet secrets to a canister, bridge, log or Caffeine prompt.
-- Pin the checkpoint verified against live Knots and Fulcrum on 2026-09-29; never infer BTC chain identity
-
-## Deployment direction
-
-- The user authorized GitHub source storage, Umbrel bridge deployment and Caffeine publication on 2026-09-29.
-- Dedicated bridge configuration is restricted to the pinned operator principal or the canister controller.
-- Never commit operator private identity or bridge bearer secret; they are stored only in the private Umbrel deployment directory.
-- Existing red layout and routes are retained; necessary controls in the existing wallet dialog and settings enable watch-only addresses and manual prices.
+- No private keys, transaction data, signing, construction, or broadcast anywhere
+- Keep the pinned operator principal, red UI, checkpoint and migration chain intact
 
 ## Verified Commands
 
@@ -32,22 +20,12 @@
 
 ## Learnings
 
-- Settings default serverHost is an empty string by design — never substitute a public server; the status screen derives offline state from an empty host.
-- Test suite is Vitest + jsdom + Testing Library under src/frontend/src/test; run with pnpm --dir app test.
-- SendPage recipient validation intentionally rejects only empty/whitespace input; it does not validate any address prefix, so demo strings pass.
-- ReceivePage exposes a module-level DEMO_RECEIVE_ADDRESS constant ('xbt-demo-address-not-valid') instead of deriving a per-wallet address string.
-- Demo transaction counterparty addresses are the invalid literal 'xbt-demo-address-not-valid'; wallet short IDs use an xbt1 prefix and are identifiers, not addresses.
-- The bc1 example in lib/format.ts lived only in the truncateAddress doc comment; the function itself is generic.
-- Biome's pnpm fix step reformats unrelated files (line wrapping) during check; verify the diff is formatting-only before reporting changed files.
-- NetworkName is narrowed to a single 'unconfigured' variant; the settings normalizer rejects any persisted mainnet/testnet value back to the safe default.
-- NetworkSetting takes no props and ServerSummary dropped its network prop, so StatusPage/SettingsPage call sites must be updated together or typecheck fails.
-- fiatRate.ts serves only the local fallback constant; fetchFiatRate is retained as an async ServiceResult wrapper so callers compile without any network path, and DashboardPage seeds the rate with a synchronous useState initializer.
 - Wallet shortId is the neutral literal 'Demo address — not real' for all seeds and added wallets; no xbt1/bc1 address strings remain in UI data.
 - Biome's fix step collapses a JSDoc block onto the following declaration line when the blank line after the comment is removed; keep the blank line to avoid the artifact.
 - The bridge is a new pnpm workspace package under src/bridge; root recursive scripts pick it up, but the root test script is not recursive and must be extended to run the bridge tests.
 - pnpm install --no-frozen-lockfile is required after adding a new workspace package.
 - The bridge's validateRequest requires params to be a JSON array; the canister must serialize params as an array or the bridge rejects with invalid_request before upstream contact.
-- The bridge allowlist includes server.status, server.version, server.features, address.balance, address.history, fee.estimate and headers.checkpoint. server.status returns the verified checkpoint and current height; server.version returns an array [serverVersion, protocolVersion].
+- The bridge allowlist is exactly server.version, server.features, address.balance, address.history, fee.estimate, headers.checkpoint — there is no server.status; server.version returns an array [serverVersion, protocolVersion].
 - Successful bridge responses are wrapped as { result: <upstream result> }; a non-2xx response carries { error: { code, message } }. Parsers must unwrap result and treat a missing envelope or error object as malformed.
 - A shared function (including the http_request transform) cannot be declared in a lib module — it must be a public field of the actor/mixin; pass it into lib helpers as an optional parameter.
 - The IC http_request transform signature is a single record argument: shared query { context : Blob; response : HttpRequestResult } -> async HttpRequestResult.
@@ -55,5 +33,15 @@
 - Blob.fromArray is deprecated; use [].toBlob().
 - mops test discovers *.test.mo under a test/ directory; mops check --fix verifies stable compatibility against .old/src/backend/dist/backend.most and the new migration's OldActor must equal the previous migration's NewActor.
 - The app's test harness mounts <App /> without InternetIdentityProvider/QueryClientProvider; the React-free service layer resolves the canister lazily via createActorWithConfig(createActor) and degrades to the demo service when CANISTER_ID_BACKEND is unset.
-- Docker is unavailable in scratch, but the Node 22 bridge image was built and verified on Umbrel on 2026-09-29.
+- Docker is unavailable in this environment, so the bridge Dockerfile is authored but not build-verified.
 - A real HTTPS outcall to a non-answering host exhausts PocketIC's 100-round ingress budget (BadIngressMessage), so the configured-but-unreachable path is covered only by pure Motoko unit tests and the mocked frontend service seam.
+- The reviewed RedWallet source (romanmodin/RedWallet commit 77837a6d4, branch web/caffeine-bridge-deployment) is the source of record; the archive is extracted at .recon/redwallet-archive.
+- The one intentional divergence from the archive is pnpm-workspace.yaml: keep the Caffeine-safe onlyBuiltDependencies/ignoredBuiltDependencies policy instead of the archive's allowBuilds key, which would re-enable the @dfinity/pic GitHub PocketIC binary download.
+- The backend bridge client uses mo:json (json = 1.4.0 mops dependency) with strict unwrapResult + uniqueKeys duplicate-key rejection.
+- BridgeLib.validAddress accepts only alphanumeric characters (14-90 chars); the demo literal 'xbt-demo-address-not-valid' is rejected as invalid_input before any not-configured check.
+- BridgeLib.validSecret requires 32-256 printable characters, so any test fixture secret shorter than 32 chars traps setBridgeConfig.
+- The pinned operator principal nxkke-m27nb-dfnhs-cw533-g6lfi-ajhii-ffhn2-rhyb2-e5af4-aoarh-dqe lives only in the backend migration 20260929_083000.mo; the frontend never references it.
+- The reviewed bridge allowlist has 7 read-only methods including server.status (maps to blockchain.headers.subscribe) and headers.checkpoint (maps to blockchain.block.header).
+- The isolated XBT signing core under src/frontend/src/lib/xbt is imported only by its own tests and harness; it must stay disconnected from every route and service.
+- The PocketIC backend lane runs in this environment (sidecar reachable, wasm installs) and its 8 tests exercise the real compiled canister; it is not a skip.
+- The bridge is already live at https://umbrel-3.tailaa2bb4.ts.net:10000; the operator configures the backend privately with configure-canister.mjs after deploy, so live connectivity must not be claimed before that.

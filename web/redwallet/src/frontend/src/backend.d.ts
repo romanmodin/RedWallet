@@ -27,6 +27,10 @@ export type BridgeError = {
     __kind__: "backend_unavailable";
     backend_unavailable: string;
 };
+export interface BridgeOperatorStatus {
+    isOperator: boolean;
+    operatorConfigured: boolean;
+}
 export type BridgeResult = {
     __kind__: "ok";
     ok: ServerStatus;
@@ -55,10 +59,6 @@ export type BridgeResult_3 = {
     __kind__: "err";
     err: BridgeError;
 };
-export interface BridgeOperatorStatus {
-    isOperator: boolean;
-    operatorConfigured: boolean;
-}
 export interface BridgeStatus {
     checkpointConfigured: boolean;
     configured: boolean;
@@ -140,12 +140,12 @@ export type Result__1 = {
     err: Error_;
 };
 export interface ServerStatus {
-    checkpointHeight?: bigint;
-    checkpointHash?: string;
     height: bigint;
     protocolVersion: string;
     checkpointConfigured: boolean;
     serverVersion: string;
+    checkpointHeight?: bigint;
+    checkpointHash?: string;
 }
 export type Value = {
     __kind__: "int";
@@ -173,50 +173,23 @@ export enum UserRole {
 }
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    /**
-     * / Clears the bridge configuration. Admin-only. After this, every read
-     * / returns `#not_configured`.
-     */
     clearBridgeConfig(): Promise<void>;
     execute(qJson: string): Promise<Result>;
-    /**
-     * / Reads an address balance through the bridge.
-     */
     getAddressBalance(address: string): Promise<BridgeResult_3>;
-    /**
-     * / Reads address history through the bridge.
-     */
     getAddressHistory(address: string): Promise<BridgeResult_2>;
-    /**
-     * / Reports only whether a bridge is configured. Never returns the URL or
-     * / secret.
-     */
-    getBridgeStatus(): Promise<BridgeStatus>;
+    getApiDoc(): Promise<string>;
     getBridgeOperatorStatus(): Promise<BridgeOperatorStatus>;
-    setBridgeOperator(operator: Principal): Promise<void>;
+    getBridgeStatus(): Promise<BridgeStatus>;
     getCallerUserRole(): Promise<UserRole>;
-    /**
-     * / Reads a fee estimate through the bridge. The bridge requires a target
-     * / block count in `[1, 1008]`; the canister uses a fixed default.
-     */
     getFeeEstimate(): Promise<BridgeResult_1>;
-    /**
-     * / Reads server/network status through the bridge. Uses the allowlisted
-     * / `server.version` method (there is no `server.status` on the bridge). The
-     * / checkpoint is reported as unconfigured.
-     */
     getServerStatus(): Promise<BridgeResult>;
     isCallerAdmin(): Promise<boolean>;
     schema(): Promise<string>;
-    /**
-     * / Sets the bridge base URL and deployment secret. Admin-only. The URL must
-     * / be HTTPS. Neither value is echoed back.
-     */
     setBridgeConfig(baseUrl: string, secret: string): Promise<void>;
     /**
-     * / Consensus-safe transform: strips volatile headers so all replicas agree
-     * / on the response. The body is passed through unchanged.
+     * / Recovery/rotation is controller-only. Public login roles confer no power.
      */
+    setBridgeOperator(operator: Principal): Promise<void>;
     transformBridgeResponse(args: {
         context: Uint8Array;
         response: HttpRequestResult;

@@ -145,7 +145,7 @@ it("strips volatile headers in the consensus transform", async () => {
   expect(transformed.headers).toEqual([]);
 });
 
- it("public role bootstrap cannot grant bridge configuration authority", async () => {
+it("public role bootstrap cannot grant bridge configuration authority", async () => {
   actor.setPrincipal(OTHER);
   await actor._initialize_access_control();
   expect((await actor.getBridgeOperatorStatus()).isOperator).toBe(false);
