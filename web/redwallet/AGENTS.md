@@ -1,3 +1,11 @@
+# Version numbering correction
+
+User clarified on 2026-09-29: this release is 0.20, next is 0.21, then 0.22.
+1.0 marks the ready-to-use release. The earlier 0.16 request was a misunderstanding.
+A label-only Caffeine publication may have its own internal revision number;
+retain public release 0.20 for this correction, and increment public releases next.
+Do not reset the first-launch marker when changing versions.
+
 # Current release: RedWallet 0.16 preview
 
 The user supplied an iPhone screenshot on 2026-09-29 showing the production
