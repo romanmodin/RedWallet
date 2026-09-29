@@ -14,7 +14,7 @@
 - A live XBT connection requires the operator bridge and verified XBT checkpoint; otherwise show an explicit unavailable state
 - Contact only the configured operator bridge via the canister; live fiat valuation is unavailable unless the user supplies a manual rate
 - Bridge upstream is operator-configured only; no default or public upstream
-- No wallet private keys, seed phrases, signing, construction, or broadcast; read-only transaction metadata is permitted
+- The released UI remains watch-only. The user authorized continued spending-wallet implementation on 2026-09-29. Develop the native XBT signing core in isolation and keep it disconnected from the UI until vault, recovery, UTXO verification, transaction review and broadcast gates pass. Never send wallet secrets to a canister, bridge, log or Caffeine prompt.
 - Pin the checkpoint verified against live Knots and Fulcrum on 2026-09-29; never infer BTC chain identity
 
 ## Deployment direction
@@ -47,7 +47,7 @@
 - The bridge is a new pnpm workspace package under src/bridge; root recursive scripts pick it up, but the root test script is not recursive and must be extended to run the bridge tests.
 - pnpm install --no-frozen-lockfile is required after adding a new workspace package.
 - The bridge's validateRequest requires params to be a JSON array; the canister must serialize params as an array or the bridge rejects with invalid_request before upstream contact.
-- The bridge allowlist is exactly server.version, server.features, address.balance, address.history, fee.estimate, headers.checkpoint — there is no server.status; server.version returns an array [serverVersion, protocolVersion].
+- The bridge allowlist includes server.status, server.version, server.features, address.balance, address.history, fee.estimate and headers.checkpoint. server.status returns the verified checkpoint and current height; server.version returns an array [serverVersion, protocolVersion].
 - Successful bridge responses are wrapped as { result: <upstream result> }; a non-2xx response carries { error: { code, message } }. Parsers must unwrap result and treat a missing envelope or error object as malformed.
 - A shared function (including the http_request transform) cannot be declared in a lib module — it must be a public field of the actor/mixin; pass it into lib helpers as an optional parameter.
 - The IC http_request transform signature is a single record argument: shared query { context : Blob; response : HttpRequestResult } -> async HttpRequestResult.
@@ -55,5 +55,5 @@
 - Blob.fromArray is deprecated; use [].toBlob().
 - mops test discovers *.test.mo under a test/ directory; mops check --fix verifies stable compatibility against .old/src/backend/dist/backend.most and the new migration's OldActor must equal the previous migration's NewActor.
 - The app's test harness mounts <App /> without InternetIdentityProvider/QueryClientProvider; the React-free service layer resolves the canister lazily via createActorWithConfig(createActor) and degrades to the demo service when CANISTER_ID_BACKEND is unset.
-- Docker is unavailable in this environment, so the bridge Dockerfile is authored but not build-verified.
+- Docker is unavailable in scratch, but the Node 22 bridge image was built and verified on Umbrel on 2026-09-29.
 - A real HTTPS outcall to a non-answering host exhausts PocketIC's 100-round ingress budget (BadIngressMessage), so the configured-but-unreachable path is covered only by pure Motoko unit tests and the mocked frontend service seam.

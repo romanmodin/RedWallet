@@ -26,6 +26,14 @@ the canister source. Run `configure-canister.mjs` from that directory with the
 deployed canister ID and HTTPS bridge base URL. The script reads the secret
 locally and sends it only in the authenticated canister configuration call.
 
+After configuration, run `node verify-canister.mjs CANISTER_ID` from the same
+private operator directory. This anonymous, read-only probe requires the exact
+XBT checkpoint and calls status, balance, history and fees through the deployed
+canister. It uses the published BIP84 test address and never reads an identity
+or bridge secret. Save its successful output as deployment evidence, then
+verify the same functions in the published browser UI. Merely passing the
+helper's syntax check does not establish an actual canister connection.
+
 Before publishing, verify container health, authorization rejection, real
 status with a verified checkpoint, address balance/history, and failure
 responses. Then verify the HTTPS endpoint externally and through an actual

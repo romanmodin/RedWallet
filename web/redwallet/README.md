@@ -23,6 +23,12 @@ sign transactions, or send funds. It is not a completed replacement for the
 native iPhone wallet. Funds can be spent using the separate wallet that owns
 the entered address.
 
+An isolated browser-compatible XBT signing core is being ported from the tested
+native RedWallet implementation. This development module does not enable
+spending in the web UI. Its own tests and provenance are documented under
+`src/frontend/src/lib/xbt`; end-to-end wallet and deployment gates remain
+separate.
+
 ## Source layout
 
 - `src/frontend`: React application, existing red design and routes.
