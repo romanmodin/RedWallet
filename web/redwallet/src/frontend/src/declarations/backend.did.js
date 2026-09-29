@@ -35,6 +35,20 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const BroadcastReceipt = IDL.Record({
+  'txid' : IDL.Text,
+  'outcome' : IDL.Text,
+});
+export const BridgeError = IDL.Variant({
+  'not_configured' : IDL.Null,
+  'malformed_response' : IDL.Text,
+  'invalid_input' : IDL.Text,
+  'backend_unavailable' : IDL.Text,
+});
+export const BridgeResult_6 = IDL.Variant({
+  'ok' : BroadcastReceipt,
+  'err' : BridgeError,
+});
 export const Value = IDL.Variant({
   'int' : IDL.Int,
   'nat' : IDL.Nat,
@@ -51,12 +65,6 @@ export const Result = IDL.Record({
 export const AddressBalance = IDL.Record({
   'unconfirmed' : IDL.Int,
   'confirmed' : IDL.Nat,
-});
-export const BridgeError = IDL.Variant({
-  'not_configured' : IDL.Null,
-  'malformed_response' : IDL.Text,
-  'invalid_input' : IDL.Text,
-  'backend_unavailable' : IDL.Text,
 });
 export const BridgeResult_5 = IDL.Variant({
   'ok' : AddressBalance,
@@ -107,6 +115,7 @@ export const ServerStatus = IDL.Record({
   'checkpointConfigured' : IDL.Bool,
   'serverVersion' : IDL.Text,
   'checkpointHeight' : IDL.Opt(IDL.Nat),
+  'broadcastEnabled' : IDL.Opt(IDL.Bool),
   'checkpointHash' : IDL.Opt(IDL.Text),
 });
 export const BridgeResult = IDL.Variant({
@@ -125,6 +134,11 @@ export const idlService = IDL.Service({
   '_internet_identity_sign_in_finish' : IDL.Func([], [Result__1], []),
   '_internet_identity_sign_in_start' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'broadcastSignedTransaction' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [BridgeResult_6],
+      [],
+    ),
   'clearBridgeConfig' : IDL.Func([], [], []),
   'execute' : IDL.Func([IDL.Text], [Result], ['query']),
   'getAddressBalance' : IDL.Func([IDL.Text], [BridgeResult_5], []),
@@ -183,6 +197,20 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const BroadcastReceipt = IDL.Record({
+    'txid' : IDL.Text,
+    'outcome' : IDL.Text,
+  });
+  const BridgeError = IDL.Variant({
+    'not_configured' : IDL.Null,
+    'malformed_response' : IDL.Text,
+    'invalid_input' : IDL.Text,
+    'backend_unavailable' : IDL.Text,
+  });
+  const BridgeResult_6 = IDL.Variant({
+    'ok' : BroadcastReceipt,
+    'err' : BridgeError,
+  });
   const Value = IDL.Variant({
     'int' : IDL.Int,
     'nat' : IDL.Nat,
@@ -199,12 +227,6 @@ export const idlFactory = ({ IDL }) => {
   const AddressBalance = IDL.Record({
     'unconfirmed' : IDL.Int,
     'confirmed' : IDL.Nat,
-  });
-  const BridgeError = IDL.Variant({
-    'not_configured' : IDL.Null,
-    'malformed_response' : IDL.Text,
-    'invalid_input' : IDL.Text,
-    'backend_unavailable' : IDL.Text,
   });
   const BridgeResult_5 = IDL.Variant({
     'ok' : AddressBalance,
@@ -255,6 +277,7 @@ export const idlFactory = ({ IDL }) => {
     'checkpointConfigured' : IDL.Bool,
     'serverVersion' : IDL.Text,
     'checkpointHeight' : IDL.Opt(IDL.Nat),
+    'broadcastEnabled' : IDL.Opt(IDL.Bool),
     'checkpointHash' : IDL.Opt(IDL.Text),
   });
   const BridgeResult = IDL.Variant({
@@ -273,6 +296,11 @@ export const idlFactory = ({ IDL }) => {
     '_internet_identity_sign_in_finish' : IDL.Func([], [Result__1], []),
     '_internet_identity_sign_in_start' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'broadcastSignedTransaction' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [BridgeResult_6],
+        [],
+      ),
     'clearBridgeConfig' : IDL.Func([], [], []),
     'execute' : IDL.Func([IDL.Text], [Result], ['query']),
     'getAddressBalance' : IDL.Func([IDL.Text], [BridgeResult_5], []),

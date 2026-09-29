@@ -114,6 +114,20 @@ mixin (bridgeConfig : Types.BridgeConfig, bridgeSecurity : Types.BridgeSecurity)
     };
   };
 
+  /// No keys or signing: only already-signed narrow-format transaction bytes.
+  /// Any outcall failure may be an unknown broadcast outcome; callers must
+  /// retain/reconcile the same bytes and never automatically rebuild a payment.
+  public shared ({ caller }) func broadcastSignedTransaction(raw : Text, expectedTxid : Text) : async Types.BridgeResult<Types.BroadcastReceipt> {
+    if (not BridgeLib.validSignedTransactionHex(raw) or not BridgeLib.isLowerHex64(expectedTxid)) return #err(#invalid_input("invalid signed transaction"));
+    switch (await fetch(caller, BridgeLib.methodBroadcastTransaction, BridgeLib.rawTransactionParams(raw))) {
+      case (#err e) #err e;
+      case (#ok body) switch (BridgeLib.parseBroadcastReceipt(body, expectedTxid)) {
+        case (?value) #ok value;
+        case null #err(#malformed_response("broadcast outcome is unknown; reconcile the original transaction"));
+      };
+    };
+  };
+
   public shared ({ caller }) func getFeeEstimate() : async Types.BridgeResult<Types.FeeEstimate> {
     switch (await fetch(caller, BridgeLib.methodFeeEstimate, "[" # BridgeLib.defaultFeeTargetBlocks.toText() # "]")) {
       case (#err e) #err e;
@@ -181,7 +195,7 @@ mixin (bridgeConfig : Types.BridgeConfig, bridgeSecurity : Types.BridgeSecurity)
       case (?entry) { if (now - entry.at < 10_000_000_000) return #ok(entry.body) };
       case null {};
     };
-    if (not reserve(caller, now)) return #err(#backend_unavailable("Read limit reached. Try again later."));
+    if (not reserve(caller, now)) return #err(#backend_unavailable("Request limit reached. Try again later."));
     let callGeneration = generation;
     let request = BridgeLib.buildRequest(bridgeConfig.baseUrl, bridgeConfig.secret, method, params, ?transformBridgeResponse);
     let response = try { await Call.httpRequest(request) } catch (_) {

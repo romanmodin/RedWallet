@@ -6,8 +6,8 @@
  * chosen here and in configuration — never from the request body. There is no
  * route that accepts an arbitrary upstream method or host.
  *
- * Only read-only methods are present. There is deliberately no signing,
- * transaction-construction, or broadcast route.
+ * Reads plus a narrow signed-transaction broadcast method, disabled by default
+ * at the server. No signing, construction, arbitrary methods, or private keys.
  */
 
 export type BridgeMethod =
@@ -18,6 +18,7 @@ export type BridgeMethod =
   | "address.history"
   | "address.utxos"
   | "transaction.raw"
+  | "transaction.broadcast"
   | "fee.estimate"
   | "headers.checkpoint";
 
@@ -25,7 +26,7 @@ export interface MethodSpec {
   /** The fixed upstream Electrum method this bridge method maps to. */
   readonly upstreamMethod: string;
   /** How the bridge validates and forwards the request params. */
-  readonly params: "none" | "scripthash" | "txid" | "target_blocks" | "height";
+  readonly params: "none" | "scripthash" | "txid" | "target_blocks" | "height" | "signed_transaction";
 }
 
 export const ALLOWLIST: Readonly<Record<BridgeMethod, MethodSpec>> = {
@@ -52,6 +53,10 @@ export const ALLOWLIST: Readonly<Record<BridgeMethod, MethodSpec>> = {
   "address.utxos": {
     upstreamMethod: "blockchain.scripthash.listunspent",
     params: "scripthash",
+  },
+  "transaction.broadcast": {
+    upstreamMethod: "blockchain.transaction.broadcast",
+    params: "signed_transaction",
   },
   "transaction.raw": {
     upstreamMethod: "blockchain.transaction.get",

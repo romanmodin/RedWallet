@@ -6,10 +6,10 @@
 mixin () {
   public query func getApiDoc() : async Text {
     "# RedWallet Backend API\n\n" #
-    "Watch-only XBT wallet backend. The canister holds **no keys, no seeds, and no\n" #
-    "signing capability**. It exposes read-only address balance/history/fee data\n" #
+    "XBT wallet backend. The canister holds **no keys, no seeds, and no\n" #
+    "signing capability**. It exposes address balance/history/fee data\n" #
     "routed through an operator-configured HTTPS bridge, plus non-secret\n" #
-    "configuration status. Send, seed and recovery are intentionally absent.\n\n" #
+    "configuration status and a constrained already-signed transaction relay.\n\n" #
     "## Authentication and identity\n\n" #
     "- Most read endpoints are callable by **any caller, including anonymous**.\n" #
     "  `getAddressBalance`, `getAddressHistory`, `getFeeEstimate`, `getServerStatus`,\n" #
@@ -133,7 +133,7 @@ mixin () {
     "- Per-caller read quotas apply: 20 reads/minute for a signed-in caller, 60\n" #
     "  reads/minute for an anonymous caller, with at most 6 concurrent reads, 120\n" #
     "  reads/minute overall, and 3000 reads/day overall. Exceeding a limit returns\n" #
-    "  `#backend_unavailable` with the message `Read limit reached. Try again later.`.\n" #
+    "  `#backend_unavailable` with the message `Request limit reached. Try again later.`.\n" #
     "- Identical bridge requests are served from a 10-second in-memory cache.\n" #
     "- Bridge reads use `is_replicated = false`: a single replica reads the\n" #
     "  operator's server. These are watch-only reads, not consensus-verified\n" #
@@ -141,9 +141,15 @@ mixin () {
     "- Addresses are validated cheaply before any paid outcall: 14-90 characters,\n" #
     "  alphanumeric only. Transaction ids are validated as 64-character lowercase\n" #
     "  hex before any paid outcall.\n" #
-    "- There is **no broadcast, signing, or private-key endpoint**. The canister\n" #
-    "  holds no keys and cannot spend; `getAddressUtxos` and `getRawTransaction`\n" #
-    "  are read-only.\n" #
+    "- There is **no signing or private-key endpoint**. The canister never holds keys.\n" #
+    "  `broadcastSignedTransaction(raw, expectedTxid)` relays only already-signed\n" #
+    "  lowercase hex, bounded to 32768 characters. The bridge independently checks\n" #
+    "  its narrow XBT format and computed txid. Operator opt-in and verified\n" #
+    "  checkpoint are required; broadcasting is disabled by default.\n" #
+    "  Acknowledged means a node response, not confirmation. Errors and unknown\n" #
+    "  outcomes must be reconciled with the original bytes, never automatic\n" #
+    "  replacement payments. Same-byte requests coalesce; unknown receipts only\n" #
+    "  reconcile for ten minutes. ServerStatus.broadcastEnabled is optional.\n" #
     "- The bridge base URL must use `https://`, must not end with a trailing slash,\n" #
     "  and the secret must be 32-256 printable ASCII characters.\n" #
     "- `transformBridgeResponse` is the IC HTTP-outcall transform; it is an\n" #

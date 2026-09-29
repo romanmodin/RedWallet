@@ -171,11 +171,13 @@ it("documents admin as operator-assigned, not first-user promotion", async () =>
   expect(doc).not.toMatch(/first (user|caller)[^.]*is (made )?admin/i);
 });
 
-it("documents the two read-only methods and the absence of any write endpoint", async () => {
+it("documents public reads and the constrained signed relay", async () => {
   const doc = await actor.getApiDoc();
   expect(doc).toContain("getAddressUtxos");
   expect(doc).toContain("getRawTransaction");
-  expect(doc).toContain("no broadcast, signing, or private-key endpoint");
+  expect(doc).toContain("no signing or private-key endpoint");
+  expect(doc).toContain("broadcastSignedTransaction");
+  expect(doc).toContain("disabled by default");
 });
 
 it("strips volatile headers in the consensus transform", async () => {
@@ -238,4 +240,15 @@ it("never leaks the bridge URL or secret through the new read error paths", asyn
   expect(JSON.stringify(badTxid)).not.toContain(BRIDGE_SECRET);
 
   await actor.clearBridgeConfig();
+});
+
+// No HTTPS or financial action: malformed input and missing configuration only.
+it("rejects invalid signed transaction inputs before any paid call", async () => {
+  const invalid = await actor.broadcastSignedTransaction("not-hex", "a".repeat(64));
+  expect(invalid).toHaveProperty("err.invalid_input");
+  const badId = await actor.broadcastSignedTransaction("00", "bad");
+  expect(badId).toHaveProperty("err.invalid_input");
+  await actor.clearBridgeConfig();
+  const unconfigured = await actor.broadcastSignedTransaction("00", "a".repeat(64));
+  expect(unconfigured).toHaveProperty("err.not_configured");
 });

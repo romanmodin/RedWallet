@@ -96,6 +96,9 @@ module {
 
   /// Raw transaction bytes as reported by the bridge, hex-encoded and
   /// lowercased. Nonempty, even length, at most 200000 hex characters.
+  /// Submitted signed bytes only; acknowledged does not mean confirmed.
+  public type BroadcastReceipt = { txid : Text; outcome : Text };
+
   public type RawTransaction = {
     hex : Text;
   };
@@ -110,5 +113,6 @@ module {
     checkpointConfigured : Bool;
     checkpointHeight : ?Nat;
     checkpointHash : ?Text;
+    broadcastEnabled : ?Bool;
   };
 };

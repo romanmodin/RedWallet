@@ -18,6 +18,7 @@ module {
   public let methodAddressHistory = "address.history";
   public let methodAddressUtxos = "address.utxos";
   public let methodRawTransaction = "transaction.raw";
+  public let methodBroadcastTransaction = "transaction.broadcast";
   public let methodFeeEstimate = "fee.estimate";
   public let methodCheckpoint = "headers.checkpoint";
   public let defaultFeeTargetBlocks : Nat = 2;
@@ -271,6 +272,20 @@ module {
     ?{ hex };
   };
 
+  /// Limit paid submission bytes before the bridge performs full structural checks.
+  public func validSignedTransactionHex(raw : Text) : Bool {
+    raw.size() <= 32_768 and isRawTransactionHex(raw);
+  };
+
+  public func parseBroadcastReceipt(body : Text, expectedTxid : Text) : ?Types.BroadcastReceipt {
+    if (not isLowerHex64(expectedTxid)) return null;
+    let result = unwrapResult(body) ?? return null;
+    let txid = text(field(result, "txid") ?? return null) ?? return null;
+    let outcome = text(field(result, "outcome") ?? return null) ?? return null;
+    if (txid != expectedTxid or (outcome != "acknowledged" and outcome != "unknown")) return null;
+    ?{ txid; outcome };
+  };
+
   public func parseFeeEstimate(body : Text) : ?Types.FeeEstimate {
     let result = unwrapResult(body) ?? return null;
     let coinsPerKb = switch (result) {
@@ -303,6 +318,10 @@ module {
     };
     if (checkpointConfigured and (checkpointHeight == null or checkpointHash == null)) return null;
     if (not checkpointConfigured and (checkpointHeight != null or checkpointHash != null)) return null;
-    ?{ serverVersion; protocolVersion; height; checkpointConfigured; checkpointHeight; checkpointHash };
+    let broadcastEnabled = switch (field(result, "broadcastEnabled")) {
+      case null null;
+      case (?value) ?(boolean(value) ?? return null);
+    };
+    ?{ serverVersion; protocolVersion; height; checkpointConfigured; checkpointHeight; checkpointHash; broadcastEnabled };
   };
 };

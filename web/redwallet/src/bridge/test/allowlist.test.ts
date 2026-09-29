@@ -87,8 +87,9 @@ async function rpc(
   return { status: response.status, json: await response.json() };
 }
 
-test("allowlist: contains only read-only methods and no write route", () => {
-  const names = bridgeMethodNames();
+test("allowlist: only the explicitly gated signed broadcast method extends reads", () => {
+  const names = bridgeMethodNames().filter(name => name !== "transaction.broadcast");
+  assert.equal(ALLOWLIST["transaction.broadcast"].params, "signed_transaction");
   assert.ok(names.length > 0);
 
   // Every allowlisted method is a read: server metadata, address reads, fee
@@ -127,7 +128,7 @@ test("allowlist: address.utxos and transaction.raw are present and read-only", (
 
   // No broadcast, signing, or private-key method exists in the allowlist.
   const forbidden = /(broadcast|send|sign|submit|push|create|spend|private|key)/i;
-  for (const name of bridgeMethodNames()) {
+  for (const name of bridgeMethodNames().filter(name => name !== "transaction.broadcast")) {
     assert.equal(forbidden.test(name), false, `allowlisted method "${name}" looks like a write route`);
     assert.equal(forbidden.test(ALLOWLIST[name].upstreamMethod), false, `upstream method "${ALLOWLIST[name].upstreamMethod}" looks like a write route`);
   }
@@ -151,6 +152,7 @@ test("allowlist: every bridge method maps to its fixed upstream method", () => {
     "address.history": "blockchain.scripthash.get_history",
     "address.utxos": "blockchain.scripthash.listunspent",
     "transaction.raw": "blockchain.transaction.get",
+    "transaction.broadcast": "blockchain.transaction.broadcast",
     "fee.estimate": "blockchain.estimatefee",
     "headers.checkpoint": "blockchain.block.header",
     "server.status": "blockchain.headers.subscribe",

@@ -5,11 +5,12 @@
  *   GET  /health  -> { status, upstreamConfigured }   (no secrets)
  *   POST /rpc     -> { method, params } + Bearer auth  (allowlisted reads)
  *
- * Everything else is 404. There is no signing, transaction-construction, or
- * broadcast route, and no route that accepts an upstream method or host from
- * the request.
+ * Everything else is 404. Broadcast accepts only the reviewed signed format
+ * and requires explicit operator opt-in plus a configured/verified checkpoint.
+ * No signing, construction, or caller-selected upstream method/host.
  */
 
+import { BroadcastCoordinator } from "./broadcast.js";
 import http from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import {
@@ -173,6 +174,7 @@ export function createServer(deps: ServerDeps): http.Server {
       timeoutMs: config.requestTimeoutMs,
     });
 
+  const broadcaster = new BroadcastCoordinator(upstream, now);
   const server = http.createServer({ maxHeaderSize: 8192 }, (req, res) => {
     void handle(req, res);
   });
@@ -199,6 +201,7 @@ export function createServer(deps: ServerDeps): http.Server {
 
   async function query(method: string, params: unknown[], upstreamMethod: string): Promise<unknown> {
     await verifyCheckpoint();
+    if (method === "transaction.broadcast") return broadcaster.submit(params[0]);
     if (method === "server.status") {
       const [tip, version] = await Promise.all([
         upstream.call("blockchain.headers.subscribe", []),
@@ -211,6 +214,7 @@ export function createServer(deps: ServerDeps): http.Server {
         height: tip.height,
         serverVersion: version[0], protocolVersion: version[1],
         checkpointVerified: config.checkpoint !== null,
+        broadcastEnabled: config.enableBroadcast === true && config.checkpoint !== null,
         checkpointHeight: config.checkpoint?.height ?? null,
         checkpointHash: config.checkpoint?.hash ?? null,
       };
@@ -293,6 +297,7 @@ export function createServer(deps: ServerDeps): http.Server {
     }
 
     const request = validateRequest(parsed);
+    if (request.method === "transaction.broadcast" && (!config.enableBroadcast || config.checkpoint === null)) throw new BridgeError("method_not_allowed");
     const spec = ALLOWLIST[request.method];
 
     const key = JSON.stringify([request.method, request.upstreamParams]);

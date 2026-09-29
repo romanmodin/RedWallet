@@ -141,4 +141,23 @@ suite("bridge client live contract", func() {
     switch (BridgeLib.decodeResponse(response(504, "timeout"), BridgeLib.parseBalance)) { case (#err(#backend_unavailable(_))) {}; case _ assert false };
     switch (BridgeLib.decodeResponse(response(400, "invalid"), BridgeLib.parseBalance)) { case (#err(#invalid_input(_))) {}; case _ assert false };
   });
+  test("broadcast receipts bind exact txid and preserve unknown outcomes", func() {
+    let ack = "{\"result\":{\"txid\":\"" # txid # "\",\"outcome\":\"acknowledged\"}}";
+    switch (BridgeLib.parseBroadcastReceipt(ack, txid)) { case (?v) { assert v.txid == txid; assert v.outcome == "acknowledged" }; case null assert false };
+    let unknown = "{\"result\":{\"txid\":\"" # txid # "\",\"outcome\":\"unknown\"}}";
+    switch (BridgeLib.parseBroadcastReceipt(unknown, txid)) { case (?v) assert v.outcome == "unknown"; case null assert false };
+    assert BridgeLib.parseBroadcastReceipt(ack, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") == null;
+    assert BridgeLib.parseBroadcastReceipt("{\"result\":{\"txid\":\"" # txid # "\",\"outcome\":\"accepted\"}}", txid) == null;
+    assert BridgeLib.parseBroadcastReceipt("{\"result\":{\"txid\":\"" # txid # "\",\"outcome\":\"unknown\",\"outcome\":\"acknowledged\"}}", txid) == null;
+  });
+  test("signed submission preflight is bounded lowercase hex", func() {
+    assert BridgeLib.validSignedTransactionHex("00ff");
+    assert not BridgeLib.validSignedTransactionHex("");
+    assert not BridgeLib.validSignedTransactionHex("00FF");
+    assert not BridgeLib.validSignedTransactionHex("0");
+    let chunks = List.empty<Text>(); var i = 0;
+    while (i < 16_385) { chunks.add("00"); i += 1 };
+    assert not BridgeLib.validSignedTransactionHex(chunks.toArray().values().join(""));
+  });
+
 });

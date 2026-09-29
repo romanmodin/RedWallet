@@ -11,6 +11,8 @@
 import { isIP } from "node:net";
 
 export interface BridgeConfig {
+  /** Operator opt-in; signed-transaction broadcast is disabled by default. */
+  readonly enableBroadcast?: boolean;
   readonly listenHost: string;
   readonly checkpoint: { height: number; headerHex: string; hash: string } | null;
   readonly maxConcurrent: number;
@@ -109,6 +111,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
   }
 
   return {
+    enableBroadcast: readBool(env, "ENABLE_BROADCAST", false),
     listenHost,
     checkpoint,
     maxConcurrent: readInt(env, "MAX_CONCURRENT", 8, 1, 64),

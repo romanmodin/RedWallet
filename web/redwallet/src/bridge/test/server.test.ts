@@ -370,7 +370,7 @@ test("status: verifies the exact extended XBT checkpoint and reports actual upst
   try {
     const response = await rpc(bridge.baseUrl, { method: "server.status", params: [] });
     assert.equal(response.status, 200);
-    assert.deepEqual(response.json, {result: {height: 982345, serverVersion: "Fulcrum", protocolVersion: "1.4", checkpointVerified: true, checkpointHeight: CHECKPOINT.height, checkpointHash: CHECKPOINT.hash}});
+    assert.deepEqual(response.json, {result: {height: 982345, serverVersion: "Fulcrum", protocolVersion: "1.4", checkpointVerified: true, broadcastEnabled: false, checkpointHeight: CHECKPOINT.height, checkpointHash: CHECKPOINT.hash}});
     assert.deepEqual(upstream.requests[0], {method: "blockchain.block.header", params: [961640]});
   } finally { await bridge.close(); await upstream.close(); }
 });

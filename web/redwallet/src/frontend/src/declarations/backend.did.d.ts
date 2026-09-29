@@ -33,10 +33,13 @@ export type BridgeResult_4 = { 'ok' : AddressHistory } |
   { 'err' : BridgeError };
 export type BridgeResult_5 = { 'ok' : AddressBalance } |
   { 'err' : BridgeError };
+export type BridgeResult_6 = { 'ok' : BroadcastReceipt } |
+  { 'err' : BridgeError };
 export interface BridgeStatus {
   'checkpointConfigured' : boolean,
   'configured' : boolean,
 }
+export interface BroadcastReceipt { 'txid' : string, 'outcome' : string }
 export interface Cell { 'value' : Value, 'name' : string }
 export type Error = { 'FrontendOriginsNotConfigured' : null } |
   {
@@ -75,6 +78,7 @@ export interface ServerStatus {
   'checkpointConfigured' : boolean,
   'serverVersion' : string,
   'checkpointHeight' : [] | [bigint],
+  'broadcastEnabled' : [] | [boolean],
   'checkpointHash' : [] | [string],
 }
 export type UserRole = { 'admin' : null } |
@@ -97,6 +101,12 @@ export interface _SERVICE {
   '_internet_identity_sign_in_finish' : ActorMethod<[], Result__1>,
   '_internet_identity_sign_in_start' : ActorMethod<[], Uint8Array>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  /**
+   * / No keys or signing: only already-signed narrow-format transaction bytes.
+   * / Any outcall failure may be an unknown broadcast outcome; callers must
+   * / retain/reconcile the same bytes and never automatically rebuild a payment.
+   */
+  'broadcastSignedTransaction' : ActorMethod<[string, string], BridgeResult_6>,
   'clearBridgeConfig' : ActorMethod<[], undefined>,
   'execute' : ActorMethod<[string], Result>,
   'getAddressBalance' : ActorMethod<[string], BridgeResult_5>,

@@ -1,3 +1,15 @@
+# Current phase: constrained signed relay preparation
+
+The user authorizes continued full-wallet implementation and deployment. The
+new transaction.broadcast bridge route is authenticated, checkpoint-gated and
+requires ENABLE_BROADCAST=true; default and current live configuration are false.
+The backend API relays only bounded already-signed bytes, never private keys.
+PendingPayments and SpendPreparation are isolated, tested client foundations;
+no signing or submission UI is mounted. The actual v16 production scan passed
+82 addresses, balance/history and reserved receive-address copy with keys locked.
+Older claims that UTXO/raw or encrypted recovery are undeployed are superseded.
+Keep exact-source imports, quotas, CSP, pinned checkpoint and native worktrees.
+
 # Current authorized phase: local encrypted account workspace
 
 The user explicitly authorizes continued full-wallet implementation and deployment.

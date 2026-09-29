@@ -10,6 +10,7 @@
  * scripthash directly, so a malformed address cannot reach the upstream.
  */
 
+import { validateSignedWebTransaction } from "./transaction.js";
 import { createHash } from "node:crypto";
 import { BridgeError } from "./errors.js";
 import { type BridgeMethod, ALLOWLIST, isBridgeMethod } from "./allowlist.js";
@@ -285,6 +286,11 @@ export function validateRequest(body: unknown): ValidatedRequest {
 
   const spec = ALLOWLIST[method];
   switch (spec.params) {
+    case "signed_transaction": {
+      if (params.length !== 1) throw new BridgeError("invalid_request");
+      const signed = validateSignedWebTransaction(params[0]);
+      return { method, upstreamParams: [signed.hex] };
+    }
     case "none": {
       if (params.length !== 0) throw new BridgeError("invalid_request");
       return { method, upstreamParams: [] };

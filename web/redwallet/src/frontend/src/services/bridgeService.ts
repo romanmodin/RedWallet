@@ -4,16 +4,9 @@
  */
 
 import { createActor } from "@/backend";
-import type {
-  BridgeError,
-  BridgeResult,
-  BridgeResult_1,
-  BridgeResult_2,
-  BridgeResult_3,
-  BridgeResult_4,
-  BridgeResult_5,
-  BridgeStatus,
-} from "@/backend";
+import type { BridgeError, backendInterface } from "@/backend";
+type BridgeResult = Awaited<ReturnType<backendInterface["getServerStatus"]>>;
+type FeeBridgeResult = Awaited<ReturnType<backendInterface["getFeeEstimate"]>>;
 import { createActorWithConfig } from "@caffeineai/core-infrastructure";
 import { settingsService } from "./settingsService";
 import {
@@ -36,15 +29,16 @@ import {
 import { MockWalletService, type WalletService } from "./walletService";
 
 /** The subset of the generated backend actor the bridge reads use. */
-export interface BridgeActor {
-  getBridgeStatus(): Promise<BridgeStatus>;
-  getAddressBalance(address: string): Promise<BridgeResult_5>;
-  getAddressHistory(address: string): Promise<BridgeResult_4>;
-  getAddressUtxos(address: string): Promise<BridgeResult_3>;
-  getFeeEstimate(): Promise<BridgeResult_2>;
-  getRawTransaction(txid: string): Promise<BridgeResult_1>;
-  getServerStatus(): Promise<BridgeResult>;
-}
+export type BridgeActor = Pick<
+  backendInterface,
+  | "getBridgeStatus"
+  | "getAddressBalance"
+  | "getAddressHistory"
+  | "getAddressUtxos"
+  | "getFeeEstimate"
+  | "getRawTransaction"
+  | "getServerStatus"
+>;
 
 /** Map a bridge error variant onto the service-layer error shape. */
 export function mapBridgeError(error: BridgeError): ServiceError {
@@ -441,7 +435,7 @@ export class BridgeWalletService implements WalletService {
     const actor = await this.configuredActor();
     if (!actor) return this.demo.estimateFee(amountXbt);
 
-    let result: BridgeResult_2;
+    let result: FeeBridgeResult;
     try {
       result = await actor.getFeeEstimate();
     } catch {
