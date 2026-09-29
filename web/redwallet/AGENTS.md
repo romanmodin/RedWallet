@@ -20,9 +20,6 @@
 
 ## Learnings
 
-- The bridge's validateRequest requires params to be a JSON array; the canister must serialize params as an array or the bridge rejects with invalid_request before upstream contact.
-- The bridge allowlist is exactly server.version, server.features, address.balance, address.history, fee.estimate, headers.checkpoint — there is no server.status; server.version returns an array [serverVersion, protocolVersion].
-- Successful bridge responses are wrapped as { result: <upstream result> }; a non-2xx response carries { error: { code, message } }. Parsers must unwrap result and treat a missing envelope or error object as malformed.
 - A shared function (including the http_request transform) cannot be declared in a lib module — it must be a public field of the actor/mixin; pass it into lib helpers as an optional parameter.
 - The IC http_request transform signature is a single record argument: shared query { context : Blob; response : HttpRequestResult } -> async HttpRequestResult.
 - A generic helper returning Types.BridgeResult<T> cannot be used from a shared function (M0033); return a concrete type such as BridgeResult<Text>.
@@ -45,3 +42,6 @@
 - bridgeService.getNetworkStatus caches a single in-flight promise and clears it on settle, so concurrent reads dedupe while a later refresh starts fresh.
 - QuickActions hints are static watch-only copy (Send 'Sending unavailable — watch-only', Receive 'Share your public address'); no wallet-state branching is needed because Send/seed/recovery are disabled app-wide.
 - The migration 20260929_083000.mo sets adminAssigned := true, disabling first-user admin promotion; getApiDoc prose must state admin is pre-assigned by operator configuration/migration.
+- The Settings Support RedWallet disclosure lives in src/frontend/src/components/settings/SupportSetting.tsx and is mounted as the last card in SettingsPage's right column; it reuses the canonical copy-to-clipboard pattern and the raw-address QRCodeSVG approach (no URI scheme).
+- Radix CollapsibleTrigger renders a native button with aria-expanded/aria-controls automatically, so a collapsed disclosure needs no manual ARIA wiring.
+- The headless local-test browser denies clipboard access, so copy-success feedback cannot be exercised there; the app's failure feedback path is what the local tester observes.

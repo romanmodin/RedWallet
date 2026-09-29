@@ -12,6 +12,7 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DisplayUnitSetting } from "@/components/settings/DisplayUnitSetting";
 import { NetworkSetting } from "@/components/settings/NetworkSetting";
+import { SupportSetting } from "@/components/settings/SupportSetting";
 import { ThemeSetting } from "@/components/settings/ThemeSetting";
 import { ErrorState } from "@/components/states/ErrorState";
 import { LoadingState } from "@/components/states/LoadingState";
@@ -240,6 +241,8 @@ export function SettingsPage() {
               <Link to="/status">Check connection</Link>
             </Button>
           </SettingsSection>
+
+          <SupportSetting />
         </div>
       </div>
     </section>
