@@ -54,8 +54,6 @@ const Settings = () => {
           iconName="currency"
           onPress={() => setShowDonationAddress(value => !value)}
           testID="RedWalletDonate"
-          accessibilityRole="button"
-          accessibilityState={{ expanded: showDonationAddress }}
           bottomDivider={false}
         />
         {showDonationAddress && (
