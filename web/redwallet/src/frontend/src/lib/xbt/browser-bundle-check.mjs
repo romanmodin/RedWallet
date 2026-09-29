@@ -46,4 +46,9 @@ const result = runInContext(
   context,
   { timeout: 10_000 },
 );
-process.stdout.write(JSON.stringify(result));
+const vault = await runInContext(
+  "XbtCoreBrowserSmoke.runBrowserVaultChecks()",
+  context,
+  { timeout: 10000 },
+);
+process.stdout.write(JSON.stringify({ ...result, ...vault }));

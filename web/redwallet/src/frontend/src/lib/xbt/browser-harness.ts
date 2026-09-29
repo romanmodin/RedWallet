@@ -13,6 +13,33 @@ import {
   signUnifiedP2wpkhInput,
 } from "./unified-psbt";
 import { unifiedSegwitV0SighashAll } from "./unified-sighash";
+import { XbtKeySession, publicAddress } from "./key-material";
+import { sealVault, openVault } from "./vault";
+
+export async function runBrowserVaultChecks() {
+  const phrase =
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+  const session = new XbtKeySession(phrase);
+  const address = session.account.firstAddress;
+  if (
+    address !== "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu" ||
+    publicAddress(session.account.accountXpub, 1, 0) !==
+      "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el"
+  )
+    throw Error("Browser BIP84 mismatch");
+  const vault = await sealVault(
+    { mnemonic: phrase, passphrase: "" },
+    "public browser fixture password",
+  );
+  const recovered = await openVault(
+    JSON.stringify(vault),
+    "public browser fixture password",
+  );
+  if (recovered.mnemonic !== phrase)
+    throw Error("Browser vault round trip failed");
+  session.destroy();
+  return { bip84: true, vault: true, locked: session.locked };
+}
 
 export function runBrowserCoreChecks(): {
   vectors: number;

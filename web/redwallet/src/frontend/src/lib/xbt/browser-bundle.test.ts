@@ -21,6 +21,9 @@ describe("XBT core browser bundle", () => {
       acceptedTxid:
         "6fef0e2039d1a0fb78981c845d30b4b90560514bb892ebd6b1f86292ee8769c7",
       signedSighash: 0x21,
+      bip84: true,
+      vault: true,
+      locked: true,
     });
   }, 30_000);
 });

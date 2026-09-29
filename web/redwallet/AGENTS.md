@@ -1,5 +1,15 @@
 # Project Guidance
 
+## Current continuation — user authorized full web wallet implementation
+
+- Live Caffeine v7 remains watch-only with the Settings donation option.
+- User passed the iPhone donation check and instructed continued implementation on 2026-09-29.
+- Isolated key-material, encrypted vault, lock lifecycle, and offline spend-plan modules are now permitted toward that goal. They are not connected to production UI or networking.
+- Never embed actual user seeds/private keys or operator secrets in source, logs, prompts, tests, canisters, or the bridge. Public test vectors are clearly labelled and must never hold funds.
+- Before enabling spending: complete recovery/backup UI, verified HD discovery and bounded UTXO/raw-parent bridge APIs, review/lock integration, constrained broadcast and fresh isolated XBT acceptance/Bitcoin replay-negative tests.
+- The older watch-only restrictions below describe deployed scope and remain the release gate; they do not prohibit the newly authorized isolated foundation work.
+
+
 ## User Preferences
 
 - Mobile-first, polished, iPhone and desktop
