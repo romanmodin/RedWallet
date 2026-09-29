@@ -11,6 +11,7 @@
 
 import { DemoBanner } from "@/components/layout/DemoBanner";
 import { NetworkIndicator } from "@/components/layout/NetworkIndicator";
+import { useWallet } from "@/hooks/useWallet";
 import { cn } from "@/lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
@@ -72,6 +73,7 @@ function isActive(pathname: string, to: string): boolean {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { activeWallet } = useWallet();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -133,7 +135,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Desktop top bar */}
         <header className="sticky top-0 z-20 hidden h-16 items-center justify-between gap-4 border-b border-border bg-card/90 px-6 backdrop-blur-md lg:flex">
           <p className="text-sm text-muted-foreground">
-            Demo wallet — balances, addresses, and transactions are simulated.
+            {activeWallet?.isDemo
+              ? "Demo wallet — balances, addresses, and transactions are simulated."
+              : activeWallet
+                ? "Watch-only XBT address — live reads; sending unavailable."
+                : "Select an XBT wallet to view its status."}
           </p>
           <NetworkIndicator />
         </header>
