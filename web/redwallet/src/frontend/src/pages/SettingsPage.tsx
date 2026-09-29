@@ -246,6 +246,17 @@ export function SettingsPage() {
 
           <BrowserProtection />
           <SupportSetting />
+          <SettingsSection
+            id="about"
+            title="RedWallet 0.16"
+            description="Preview release · XBT (BLAKE2b)"
+          >
+            <p className="text-sm text-muted-foreground">
+              Version 1.0 is reserved for the first working, full-featured
+              release. This preview supports native SegWit account 0; Taproot,
+              legacy spending and coinbase inputs are not supported.
+            </p>
+          </SettingsSection>
         </div>
       </div>
     </section>

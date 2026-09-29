@@ -271,7 +271,8 @@ export function SendPaymentPanel({
         XBT payment preparation
       </h2>
       <p className="text-sm">
-        Sending is disabled while iPhone validation is completed.
+        Preview: review carefully. Submission requires a fresh network check and
+        your explicit confirmation.
       </p>
       <p className="text-sm text-muted-foreground">
         XBT only. Native SegWit recipients and confirmed, non-coinbase inputs

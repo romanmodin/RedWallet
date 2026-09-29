@@ -1,3 +1,18 @@
+# Current release: RedWallet 0.16 preview
+
+The user supplied an iPhone screenshot on 2026-09-29 showing the production
+local encryption and XBT signing self-test passed; no transaction broadcast.
+This closes the requested iPhone public-fixture compatibility gate. It is not
+an end-to-end funded web send test. Activation of the existing constrained
+relay is authorized; record actual capability after private operator activation.
+User-facing version is 0.16, distinct from Caffeine revision numbers. Reserve
+1.0 for the first working full-featured version. First-launch video is hosted
+same-origin and shown once per browser storage, independent of app upgrades.
+Existing cryptographic, CSP, checkpoint and explicit user submission gates stay.
+Native worktrees and secrets must remain untouched. User performs all real
+financial submissions. Older disabled-send notes below are historical once
+activation is verified, not a reason to remove any validation.
+
 # Current phase: reviewed payment UI and device validation
 
 User authorization covers implementation and deployment. The reviewed client

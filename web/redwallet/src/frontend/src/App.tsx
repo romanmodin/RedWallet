@@ -6,6 +6,7 @@
  */
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { FirstLaunchSplash } from "@/components/FirstLaunchSplash";
 import { AppShell } from "@/components/layout/AppShell";
 import { NetworkStatusProvider } from "@/context/NetworkStatusContext";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -110,13 +111,15 @@ declare module "@tanstack/react-router" {
 export default function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <NetworkStatusProvider>
-          <WalletProvider>
-            <RouterProvider router={router} />
-          </WalletProvider>
-        </NetworkStatusProvider>
-      </ThemeProvider>
+      <FirstLaunchSplash>
+        <ThemeProvider>
+          <NetworkStatusProvider>
+            <WalletProvider>
+              <RouterProvider router={router} />
+            </WalletProvider>
+          </NetworkStatusProvider>
+        </ThemeProvider>
+      </FirstLaunchSplash>
     </ErrorBoundary>
   );
 }

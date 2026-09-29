@@ -22,6 +22,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { formatAmount } from "@/lib/format";
 import { bridgeWalletService } from "@/services/bridgeService";
 import type { FeeEstimate } from "@/services/types";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
 type Step = "form" | "review";
@@ -200,9 +201,15 @@ export function SendPage() {
             Sending is unavailable
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            This app watches a public address. To send XBT, use the wallet that
-            owns its private keys, such as RedWallet on your iPhone.
+            This selected wallet watches a public address and cannot sign. Use
+            an encrypted local wallet in Wallets to prepare an XBT payment.
           </p>
+          <Link
+            to="/wallets"
+            className="mt-4 inline-block text-primary underline"
+          >
+            Open local XBT wallets
+          </Link>
         </div>
       </section>
     );
@@ -212,6 +219,13 @@ export function SendPage() {
     <section data-ocid="send.page" className="mx-auto w-full max-w-xl">
       {header}
 
+      <p className="mb-5 text-sm text-muted-foreground">
+        For real XBT payments,{" "}
+        <Link to="/wallets" className="text-primary underline">
+          open your encrypted local wallet
+        </Link>
+        . The form below is a demo only.
+      </p>
       <div className="mb-5 flex items-center gap-3">
         <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
           Demo data

@@ -11,7 +11,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { cleanup, configure } from "@testing-library/react";
-import { afterEach, beforeEach, vi } from "vitest";
+import { afterEach, beforeEach, expect, vi } from "vitest";
 
 configure({ testIdAttribute: "data-ocid" });
 
@@ -59,6 +59,10 @@ beforeEach(() => {
   window.history.replaceState(null, "", "/");
   window.dispatchEvent(new PopStateEvent("popstate"));
   window.localStorage.clear();
+  // Route tests start after onboarding; the splash has its own first-launch tests.
+  if (expect.getState().testPath?.includes("/src/test/")) {
+    window.localStorage.setItem("redwallet.intro.seen", "1");
+  }
 });
 
 afterEach(() => {

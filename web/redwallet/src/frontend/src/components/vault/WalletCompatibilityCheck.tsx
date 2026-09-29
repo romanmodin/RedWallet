@@ -35,8 +35,8 @@ export function WalletCompatibilityCheck() {
       <h2 className="font-semibold">Browser compatibility</h2>
       <p className="text-sm text-muted-foreground">
         Check local encryption and XBT signing using a published, disposable
-        test fixture. This does not access your saved wallets or send funds.
-        Sending remains disabled while device validation is completed.
+        test fixture. This does not access your saved wallets or send funds. Run
+        this check on each device before using local wallet signing.
       </p>
       <Button variant="outline" disabled={busy} onClick={() => void run()}>
         {busy ? "Running local self-test…" : "Run wallet self-test"}

@@ -52,7 +52,7 @@ export function DemoBanner({
       {!compact ? (
         <span className="text-[11px] font-medium text-accent/80">
           {walletManagement
-            ? "— XBT storage and reads · sending unavailable"
+            ? "— XBT local wallets · preview"
             : isDemo
               ? "— all data is simulated"
               : "— live address reads · sending unavailable"}

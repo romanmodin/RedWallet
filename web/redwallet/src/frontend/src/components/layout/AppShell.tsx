@@ -139,7 +139,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-20 hidden h-16 items-center justify-between gap-4 border-b border-border bg-card/90 px-6 backdrop-blur-md lg:flex">
           <p className="text-sm text-muted-foreground">
             {pathname === "/wallets"
-              ? "Manage watched addresses and encrypted local wallets. Sending unavailable."
+              ? "Manage watched addresses and encrypted local XBT wallets."
               : activeWallet?.isDemo
                 ? "Demo wallet — balances, addresses, and transactions are simulated."
                 : activeWallet

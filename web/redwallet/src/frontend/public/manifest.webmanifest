@@ -1,7 +1,7 @@
 {
   "name": "RedWallet",
   "short_name": "RedWallet",
-  "description": "RedWallet \u2014 XBT watch-only addresses and local encrypted wallets with read-only recovery scans. Sending is unavailable.",
+  "description": "RedWallet 0.16 preview \u2014 XBT watch-only addresses and local encrypted native SegWit wallets.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

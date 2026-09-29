@@ -220,13 +220,14 @@ describe("CSP policy shape", () => {
 describe("Public metadata description", () => {
   const html = readFileSync(INDEX_HTML, "utf8");
 
-  it("describes the watch-only, read-only posture", () => {
+  it("describes the preview and local encrypted wallet posture", () => {
     const description = html.match(
       /<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i,
     )?.[1];
     expect(description, "no meta description").toBeTruthy();
     expect(description ?? "").toMatch(/watch-only/i);
-    expect(description ?? "").toMatch(/read-only/i);
+    expect(description ?? "").toMatch(/0\.16 preview/i);
+    expect(description ?? "").toMatch(/local encrypted native SegWit wallets/i);
   });
 
   it("contains no demo-only wording", () => {
