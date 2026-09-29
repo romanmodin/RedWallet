@@ -131,6 +131,15 @@ it("never returns the bridge URL or secret in a frontend-facing response", async
 // `backend_unavailable`) and at the frontend service seam in
 // `src/frontend/src/test/bridge-service.test.ts`.
 
+it("documents admin as operator-assigned, not first-user promotion", async () => {
+  const doc = await actor.getApiDoc();
+  expect(doc).toContain("pre-assigned by the operator configuration/migration");
+  expect(doc).toContain("first-user admin promotion is disabled");
+  // The corrected prose must not claim registration order grants admin.
+  expect(doc).not.toMatch(/first (user|caller)[^.]*becomes? admin/i);
+  expect(doc).not.toMatch(/first (user|caller)[^.]*is (made )?admin/i);
+});
+
 it("strips volatile headers in the consensus transform", async () => {
   const transformed = await actor.transformBridgeResponse({
     context: new Uint8Array(),

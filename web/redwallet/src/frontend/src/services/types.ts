@@ -24,7 +24,14 @@ export type TransactionDirection = "send" | "receive" | "unknown";
 /** Lifecycle status of a transaction. */
 export type TransactionStatus = "confirmed" | "pending" | "failed";
 
-/** Connection state for the configured backend server. */
+/**
+ * Connection state for the configured backend server.
+ *
+ * `connecting` is a transient UI state shown while a read is in flight;
+ * `offline` is the offline-by-design state when no bridge is configured;
+ * `error` is a failed read. A `connected` state is only ever reported from an
+ * actual successful read — it is never fabricated.
+ */
 export type ConnectionState = "connected" | "connecting" | "offline" | "error";
 
 /** A demo wallet / account. Never contains key material. */

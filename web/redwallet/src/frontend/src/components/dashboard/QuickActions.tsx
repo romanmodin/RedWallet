@@ -2,7 +2,9 @@
  * QuickActions — the dashboard's primary action row.
  *
  * Send is the single primary action; Receive and History are secondary.
- * Each action is a real link to its route.
+ * Each action is a real link to its route. RedWallet is watch-only by design,
+ * so the hints are fixed: Send states that sending is unavailable, and Receive
+ * asks the user to share their public address.
  */
 
 import { cn } from "@/lib/utils";
@@ -23,7 +25,7 @@ const ACTIONS: QuickAction[] = [
   {
     to: "/send",
     label: "Send",
-    hint: "Create a demo transfer",
+    hint: "Sending unavailable — watch-only",
     icon: ArrowUpFromLine,
     primary: true,
     ocid: "dashboard.quick_actions.send",
@@ -31,7 +33,7 @@ const ACTIONS: QuickAction[] = [
   {
     to: "/receive",
     label: "Receive",
-    hint: "Share a demo address",
+    hint: "Share your public address",
     icon: ArrowDownToLine,
     primary: false,
     ocid: "dashboard.quick_actions.receive",

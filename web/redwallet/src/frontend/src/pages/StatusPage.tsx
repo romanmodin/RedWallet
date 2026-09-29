@@ -1,9 +1,9 @@
 /**
  * StatusPage — network and backend status screen at "/status".
  *
- * Reads the selected server from user settings and the network status from the
- * bridge-backed wallet service. Renders a connection-state readout, the server
- * summary, and a sync readout, with a manual refresh action. When no bridge is
+ * Reads the shared network status from `useNetworkStatus`, the same source the
+ * header/sidebar/top-bar indicators subscribe to. Its manual refresh triggers
+ * the shared refresh, so every indicator updates together. When no bridge is
  * configured the read reports the offline-by-design state and the page prompts
  * the user to open Settings; it never substitutes a public server.
  */
@@ -15,59 +15,19 @@ import { OfflineState } from "@/components/states/OfflineState";
 import { ConnectionCard } from "@/components/status/ConnectionCard";
 import { SyncReadout } from "@/components/status/SyncReadout";
 import { Button } from "@/components/ui/button";
-import { bridgeWalletService } from "@/services/bridgeService";
-import type { ConnectionState, NetworkStatus } from "@/services/types";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
 
 export function StatusPage() {
-  const [status, setStatus] = useState<NetworkStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadStatus = useCallback(async () => {
-    const result = await bridgeWalletService.getNetworkStatus();
-    if (result.ok) {
-      setStatus(result.value);
-      setError(null);
-    } else {
-      setError(result.error.message);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    void loadStatus().finally(() => {
-      if (!cancelled) setIsLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [loadStatus]);
-
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    await loadStatus();
-    setIsRefreshing(false);
-  }, [loadStatus]);
-
-  /**
-   * The effective connection state. The read reports the live bridge state
-   * when one is configured and the offline-by-design demo state otherwise —
-   * the app never falls back to a public server.
-   */
-  const connectionState: ConnectionState = isRefreshing
-    ? "connecting"
-    : (status?.state ?? "offline");
+  const { status, connectionState, isLoading, isRefreshing, error, refresh } =
+    useNetworkStatus();
 
   const refreshButton = (
     <Button
       type="button"
       variant="outline"
       size="sm"
-      onClick={() => void handleRefresh()}
+      onClick={() => void refresh()}
       disabled={isRefreshing}
       data-ocid="status.refresh_button"
       className="rounded-xl border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
@@ -93,8 +53,8 @@ export function StatusPage() {
       ) : error ? (
         <ErrorState
           title="Couldn't load network status"
-          description={error}
-          onRetry={() => void handleRefresh()}
+          description={error.message}
+          onRetry={() => void refresh()}
         />
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -114,7 +74,7 @@ export function StatusPage() {
               <OfflineState
                 title="Not connected to a server"
                 description="The operator must configure a reachable Fulcrum bridge before live wallet reads are available."
-                onRetry={() => void handleRefresh()}
+                onRetry={() => void refresh()}
               />
             ) : null}
 

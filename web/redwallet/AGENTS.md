@@ -20,10 +20,6 @@
 
 ## Learnings
 
-- Wallet shortId is the neutral literal 'Demo address — not real' for all seeds and added wallets; no xbt1/bc1 address strings remain in UI data.
-- Biome's fix step collapses a JSDoc block onto the following declaration line when the blank line after the comment is removed; keep the blank line to avoid the artifact.
-- The bridge is a new pnpm workspace package under src/bridge; root recursive scripts pick it up, but the root test script is not recursive and must be extended to run the bridge tests.
-- pnpm install --no-frozen-lockfile is required after adding a new workspace package.
 - The bridge's validateRequest requires params to be a JSON array; the canister must serialize params as an array or the bridge rejects with invalid_request before upstream contact.
 - The bridge allowlist is exactly server.version, server.features, address.balance, address.history, fee.estimate, headers.checkpoint — there is no server.status; server.version returns an array [serverVersion, protocolVersion].
 - Successful bridge responses are wrapped as { result: <upstream result> }; a non-2xx response carries { error: { code, message } }. Parsers must unwrap result and treat a missing envelope or error object as malformed.
@@ -45,3 +41,7 @@
 - The isolated XBT signing core under src/frontend/src/lib/xbt is imported only by its own tests and harness; it must stay disconnected from every route and service.
 - The PocketIC backend lane runs in this environment (sidecar reachable, wasm installs) and its 8 tests exercise the real compiled canister; it is not a skip.
 - The bridge is already live at https://umbrel-3.tailaa2bb4.ts.net:10000; the operator configures the backend privately with configure-canister.mjs after deploy, so live connectivity must not be claimed before that.
+- NetworkStatusProvider is mounted once in App.tsx above the router; NetworkIndicator and StatusPage read the shared context, so no per-mount fetch remains and refresh() broadcasts one result to every consumer.
+- bridgeService.getNetworkStatus caches a single in-flight promise and clears it on settle, so concurrent reads dedupe while a later refresh starts fresh.
+- QuickActions hints are static watch-only copy (Send 'Sending unavailable — watch-only', Receive 'Share your public address'); no wallet-state branching is needed because Send/seed/recovery are disabled app-wide.
+- The migration 20260929_083000.mo sets adminAssigned := true, disabling first-user admin promotion; getApiDoc prose must state admin is pre-assigned by operator configuration/migration.

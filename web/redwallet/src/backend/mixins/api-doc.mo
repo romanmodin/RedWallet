@@ -29,8 +29,11 @@ mixin () {
     "- Registration prerequisite: a direct API caller must call\n" #
     "  `_initialize_access_control` once as a signed-in (non-anonymous) caller before\n" #
     "  any role-guarded call, including `getCallerUserRole` and `isCallerAdmin`.\n" #
-    "  The first principal to initialize receives `#admin`; every later principal\n" #
-    "  receives `#user`. An anonymous caller to `getCallerUserRole` receives `#guest`;\n" #
+    "  Admin is **pre-assigned by the operator configuration/migration**, not by\n" #
+    "  registration order: the operator principal is pinned at deploy time and\n" #
+    "  first-user admin promotion is disabled, so a later caller does not become\n" #
+    "  admin by initializing first. Every principal that initializes receives\n" #
+    "  `#user`. An anonymous caller to `getCallerUserRole` receives `#guest`;\n" #
     "  a signed-in but unregistered caller traps with `User is not registered`.\n" #
     "  Registration happens only when a caller signs in through the app's own\n" #
     "  frontend, so a principal that never did so is unregistered even when it\n" #

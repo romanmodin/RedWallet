@@ -53,6 +53,11 @@ export interface WalletService {
     amountXbt: number;
     note?: string;
   }): Promise<ServiceResult<DemoSendResult>>;
+  /**
+   * Read the latest network status. Implementations must deduplicate
+   * concurrent calls behind a single in-flight read so the shared
+   * network-status source never issues duplicate concurrent reads.
+   */
   getNetworkStatus(): Promise<ServiceResult<NetworkStatus>>;
   testServerConnection(
     config: NetworkConfig,

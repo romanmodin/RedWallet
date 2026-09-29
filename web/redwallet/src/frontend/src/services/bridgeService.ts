@@ -421,6 +421,12 @@ export class BridgeWalletService implements WalletService {
     return this.demo.sendDemoTransaction(input);
   }
 
+  /**
+   * Read the network status. Concurrent callers share one in-flight promise,
+   * so the shared network-status source never issues duplicate concurrent
+   * reads. The promise is cleared once it settles, so a later refresh starts a
+   * fresh read.
+   */
   getNetworkStatus(): Promise<ServiceResult<NetworkStatus>> {
     if (!this.networkRequest)
       this.networkRequest = this.readNetworkStatus().finally(() => {

@@ -10,3 +10,10 @@ export * from "./walletService";
 export * from "./bridgeService";
 export * from "./settingsService";
 export * from "./fiatRate";
+
+/** The shared network-status source lives in the context layer. */
+export {
+  NetworkStatusProvider,
+  useNetworkStatusContext,
+  type NetworkStatusContextValue,
+} from "@/context/NetworkStatusContext";

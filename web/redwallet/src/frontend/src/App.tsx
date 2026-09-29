@@ -7,6 +7,7 @@
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppShell } from "@/components/layout/AppShell";
+import { NetworkStatusProvider } from "@/context/NetworkStatusContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 
 import { WalletProvider } from "@/context/WalletContext";
@@ -110,9 +111,11 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <WalletProvider>
-          <RouterProvider router={router} />
-        </WalletProvider>
+        <NetworkStatusProvider>
+          <WalletProvider>
+            <RouterProvider router={router} />
+          </WalletProvider>
+        </NetworkStatusProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
