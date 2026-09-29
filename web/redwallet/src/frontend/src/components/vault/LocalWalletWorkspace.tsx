@@ -1,3 +1,5 @@
+import type { backendInterface } from "@/backend";
+import type { AccountSnapshot } from "@/lib/xbt/account-reader";
 import { IssuedAddresses } from "@/lib/xbt/issued-addresses";
 import type { PublicXbtAccount } from "@/lib/xbt/key-material";
 import { VaultCatalog } from "@/lib/xbt/vault-catalog";
@@ -5,6 +7,8 @@ import { type BridgeActor, resolveBridgeActor } from "@/services/bridgeService";
 import { useEffect, useMemo, useState } from "react";
 import { AccountReadPanel } from "./AccountReadPanel";
 import { LocalVaultPanel } from "./LocalVaultPanel";
+import { SendPaymentPanel } from "./SendPaymentPanel";
+import { WalletCompatibilityCheck } from "./WalletCompatibilityCheck";
 
 /** Local keys are scoped to this workspace. Only authenticated public account data reaches reads. */
 export function LocalWalletWorkspace() {
@@ -51,6 +55,8 @@ function ProtectedLocalWorkspace() {
   const [actor, setActor] = useState<BridgeActor | null>(null);
   const [actorError, setActorError] = useState(false);
   const [locked, setLocked] = useState(true);
+  const [snapshot, setSnapshot] = useState<AccountSnapshot | null>(null);
+  const [scanKey, setScanKey] = useState(0);
   const [visible, setVisible] = useState(
     document.visibilityState === "visible",
   );
@@ -69,6 +75,7 @@ function ProtectedLocalWorkspace() {
     let current = true;
     setActor(null);
     setActorError(false);
+    setSnapshot(null);
     if (selected)
       void resolveBridgeActor().then((value) => {
         if (current) {
@@ -108,10 +115,17 @@ function ProtectedLocalWorkspace() {
     );
   return (
     <>
+      <WalletCompatibilityCheck />
       <LocalVaultPanel
         catalog={catalog}
         onUnlocked={(id, account) => {
-          setSelected({ id, account });
+          setSelected((current) =>
+            !actorError &&
+            current?.id === id &&
+            current.account.accountXpub === account.accountXpub
+              ? current
+              : { id, account },
+          );
           setLocked(false);
         }}
         onLocked={() => setLocked(true)}
@@ -136,12 +150,28 @@ function ProtectedLocalWorkspace() {
             </p>
           )}
           {visible && book && actor && (
-            <AccountReadPanel
-              key={selected.id}
-              account={selected.account}
-              actor={actor}
-              addressBook={book}
-            />
+            <>
+              <AccountReadPanel
+                key={`${selected.id}:${scanKey}`}
+                account={selected.account}
+                actor={actor}
+                addressBook={book}
+                onSnapshot={setSnapshot}
+              />
+              <SendPaymentPanel
+                key={selected.id}
+                account={selected.account}
+                actor={actor as backendInterface}
+                addressBook={book}
+                snapshot={snapshot}
+                controller={catalog.controller(selected.id)}
+                locked={locked}
+                onConfirmed={() => {
+                  setSnapshot(null);
+                  setScanKey((value) => value + 1);
+                }}
+              />
+            </>
           )}
         </div>
       )}

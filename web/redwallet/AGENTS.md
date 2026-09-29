@@ -1,3 +1,27 @@
+# Current phase: reviewed payment UI and device validation
+
+User authorization covers implementation and deployment. The reviewed client
+SendPaymentPanel is now wired only inside the same CSP-gated wallet workspace.
+SpendPreparation additionally requires the live bridge broadcastEnabled=true;
+the current operator setting remains false. Thus payment signing/submission
+cannot be reached from new-wallet preparation in this revision. The separate
+Browser compatibility self-test uses only the published disposable regtest
+fixture, encrypts/signs locally, and never stores or broadcasts it.
+
+Review, local signing, durable signed receipts, explicit submission and fresh
+confirmation/archive are tested. Locking, edits, background/navigation and
+wallet changes invalidate active reviews. The signed original is preserved
+through unknown outcomes; no replacement signing or automatic submission.
+Before enabling live broadcast, complete actual iPhone/browser compatibility
+validation (FULL-WALLET-UI-GATES.md). Actual activated-XBT regtest acceptance,
+Bitcoin replay-negative evidence, production CSP, bridge/canister reads and
+PocketIC gates are already recorded as passed. Never treat the public fixture
+as a receiving/spending wallet. Native worktrees remain untouched.
+
+Historical scope notes below describe prior revisions and are superseded by
+this current phase. Never claim the current deployment sends funds while the
+operator broadcast gate is false.
+
 # Current phase: constrained signed relay preparation
 
 The user authorizes continued full-wallet implementation and deployment. The

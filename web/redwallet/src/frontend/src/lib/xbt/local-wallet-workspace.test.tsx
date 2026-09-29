@@ -61,6 +61,16 @@ describe("gated local wallet workspace", () => {
     await user.click(screen.getByRole("button", { name: "Unlock wallet" }));
     await screen.findByText("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
     await waitFor(() => expect(resolveBridgeActor).toHaveBeenCalledWith());
+    await screen.findByText(/configured account backend is unavailable/);
+    await user.click(screen.getByRole("button", { name: "Lock wallet" }));
+    await user.click(screen.getByRole("button", { name: /^Unlock$/ }));
+    await user.type(
+      screen.getByLabelText("Wallet password"),
+      "public fixture password",
+    );
+    await user.click(screen.getByRole("button", { name: "Unlock wallet" }));
+    await waitFor(() => expect(resolveBridgeActor).toHaveBeenCalledTimes(2));
+
     await act(async () =>
       window.dispatchEvent(new StorageEvent("storage", { key: null })),
     );

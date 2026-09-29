@@ -53,6 +53,8 @@ function isPermittedImporter(file: string): boolean {
       "components/vault/LocalVaultPanel.tsx",
       "components/vault/LocalWalletWorkspace.tsx",
       "components/vault/AccountReadPanel.tsx",
+      "components/vault/SendPaymentPanel.tsx",
+      "components/vault/WalletCompatibilityCheck.tsx",
     ].includes(rel)
   )
     return true;
@@ -99,7 +101,7 @@ describe("XBT foundation isolation", () => {
       if (rel.startsWith("lib/xbt/") || file === SELF) continue;
       const source = readFileSync(file, "utf8");
       if (
-        /(?:from\s*|import\s*\()["'][^"']*(?:LocalVaultPanel|AccountReadPanel)/.test(
+        /(?:from\s*|import\s*\()["'][^"']*(?:LocalVaultPanel|AccountReadPanel|SendPaymentPanel|WalletCompatibilityCheck)/.test(
           source,
         ) &&
         rel !== "components/vault/LocalWalletWorkspace.tsx"

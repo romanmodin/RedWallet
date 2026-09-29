@@ -66,6 +66,9 @@ function p2wpkh(destination: string): Uint8Array {
     throw Error("Only native P2WPKH destinations are supported");
   return output;
 }
+export function validateP2wpkhDestination(destination: string): void {
+  p2wpkh(destination);
+}
 function equal(a: Uint8Array, b: Uint8Array): boolean {
   return Buffer.from(a).equals(Buffer.from(b));
 }

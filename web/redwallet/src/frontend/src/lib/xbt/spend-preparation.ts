@@ -3,7 +3,13 @@ import type { BridgeActor } from "@/services/bridgeService";
 import type { AccountSnapshot } from "./account-reader";
 import type { IssuedAddresses } from "./issued-addresses";
 import { publicAddress } from "./key-material";
-import { type CandidateCoin, planSpend, verifyCoin } from "./spend-plan";
+import {
+  type CandidateCoin,
+  parseXbtAmount,
+  planSpend,
+  validateP2wpkhDestination,
+  verifyCoin,
+} from "./spend-plan";
 import { SpendReview } from "./spend-review";
 const CHECKPOINT =
   "0000000000000050c1e5f69672f459293be14f46e5a494e7a8c8541396f18eeb";
@@ -97,6 +103,11 @@ export class SpendPreparation {
     signal?: AbortSignal,
   ): Promise<{ review: SpendReview; suggestedFeeRate: number }> {
     if (this.#busy) throw Error("Payment preparation already running");
+    validateP2wpkhDestination(destination);
+    if (parseXbtAmount(amountXbt) < 294n)
+      throw Error("Destination amount is dust");
+    if (!Number.isSafeInteger(feeRate) || feeRate < 1 || feeRate > 1000)
+      throw Error("Choose a whole-number fee rate from 1 to 1000 sat/vB");
     if (this.book.accountXpub !== this.accountXpub)
       throw Error("Wrong change-address account");
     if (

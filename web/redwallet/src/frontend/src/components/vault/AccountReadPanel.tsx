@@ -11,10 +11,12 @@ export function AccountReadPanel({
   account,
   actor,
   addressBook,
+  onSnapshot,
 }: {
   account: PublicXbtAccount;
   actor: BridgeActor;
   addressBook: IssuedAddresses;
+  onSnapshot?: (snapshot: AccountSnapshot | null) => void;
 }) {
   const [snapshot, setSnapshot] = useState<AccountSnapshot | null>(null);
   const [checked, setChecked] = useState(0);
@@ -27,6 +29,11 @@ export function AccountReadPanel({
   const [copied, setCopied] = useState(false);
   const [gap, setGap] = useState(20);
   const [cap, setCap] = useState(1000);
+  const notify = useRef(onSnapshot);
+  notify.current = onSnapshot;
+  useEffect(() => {
+    notify.current?.(snapshot);
+  }, [snapshot]);
   const reader = useRef<AccountReader | null>(null);
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);

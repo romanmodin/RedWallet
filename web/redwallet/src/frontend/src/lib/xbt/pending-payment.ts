@@ -161,7 +161,9 @@ export class PendingPayments {
   readonly key: string;
   constructor(
     readonly accountXpub: string,
-    private storage: AddressIndexStorage,
+    private storage: AddressIndexStorage & {
+      removeItem?: (key: string) => void;
+    },
     private mutex: AddressMutex = browserAddressMutex,
   ) {
     publicAddress(accountXpub, 0, 0);
@@ -213,12 +215,70 @@ export class PendingPayments {
       return this.#save({ ...current, state });
     });
   }
+  /** Explicit user submission only. Persist uncertainty BEFORE the first network call. */
+  async submit(
+    send: (
+      hex: string,
+      txid: string,
+    ) => Promise<{ txid: string; outcome: string }>,
+  ): Promise<PendingPayment> {
+    return this.mutex(this.key, async () => {
+      const current = this.read();
+      if (!current) throw Error("No saved payment to submit");
+      this.#save({ ...current, state: "unknown" });
+      let acknowledged = false;
+      try {
+        const result = await send(current.hex, current.txid);
+        acknowledged =
+          result.txid === current.txid && result.outcome === "acknowledged";
+      } catch {
+        /* The original bytes may already have reached the node. */
+      }
+      const stillSaved = this.read();
+      if (!stillSaved || stillSaved.hex !== current.hex)
+        throw Error("Saved payment changed; submission outcome is unknown");
+      return this.#save({
+        ...current,
+        state: acknowledged ? "acknowledged" : "unknown",
+      });
+    });
+  }
+  /** The caller must freshly verify checkpoint + exact raw bytes + confirmed history.
+   * An untrusted saved state label is never sufficient. Archive before clearing.
+   */
+  async archiveConfirmed(
+    confirm: (payment: PendingPayment) => Promise<boolean>,
+  ): Promise<void> {
+    return this.mutex(this.key, async () => {
+      if (!this.storage.removeItem)
+        throw Error("Payment archive storage unavailable");
+      const current = this.read();
+      if (!current) throw Error("No payment to reconcile");
+      if (!(await confirm(current)))
+        throw Error(
+          "Payment is not confirmed; the same signed transaction remains saved",
+        );
+      const stillSaved = this.read();
+      if (!stillSaved || stillSaved.hex !== current.hex)
+        throw Error("Saved payment changed during confirmation");
+      const archiveKey = `${this.key}.confirmed.${current.txid}`;
+      const raw = JSON.stringify({ ...current, state: "confirmed" });
+      this.storage.setItem(archiveKey, raw);
+      if (this.storage.getItem(archiveKey) !== raw)
+        throw Error("Could not preserve confirmed payment");
+      this.storage.removeItem(this.key);
+      if (this.storage.getItem(this.key) !== null)
+        throw Error("Could not finish payment archive");
+    });
+  }
   #save(payment: PendingPayment) {
     const raw = JSON.stringify(payment);
     const checked = validatePendingPayment(raw, this.accountXpub);
     this.storage.setItem(this.key, raw);
     if (this.storage.getItem(this.key) !== raw)
-      throw Error("Could not save signed payment; no submission was attempted");
+      throw Error(
+        "Could not verify saved payment; retain the original transaction and check its status",
+      );
     return checked;
   }
 }
