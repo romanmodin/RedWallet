@@ -57,6 +57,14 @@ function setup() {
         broadcastEnabled: true,
       },
     })),
+    getRawTransaction: vi.fn(async () => ({
+      __kind__: "ok",
+      ok: { hex: fixture.hex },
+    })),
+    getAddressHistory: vi.fn(async () => ({
+      __kind__: "ok",
+      ok: { entries: [{ txid: fixture.txid, height: 974749n }] },
+    })),
     broadcastSignedTransaction: vi.fn(async (_hex: string, txid: string) => ({
       __kind__: "ok",
       ok: { txid, outcome: "acknowledged" },
@@ -118,6 +126,43 @@ describe("explicit local sign then network submission", () => {
         ),
       );
       await screen.findByText(/Node acknowledged/);
+      expect(f.actor.broadcastSignedTransaction).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByText("Sent — awaiting confirmation"),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(
+        screen.queryByRole("button", {
+          name: /Send signed|Retry original|Submit the same/,
+        }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Check confirmation" }),
+      ).toBeEnabled();
+      cleanup();
+      render(<SendPaymentPanel {...f.props} locked />);
+      await screen.findByText("Sent — awaiting confirmation");
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(
+        screen.queryByRole("button", {
+          name: /Send signed|Retry original|Submit the same/,
+        }),
+      ).toBeNull();
+      expect(f.actor.broadcastSignedTransaction).toHaveBeenCalledTimes(1);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Check confirmation" }),
+      );
+      await screen.findByRole("button", {
+        name: "Send another to this recipient",
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Send another to this recipient" }),
+      );
+      expect(screen.getByLabelText("XBT recipient")).toHaveValue(
+        fixture.plan.destination,
+      );
+      expect(screen.getByLabelText("Amount in XBT")).toHaveValue("");
+      expect(f.signed).toHaveBeenCalledTimes(1);
       expect(f.actor.broadcastSignedTransaction).toHaveBeenCalledTimes(1);
     } finally {
       f.keys.destroy();

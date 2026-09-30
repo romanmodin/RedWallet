@@ -58,6 +58,7 @@ export function SendPaymentPanel({
   const activeReview = useRef<SpendReview | null>(null);
   const [pending, setPending] = useState<PendingPayment | null>(null);
   const [accepted, setAccepted] = useState(false);
+  const [confirmedRecipient, setConfirmedRecipient] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -234,7 +235,14 @@ export function SendPaymentPanel({
     }
   }
   async function submit() {
-    if (!pending || !accepted || busy || broken) return;
+    if (
+      !pending ||
+      pending.state === "acknowledged" ||
+      !accepted ||
+      busy ||
+      broken
+    )
+      return;
     const gen = operation.current;
     setBusy(true);
     setError("");
@@ -278,8 +286,12 @@ export function SendPaymentPanel({
       if (gen === operation.current) {
         setPending(null);
         setAccepted(false);
+        setConfirmedRecipient(pending.destination);
+        setDestination(pending.destination);
+        setAmount("");
+        persistDraft({ destination: pending.destination, amount: "", rate });
         setNotice(
-          "Confirmed transaction archived locally. Scan again before another payment.",
+          "Payment confirmed and archived locally. Recipient kept; enter a new amount for a separate payment. Refresh the account before preparing it.",
         );
         onConfirmed();
       }
@@ -320,7 +332,11 @@ export function SendPaymentPanel({
       {notice && <output className="block text-sm">{notice}</output>}
       {pending ? (
         <>
-          <h3 className="font-semibold">Saved signed payment</h3>
+          <h3 className="font-semibold">
+            {pending.state === "acknowledged"
+              ? "Sent — awaiting confirmation"
+              : "Saved signed payment"}
+          </h3>
           <p className="break-all font-mono text-xs">
             Transaction ID: {pending.txid}
           </p>
@@ -331,29 +347,36 @@ export function SendPaymentPanel({
             Local receipt: {pending.state}. Check the network for confirmation.
           </p>
           <p className="text-sm text-muted-foreground">
-            A lost reply does not mean failure. Retries use these exact signed
-            bytes; no replacement is created. Keep browser storage until this
-            payment is resolved.
+            {pending.state === "acknowledged"
+              ? "The node accepted this transaction. You do not need to send it again. Use Check confirmation to see when it is included in a block."
+              : pending.state === "signed"
+                ? "This payment is signed and saved on this device. It has not been submitted yet."
+                : "The submission result is unknown; the payment may already have reached the network. Check confirmation first. Retrying broadcasts only the original transaction, not a second payment."}{" "}
+            Keep browser storage until this payment is resolved.
           </p>
-          <label className="flex gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={accepted}
-              disabled={busy || broken}
-              onChange={(e) => setAccepted(e.target.checked)}
-            />
-            I checked this XBT recipient, amount and fee, and want to submit
-            this exact transaction.
-          </label>
+          {pending.state !== "acknowledged" && (
+            <label className="flex gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={accepted}
+                disabled={busy || broken}
+                onChange={(e) => setAccepted(e.target.checked)}
+              />
+              I checked this XBT recipient, amount and fee, and want to submit
+              this exact transaction.
+            </label>
+          )}
           <div className="flex flex-wrap gap-2">
-            <Button
-              disabled={busy || !accepted || broken}
-              onClick={() => void submit()}
-            >
-              {pending.state === "signed"
-                ? "Send signed transaction"
-                : "Submit the same transaction again"}
-            </Button>
+            {pending.state !== "acknowledged" && (
+              <Button
+                disabled={busy || !accepted || broken}
+                onClick={() => void submit()}
+              >
+                {pending.state === "signed"
+                  ? "Send signed transaction"
+                  : "Retry original transaction (not a new payment)"}
+              </Button>
+            )}
             <Button
               variant="outline"
               disabled={busy || broken}
@@ -365,6 +388,28 @@ export function SendPaymentPanel({
         </>
       ) : (
         <>
+          {confirmedRecipient && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                invalidate();
+                setDestination(confirmedRecipient);
+                setAmount("");
+                persistDraft({
+                  destination: confirmedRecipient,
+                  amount: "",
+                  rate,
+                });
+                setConfirmedRecipient("");
+                setNotice(
+                  "New payment to the same recipient. Enter the amount, refresh the account and review before signing.",
+                );
+                document.getElementById("xbt-pay-amount")?.focus();
+              }}
+            >
+              Send another to this recipient
+            </Button>
+          )}
           <fieldset disabled={busy || broken} className="space-y-3">
             <div>
               <Label htmlFor="xbt-pay-to">XBT recipient</Label>

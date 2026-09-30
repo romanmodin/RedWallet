@@ -1,3 +1,10 @@
+# Current release preparation: 0.24 acknowledged-payment clarity
+
+Acknowledged receipts show Sent — awaiting confirmation. Hide submission consent
+and retry controls in that state, including after reload, and guard submit().
+Unknown outcomes retain exact-original retry and advise checking confirmation.
+Never create a replacement payment automatically or alter saved signed bytes.
+
 # Current prepared release: 0.23 durable public scan and payment draft
 
 Completed account observations persist locally, scoped by origin, pinned XBT
