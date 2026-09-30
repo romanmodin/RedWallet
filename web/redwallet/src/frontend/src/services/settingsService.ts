@@ -82,8 +82,16 @@ function normalize(raw: unknown): UserSettings {
     manualUsdPerXbt:
       typeof record.manualUsdPerXbt === "number" &&
       Number.isFinite(record.manualUsdPerXbt) &&
-      record.manualUsdPerXbt > 0
+      record.manualUsdPerXbt > 0 &&
+      record.manualUsdPerXbt <= 1e12
         ? record.manualUsdPerXbt
+        : undefined,
+    manualPriceUpdatedAt:
+      typeof record.manualPriceUpdatedAt === "number" &&
+      Number.isSafeInteger(record.manualPriceUpdatedAt) &&
+      record.manualPriceUpdatedAt > 0 &&
+      record.manualPriceUpdatedAt <= Date.now() + 60000
+        ? record.manualPriceUpdatedAt
         : undefined,
     serverTls:
       typeof record.serverTls === "boolean"

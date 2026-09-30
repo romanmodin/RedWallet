@@ -47,6 +47,7 @@ function isPermittedImporter(file: string): boolean {
       "components/vault/LocalAccountContext.tsx",
       "components/vault/LocalAccountOverview.tsx",
       "components/vault/AccountReadPanel.tsx",
+      "components/vault/AccountHistory.tsx",
       "components/vault/SendPaymentPanel.tsx",
       "components/vault/WalletCompatibilityCheck.tsx",
     ].includes(rel)

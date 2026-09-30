@@ -6,6 +6,8 @@ import {
 import { loadPublicSnapshot } from "@/lib/xbt/public-wallet-storage";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { ManualFiatEstimate } from "../settings/ManualFiatEstimate";
+import { AccountHistory, historyAmount } from "./AccountHistory";
 import type { LocalAccountSelection } from "./LocalAccountContext";
 
 export function xbtAmount(value: bigint) {
@@ -60,7 +62,6 @@ export function LocalAccountOverview({
         Number(b.height <= 0n) - Number(a.height <= 0n) ||
         Number(b.height - a.height),
     );
-  const shownRows = history ? rows : rows.slice(0, 5);
   return (
     <section
       data-ocid={history ? "local.activity" : "local.home"}
@@ -100,6 +101,7 @@ export function LocalAccountOverview({
             <p className="break-all font-mono text-2xl">
               {xbtAmount(snapshot.confirmed)}
             </p>
+            <ManualFiatEstimate satoshis={snapshot.confirmed} />
             <p className="text-sm">
               Pending balance change at last scan:{" "}
               {xbtAmount(snapshot.unconfirmed)}
@@ -162,7 +164,7 @@ export function LocalAccountOverview({
           >
             <p className="font-semibold">Sent · Confirmation recorded</p>
             <p>
-              {xbtAmount(BigInt(payment.amount))} · Fee{" "}
+              {historyAmount(-BigInt(payment.amount), true)} · Fee{" "}
               {xbtAmount(BigInt(payment.fee))}
             </p>
             <p className="break-all font-mono text-xs">
@@ -177,28 +179,14 @@ export function LocalAccountOverview({
             device, not a live confirmation count.
           </p>
         )}
-        {shownRows.length > 0 && (
-          <>
-            <p className="text-xs text-muted-foreground">
-              Other account transactions from the last scan. Amount, direction
-              and time are unavailable for these entries.
-            </p>
-            <ul className="max-h-96 space-y-2 overflow-auto">
-              {shownRows.map((row) => (
-                <li
-                  key={row.txid}
-                  className="rounded-xl border border-border bg-card p-3"
-                >
-                  <p className="break-all font-mono text-xs">{row.txid}</p>
-                  <p className="text-xs">
-                    {row.height > 0n
-                      ? `Confirmed at block ${row.height}`
-                      : "Unconfirmed at last scan"}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </>
+        {snapshot && rows.length > 0 && (
+          <AccountHistory
+            key={`${xpub}:${snapshot.observedAt}`}
+            xpub={xpub}
+            snapshot={snapshot}
+            recent={!history}
+            exclude={[...sentIds, ...(pending ? [pending.txid] : [])]}
+          />
         )}
         {!pending && receipts.length === 0 && rows.length === 0 && (
           <p>No saved activity for this account yet.</p>

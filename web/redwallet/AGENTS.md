@@ -1,3 +1,17 @@
+# Current release preparation: 0.27 transaction outcomes and manual price clarity
+
+History may explicitly load bounded raw transaction/parent data through the
+checkpoint-verified canister. Verify all raw IDs/prevouts, derive ownership from
+this authenticated account's discovered/issued addresses, and exclude change
+from sent amounts. Display fees separately. Mixed-input transactions show net
+wallet change; do not assign their whole fee to the account. Persist bounded raw
+proofs and recompute outcomes on restore. Neither proofs nor amounts authorize
+spending. Preserve scan, signed receipts, drafts, keys and confirmation gates.
+Home/Activity navigation itself does not trigger a scan or amount lookup.
+Manual USD estimates must state source/update time and never imply a live quote.
+The native NeoxEX BTCB2_USDC trade endpoint returned HTTP 500 during preparation;
+no automatic feed or USDC/USD parity is claimed. No CSP/crypto/backend changes.
+
 # Current release preparation: 0.26 local wallet tabs
 
 Authenticated public account selection now survives same-tab navigation through

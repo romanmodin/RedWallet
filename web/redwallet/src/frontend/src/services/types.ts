@@ -171,6 +171,7 @@ export interface UserSettings {
   serverPort: number;
   serverTls: boolean;
   manualUsdPerXbt?: number;
+  manualPriceUpdatedAt?: number;
 }
 
 /** A demo-only send result. Never represents a broadcast transaction. */

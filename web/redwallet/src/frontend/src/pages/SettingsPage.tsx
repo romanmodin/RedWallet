@@ -69,12 +69,18 @@ export function SettingsPage() {
   );
   const savePrice = () => {
     const value = draftPrice.trim() ? Number(draftPrice) : undefined;
-    if (value !== undefined && (!Number.isFinite(value) || value <= 0)) {
+    if (
+      value !== undefined &&
+      (!Number.isFinite(value) || value <= 0 || value > 1e12)
+    ) {
       setPriceError("Enter a positive USD price, or clear the field.");
       return;
     }
     setPriceError(null);
-    updateSettings({ manualUsdPerXbt: value });
+    updateSettings({
+      manualUsdPerXbt: value,
+      manualPriceUpdatedAt: value === undefined ? undefined : Date.now(),
+    });
   };
   const [isOffline, setIsOffline] = useState(false);
 
@@ -188,7 +194,7 @@ export function SettingsPage() {
           <SettingsSection
             id="price"
             title="Manual XBT price"
-            description="Enter the current USD price of one XBT. Live wallets have no automatic fiat price feed."
+            description="Manual display estimate, not a live market price. Use an XBT quote; a Bitcoin BTC quote is a different asset. Demo accounts use fixed example prices."
           >
             <Label htmlFor="manual-price">USD per XBT</Label>
             <Input
@@ -207,6 +213,12 @@ export function SettingsPage() {
             <Button type="button" variant="outline" onClick={savePrice}>
               Save price
             </Button>
+            <p className="text-xs text-muted-foreground">
+              {settings.manualUsdPerXbt
+                ? `Saved price: ${settings.manualUsdPerXbt.toLocaleString("en-US", { maximumFractionDigits: 12 })} USD per XBT. ${settings.manualPriceUpdatedAt ? `Set ${new Date(settings.manualPriceUpdatedAt).toLocaleString()}.` : "Update time unavailable; save a fresh quote."}`
+                : "No manual price saved. Your XBT balance does not depend on a fiat price."}{" "}
+              Prices do not refresh automatically.
+            </p>
           </SettingsSection>
 
           <SettingsSection
@@ -248,7 +260,7 @@ export function SettingsPage() {
           <SupportSetting />
           <SettingsSection
             id="about"
-            title="RedWallet 0.26"
+            title="RedWallet 0.27"
             description="Preview release · XBT (BLAKE2b)"
           >
             <p className="text-sm text-muted-foreground">
