@@ -3,6 +3,7 @@ import type { BridgeActor } from "@/services/bridgeService";
 import type { AccountSnapshot } from "./account-reader";
 import type { IssuedAddresses } from "./issued-addresses";
 import { publicAddress } from "./key-material";
+import { validateSnapshot } from "./public-wallet-storage";
 import {
   type CandidateCoin,
   parseXbtAmount,
@@ -110,12 +111,21 @@ export class SpendPreparation {
       throw Error("Choose a whole-number fee rate from 1 to 1000 sat/vB");
     if (this.book.accountXpub !== this.accountXpub)
       throw Error("Wrong change-address account");
-    if (
-      !Number.isFinite(snapshot.observedAt) ||
-      Date.now() - snapshot.observedAt < 0 ||
-      Date.now() - snapshot.observedAt > 300000
-    )
-      throw Error("Scan the account again before preparing a payment");
+    validateSnapshot(this.accountXpub, snapshot);
+    // Historical balances never authorize spending. Every hinted address is
+    // derived again; all coins, parents, fees and checkpoints below are live.
+    const issued = this.book.read();
+    const candidates = snapshot.branches.map((branch, b) => {
+      const indices = new Set(branch.used.map((entry) => entry.index));
+      // Include locally issued addresses even if they were unused at scan time.
+      for (let i = 0; i <= issued[b]; i++) indices.add(i);
+      if (indices.size > 2000) throw Error("Too many payment address hints");
+      return [...indices].map((index) => ({
+        branch: b as 0 | 1,
+        index,
+        address: publicAddress(this.accountXpub, b as 0 | 1, index),
+      }));
+    });
     this.#busy = true;
     try {
       const tip = await this.#status(signal);
@@ -135,8 +145,8 @@ export class SpendPreparation {
       const coins: CandidateCoin[] = [];
       const outpoints = new Set<string>();
       const parents = new Map<string, string>();
-      for (const branch of snapshot.branches)
-        for (const entry of branch.used) {
+      for (const branch of candidates)
+        for (const entry of branch) {
           if (
             entry.address !==
             publicAddress(this.accountXpub, entry.branch, entry.index)
@@ -195,14 +205,35 @@ export class SpendPreparation {
             coins.push(coin);
           }
         }
+      // Reserve first, then check live history: old hints must not reuse an
+      // address already used by another copy of this recovered wallet.
+      let change: { address: string; index: number } | null = null;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const candidate = await this.book.reserve(
+          1,
+          snapshot.branches[1].next.index,
+          signal,
+        );
+        const history = ok(
+          await this.#read(
+            () => this.actor.getAddressHistory(candidate.address),
+            signal,
+          ),
+        );
+        if (!Array.isArray(history.entries))
+          throw Error("Change address history unavailable");
+        if (history.entries.length === 0) {
+          change = candidate;
+          break;
+        }
+      }
+      if (!change)
+        throw Error(
+          "Change addresses have existing history. Refresh the recovery scan.",
+        );
       const finalTip = await this.#status(signal);
       if (finalTip < tip)
         throw Error("Chain height changed backwards; scan again");
-      const change = await this.book.reserve(
-        1,
-        snapshot.branches[1].next.index,
-        signal,
-      );
       if (signal?.aborted) throw Error("Payment preparation cancelled");
       return {
         review: new SpendReview(

@@ -3,6 +3,7 @@ import { AccountReader, type AccountSnapshot } from "@/lib/xbt/account-reader";
 import { accountViewSession } from "@/lib/xbt/account-view-session";
 import type { IssuedAddresses } from "@/lib/xbt/issued-addresses";
 import type { PublicXbtAccount } from "@/lib/xbt/key-material";
+import { savePublicSnapshot } from "@/lib/xbt/public-wallet-storage";
 import type { BridgeActor } from "@/services/bridgeService";
 import { QRCodeSVG } from "qrcode.react";
 /** Public account view for the local vault workspace; no key material enters this component. */
@@ -93,6 +94,13 @@ export function AccountReadPanel({
         reader.current = null;
         session.snapshot = result;
         setSnapshot(result);
+        try {
+          savePublicSnapshot(account.accountXpub, result);
+        } catch {
+          setError(
+            "Scan completed, but this browser could not save it. Keep this tab open; another scan may be needed after closing it.",
+          );
+        }
       }
     } catch (e) {
       if (generation.current === operation)
@@ -166,9 +174,10 @@ export function AccountReadPanel({
       <p className="text-sm text-muted-foreground">
         Account 0, receive and change branches. A scan takes at least a few
         minutes. Only derived public addresses go to the configured XBT bridge.
-        Keys and recovery words stay in this browser. Completed results and a
-        paused scan survive navigation in this tab. Unlock again after returning
-        to restore the view. Reloading or closing the tab starts a new session.
+        Keys and recovery words stay in this browser. Completed results are
+        saved on this device, including after a reload. Unlock the same wallet
+        to restore them. A paused, incomplete scan can resume in this tab.
+        Preparing a payment checks current coins again.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm">

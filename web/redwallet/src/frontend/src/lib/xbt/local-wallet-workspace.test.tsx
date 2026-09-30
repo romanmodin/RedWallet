@@ -71,6 +71,11 @@ describe("gated local wallet workspace", () => {
     await user.click(screen.getByRole("button", { name: "Unlock wallet" }));
     await waitFor(() => expect(resolveBridgeActor).toHaveBeenCalledTimes(2));
 
+    // Safari background/pagehide locks keys without discarding the authenticated public selection.
+    await act(async () => window.dispatchEvent(new Event("pagehide")));
+    expect(screen.getByText(/Public account:/)).toBeInTheDocument();
+    expect(screen.getByText("Locked", { exact: true })).toBeInTheDocument();
+
     await act(async () =>
       window.dispatchEvent(new StorageEvent("storage", { key: null })),
     );

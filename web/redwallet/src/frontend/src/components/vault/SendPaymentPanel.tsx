@@ -11,6 +11,10 @@ import {
   type PendingPayment,
   PendingPayments,
 } from "@/lib/xbt/pending-payment";
+import {
+  loadPaymentDraft,
+  savePaymentDraft,
+} from "@/lib/xbt/public-wallet-storage";
 import { SpendPreparation } from "@/lib/xbt/spend-preparation";
 import type { SpendReview } from "@/lib/xbt/spend-review";
 import type { VaultController } from "@/lib/xbt/vault-controller";
@@ -46,9 +50,10 @@ export function SendPaymentPanel({
     () => new SpendPreparation(account.accountXpub, actor, addressBook),
     [account.accountXpub, actor, addressBook],
   );
-  const [destination, setDestination] = useState("");
-  const [amount, setAmount] = useState("");
-  const [rate, setRate] = useState("1");
+  const [draft] = useState(() => loadPaymentDraft(account.accountXpub));
+  const [destination, setDestination] = useState(draft.destination);
+  const [amount, setAmount] = useState(draft.amount);
+  const [rate, setRate] = useState(draft.rate);
   const [review, setReview] = useState<SpendReview | null>(null);
   const activeReview = useRef<SpendReview | null>(null);
   const [pending, setPending] = useState<PendingPayment | null>(null);
@@ -59,6 +64,22 @@ export function SendPaymentPanel({
   const [broken, setBroken] = useState(false);
   const operation = useRef(0);
   const abort = useRef<AbortController | null>(null);
+  const draftWarning = useRef(false);
+  function persistDraft(next: {
+    destination: string;
+    amount: string;
+    rate: string;
+  }) {
+    try {
+      savePaymentDraft(account.accountXpub, next);
+    } catch {
+      if (!draftWarning.current)
+        setNotice(
+          "Browser storage is unavailable; this payment draft cannot survive a reload.",
+        );
+      draftWarning.current = true;
+    }
+  }
   function invalidate() {
     activeReview.current?.invalidate();
     activeReview.current = null;
@@ -113,6 +134,9 @@ export function SendPaymentPanel({
   }, [store]);
   useEffect(() => {
     if (locked) {
+      operation.current++;
+      abort.current?.abort();
+      setBusy(false);
       activeReview.current?.invalidate();
       activeReview.current = null;
       setReview(null);
@@ -140,6 +164,10 @@ export function SendPaymentPanel({
   }, [review]);
   async function prepare() {
     if (!snapshot || busy || broken || pending) return;
+    if (locked || controller.locked) {
+      setNotice("Wallet locked. Unlock above before preparing a new review.");
+      return;
+    }
     invalidate();
     const gen = ++operation.current;
     const cancel = new AbortController();
@@ -155,7 +183,11 @@ export function SendPaymentPanel({
         Number(rate),
         cancel.signal,
       );
-      if (gen !== operation.current || cancel.signal.aborted) {
+      if (
+        gen !== operation.current ||
+        cancel.signal.aborted ||
+        controller.locked
+      ) {
         result.review.invalidate();
         return;
       }
@@ -260,6 +292,7 @@ export function SendPaymentPanel({
   }
   function edit(action: () => void) {
     invalidate();
+    setError("");
     action();
   }
   return (
@@ -340,7 +373,11 @@ export function SendPaymentPanel({
                 autoComplete="off"
                 value={destination}
                 onChange={(e) =>
-                  edit(() => setDestination(e.target.value.trim()))
+                  edit(() => {
+                    const value = e.target.value.trim().slice(0, 128);
+                    setDestination(value);
+                    persistDraft({ destination: value, amount, rate });
+                  })
                 }
               />
             </div>
@@ -351,7 +388,13 @@ export function SendPaymentPanel({
                 inputMode="decimal"
                 autoComplete="off"
                 value={amount}
-                onChange={(e) => edit(() => setAmount(e.target.value))}
+                onChange={(e) =>
+                  edit(() => {
+                    const value = e.target.value.slice(0, 32);
+                    setAmount(value);
+                    persistDraft({ destination, amount: value, rate });
+                  })
+                }
               />
             </div>
             <div>
@@ -360,18 +403,44 @@ export function SendPaymentPanel({
                 id="xbt-pay-fee"
                 inputMode="numeric"
                 value={rate}
-                onChange={(e) => edit(() => setRate(e.target.value))}
+                onChange={(e) =>
+                  edit(() => {
+                    const value = e.target.value.slice(0, 8);
+                    setRate(value);
+                    persistDraft({ destination, amount, rate: value });
+                  })
+                }
               />
             </div>
           </fieldset>
+          {locked && (
+            <p className="text-sm">
+              Unlock this wallet above before preparing a review. Your draft and
+              completed scan stay saved; returning from another app locks keys
+              and cancels only the review.
+            </p>
+          )}
+          {locked && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                const panel = document.getElementById("local-wallet-unlock");
+                panel?.scrollIntoView({ block: "start" });
+                panel?.focus({ preventScroll: true });
+              }}
+            >
+              Go to wallet unlock
+            </Button>
+          )}
           {!snapshot && (
             <p className="text-sm">
-              Complete a fresh account scan above first.
+              Complete the initial account scan above first. Saved scans restore
+              after unlocking.
             </p>
           )}
           <Button
             variant="outline"
-            disabled={busy || !snapshot || broken}
+            disabled={busy || !snapshot || broken || locked}
             onClick={() => void prepare()}
           >
             {busy ? "Checking payment data…" : "Prepare transaction review"}

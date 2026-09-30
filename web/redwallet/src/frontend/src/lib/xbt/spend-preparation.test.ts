@@ -91,6 +91,10 @@ function setup() {
           ),
       },
     })),
+    getAddressHistory: vi.fn(async () => ({
+      __kind__: "ok",
+      ok: { entries: [] as { txid: string; height: bigint }[] },
+    })),
     getRawTransaction: vi.fn(async () => ({
       __kind__: "ok",
       ok: { hex: fixture.plan.inputs[0].parentHex },
@@ -125,7 +129,7 @@ describe("live public spend preparation", () => {
     expect(f.actor.getRawTransaction).toHaveBeenCalledTimes(1);
     expect(f.actor.getServerStatus).toHaveBeenCalledTimes(2);
   });
-  it("fails closed when operator disabled sending, checkpoint wrong or snapshot stale", async () => {
+  it("fails closed when operator disabled sending, checkpoint wrong or invalid cached observations", async () => {
     const f = setup();
     const status = await f.actor.getServerStatus();
     f.actor.getServerStatus.mockResolvedValue({
@@ -143,10 +147,58 @@ describe("live public spend preparation", () => {
     await expect(
       f.reader.prepare(f.snapshot, fixture.plan.destination, "0.00090000", 1),
     ).rejects.toThrow(/checkpoint/);
-    f.snapshot.observedAt = Date.now() - 300001;
+    f.snapshot.observedAt = Number.NaN;
     await expect(
       f.reader.prepare(f.snapshot, fixture.plan.destination, "0.00090000", 1),
-    ).rejects.toThrow(/Scan/);
+    ).rejects.toThrow(/saved account/);
+  });
+  it("revalidates an old scan against live coins instead of requiring full discovery", async () => {
+    const f = setup();
+    f.snapshot.observedAt = Date.now() - 86400000;
+    f.snapshot.confirmed = 2100000000000000n; // cached balance is never an input
+    const result = await f.reader.prepare(
+      f.snapshot,
+      fixture.plan.destination,
+      "0.00090000",
+      1,
+    );
+    expect(result.review.plan.amount).toBe("90000");
+    expect(f.actor.getRawTransaction).toHaveBeenCalled();
+    expect(f.actor.getServerStatus).toHaveBeenCalledTimes(2);
+    f.actor.getAddressUtxos.mockResolvedValue({
+      __kind__: "ok",
+      ok: { utxos: [] },
+    });
+    await expect(
+      f.reader.prepare(f.snapshot, fixture.plan.destination, "0.00090000", 1),
+    ).rejects.toThrow();
+  });
+  it("checks locally issued addresses absent from historical used-address hints", async () => {
+    const f = setup();
+    await f.book.reserve(0, 1);
+    f.snapshot.branches[0].used = [];
+    const result = await f.reader.prepare(
+      f.snapshot,
+      fixture.plan.destination,
+      "0.00090000",
+      1,
+    );
+    expect(result.review.plan.amount).toBe("90000");
+  });
+  it("skips reserved change with live history despite an old scan", async () => {
+    const f = setup();
+    f.actor.getAddressHistory.mockResolvedValueOnce({
+      __kind__: "ok",
+      ok: { entries: [{ txid: "a".repeat(64), height: 974750n }] },
+    });
+    const { review } = await f.reader.prepare(
+      f.snapshot,
+      fixture.plan.destination,
+      "0.00090000",
+      1,
+    );
+    expect(review.plan.changeIndex).toBe(1);
+    expect(f.actor.getAddressHistory).toHaveBeenCalledTimes(2);
   });
   it("never creates a review or consumes change for a substituted raw parent", async () => {
     const f = setup();

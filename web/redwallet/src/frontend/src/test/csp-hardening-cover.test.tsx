@@ -226,7 +226,7 @@ describe("Public metadata description", () => {
     )?.[1];
     expect(description, "no meta description").toBeTruthy();
     expect(description ?? "").toMatch(/watch-only/i);
-    expect(description ?? "").toMatch(/0\.22 preview/i);
+    expect(description ?? "").toMatch(/0\.23 preview/i);
     expect(description ?? "").toMatch(/local encrypted native SegWit wallets/i);
   });
 

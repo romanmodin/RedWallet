@@ -316,6 +316,8 @@ export function LocalVaultPanel({
   );
   return (
     <section
+      id="local-wallet-unlock"
+      tabIndex={-1}
       aria-label="Encrypted XBT wallets"
       className="space-y-4 rounded-2xl border border-border bg-card p-5"
     >

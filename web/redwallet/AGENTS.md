@@ -1,3 +1,17 @@
+# Current prepared release: 0.23 durable public scan and payment draft
+
+Completed account observations persist locally, scoped by origin, pinned XBT
+checkpoint profile and authenticated xpub hash. They are untrusted display data
+and address hints, never spendability proof. Restore validates bounds and derives
+every address from the authenticated xpub. Public selection survives background;
+reload/navigation still requires unlocking the same encrypted wallet.
+Unsigned recipient/amount/fee drafts persist. Consent, reviews and keys do not.
+All live coin/raw-parent/checkpoint/fee checks remain required. Old observations
+no longer force full discovery solely because they are five minutes old. Include
+locally issued addresses in current coin reads and check newly reserved change
+against live history. Durable signed receipts and explicit submission stay intact.
+Do not claim an iPhone funded outgoing transfer passed: it remains unverified.
+
 # Current prepared release: 0.22 scan navigation fix
 
 Public account scan sessions now survive same-tab navigation and visibility changes.

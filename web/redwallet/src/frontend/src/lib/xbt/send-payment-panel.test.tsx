@@ -123,6 +123,50 @@ describe("explicit local sign then network submission", () => {
       f.keys.destroy();
     }
   });
+  it("restores the editable draft after background and remount, but not consent or review", async () => {
+    const f = setup();
+    try {
+      const view = render(<SendPaymentPanel {...f.props} />);
+      fireEvent.change(screen.getByLabelText("XBT recipient"), {
+        target: { value: fixture.plan.destination },
+      });
+      fireEvent.change(screen.getByLabelText("Amount in XBT"), {
+        target: { value: "0.005" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Prepare transaction review" }),
+      );
+      await screen.findByText("Review before signing");
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /I checked the XBT recipient/ }),
+      );
+      fireEvent(window, new Event("pagehide"));
+      expect(screen.queryByText("Review before signing")).toBeNull();
+      view.unmount();
+      render(<SendPaymentPanel {...f.props} locked />);
+      expect(screen.getByLabelText("XBT recipient")).toHaveValue(
+        fixture.plan.destination,
+      );
+      expect(screen.getByLabelText("Amount in XBT")).toHaveValue("0.005");
+      expect(
+        screen.getByRole("button", { name: "Prepare transaction review" }),
+      ).toBeDisabled();
+      fireEvent.change(screen.getByLabelText("XBT recipient"), {
+        target: { value: "" },
+      });
+      fireEvent.change(screen.getByLabelText("XBT recipient"), {
+        target: { value: fixture.plan.destination },
+      });
+      expect(screen.getByLabelText("XBT recipient")).toHaveValue(
+        fixture.plan.destination,
+      );
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(f.signed).not.toHaveBeenCalled();
+      expect(f.actor.broadcastSignedTransaction).not.toHaveBeenCalled();
+    } finally {
+      f.keys.destroy();
+    }
+  });
   it("invalidates a prepared review on edits and locking", async () => {
     const f = setup();
     try {

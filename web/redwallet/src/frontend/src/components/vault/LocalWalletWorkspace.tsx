@@ -1,6 +1,9 @@
 import type { backendInterface } from "@/backend";
 import type { AccountSnapshot } from "@/lib/xbt/account-reader";
-import { clearAccountViewSessions } from "@/lib/xbt/account-view-session";
+import {
+  clearAccountSnapshot,
+  clearAccountViewSessions,
+} from "@/lib/xbt/account-view-session";
 import { IssuedAddresses } from "@/lib/xbt/issued-addresses";
 import type { PublicXbtAccount } from "@/lib/xbt/key-material";
 import { VaultCatalog } from "@/lib/xbt/vault-catalog";
@@ -58,9 +61,6 @@ function ProtectedLocalWorkspace() {
   const [locked, setLocked] = useState(true);
   const [snapshot, setSnapshot] = useState<AccountSnapshot | null>(null);
   const [scanKey, setScanKey] = useState(0);
-  const [visible, setVisible] = useState(
-    document.visibilityState === "visible",
-  );
   const book = useMemo(() => {
     if (!selected) return null;
     try {
@@ -95,18 +95,9 @@ function ProtectedLocalWorkspace() {
         setSelected(null);
       }
     };
-    const visibility = () => setVisible(document.visibilityState === "visible");
-    const pagehide = () => {
-      setVisible(false);
-      setSelected(null);
-    };
     window.addEventListener("storage", storage);
-    window.addEventListener("pagehide", pagehide);
-    document.addEventListener("visibilitychange", visibility);
     return () => {
       window.removeEventListener("storage", storage);
-      window.removeEventListener("pagehide", pagehide);
-      document.removeEventListener("visibilitychange", visibility);
       catalog?.lockAll();
     };
   }, [catalog]);
@@ -152,7 +143,7 @@ function ProtectedLocalWorkspace() {
               the connection is restored.
             </p>
           )}
-          {visible && book && actor && (
+          {book && actor && (
             <>
               <AccountReadPanel
                 key={`${selected.id}:${scanKey}`}
@@ -170,7 +161,7 @@ function ProtectedLocalWorkspace() {
                 controller={catalog.controller(selected.id)}
                 locked={locked}
                 onConfirmed={() => {
-                  clearAccountViewSessions();
+                  clearAccountSnapshot(actor, selected.account.accountXpub);
                   setSnapshot(null);
                   setScanKey((value) => value + 1);
                 }}
