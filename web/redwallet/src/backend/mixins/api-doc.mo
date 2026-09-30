@@ -48,6 +48,13 @@ mixin () {
     "  `Unauthorized: bridge operator required` otherwise.\n" #
     "- All other endpoints are unrestricted reads.\n\n" #
     "## Read endpoints\n\n" #
+    "- `getNeoxexPrice() -> { #ok : Text; #err : Text }` is a display-only\n" #
+    "  public read of the fixed NeoxEX BTCB2_USDC last-trade endpoint. It sends\n" #
+    "  no wallet data or credentials. Responses are bounded to 16384 bytes;\n" #
+    "  the client validates pair, price, trade ID and execution time. Paid\n" #
+    "  exchange reads are globally throttled to one per five minutes, with\n" #
+    "  a transient 300-call UTC-day cap. Errors are cached too. This quote is\n" #
+    "  USDC per XBT, never spendability or an exact USD conversion.\n\n" #
     "Every bridge-backed read returns `BridgeResult<T>`:\n" #
     "`#ok(value)` on success, `#err(BridgeError)` on failure. No demo or fabricated\n" #
     "data is ever returned.\n\n" #

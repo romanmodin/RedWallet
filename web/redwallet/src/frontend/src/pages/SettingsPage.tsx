@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSettings } from "@/hooks/useSettings";
+import { useXbtPrice } from "@/hooks/useXbtPrice";
 import { Link } from "@tanstack/react-router";
 import { RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -58,6 +59,7 @@ function SettingsSection({
 
 export function SettingsPage() {
   const { settings, error, updateSettings, resetSettings } = useSettings();
+  const market = useXbtPrice();
   const [isLoading, setIsLoading] = useState(true);
   const [draftPrice, setDraftPrice] = useState(
     String(settings.manualUsdPerXbt ?? ""),
@@ -193,32 +195,107 @@ export function SettingsPage() {
 
           <SettingsSection
             id="price"
-            title="Manual XBT price"
-            description="Manual display estimate, not a live market price. Use an XBT quote; a Bitcoin BTC quote is a different asset. Demo accounts use fixed example prices."
+            title="XBT price"
+            description="Auto uses NeoxEX’s last XBT/USDC trade. Manual uses your USD estimate. Prices affect display only; demo accounts keep their fixed example prices."
           >
-            <Label htmlFor="manual-price">USD per XBT</Label>
-            <Input
-              id="manual-price"
-              inputMode="decimal"
-              placeholder="Unavailable until configured"
-              value={draftPrice}
-              onChange={(e) => setDraftPrice(e.target.value)}
-              aria-invalid={!!priceError}
-            />
-            {priceError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {priceError}
-              </p>
-            ) : null}
-            <Button type="button" variant="outline" onClick={savePrice}>
-              Save price
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              {settings.manualUsdPerXbt
-                ? `Saved price: ${settings.manualUsdPerXbt.toLocaleString("en-US", { maximumFractionDigits: 12 })} USD per XBT. ${settings.manualPriceUpdatedAt ? `Set ${new Date(settings.manualPriceUpdatedAt).toLocaleString()}.` : "Update time unavailable; save a fresh quote."}`
-                : "No manual price saved. Your XBT balance does not depend on a fiat price."}{" "}
-              Prices do not refresh automatically.
-            </p>
+            <fieldset className="grid grid-cols-2 gap-3">
+              <legend className="sr-only">Price source</legend>
+              {(["auto", "manual"] as const).map((mode) => (
+                <label
+                  key={mode}
+                  className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm ${settings.priceMode === mode ? "border-primary bg-primary/10" : "border-border"}`}
+                >
+                  <input
+                    type="radio"
+                    name="price-mode"
+                    value={mode}
+                    checked={settings.priceMode === mode}
+                    onChange={() => updateSettings({ priceMode: mode })}
+                    className="accent-red-600"
+                  />
+                  {mode === "auto" ? "Auto (NeoxEX)" : "Manual"}
+                </label>
+              ))}
+            </fieldset>
+            {settings.priceMode === "auto" ? (
+              <div
+                className="space-y-3 rounded-xl bg-secondary/40 p-4"
+                aria-live="polite"
+              >
+                {market.quote ? (
+                  <>
+                    <p className="font-mono text-xl font-semibold tabular-nums">
+                      {market.quote.price.toLocaleString("en-US", {
+                        maximumFractionDigits: 12,
+                      })}{" "}
+                      <span className="text-xs text-muted-foreground">
+                        USDC / XBT
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Last trade:{" "}
+                      {new Date(market.quote.tradeAt).toLocaleString()}
+                      {market.now - market.quote.tradeAt >= 900000
+                        ? " · Stale quote"
+                        : ""}
+                      . Checked{" "}
+                      {new Date(market.quote.checkedAt).toLocaleString()}.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm">
+                    {market.loading
+                      ? "Discovering XBT price…"
+                      : "NeoxEX quote unavailable."}
+                  </p>
+                )}
+                {market.error ? (
+                  <p className="text-xs text-muted-foreground">
+                    {market.error}
+                  </p>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={market.loading}
+                  onClick={() => void market.refresh()}
+                >
+                  Refresh price
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Refreshes every 5 minutes while open; pauses in the
+                  background. The last valid quote stays saved if NeoxEX is
+                  unavailable. USDC is the exchange quote currency, not an exact
+                  USD conversion.
+                </p>
+              </div>
+            ) : (
+              <>
+                <Label htmlFor="manual-price">USD per XBT</Label>
+                <Input
+                  id="manual-price"
+                  inputMode="decimal"
+                  placeholder="Unavailable until configured"
+                  value={draftPrice}
+                  onChange={(e) => setDraftPrice(e.target.value)}
+                  aria-invalid={!!priceError}
+                />
+                {priceError ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {priceError}
+                  </p>
+                ) : null}
+                <Button type="button" variant="outline" onClick={savePrice}>
+                  Save price
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {settings.manualUsdPerXbt
+                    ? `Saved price: ${settings.manualUsdPerXbt.toLocaleString("en-US", { maximumFractionDigits: 12 })} USD per XBT. ${settings.manualPriceUpdatedAt ? `Set ${new Date(settings.manualPriceUpdatedAt).toLocaleString()}.` : "Update time unavailable; save a fresh quote."}`
+                    : "No manual price saved. Your XBT balance does not depend on a fiat price."}{" "}
+                  Manual prices do not refresh automatically.
+                </p>
+              </>
+            )}
           </SettingsSection>
 
           <SettingsSection
@@ -260,7 +337,7 @@ export function SettingsPage() {
           <SupportSetting />
           <SettingsSection
             id="about"
-            title="RedWallet 0.27"
+            title="RedWallet 0.28"
             description="Preview release · XBT (BLAKE2b)"
           >
             <p className="text-sm text-muted-foreground">

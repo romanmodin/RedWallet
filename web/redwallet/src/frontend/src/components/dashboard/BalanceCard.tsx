@@ -6,6 +6,7 @@
  * toggle, which is announced politely to assistive technology.
  */
 
+import { ManualFiatEstimate } from "@/components/settings/ManualFiatEstimate";
 import { Button } from "@/components/ui/button";
 import { formatAmount, formatFiat } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -108,11 +109,22 @@ export function BalanceCard({
           </Button>
         </div>
         <span className="font-mono text-sm text-primary-foreground/80 tabular-nums">
-          {visible
-            ? Number.isFinite(fiatUsd)
-              ? `≈ ${formatFiat(fiatUsd)}`
-              : "Fiat price unavailable"
-            : "≈ ••••"}
+          {visible ? (
+            !isDemo &&
+            Number.isFinite(balanceXbt) &&
+            Number.isSafeInteger(Math.round(balanceXbt * 1e8)) ? (
+              <ManualFiatEstimate
+                satoshis={BigInt(Math.round(balanceXbt * 1e8))}
+                compact
+              />
+            ) : Number.isFinite(fiatUsd) ? (
+              `≈ ${formatFiat(fiatUsd)}`
+            ) : (
+              "Fiat price unavailable"
+            )
+          ) : (
+            "≈ ••••"
+          )}
         </span>
       </div>
 

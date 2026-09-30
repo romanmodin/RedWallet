@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   serverHost: "",
   serverPort: 50002,
   serverTls: true,
+  priceMode: "auto",
 };
 
 const DISPLAY_UNITS: DisplayUnit[] = ["XBT", "BTC"];
@@ -93,6 +94,15 @@ function normalize(raw: unknown): UserSettings {
       record.manualPriceUpdatedAt <= Date.now() + 60000
         ? record.manualPriceUpdatedAt
         : undefined,
+    priceMode:
+      record.priceMode === "manual" || record.priceMode === "auto"
+        ? record.priceMode
+        : typeof record.manualUsdPerXbt === "number" &&
+            Number.isFinite(record.manualUsdPerXbt) &&
+            record.manualUsdPerXbt > 0 &&
+            record.manualUsdPerXbt <= 1e12
+          ? "manual"
+          : "auto",
     serverTls:
       typeof record.serverTls === "boolean"
         ? record.serverTls
@@ -128,6 +138,7 @@ export class LocalSettingsService implements SettingsService {
     }
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+      window.dispatchEvent(new Event("redwallet-settings"));
       return ok(normalized);
     } catch {
       return err("unknown", "Could not save settings to this browser.");
@@ -144,6 +155,7 @@ export class LocalSettingsService implements SettingsService {
     if (hasStorage()) {
       try {
         window.localStorage.removeItem(STORAGE_KEY);
+        window.dispatchEvent(new Event("redwallet-settings"));
       } catch {
         // Ignore removal failures and fall through to defaults.
       }

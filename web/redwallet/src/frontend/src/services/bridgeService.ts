@@ -606,7 +606,10 @@ export class BridgeWalletService implements WalletService {
 
   async getFiatRate(): Promise<ServiceResult<FiatRate>> {
     const settings = settingsService.getSettings();
-    const price = settings.ok ? settings.value.manualUsdPerXbt : undefined;
+    const price =
+      settings.ok && settings.value.priceMode === "manual"
+        ? settings.value.manualUsdPerXbt
+        : undefined;
     return price
       ? ok({ usdPerXbt: price, source: "manual", fetchedAt: Date.now() })
       : err(

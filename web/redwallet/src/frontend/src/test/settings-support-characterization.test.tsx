@@ -39,7 +39,8 @@ async function openReceive() {
 
 describe("Settings baseline before the Support/Donate addition", () => {
   it("keeps every existing settings section and its controls", async () => {
-    await openSettings();
+    const user = await openSettings();
+    await user.click(screen.getByRole("radio", { name: /^Manual$/ }));
 
     // The four preference sections the page has always rendered.
     expect(screen.getByTestId("settings.section.display")).toBeInTheDocument();
@@ -71,6 +72,7 @@ describe("Settings baseline before the Support/Donate addition", () => {
 
   it("keeps the manual price validation for a non-positive value", async () => {
     const user = await openSettings();
+    await user.click(screen.getByRole("radio", { name: /^Manual$/ }));
     const price = screen.getByLabelText("USD per XBT");
 
     await user.type(price, "-5");

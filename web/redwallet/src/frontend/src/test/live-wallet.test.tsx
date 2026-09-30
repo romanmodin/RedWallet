@@ -61,7 +61,7 @@ it("shows real address data, unknown fiat, copies only the user's address and bl
     "0.75000000 XBT",
   );
   expect(screen.getByTestId("dashboard.balance_card")).toHaveTextContent(
-    "Fiat price unavailable",
+    "Price unavailable",
   );
   await user.click(screen.getByTestId("dashboard.quick_actions.receive"));
   expect(await screen.findByTestId("receive.address_text")).toHaveTextContent(

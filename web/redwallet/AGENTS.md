@@ -1,3 +1,20 @@
+# Current release preparation: 0.28 Auto/Manual NeoxEX display price
+
+User reports0.27 works well on the requested iPhone follow-up. This is user
+feedback, not independent Safari instrumentation.0.28 adds Auto(NeoxEX) and
+Manual modes. New devices defaultAuto; legacy valid manual quotes migrateManual
+so existing preferences are preserved. Switching modes retains both quotes.
+The fixedBTCB2_USDC latest-trade endpoint is accessed via a separate anonymous
+bounded canister method, not a browser cross-origin request. No wallet data,
+operator credentials or bridge secrets enter this price request. No CSP, bridge,
+crypto, migration or financial submission changes. Exchange quote currency is
+USDC, not an exactUSD conversion. Preserve execution time; show stale>=15min,
+retainlastvalidquoteonfailure, cacheperdevice, poll5minforegroundonly, throttle
+allcanisterpaidexchangecalls5min globally and300perUTCday(transient cache/caps).
+Validateclientpair/finitepositiveprice<=1e12/tradeID/strictUTCtime/calendar/future
+skew/bodybounds. Price is display-only; never use it in spending checks.
+Caffeinecompile/export/publication/livepricevalidationpending; seeV028report.
+
 # Current release: 0.27 verified in production
 
 Caffeine internal revision28 is live, user-facing0.27. All317 uploaded source

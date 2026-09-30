@@ -163,7 +163,10 @@ describe("Live watched addresses", () => {
   it("does not use a Bitcoin demo price for live XBT", async () => {
     const service = new BridgeWalletService(async () => makeActor());
     expect((await service.getFiatRate()).ok).toBe(false);
-    settingsService.updateSettings({ manualUsdPerXbt: 375 });
+    settingsService.updateSettings({
+      manualUsdPerXbt: 375,
+      priceMode: "manual",
+    });
     expect(await service.getFiatRate()).toMatchObject({
       ok: true,
       value: { source: "manual", usdPerXbt: 375 },

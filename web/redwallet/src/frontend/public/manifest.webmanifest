@@ -1,7 +1,7 @@
 {
   "name": "RedWallet",
   "short_name": "RedWallet",
-  "description": "RedWallet 0.27 preview \u2014 XBT watch-only addresses and local encrypted native SegWit wallets.",
+  "description": "RedWallet 0.28 preview \u2014 XBT watch-only addresses and local encrypted native SegWit wallets.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

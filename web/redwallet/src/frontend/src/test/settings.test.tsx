@@ -64,6 +64,7 @@ describe("Settings", () => {
 
   it("saves a manual XBT price and clears it without inventing a fallback", async () => {
     const user = await openSettings();
+    await user.click(screen.getByRole("radio", { name: /^Manual$/ }));
     const price = screen.getByLabelText("USD per XBT");
     await user.type(price, "375.25");
     await user.click(screen.getByRole("button", { name: "Save price" }));

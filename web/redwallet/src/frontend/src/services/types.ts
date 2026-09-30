@@ -172,6 +172,7 @@ export interface UserSettings {
   serverTls: boolean;
   manualUsdPerXbt?: number;
   manualPriceUpdatedAt?: number;
+  priceMode?: "auto" | "manual";
 }
 
 /** A demo-only send result. Never represents a broadcast transaction. */

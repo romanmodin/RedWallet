@@ -5,6 +5,7 @@ import Expose "mo:caffeineai-oql/Expose";
 import ApiDocMixin "mixins/api-doc";
 import BridgeClientMixin "mixins/bridge-client";
 import BridgeTypes "types/bridge";
+import NeoxexPriceMixin "mixins/neoxex-price";
 
 actor {
   let accessControlState : AccessControl.AccessControlState;
@@ -13,5 +14,6 @@ actor {
   include MixinAuthorization(accessControlState, null);
   include BridgeClientMixin(bridgeConfig, bridgeSecurity);
   include ApiDocMixin();
+  include NeoxexPriceMixin();
   include Expose({ entities = [] });
 };
