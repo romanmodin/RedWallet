@@ -212,6 +212,10 @@ export function createServer(deps: ServerDeps): http.Server {
       }
       return {
         height: tip.height,
+        // Public adapter identity; no deployment secret is returned.
+        fulcrumHost: config.fulcrumHost, fulcrumPort: config.fulcrumPort, fulcrumTls: config.fulcrumTls,
+        tipTimestamp: "hex" in tip && typeof tip.hex === "string" && /^(?:[a-f0-9]{2}){80,2048}$/i.test(tip.hex)
+          ? Buffer.from(tip.hex, "hex").readUInt32LE(68) : null,
         serverVersion: version[0], protocolVersion: version[1],
         checkpointVerified: config.checkpoint !== null,
         broadcastEnabled: config.enableBroadcast === true && config.checkpoint !== null,

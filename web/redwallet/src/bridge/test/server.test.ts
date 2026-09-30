@@ -370,7 +370,7 @@ test("status: verifies the exact extended XBT checkpoint and reports actual upst
   try {
     const response = await rpc(bridge.baseUrl, { method: "server.status", params: [] });
     assert.equal(response.status, 200);
-    assert.deepEqual(response.json, {result: {height: 982345, serverVersion: "Fulcrum", protocolVersion: "1.4", checkpointVerified: true, broadcastEnabled: false, checkpointHeight: CHECKPOINT.height, checkpointHash: CHECKPOINT.hash}});
+    assert.deepEqual(response.json, {result: {height: 982345, fulcrumHost:"127.0.0.1",fulcrumPort:upstream.port,fulcrumTls:false,tipTimestamp:null, serverVersion: "Fulcrum", protocolVersion: "1.4", checkpointVerified: true, broadcastEnabled: false, checkpointHeight: CHECKPOINT.height, checkpointHash: CHECKPOINT.hash}});
     assert.deepEqual(upstream.requests[0], {method: "blockchain.block.header", params: [961640]});
   } finally { await bridge.close(); await upstream.close(); }
 });
@@ -517,4 +517,11 @@ test("allowlist: no broadcast, signing, or private-key method is reachable", asy
     await bridge.close();
     await upstream.close();
   }
+});
+
+test("status reports actual adapter upstream and header-derived tip time without credentials", async()=>{
+ const header=Buffer.alloc(80);header.writeUInt32LE(1790800000,68);
+ const upstream=await startMockUpstream({handler:(method)=> method === "blockchain.headers.subscribe" ? {height:974900,hex:header.toString("hex")} : ["Fulcrum","1.4"]});
+ const bridge=await startBridge({},upstream);
+ try {const response=await rpc(bridge.baseUrl,{method:"server.status",params:[]});assert.equal(response.status,200);const result=(response.json as {result:Record<string,unknown>}).result;assert.equal(result.fulcrumHost,"127.0.0.1");assert.equal(result.fulcrumPort,upstream.port);assert.equal(result.fulcrumTls,false);assert.equal(result.tipTimestamp,1790800000);assert.equal(JSON.stringify(result).includes(SECRET),false);} finally {await bridge.close();await upstream.close();}
 });

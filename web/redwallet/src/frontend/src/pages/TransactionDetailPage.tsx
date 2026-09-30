@@ -17,6 +17,10 @@ import { useSettings } from "@/hooks/useSettings";
 import { formatAmount, formatFiat, truncateAddress } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { bridgeWalletService } from "@/services/bridgeService";
+import {
+  PROVIDER_EVENT,
+  providerGeneration,
+} from "@/services/networkGeneration";
 import type { ServiceError, Transaction } from "@/services/types";
 import { Link, useParams } from "@tanstack/react-router";
 import {
@@ -27,7 +31,7 @@ import {
   FileQuestion,
   History,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface DetailRow {
   label: string;
@@ -53,6 +57,7 @@ export function TransactionDetailPage() {
   const { id } = useParams({ from: "/history/$id" });
   const { settings } = useSettings();
 
+  const request = useRef(0);
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<ServiceError | null>(null);
@@ -61,8 +66,13 @@ export function TransactionDetailPage() {
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
+    const sequence = ++request.current;
+    const generation = providerGeneration();
+    setTransaction(null);
     setIsLoading(true);
     const result = await bridgeWalletService.getTransaction(id);
+    if (sequence !== request.current || generation !== providerGeneration())
+      return;
     if (result.ok) {
       setTransaction(result.value);
       setError(null);
@@ -89,6 +99,16 @@ export function TransactionDetailPage() {
 
   useEffect(() => {
     void load();
+    const changed = () => {
+      request.current++;
+      setTransaction(null);
+      void load();
+    };
+    window.addEventListener(PROVIDER_EVENT, changed);
+    return () => {
+      request.current++;
+      window.removeEventListener(PROVIDER_EVENT, changed);
+    };
   }, [load]);
 
   const copyAddress = useCallback(async () => {

@@ -19,11 +19,14 @@ import { LoadingState } from "@/components/states/LoadingState";
 import { OfflineState } from "@/components/states/OfflineState";
 import { useLocalAccount } from "@/components/vault/LocalAccountContext";
 import { LocalWalletWorkspace } from "@/components/vault/LocalWalletWorkspace";
+import { useProviderGeneration } from "@/hooks/useProviderGeneration";
 import { useSettings } from "@/hooks/useSettings";
 import { useWallet } from "@/hooks/useWallet";
 import { formatAmount } from "@/lib/format";
 import { bridgeWalletService } from "@/services/bridgeService";
+import { providerGeneration } from "@/services/networkGeneration";
 import type { FeeEstimate } from "@/services/types";
+import { MockWalletService } from "@/services/walletService";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
@@ -66,6 +69,7 @@ function WatchedSendPage() {
     error: walletError,
   } = useWallet();
   const { settings } = useSettings();
+  const providerVersion = useProviderGeneration();
 
   const [step, setStep] = useState<Step>("form");
   const [values, setValues] = useState<SendFormValues>(EMPTY_VALUES);
@@ -97,8 +101,11 @@ function WatchedSendPage() {
     let cancelled = false;
     setIsFeeLoading(true);
     const timer = window.setTimeout(() => {
-      void bridgeWalletService.estimateFee(parsedAmount).then((result) => {
-        if (cancelled) return;
+      const service = activeWallet?.isDemo
+        ? new MockWalletService()
+        : bridgeWalletService;
+      void service.estimateFee(parsedAmount).then((result) => {
+        if (cancelled || providerVersion !== providerGeneration()) return;
         if (result.ok) {
           setFeeEstimate(result.value);
           setFeeError(null);
@@ -114,7 +121,7 @@ function WatchedSendPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [parsedAmount]);
+  }, [parsedAmount, activeWallet?.isDemo, providerVersion]);
 
   function handleChange(patch: Partial<SendFormValues>) {
     setValues((current) => ({ ...current, ...patch }));

@@ -160,4 +160,13 @@ suite("bridge client live contract", func() {
     assert not BridgeLib.validSignedTransactionHex(chunks.toArray().values().join(""));
   });
 
+  test("provider identity requires configured checkpoint and actual host/port/TLS/tip time", func() {
+    let body = "{\"result\":{\"height\":974900,\"serverVersion\":\"Fulcrum\",\"protocolVersion\":\"1.4\",\"checkpointVerified\":true,\"checkpointHeight\":961640,\"checkpointHash\":\"" # txid # "\",\"fulcrumHost\":\"127.0.0.1\",\"fulcrumPort\":55001,\"fulcrumTls\":false,\"tipTimestamp\":1790800000}}";
+    switch (BridgeLib.parseProviderInfo(body, "https://adapter.example")) {
+      case (?info) { assert info.host == "127.0.0.1"; assert info.port == 55001; assert not info.tls; assert info.tipTimestamp == 1790800000; assert info.endpoint == "https://adapter.example" };
+      case null assert false;
+    };
+    assert BridgeLib.parseProviderInfo("{\"result\":{}}", "https://adapter.example") == null;
+  });
+
 });

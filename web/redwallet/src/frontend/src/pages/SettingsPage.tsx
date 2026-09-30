@@ -321,18 +321,19 @@ export function SettingsPage() {
 
           <SettingsSection
             id="server"
-            title="Electrum / Fulcrum server"
-            description="The deployment operator manages the bridge and its upstream Fulcrum server."
+            title="HTTPS adapter setup"
+            description="Each adapter’s operator configures its Fulcrum upstream."
           >
-            <p className="text-sm text-muted-foreground">
-              Watch-only addresses use the deployed bridge. Server credentials
-              are managed by the operator and are never stored in your browser.
+            <p className="text-xs text-muted-foreground">
+              Use Network above to select your provider. Operator credentials
+              are never stored in your browser. A host and port alone cannot
+              connect from a web browser; your own service needs an HTTPS bridge
+              and a separate ICP adapter.
             </p>
-            <Button asChild variant="outline" className="rounded-xl">
+            <Button asChild variant="outline">
               <Link to="/status">Check connection</Link>
             </Button>
           </SettingsSection>
-
           <BrowserProtection />
           <SupportSetting />
           <SettingsSection

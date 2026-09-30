@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { providerChanged } from "@/services/networkGeneration";
 import { describe, expect, it } from "vitest";
 import { XbtKeySession } from "./key-material";
 import type { SpendPlan } from "./spend-plan";
@@ -61,5 +62,17 @@ describe("immutable one-shot XBT review", () => {
     const review = new SpendReview(plan());
     expect(() => review.sign(keys)).toThrow("Unlocked matching wallet");
     expect(review.active).toBe(false);
+  });
+  it("synchronously invalidates a prepared review when the selected provider changes", () => {
+    const review = new SpendReview(plan());
+    expect(review.active).toBe(true);
+    providerChanged();
+    expect(review.active).toBe(false);
+    const keys = new XbtKeySession(phrase);
+    try {
+      expect(() => review.sign(keys)).toThrow(/review the transaction again/);
+    } finally {
+      keys.destroy();
+    }
   });
 });

@@ -344,7 +344,8 @@ describe("read-only spending-data invariant", () => {
         rel === "backend.ts" ||
         rel === "backend.d.ts" ||
         rel.startsWith("declarations/") ||
-        rel === "services/bridgeService.ts"
+        rel === "services/bridgeService.ts" ||
+        rel === "services/providerService.ts"
       )
         continue;
       const source = readFileSync(file, "utf8");

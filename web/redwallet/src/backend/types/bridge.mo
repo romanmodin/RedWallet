@@ -106,6 +106,8 @@ module {
   /// Server/network status as reported by the bridge. The checkpoint is
   /// reported as unconfigured because no verified project source defines an
   /// XBT checkpoint/network identity; no BTC-compatibility claim is made.
+  public type ProviderInfo = { host : Text; port : Nat; tls : Bool; endpoint : Text; tipTimestamp : Nat; height : Int; checkpointHeight : Nat; checkpointHash : Text };
+
   public type ServerStatus = {
     serverVersion : Text;
     protocolVersion : Text;

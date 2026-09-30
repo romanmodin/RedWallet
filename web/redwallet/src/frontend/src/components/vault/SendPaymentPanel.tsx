@@ -18,6 +18,7 @@ import {
 import { SpendPreparation } from "@/lib/xbt/spend-preparation";
 import type { SpendReview } from "@/lib/xbt/spend-review";
 import type { VaultController } from "@/lib/xbt/vault-controller";
+import { PROVIDER_EVENT } from "@/services/networkGeneration";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function xbt(value: string) {
@@ -139,11 +140,13 @@ export function SendPaymentPanel({
     };
     reload();
     window.addEventListener("storage", storage);
+    window.addEventListener(PROVIDER_EVENT, reset);
     window.addEventListener("pagehide", reset);
     document.addEventListener("visibilitychange", hide);
     return () => {
       reset();
       window.removeEventListener("storage", storage);
+      window.removeEventListener(PROVIDER_EVENT, reset);
       window.removeEventListener("pagehide", reset);
       document.removeEventListener("visibilitychange", hide);
     };
@@ -270,6 +273,7 @@ export function SendPaymentPanel({
           txid,
           () =>
             gen === operation.current && document.visibilityState === "visible",
+          pending.state === "unknown",
         ),
       );
       if (gen === operation.current) {

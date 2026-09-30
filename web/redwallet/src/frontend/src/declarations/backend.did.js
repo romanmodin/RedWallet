@@ -149,6 +149,11 @@ export const idlService = IDL.Service({
   'getBridgeStatus' : IDL.Func([], [BridgeStatus], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getFeeEstimate' : IDL.Func([], [BridgeResult_2], []),
+  'getNeoxexPrice' : IDL.Func(
+      [],
+      [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+      [],
+    ),
   'getRawTransaction' : IDL.Func([IDL.Text], [BridgeResult_1], []),
   'getServerStatus' : IDL.Func([], [BridgeResult], []),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
@@ -156,6 +161,16 @@ export const idlService = IDL.Service({
   'setBridgeConfig' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'setBridgeOperator' : IDL.Func([IDL.Principal], [], []),
   'transformBridgeResponse' : IDL.Func(
+      [
+        IDL.Record({
+          'context' : IDL.Vec(IDL.Nat8),
+          'response' : HttpRequestResult,
+        }),
+      ],
+      [HttpRequestResult],
+      ['query'],
+    ),
+  'transformNeoxexResponse' : IDL.Func(
       [
         IDL.Record({
           'context' : IDL.Vec(IDL.Nat8),
@@ -311,6 +326,11 @@ export const idlFactory = ({ IDL }) => {
     'getBridgeStatus' : IDL.Func([], [BridgeStatus], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getFeeEstimate' : IDL.Func([], [BridgeResult_2], []),
+    'getNeoxexPrice' : IDL.Func(
+        [],
+        [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
+        [],
+      ),
     'getRawTransaction' : IDL.Func([IDL.Text], [BridgeResult_1], []),
     'getServerStatus' : IDL.Func([], [BridgeResult], []),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
@@ -318,6 +338,16 @@ export const idlFactory = ({ IDL }) => {
     'setBridgeConfig' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'setBridgeOperator' : IDL.Func([IDL.Principal], [], []),
     'transformBridgeResponse' : IDL.Func(
+        [
+          IDL.Record({
+            'context' : IDL.Vec(IDL.Nat8),
+            'response' : HttpRequestResult,
+          }),
+        ],
+        [HttpRequestResult],
+        ['query'],
+      ),
+    'transformNeoxexResponse' : IDL.Func(
         [
           IDL.Record({
             'context' : IDL.Vec(IDL.Nat8),

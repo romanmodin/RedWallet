@@ -8,6 +8,10 @@
  */
 
 import { bridgeWalletService } from "@/services/bridgeService";
+import {
+  PROVIDER_EVENT,
+  providerGeneration,
+} from "@/services/networkGeneration";
 import type { ServiceError, Wallet } from "@/services/types";
 import {
   type ReactNode,
@@ -16,6 +20,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -36,14 +41,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [activeWallet, setActiveWallet] = useState<Wallet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<ServiceError | null>(null);
+  const request = useRef(0);
 
   const refresh = useCallback(async () => {
+    const sequence = ++request.current;
+    const generation = providerGeneration();
     setIsLoading(true);
     const [listResult, activeResult] = await Promise.all([
       bridgeWalletService.listWallets(),
       bridgeWalletService.getActiveWallet(),
     ]);
 
+    if (sequence !== request.current || generation !== providerGeneration())
+      return;
     if (!listResult.ok) {
       setError(listResult.error);
       setIsLoading(false);
@@ -64,10 +74,32 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
+    const changed = () => {
+      request.current++;
+      const clear = (wallet: Wallet) =>
+        wallet.isDemo
+          ? wallet
+          : {
+              ...wallet,
+              balanceXbt: Number.NaN,
+              fiatValueUsd: Number.NaN,
+              balanceError: "Provider changed; refreshing network data.",
+            };
+      setWallets((current) => current.map(clear));
+      setActiveWallet((current) => (current ? clear(current) : null));
+      void refresh();
+    };
+    window.addEventListener(PROVIDER_EVENT, changed);
+    return () => {
+      request.current++;
+      window.removeEventListener(PROVIDER_EVENT, changed);
+    };
   }, [refresh]);
 
   const selectWallet = useCallback(async (walletId: string) => {
+    const generation = providerGeneration();
     const result = await bridgeWalletService.setActiveWallet(walletId);
+    if (generation !== providerGeneration()) return;
     if (!result.ok) {
       setError(result.error);
       return;

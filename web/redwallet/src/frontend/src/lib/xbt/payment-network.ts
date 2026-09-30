@@ -47,9 +47,22 @@ export async function submitOriginal(
   hex: string,
   txid: string,
   canSubmit: () => boolean,
+  uncertain = false,
 ) {
   if ((await status(actor)).broadcastEnabled !== true)
     throw Error("Sending is disabled by the bridge operator");
+  if (uncertain) {
+    const existing = await bounded(actor.getRawTransaction(txid));
+    if (existing.__kind__ !== "ok")
+      throw Error(
+        "Could not rule out the original transaction on this provider. No retry was sent; keep the saved receipt and check confirmation.",
+      );
+    if (existing.ok.hex !== hex)
+      throw Error(
+        "Existing transaction bytes do not match; no retry was sent.",
+      );
+    return { txid, outcome: "acknowledged" };
+  }
   if (!canSubmit()) throw Error("Submission cancelled before dispatch");
   const result = await bounded(actor.broadcastSignedTransaction(hex, txid));
   if (result.__kind__ !== "ok")

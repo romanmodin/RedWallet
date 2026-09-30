@@ -69,4 +69,37 @@ describe("explicit original-byte dispatch", () => {
       ),
     ).rejects.toThrow(/does not match/);
   });
+  it("checks uncertain originals by ID before retrying and never broadcasts a replacement", async () => {
+    const a = {
+      ...actor(),
+      getRawTransaction: vi.fn(async () => ({
+        __kind__: "ok",
+        ok: { hex: "00" },
+      })),
+    };
+    expect(
+      (
+        await submitOriginal(
+          a as unknown as PaymentActor,
+          "00",
+          "a".repeat(64),
+          () => true,
+          true,
+        )
+      ).outcome,
+    ).toBe("acknowledged");
+    expect(a.getRawTransaction).toHaveBeenCalledWith("a".repeat(64));
+    expect(a.broadcastSignedTransaction).not.toHaveBeenCalled();
+    a.getRawTransaction.mockRejectedValueOnce(Error("unavailable"));
+    await expect(
+      submitOriginal(
+        a as unknown as PaymentActor,
+        "00",
+        "a".repeat(64),
+        () => true,
+        true,
+      ),
+    ).rejects.toThrow();
+    expect(a.broadcastSignedTransaction).not.toHaveBeenCalled();
+  });
 });

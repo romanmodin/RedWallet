@@ -1,4 +1,5 @@
 /** One-shot, immutable transaction review. The caller supplies freshly verified chain data. */
+import { providerGeneration } from "@/services/networkGeneration";
 import type { XbtKeySession } from "./key-material";
 import { type SpendPlan, reviewDigest, signReviewedPlan } from "./spend-plan";
 
@@ -8,6 +9,7 @@ export class SpendReview {
   readonly #wallDeadline: number;
   readonly #monotonicDeadline: number;
   #active = true;
+  readonly #providerGeneration = providerGeneration();
   constructor(
     plan: SpendPlan,
     private readonly wallClock: () => number = () => Date.now(),
@@ -33,6 +35,7 @@ export class SpendReview {
   }
   get active(): boolean {
     if (
+      providerGeneration() !== this.#providerGeneration ||
       this.wallClock() >= this.#wallDeadline ||
       this.monotonicClock() >= this.#monotonicDeadline
     )

@@ -117,6 +117,7 @@ export interface _SERVICE {
   'getBridgeStatus' : ActorMethod<[], BridgeStatus>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getFeeEstimate' : ActorMethod<[], BridgeResult_2>,
+  'getNeoxexPrice' : ActorMethod<[], { 'ok' : string } | { 'err' : string }>,
   'getRawTransaction' : ActorMethod<[string], BridgeResult_1>,
   'getServerStatus' : ActorMethod<[], BridgeResult>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
@@ -127,6 +128,10 @@ export interface _SERVICE {
    */
   'setBridgeOperator' : ActorMethod<[Principal], undefined>,
   'transformBridgeResponse' : ActorMethod<
+    [{ 'context' : Uint8Array, 'response' : HttpRequestResult }],
+    HttpRequestResult
+  >,
+  'transformNeoxexResponse' : ActorMethod<
     [{ 'context' : Uint8Array, 'response' : HttpRequestResult }],
     HttpRequestResult
   >,

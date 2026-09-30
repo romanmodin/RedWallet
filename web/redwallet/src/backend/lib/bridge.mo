@@ -299,6 +299,18 @@ module {
     ?{ satoshisPerKb = satoshisPerKb.toNat() };
   };
 
+  public func parseProviderInfo(body : Text, endpoint : Text) : ?Types.ProviderInfo {
+    let status = parseServerStatus(body) ?? return null;
+    if (not status.checkpointConfigured) return null;
+    let result = unwrapResult(body) ?? return null;
+    let host = text(field(result, "fulcrumHost") ?? return null) ?? return null;
+    let port = integer(field(result, "fulcrumPort") ?? return null) ?? return null;
+    let tls = boolean(field(result, "fulcrumTls") ?? return null) ?? return null;
+    let timestamp = integer(field(result, "tipTimestamp") ?? return null) ?? return null;
+    if (host.size() == 0 or host.size() > 253 or port < 1 or port > 65535 or timestamp <= 0) return null;
+    ?{ host; port = port.toNat(); tls; endpoint; tipTimestamp = timestamp.toNat(); height = status.height; checkpointHeight = status.checkpointHeight ?? return null; checkpointHash = status.checkpointHash ?? return null };
+  };
+
   public func parseServerStatus(body : Text) : ?Types.ServerStatus {
     let result = unwrapResult(body) ?? return null;
     let height = integer(field(result, "height") ?? return null) ?? return null;

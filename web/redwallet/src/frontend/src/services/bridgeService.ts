@@ -3,11 +3,11 @@
  * remain explicitly simulated. No key material or signing is handled here.
  */
 
-import { createActor } from "@/backend";
 import type { BridgeError, backendInterface } from "@/backend";
 type BridgeResult = Awaited<ReturnType<backendInterface["getServerStatus"]>>;
 type FeeBridgeResult = Awaited<ReturnType<backendInterface["getFeeEstimate"]>>;
-import { createActorWithConfig } from "@caffeineai/core-infrastructure";
+import { providerGeneration } from "./networkGeneration";
+import { type CustomProvider, providerRouter } from "./providerService";
 import { settingsService } from "./settingsService";
 import {
   type AddressUtxos,
@@ -78,15 +78,12 @@ export function mapBridgeError(error: BridgeError): ServiceError {
  * configuration is a permanent condition for this session, so the failure is
  * cached too; live address reads then report backend unavailable.
  */
-let actorPromise: Promise<BridgeActor | null> | null = null;
-
-export function resolveBridgeActor(): Promise<BridgeActor | null> {
-  if (!actorPromise) {
-    actorPromise = createActorWithConfig(createActor)
-      .then((actor) => actor as BridgeActor)
-      .catch(() => null);
+export async function resolveBridgeActor(): Promise<BridgeActor | null> {
+  try {
+    return await providerRouter.resolve();
+  } catch {
+    return null;
   }
-  return actorPromise;
 }
 
 /** Live address reads and explicitly selected demo accounts share the same
@@ -116,6 +113,7 @@ export class BridgeWalletService implements WalletService {
 
   private readonly storageKey = "redwallet.watch-wallets.v1";
   private activeId: string | null = null;
+  private networkGeneration = -1;
   private networkRequest: Promise<ServiceResult<NetworkStatus>> | null = null;
 
   private watchWallets(): Wallet[] {
@@ -433,7 +431,11 @@ export class BridgeWalletService implements WalletService {
     }
 
     const actor = await this.configuredActor();
-    if (!actor) return this.demo.estimateFee(amountXbt);
+    if (!actor)
+      return err(
+        "backend_unavailable",
+        "Selected provider unavailable; no fallback fee was used.",
+      );
 
     let result: FeeBridgeResult;
     try {
@@ -487,6 +489,10 @@ export class BridgeWalletService implements WalletService {
    * fresh read.
    */
   getNetworkStatus(): Promise<ServiceResult<NetworkStatus>> {
+    if (this.networkGeneration !== providerGeneration()) {
+      this.networkRequest = null;
+      this.networkGeneration = providerGeneration();
+    }
     if (!this.networkRequest)
       this.networkRequest = this.readNetworkStatus().finally(() => {
         this.networkRequest = null;
@@ -528,9 +534,9 @@ export class BridgeWalletService implements WalletService {
       network: "unconfigured",
       // The bridge base URL is never surfaced; the configured server host is a
       // separate, user-owned setting.
-      host: "",
-      port: 50002,
-      tls: true,
+      host: providerRouter.current()?.host ?? "",
+      port: providerRouter.current()?.port ?? 0,
+      tls: providerRouter.current()?.tls ?? true,
       state: "connected",
       blockHeight: Number.isFinite(height) ? height : 0,
       lastSyncedAt: Date.now(),
@@ -542,66 +548,26 @@ export class BridgeWalletService implements WalletService {
   async testServerConnection(
     config: NetworkConfig,
   ): Promise<ServiceResult<ServerTestResult>> {
-    if (!config.host.trim()) {
+    const started = Date.now();
+    try {
+      const info = await providerRouter.test(
+        config as NetworkConfig & CustomProvider,
+      );
       return ok({
-        ok: false,
-        state: "offline",
-        message: "Enter a server host to test the connection.",
-        latencyMs: null,
+        ok: true,
+        state: "connected",
+        message: `Verified XBT adapter at block ${info.height}; entered Fulcrum identity matches.`,
+        latencyMs: Date.now() - started,
       });
-    }
-    if (
-      !Number.isInteger(config.port) ||
-      config.port <= 0 ||
-      config.port > 65535
-    ) {
+    } catch (error) {
       return ok({
         ok: false,
         state: "error",
-        message: "Enter a valid port between 1 and 65535.",
+        message:
+          error instanceof Error ? error.message : "Custom adapter unavailable",
         latencyMs: null,
       });
     }
-
-    const actor = await this.configuredActor();
-    if (!actor)
-      return ok({
-        ok: false,
-        state: "offline",
-        message: "The deployed bridge is not configured or is unreachable.",
-        latencyMs: null,
-      });
-
-    const started = Date.now();
-    let result: BridgeResult;
-    try {
-      result = await actor.getServerStatus();
-    } catch {
-      return ok({
-        ok: false,
-        state: "offline",
-        message: "The bridge is unreachable. Try again in a moment.",
-        latencyMs: null,
-      });
-    }
-    if (result.__kind__ === "err") {
-      const mapped = mapBridgeError(result.err);
-      return ok({
-        ok: false,
-        state: mapped.code === "backend_unavailable" ? "offline" : "error",
-        message: mapped.message,
-        latencyMs: null,
-      });
-    }
-
-    return ok({
-      ok: true,
-      state: "connected",
-      message: `Bridge reachable — server ${
-        result.ok.serverVersion || "unknown"
-      }, protocol ${result.ok.protocolVersion || "unknown"}.`,
-      latencyMs: Date.now() - started,
-    });
   }
 
   async getFiatRate(): Promise<ServiceResult<FiatRate>> {

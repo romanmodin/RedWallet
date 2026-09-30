@@ -1,3 +1,29 @@
+# Current prepared release: 0.28 pricing and real provider selection
+
+Preserves the pending NeoxEX Auto/Manual work; internal Caffeine29 was compiled
+but never published. This combined source adds separate HTTPS/ICP adapter routing
+for every live read and signed broadcast. Built-in is the default, using the home
+Umbrel. Custom settings are per browser and never call shared operator setters.
+An HTTPS bridge plus its separately configured adapter canister is required;
+raw TCP hostname alone cannot work. Verify actual host/port/TLS/bridge identity,
+pinned checkpoint and header-derived chain tip <=2h old before acceptance.
+Custom failures never fall back unless the user explicitly enables the optional
+built-in fallback; active fallback must be visibly identified. Built-in independent
+backup registry is EMPTY: no production redundancy or live independent failover
+is claimed. Runtime backup adoption also rejects tips >6 blocks behind last good.
+Provider generation guards reject in-flight late results and invalidate one-shot
+reviews synchronously. Public historical scans, wallets and signed receipts remain.
+Never retry/rebuild a signed broadcast automatically. Unknown originals are queried
+by txid before an explicit retry; unresolved lookup blocks dispatch, known exact
+bytes return acknowledgment. Native worktrees, keys/signing/CSP/stable migration
+chain/operator credentials remain untouched. No arbitrary HTTPS proxy was added.
+Frontend60files/351tests,80bridge tests,typecheck/build/Biome211files passed.
+Full backend compiled with zero diagnostics; new metadata pure Motoko test passed.
+The JS interpreter overflowed on an existing >1000-entry test; do not claim full
+Motoko runtime/PocketIC success. Caffeine exact import/export/publication pending.
+See deploy/adapter/README.md and V028-PROVIDERS-2026-09-30.md. This section supersedes
+the older pricing-only preparation scope below.
+
 # Current release preparation: 0.28 Auto/Manual NeoxEX display price
 
 User reports0.27 works well on the requested iPhone follow-up. This is user

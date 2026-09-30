@@ -87,6 +87,7 @@ mixin () {
     "- `getFeeEstimate() -> BridgeResult<FeeEstimate>`\n" #
     "  `FeeEstimate = { satoshisPerKb : Nat }` - **satoshis per kilobyte**, derived\n" #
     "  from the upstream coins-per-kilobyte estimate for a 2-block target.\n" #
+    "- `getProviderInfo() -> BridgeResult<ProviderInfo>` returns public bridge URL, actual Fulcrum host/port/TLS, pinned checkpoint and header-derived tip time. Rejects wrong checkpoint and tips older than two hours; never returns credentials or changes shared configuration. Each custom service uses its own independently configured adapter canister.\n" #
     "- `getServerStatus() -> BridgeResult<ServerStatus>`\n" #
     "  `ServerStatus = { serverVersion : Text; protocolVersion : Text; height : Int;\n" #
     "  checkpointConfigured : Bool; checkpointHeight : ?Nat; checkpointHash : ?Text }`.\n" #

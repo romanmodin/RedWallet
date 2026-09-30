@@ -18,6 +18,10 @@
  */
 
 import { bridgeWalletService } from "@/services/bridgeService";
+import {
+  PROVIDER_EVENT,
+  providerGeneration,
+} from "@/services/networkGeneration";
 import type {
   ConnectionState,
   NetworkStatus,
@@ -59,6 +63,7 @@ export function NetworkStatusProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const mounted = useRef(true);
+  const request = useRef(0);
 
   useEffect(() => {
     mounted.current = true;
@@ -68,9 +73,16 @@ export function NetworkStatusProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
+    const sequence = ++request.current;
+    const generation = providerGeneration();
     setIsRefreshing(true);
     const result = await bridgeWalletService.getNetworkStatus();
-    if (!mounted.current) return;
+    if (
+      !mounted.current ||
+      sequence !== request.current ||
+      generation !== providerGeneration()
+    )
+      return;
     if (result.ok) {
       setStatus(result.value);
       setError(null);
@@ -86,6 +98,14 @@ export function NetworkStatusProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
+    const changed = () => {
+      request.current++;
+      setStatus(null);
+      setError(null);
+      void refresh();
+    };
+    window.addEventListener(PROVIDER_EVENT, changed);
+    return () => window.removeEventListener(PROVIDER_EVENT, changed);
   }, [refresh]);
 
   const connectionState: ConnectionState = isRefreshing

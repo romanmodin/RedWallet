@@ -4,6 +4,10 @@ import { clearAccountViewSessions } from "@/lib/xbt/account-view-session";
 import { IssuedAddresses } from "@/lib/xbt/issued-addresses";
 import { VaultCatalog } from "@/lib/xbt/vault-catalog";
 import { type BridgeActor, resolveBridgeActor } from "@/services/bridgeService";
+import {
+  PROVIDER_EVENT,
+  providerGeneration,
+} from "@/services/networkGeneration";
 import { useEffect, useMemo, useState } from "react";
 import { AccountReadPanel } from "./AccountReadPanel";
 import {
@@ -50,6 +54,12 @@ function ProtectedLocalWorkspace({
   purpose,
 }: { purpose: "wallets" | "send" | "receive" }) {
   const local = useLocalAccount();
+  const [providerVersion, setProviderVersion] = useState(providerGeneration);
+  useEffect(() => {
+    const changed = () => setProviderVersion(providerGeneration());
+    window.addEventListener(PROVIDER_EVENT, changed);
+    return () => window.removeEventListener(PROVIDER_EVENT, changed);
+  }, []);
   const [catalog] = useState(() => {
     try {
       return new VaultCatalog(window.localStorage);
@@ -76,13 +86,14 @@ function ProtectedLocalWorkspace({
     }
   }, [selected]);
   useEffect(() => {
+    const generation = providerVersion;
     let current = true;
     setActor(null);
     setActorError(false);
     setSnapshot(null);
     if (selected)
       void resolveBridgeActor().then((value) => {
-        if (current) {
+        if (current && generation === providerGeneration()) {
           setActor(value);
           setActorError(value === null);
         }
@@ -90,7 +101,7 @@ function ProtectedLocalWorkspace({
     return () => {
       current = false;
     };
-  }, [selected]);
+  }, [selected, providerVersion]);
   useEffect(() => {
     const storage = (event: StorageEvent) => {
       if (event.key === null || event.key.startsWith("redwallet.vault.v1.")) {

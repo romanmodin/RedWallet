@@ -158,6 +158,22 @@ mixin (bridgeConfig : Types.BridgeConfig, bridgeSecurity : Types.BridgeSecurity)
     };
   };
 
+  /// Public connection identity for independently deployed HTTPS adapters.
+  /// Caller preferences never alter bridgeConfig or operator credentials.
+  public shared ({ caller }) func getProviderInfo() : async Types.BridgeResult<Types.ProviderInfo> {
+    switch (await fetch(caller, BridgeLib.methodServerStatus, "[]")) {
+      case (#err e) #err e;
+      case (#ok body) switch (BridgeLib.parseProviderInfo(body, bridgeConfig.baseUrl)) {
+        case null #err(#malformed_response("provider metadata unavailable; update this adapter"));
+        case (?info) {
+          let now = Time.now() / 1_000_000_000;
+          if (info.checkpointHeight != 961640 or info.checkpointHash != "0000000000000050c1e5f69672f459293be14f46e5a494e7a8c8541396f18eeb" or info.height < 961640 or info.tipTimestamp.toInt() > now + 7200 or now - info.tipTimestamp.toInt() > 7200) return #err(#backend_unavailable("wrong XBT chain or stale chain tip"));
+          #ok info;
+        };
+      };
+    };
+  };
+
   public query func transformBridgeResponse(args : { context : Blob; response : IC.HttpRequestResult }) : async IC.HttpRequestResult {
     { status = args.response.status; body = args.response.body; headers = [] };
   };
