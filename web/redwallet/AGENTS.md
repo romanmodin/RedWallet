@@ -1,3 +1,18 @@
+# 0.28 additional verification: actual PocketIC gate passed
+
+Published Caffeine30 Wasm SHA256
+6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001
+was transferred with hash verification to an isolated Zorin cache. All25 tests
+passed:14 existing API/auth/validation and11 real provider/pricing HTTPS response
+cases. New manual workstation runner requires exact artifact hash, fails on test
+failure/mismatch and stops its replica; platform sidecar runner remains unchanged.
+Scratch PocketIC timeout was Unix socket PermissionDenied, not an application
+failure. No live funded broadcast, production mutation or native worktree change.
+See V028-INTEGRATION-2026-09-30.md. This supersedes the PocketIC-open notes below
+for this tested0.28 artifact. Independent backup/Safari checks remain open;
+full Motoko JS interpreter overflow is a separate unpassed pure-unit limitation.
+App remains0.28:verification-only changes do not require publication.
+
 # Current release: 0.28 pricing and isolated providers — published
 
 Caffeine internal30 is LIVE at redwallet-7m3.caffeine.xyz. All329 reviewed paths
