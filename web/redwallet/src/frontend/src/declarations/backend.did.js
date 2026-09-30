@@ -45,7 +45,7 @@ export const BridgeError = IDL.Variant({
   'invalid_input' : IDL.Text,
   'backend_unavailable' : IDL.Text,
 });
-export const BridgeResult_6 = IDL.Variant({
+export const BridgeResult_7 = IDL.Variant({
   'ok' : BroadcastReceipt,
   'err' : BridgeError,
 });
@@ -66,7 +66,7 @@ export const AddressBalance = IDL.Record({
   'unconfirmed' : IDL.Int,
   'confirmed' : IDL.Nat,
 });
-export const BridgeResult_5 = IDL.Variant({
+export const BridgeResult_6 = IDL.Variant({
   'ok' : AddressBalance,
   'err' : BridgeError,
 });
@@ -76,7 +76,7 @@ export const HistoryEntry = IDL.Record({
   'txid' : IDL.Text,
 });
 export const AddressHistory = IDL.Record({ 'entries' : IDL.Vec(HistoryEntry) });
-export const BridgeResult_4 = IDL.Variant({
+export const BridgeResult_5 = IDL.Variant({
   'ok' : AddressHistory,
   'err' : BridgeError,
 });
@@ -87,7 +87,7 @@ export const Utxo = IDL.Record({
   'vout' : IDL.Nat32,
 });
 export const AddressUtxos = IDL.Record({ 'utxos' : IDL.Vec(Utxo) });
-export const BridgeResult_3 = IDL.Variant({
+export const BridgeResult_4 = IDL.Variant({
   'ok' : AddressUtxos,
   'err' : BridgeError,
 });
@@ -100,8 +100,22 @@ export const BridgeStatus = IDL.Record({
   'configured' : IDL.Bool,
 });
 export const FeeEstimate = IDL.Record({ 'satoshisPerKb' : IDL.Nat });
-export const BridgeResult_2 = IDL.Variant({
+export const BridgeResult_3 = IDL.Variant({
   'ok' : FeeEstimate,
+  'err' : BridgeError,
+});
+export const ProviderInfo = IDL.Record({
+  'tls' : IDL.Bool,
+  'height' : IDL.Int,
+  'tipTimestamp' : IDL.Nat,
+  'endpoint' : IDL.Text,
+  'host' : IDL.Text,
+  'port' : IDL.Nat,
+  'checkpointHeight' : IDL.Nat,
+  'checkpointHash' : IDL.Text,
+});
+export const BridgeResult_2 = IDL.Variant({
+  'ok' : ProviderInfo,
   'err' : BridgeError,
 });
 export const RawTransaction = IDL.Record({ 'hex' : IDL.Text });
@@ -136,24 +150,25 @@ export const idlService = IDL.Service({
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'broadcastSignedTransaction' : IDL.Func(
       [IDL.Text, IDL.Text],
-      [BridgeResult_6],
+      [BridgeResult_7],
       [],
     ),
   'clearBridgeConfig' : IDL.Func([], [], []),
   'execute' : IDL.Func([IDL.Text], [Result], ['query']),
-  'getAddressBalance' : IDL.Func([IDL.Text], [BridgeResult_5], []),
-  'getAddressHistory' : IDL.Func([IDL.Text], [BridgeResult_4], []),
-  'getAddressUtxos' : IDL.Func([IDL.Text], [BridgeResult_3], []),
+  'getAddressBalance' : IDL.Func([IDL.Text], [BridgeResult_6], []),
+  'getAddressHistory' : IDL.Func([IDL.Text], [BridgeResult_5], []),
+  'getAddressUtxos' : IDL.Func([IDL.Text], [BridgeResult_4], []),
   'getApiDoc' : IDL.Func([], [IDL.Text], ['query']),
   'getBridgeOperatorStatus' : IDL.Func([], [BridgeOperatorStatus], ['query']),
   'getBridgeStatus' : IDL.Func([], [BridgeStatus], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-  'getFeeEstimate' : IDL.Func([], [BridgeResult_2], []),
+  'getFeeEstimate' : IDL.Func([], [BridgeResult_3], []),
   'getNeoxexPrice' : IDL.Func(
       [],
       [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
       [],
     ),
+  'getProviderInfo' : IDL.Func([], [BridgeResult_2], []),
   'getRawTransaction' : IDL.Func([IDL.Text], [BridgeResult_1], []),
   'getServerStatus' : IDL.Func([], [BridgeResult], []),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
@@ -222,7 +237,7 @@ export const idlFactory = ({ IDL }) => {
     'invalid_input' : IDL.Text,
     'backend_unavailable' : IDL.Text,
   });
-  const BridgeResult_6 = IDL.Variant({
+  const BridgeResult_7 = IDL.Variant({
     'ok' : BroadcastReceipt,
     'err' : BridgeError,
   });
@@ -243,7 +258,7 @@ export const idlFactory = ({ IDL }) => {
     'unconfirmed' : IDL.Int,
     'confirmed' : IDL.Nat,
   });
-  const BridgeResult_5 = IDL.Variant({
+  const BridgeResult_6 = IDL.Variant({
     'ok' : AddressBalance,
     'err' : BridgeError,
   });
@@ -253,7 +268,7 @@ export const idlFactory = ({ IDL }) => {
     'txid' : IDL.Text,
   });
   const AddressHistory = IDL.Record({ 'entries' : IDL.Vec(HistoryEntry) });
-  const BridgeResult_4 = IDL.Variant({
+  const BridgeResult_5 = IDL.Variant({
     'ok' : AddressHistory,
     'err' : BridgeError,
   });
@@ -264,7 +279,7 @@ export const idlFactory = ({ IDL }) => {
     'vout' : IDL.Nat32,
   });
   const AddressUtxos = IDL.Record({ 'utxos' : IDL.Vec(Utxo) });
-  const BridgeResult_3 = IDL.Variant({
+  const BridgeResult_4 = IDL.Variant({
     'ok' : AddressUtxos,
     'err' : BridgeError,
   });
@@ -277,8 +292,22 @@ export const idlFactory = ({ IDL }) => {
     'configured' : IDL.Bool,
   });
   const FeeEstimate = IDL.Record({ 'satoshisPerKb' : IDL.Nat });
-  const BridgeResult_2 = IDL.Variant({
+  const BridgeResult_3 = IDL.Variant({
     'ok' : FeeEstimate,
+    'err' : BridgeError,
+  });
+  const ProviderInfo = IDL.Record({
+    'tls' : IDL.Bool,
+    'height' : IDL.Int,
+    'tipTimestamp' : IDL.Nat,
+    'endpoint' : IDL.Text,
+    'host' : IDL.Text,
+    'port' : IDL.Nat,
+    'checkpointHeight' : IDL.Nat,
+    'checkpointHash' : IDL.Text,
+  });
+  const BridgeResult_2 = IDL.Variant({
+    'ok' : ProviderInfo,
     'err' : BridgeError,
   });
   const RawTransaction = IDL.Record({ 'hex' : IDL.Text });
@@ -313,24 +342,25 @@ export const idlFactory = ({ IDL }) => {
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'broadcastSignedTransaction' : IDL.Func(
         [IDL.Text, IDL.Text],
-        [BridgeResult_6],
+        [BridgeResult_7],
         [],
       ),
     'clearBridgeConfig' : IDL.Func([], [], []),
     'execute' : IDL.Func([IDL.Text], [Result], ['query']),
-    'getAddressBalance' : IDL.Func([IDL.Text], [BridgeResult_5], []),
-    'getAddressHistory' : IDL.Func([IDL.Text], [BridgeResult_4], []),
-    'getAddressUtxos' : IDL.Func([IDL.Text], [BridgeResult_3], []),
+    'getAddressBalance' : IDL.Func([IDL.Text], [BridgeResult_6], []),
+    'getAddressHistory' : IDL.Func([IDL.Text], [BridgeResult_5], []),
+    'getAddressUtxos' : IDL.Func([IDL.Text], [BridgeResult_4], []),
     'getApiDoc' : IDL.Func([], [IDL.Text], ['query']),
     'getBridgeOperatorStatus' : IDL.Func([], [BridgeOperatorStatus], ['query']),
     'getBridgeStatus' : IDL.Func([], [BridgeStatus], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-    'getFeeEstimate' : IDL.Func([], [BridgeResult_2], []),
+    'getFeeEstimate' : IDL.Func([], [BridgeResult_3], []),
     'getNeoxexPrice' : IDL.Func(
         [],
         [IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text })],
         [],
       ),
+    'getProviderInfo' : IDL.Func([], [BridgeResult_2], []),
     'getRawTransaction' : IDL.Func([IDL.Text], [BridgeResult_1], []),
     'getServerStatus' : IDL.Func([], [BridgeResult], []),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),

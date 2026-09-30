@@ -96,33 +96,40 @@ export type BridgeResult_1 = {
 };
 export type BridgeResult_2 = {
     __kind__: "ok";
-    ok: FeeEstimate;
+    ok: ProviderInfo;
 } | {
     __kind__: "err";
     err: BridgeError;
 };
 export type BridgeResult_3 = {
     __kind__: "ok";
-    ok: AddressUtxos;
+    ok: FeeEstimate;
 } | {
     __kind__: "err";
     err: BridgeError;
 };
 export type BridgeResult_4 = {
     __kind__: "ok";
-    ok: AddressHistory;
+    ok: AddressUtxos;
 } | {
     __kind__: "err";
     err: BridgeError;
 };
 export type BridgeResult_5 = {
     __kind__: "ok";
-    ok: AddressBalance;
+    ok: AddressHistory;
 } | {
     __kind__: "err";
     err: BridgeError;
 };
 export type BridgeResult_6 = {
+    __kind__: "ok";
+    ok: AddressBalance;
+} | {
+    __kind__: "err";
+    err: BridgeError;
+};
+export type BridgeResult_7 = {
     __kind__: "ok";
     ok: BroadcastReceipt;
 } | {
@@ -202,6 +209,16 @@ export interface HttpRequestResult {
     body: Uint8Array;
     headers: Array<HttpHeader>;
 }
+export interface ProviderInfo {
+    tls: boolean;
+    height: bigint;
+    tipTimestamp: bigint;
+    endpoint: string;
+    host: string;
+    port: bigint;
+    checkpointHeight: bigint;
+    checkpointHash: string;
+}
 export interface RawTransaction {
     hex: string;
 }
@@ -265,17 +282,17 @@ export interface backendInterface {
      * / Any outcall failure may be an unknown broadcast outcome; callers must
      * / retain/reconcile the same bytes and never automatically rebuild a payment.
      */
-    broadcastSignedTransaction(raw: string, expectedTxid: string): Promise<BridgeResult_6>;
+    broadcastSignedTransaction(raw: string, expectedTxid: string): Promise<BridgeResult_7>;
     clearBridgeConfig(): Promise<void>;
     execute(qJson: string): Promise<Result>;
-    getAddressBalance(address: string): Promise<BridgeResult_5>;
-    getAddressHistory(address: string): Promise<BridgeResult_4>;
-    getAddressUtxos(address: string): Promise<BridgeResult_3>;
+    getAddressBalance(address: string): Promise<BridgeResult_6>;
+    getAddressHistory(address: string): Promise<BridgeResult_5>;
+    getAddressUtxos(address: string): Promise<BridgeResult_4>;
     getApiDoc(): Promise<string>;
     getBridgeOperatorStatus(): Promise<BridgeOperatorStatus>;
     getBridgeStatus(): Promise<BridgeStatus>;
     getCallerUserRole(): Promise<UserRole>;
-    getFeeEstimate(): Promise<BridgeResult_2>;
+    getFeeEstimate(): Promise<BridgeResult_3>;
     getNeoxexPrice(): Promise<{
         __kind__: "ok";
         ok: string;
@@ -283,6 +300,11 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    /**
+     * / Public connection identity for independently deployed HTTPS adapters.
+     * / Caller preferences never alter bridgeConfig or operator credentials.
+     */
+    getProviderInfo(): Promise<BridgeResult_2>;
     getRawTransaction(txid: string): Promise<BridgeResult_1>;
     getServerStatus(): Promise<BridgeResult>;
     isCallerAdmin(): Promise<boolean>;
@@ -301,7 +323,7 @@ export interface backendInterface {
         response: HttpRequestResult;
     }): Promise<HttpRequestResult>;
 }
-import type { AddressBalance as _AddressBalance, AddressHistory as _AddressHistory, AddressUtxos as _AddressUtxos, BridgeError as _BridgeError, BridgeResult as _BridgeResult, BridgeResult_1 as _BridgeResult_1, BridgeResult_2 as _BridgeResult_2, BridgeResult_3 as _BridgeResult_3, BridgeResult_4 as _BridgeResult_4, BridgeResult_5 as _BridgeResult_5, BridgeResult_6 as _BridgeResult_6, BroadcastReceipt as _BroadcastReceipt, Cell as _Cell, Error as _Error, FeeEstimate as _FeeEstimate, HistoryEntry as _HistoryEntry, RawTransaction as _RawTransaction, Result as _Result, Result__1 as _Result__1, ServerStatus as _ServerStatus, UserRole as _UserRole, Value as _Value } from "./declarations/backend.did.d.ts";
+import type { AddressBalance as _AddressBalance, AddressHistory as _AddressHistory, AddressUtxos as _AddressUtxos, BridgeError as _BridgeError, BridgeResult as _BridgeResult, BridgeResult_1 as _BridgeResult_1, BridgeResult_2 as _BridgeResult_2, BridgeResult_3 as _BridgeResult_3, BridgeResult_4 as _BridgeResult_4, BridgeResult_5 as _BridgeResult_5, BridgeResult_6 as _BridgeResult_6, BridgeResult_7 as _BridgeResult_7, BroadcastReceipt as _BroadcastReceipt, Cell as _Cell, Error as _Error, FeeEstimate as _FeeEstimate, HistoryEntry as _HistoryEntry, ProviderInfo as _ProviderInfo, RawTransaction as _RawTransaction, Result as _Result, Result__1 as _Result__1, ServerStatus as _ServerStatus, UserRole as _UserRole, Value as _Value } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initialize_access_control(): Promise<void> {
@@ -360,18 +382,18 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async broadcastSignedTransaction(arg0: string, arg1: string): Promise<BridgeResult_6> {
+    async broadcastSignedTransaction(arg0: string, arg1: string): Promise<BridgeResult_7> {
         if (this.processError) {
             try {
                 const result = await this.actor.broadcastSignedTransaction(arg0, arg1);
-                return from_candid_BridgeResult_6_n6(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_7_n6(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.broadcastSignedTransaction(arg0, arg1);
-            return from_candid_BridgeResult_6_n6(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_7_n6(this._uploadFile, this._downloadFile, result);
         }
     }
     async clearBridgeConfig(): Promise<void> {
@@ -402,46 +424,46 @@ export class Backend implements backendInterface {
             return from_candid_Result_n10(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getAddressBalance(arg0: string): Promise<BridgeResult_5> {
+    async getAddressBalance(arg0: string): Promise<BridgeResult_6> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAddressBalance(arg0);
-                return from_candid_BridgeResult_5_n18(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_6_n18(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getAddressBalance(arg0);
-            return from_candid_BridgeResult_5_n18(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_6_n18(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getAddressHistory(arg0: string): Promise<BridgeResult_4> {
+    async getAddressHistory(arg0: string): Promise<BridgeResult_5> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAddressHistory(arg0);
-                return from_candid_BridgeResult_4_n20(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_5_n20(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getAddressHistory(arg0);
-            return from_candid_BridgeResult_4_n20(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_5_n20(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getAddressUtxos(arg0: string): Promise<BridgeResult_3> {
+    async getAddressUtxos(arg0: string): Promise<BridgeResult_4> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAddressUtxos(arg0);
-                return from_candid_BridgeResult_3_n28(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_4_n28(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getAddressUtxos(arg0);
-            return from_candid_BridgeResult_3_n28(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_4_n28(this._uploadFile, this._downloadFile, result);
         }
     }
     async getApiDoc(): Promise<string> {
@@ -500,18 +522,18 @@ export class Backend implements backendInterface {
             return from_candid_UserRole_n30(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getFeeEstimate(): Promise<BridgeResult_2> {
+    async getFeeEstimate(): Promise<BridgeResult_3> {
         if (this.processError) {
             try {
                 const result = await this.actor.getFeeEstimate();
-                return from_candid_BridgeResult_2_n31(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_3_n31(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getFeeEstimate();
-            return from_candid_BridgeResult_2_n31(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_3_n31(this._uploadFile, this._downloadFile, result);
         }
     }
     async getNeoxexPrice(): Promise<{
@@ -534,32 +556,46 @@ export class Backend implements backendInterface {
             return from_candid_variant_n33(this._uploadFile, this._downloadFile, result);
         }
     }
+    async getProviderInfo(): Promise<BridgeResult_2> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getProviderInfo();
+                return from_candid_BridgeResult_2_n34(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getProviderInfo();
+            return from_candid_BridgeResult_2_n34(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async getRawTransaction(arg0: string): Promise<BridgeResult_1> {
         if (this.processError) {
             try {
                 const result = await this.actor.getRawTransaction(arg0);
-                return from_candid_BridgeResult_1_n34(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_1_n36(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getRawTransaction(arg0);
-            return from_candid_BridgeResult_1_n34(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_1_n36(this._uploadFile, this._downloadFile, result);
         }
     }
     async getServerStatus(): Promise<BridgeResult> {
         if (this.processError) {
             try {
                 const result = await this.actor.getServerStatus();
-                return from_candid_BridgeResult_n36(this._uploadFile, this._downloadFile, result);
+                return from_candid_BridgeResult_n38(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getServerStatus();
-            return from_candid_BridgeResult_n36(this._uploadFile, this._downloadFile, result);
+            return from_candid_BridgeResult_n38(this._uploadFile, this._downloadFile, result);
         }
     }
     async isCallerAdmin(): Promise<boolean> {
@@ -659,26 +695,29 @@ function from_candid_AddressHistory_n22(_uploadFile: (file: ExternalBlob) => Pro
 function from_candid_BridgeError_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeError): BridgeError {
     return from_candid_variant_n9(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_1_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_1): BridgeResult_1 {
+function from_candid_BridgeResult_1_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_1): BridgeResult_1 {
+    return from_candid_variant_n37(_uploadFile, _downloadFile, value);
+}
+function from_candid_BridgeResult_2_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_2): BridgeResult_2 {
     return from_candid_variant_n35(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_2_n31(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_2): BridgeResult_2 {
+function from_candid_BridgeResult_3_n31(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_3): BridgeResult_3 {
     return from_candid_variant_n32(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_3_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_3): BridgeResult_3 {
+function from_candid_BridgeResult_4_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_4): BridgeResult_4 {
     return from_candid_variant_n29(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_4_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_4): BridgeResult_4 {
+function from_candid_BridgeResult_5_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_5): BridgeResult_5 {
     return from_candid_variant_n21(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_5_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_5): BridgeResult_5 {
+function from_candid_BridgeResult_6_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_6): BridgeResult_6 {
     return from_candid_variant_n19(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_6_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_6): BridgeResult_6 {
+function from_candid_BridgeResult_7_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult_7): BridgeResult_7 {
     return from_candid_variant_n7(_uploadFile, _downloadFile, value);
 }
-function from_candid_BridgeResult_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult): BridgeResult {
-    return from_candid_variant_n37(_uploadFile, _downloadFile, value);
+function from_candid_BridgeResult_n38(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _BridgeResult): BridgeResult {
+    return from_candid_variant_n39(_uploadFile, _downloadFile, value);
 }
 function from_candid_Cell_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Cell): Cell {
     return from_candid_record_n15(_uploadFile, _downloadFile, value);
@@ -695,8 +734,8 @@ function from_candid_Result__1_n1(_uploadFile: (file: ExternalBlob) => Promise<U
 function from_candid_Result_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Result): Result {
     return from_candid_record_n11(_uploadFile, _downloadFile, value);
 }
-function from_candid_ServerStatus_n38(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ServerStatus): ServerStatus {
-    return from_candid_record_n39(_uploadFile, _downloadFile, value);
+function from_candid_ServerStatus_n40(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ServerStatus): ServerStatus {
+    return from_candid_record_n41(_uploadFile, _downloadFile, value);
 }
 function from_candid_UserRole_n30(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
@@ -707,13 +746,13 @@ function from_candid_Value_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint
 function from_candid_opt_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n40(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+function from_candid_opt_n42(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n41(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [boolean]): boolean | null {
+function from_candid_opt_n43(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [boolean]): boolean | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n42(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
+function from_candid_opt_n44(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_record_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -764,7 +803,7 @@ function from_candid_record_n26(_uploadFile: (file: ExternalBlob) => Promise<Uin
         txid: value.txid
     };
 }
-function from_candid_record_n39(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n41(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     height: bigint;
     protocolVersion: string;
     checkpointConfigured: boolean;
@@ -786,9 +825,9 @@ function from_candid_record_n39(_uploadFile: (file: ExternalBlob) => Promise<Uin
         protocolVersion: value.protocolVersion,
         checkpointConfigured: value.checkpointConfigured,
         serverVersion: value.serverVersion,
-        checkpointHeight: record_opt_to_undefined(from_candid_opt_n40(_uploadFile, _downloadFile, value.checkpointHeight)),
-        broadcastEnabled: record_opt_to_undefined(from_candid_opt_n41(_uploadFile, _downloadFile, value.broadcastEnabled)),
-        checkpointHash: record_opt_to_undefined(from_candid_opt_n42(_uploadFile, _downloadFile, value.checkpointHash))
+        checkpointHeight: record_opt_to_undefined(from_candid_opt_n42(_uploadFile, _downloadFile, value.checkpointHeight)),
+        broadcastEnabled: record_opt_to_undefined(from_candid_opt_n43(_uploadFile, _downloadFile, value.broadcastEnabled)),
+        checkpointHash: record_opt_to_undefined(from_candid_opt_n44(_uploadFile, _downloadFile, value.checkpointHash))
     };
 }
 function from_candid_variant_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -957,6 +996,25 @@ function from_candid_variant_n33(_uploadFile: (file: ExternalBlob) => Promise<Ui
     } : value;
 }
 function from_candid_variant_n35(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    ok: _ProviderInfo;
+} | {
+    err: _BridgeError;
+}): {
+    __kind__: "ok";
+    ok: ProviderInfo;
+} | {
+    __kind__: "err";
+    err: BridgeError;
+} {
+    return "ok" in value ? {
+        __kind__: "ok",
+        ok: value.ok
+    } : "err" in value ? {
+        __kind__: "err",
+        err: from_candid_BridgeError_n8(_uploadFile, _downloadFile, value.err)
+    } : value;
+}
+function from_candid_variant_n37(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     ok: _RawTransaction;
 } | {
     err: _BridgeError;
@@ -975,7 +1033,7 @@ function from_candid_variant_n35(_uploadFile: (file: ExternalBlob) => Promise<Ui
         err: from_candid_BridgeError_n8(_uploadFile, _downloadFile, value.err)
     } : value;
 }
-function from_candid_variant_n37(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n39(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     ok: _ServerStatus;
 } | {
     err: _BridgeError;
@@ -988,7 +1046,7 @@ function from_candid_variant_n37(_uploadFile: (file: ExternalBlob) => Promise<Ui
 } {
     return "ok" in value ? {
         __kind__: "ok",
-        ok: from_candid_ServerStatus_n38(_uploadFile, _downloadFile, value.ok)
+        ok: from_candid_ServerStatus_n40(_uploadFile, _downloadFile, value.ok)
     } : "err" in value ? {
         __kind__: "err",
         err: from_candid_BridgeError_n8(_uploadFile, _downloadFile, value.err)

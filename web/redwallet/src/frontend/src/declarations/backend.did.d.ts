@@ -25,15 +25,17 @@ export type BridgeResult = { 'ok' : ServerStatus } |
   { 'err' : BridgeError };
 export type BridgeResult_1 = { 'ok' : RawTransaction } |
   { 'err' : BridgeError };
-export type BridgeResult_2 = { 'ok' : FeeEstimate } |
+export type BridgeResult_2 = { 'ok' : ProviderInfo } |
   { 'err' : BridgeError };
-export type BridgeResult_3 = { 'ok' : AddressUtxos } |
+export type BridgeResult_3 = { 'ok' : FeeEstimate } |
   { 'err' : BridgeError };
-export type BridgeResult_4 = { 'ok' : AddressHistory } |
+export type BridgeResult_4 = { 'ok' : AddressUtxos } |
   { 'err' : BridgeError };
-export type BridgeResult_5 = { 'ok' : AddressBalance } |
+export type BridgeResult_5 = { 'ok' : AddressHistory } |
   { 'err' : BridgeError };
-export type BridgeResult_6 = { 'ok' : BroadcastReceipt } |
+export type BridgeResult_6 = { 'ok' : AddressBalance } |
+  { 'err' : BridgeError };
+export type BridgeResult_7 = { 'ok' : BroadcastReceipt } |
   { 'err' : BridgeError };
 export interface BridgeStatus {
   'checkpointConfigured' : boolean,
@@ -67,6 +69,16 @@ export interface HttpRequestResult {
   'status' : bigint,
   'body' : Uint8Array,
   'headers' : Array<HttpHeader>,
+}
+export interface ProviderInfo {
+  'tls' : boolean,
+  'height' : bigint,
+  'tipTimestamp' : bigint,
+  'endpoint' : string,
+  'host' : string,
+  'port' : bigint,
+  'checkpointHeight' : bigint,
+  'checkpointHash' : string,
 }
 export interface RawTransaction { 'hex' : string }
 export interface Result { 'hasMore' : boolean, 'rows' : Array<Array<Cell>> }
@@ -106,18 +118,23 @@ export interface _SERVICE {
    * / Any outcall failure may be an unknown broadcast outcome; callers must
    * / retain/reconcile the same bytes and never automatically rebuild a payment.
    */
-  'broadcastSignedTransaction' : ActorMethod<[string, string], BridgeResult_6>,
+  'broadcastSignedTransaction' : ActorMethod<[string, string], BridgeResult_7>,
   'clearBridgeConfig' : ActorMethod<[], undefined>,
   'execute' : ActorMethod<[string], Result>,
-  'getAddressBalance' : ActorMethod<[string], BridgeResult_5>,
-  'getAddressHistory' : ActorMethod<[string], BridgeResult_4>,
-  'getAddressUtxos' : ActorMethod<[string], BridgeResult_3>,
+  'getAddressBalance' : ActorMethod<[string], BridgeResult_6>,
+  'getAddressHistory' : ActorMethod<[string], BridgeResult_5>,
+  'getAddressUtxos' : ActorMethod<[string], BridgeResult_4>,
   'getApiDoc' : ActorMethod<[], string>,
   'getBridgeOperatorStatus' : ActorMethod<[], BridgeOperatorStatus>,
   'getBridgeStatus' : ActorMethod<[], BridgeStatus>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getFeeEstimate' : ActorMethod<[], BridgeResult_2>,
+  'getFeeEstimate' : ActorMethod<[], BridgeResult_3>,
   'getNeoxexPrice' : ActorMethod<[], { 'ok' : string } | { 'err' : string }>,
+  /**
+   * / Public connection identity for independently deployed HTTPS adapters.
+   * / Caller preferences never alter bridgeConfig or operator credentials.
+   */
+  'getProviderInfo' : ActorMethod<[], BridgeResult_2>,
   'getRawTransaction' : ActorMethod<[string], BridgeResult_1>,
   'getServerStatus' : ActorMethod<[], BridgeResult>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
