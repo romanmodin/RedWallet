@@ -1,9 +1,6 @@
 import type { backendInterface } from "@/backend";
 import type { AccountSnapshot } from "@/lib/xbt/account-reader";
-import {
-  clearAccountSnapshot,
-  clearAccountViewSessions,
-} from "@/lib/xbt/account-view-session";
+import { clearAccountViewSessions } from "@/lib/xbt/account-view-session";
 import { IssuedAddresses } from "@/lib/xbt/issued-addresses";
 import type { PublicXbtAccount } from "@/lib/xbt/key-material";
 import { VaultCatalog } from "@/lib/xbt/vault-catalog";
@@ -60,7 +57,6 @@ function ProtectedLocalWorkspace() {
   const [actorError, setActorError] = useState(false);
   const [locked, setLocked] = useState(true);
   const [snapshot, setSnapshot] = useState<AccountSnapshot | null>(null);
-  const [scanKey, setScanKey] = useState(0);
   const book = useMemo(() => {
     if (!selected) return null;
     try {
@@ -146,7 +142,7 @@ function ProtectedLocalWorkspace() {
           {book && actor && (
             <>
               <AccountReadPanel
-                key={`${selected.id}:${scanKey}`}
+                key={`read:${selected.id}`}
                 account={selected.account}
                 actor={actor}
                 addressBook={book}
@@ -160,11 +156,6 @@ function ProtectedLocalWorkspace() {
                 snapshot={snapshot}
                 controller={catalog.controller(selected.id)}
                 locked={locked}
-                onConfirmed={() => {
-                  clearAccountSnapshot(actor, selected.account.accountXpub);
-                  setSnapshot(null);
-                  setScanKey((value) => value + 1);
-                }}
               />
             </>
           )}

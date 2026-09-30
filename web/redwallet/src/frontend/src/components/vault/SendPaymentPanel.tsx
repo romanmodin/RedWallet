@@ -18,7 +18,7 @@ import {
 import { SpendPreparation } from "@/lib/xbt/spend-preparation";
 import type { SpendReview } from "@/lib/xbt/spend-review";
 import type { VaultController } from "@/lib/xbt/vault-controller";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function xbt(value: string) {
   const n = BigInt(value);
@@ -32,7 +32,6 @@ export function SendPaymentPanel({
   snapshot,
   controller,
   locked,
-  onConfirmed,
 }: {
   account: PublicXbtAccount;
   actor: backendInterface;
@@ -40,7 +39,6 @@ export function SendPaymentPanel({
   snapshot: AccountSnapshot | null;
   controller: VaultController;
   locked: boolean;
-  onConfirmed: () => void;
 }) {
   const store = useMemo(
     () => new PendingPayments(account.accountXpub, window.localStorage),
@@ -58,7 +56,23 @@ export function SendPaymentPanel({
   const activeReview = useRef<SpendReview | null>(null);
   const [pending, setPending] = useState<PendingPayment | null>(null);
   const [accepted, setAccepted] = useState(false);
-  const [confirmedRecipient, setConfirmedRecipient] = useState("");
+  const [history, setHistory] = useState<PendingPayment[]>([]);
+  const [historyWarning, setHistoryWarning] = useState("");
+  const loadHistory = useCallback(() => {
+    try {
+      const result = store.readConfirmed();
+      setHistory(result.payments);
+      setHistoryWarning(
+        result.incomplete
+          ? "Some saved receipts could not be displayed. Original records remain saved on this device."
+          : "",
+      );
+    } catch {
+      setHistoryWarning(
+        "Saved payment history is unavailable. This does not mean there were no payments.",
+      );
+    }
+  }, [store]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -90,6 +104,7 @@ export function SendPaymentPanel({
   // Storage changes in any other tab invalidate reviews, including changes to signed receipts.
   useEffect(() => {
     const reload = () => {
+      loadHistory();
       try {
         setPending(store.read());
         setBroken(false);
@@ -132,7 +147,7 @@ export function SendPaymentPanel({
       window.removeEventListener("pagehide", reset);
       document.removeEventListener("visibilitychange", hide);
     };
-  }, [store]);
+  }, [store, loadHistory]);
   useEffect(() => {
     if (locked) {
       operation.current++;
@@ -286,14 +301,13 @@ export function SendPaymentPanel({
       if (gen === operation.current) {
         setPending(null);
         setAccepted(false);
-        setConfirmedRecipient(pending.destination);
+        loadHistory();
         setDestination(pending.destination);
         setAmount("");
         persistDraft({ destination: pending.destination, amount: "", rate });
         setNotice(
-          "Payment confirmed and archived locally. Recipient kept; enter a new amount for a separate payment. Refresh the account before preparing it.",
+          "Payment confirmed. Your receipt is in Saved sent payments below. Recipient kept; enter a new amount for a separate payment. Your previous account scan is preserved; refresh to update its balance.",
         );
-        onConfirmed();
       }
     } catch (e) {
       if (gen === operation.current)
@@ -330,6 +344,60 @@ export function SendPaymentPanel({
         </p>
       )}
       {notice && <output className="block text-sm">{notice}</output>}
+      <section aria-label="Saved sent payments" className="space-y-3">
+        <h3 className="font-semibold">Saved sent payments</h3>
+        <p className="text-xs text-muted-foreground">
+          Receipts saved on this device after a network confirmation check.
+          These are past observations, not a live confirmation count. Incoming
+          transfers appear in Account history above.
+        </p>
+        {historyWarning && <p role="alert">{historyWarning}</p>}
+        {history.length ? (
+          <ul className="max-h-96 space-y-3 overflow-auto">
+            {history.map((payment) => (
+              <li
+                key={payment.txid}
+                className="space-y-2 rounded-xl border border-border p-3"
+              >
+                <p className="font-semibold">Sent · Confirmation recorded</p>
+                <p>Amount: {xbt(payment.amount)}</p>
+                <p>Fee: {xbt(payment.fee)}</p>
+                <p className="break-all text-sm">To: {payment.destination}</p>
+                <p className="break-all font-mono text-xs">
+                  Transaction ID: {payment.txid}
+                </p>
+                <Button
+                  variant="outline"
+                  disabled={!!pending || busy || broken}
+                  onClick={() => {
+                    edit(() => {
+                      setDestination(payment.destination);
+                      setAmount("");
+                      persistDraft({
+                        destination: payment.destination,
+                        amount: "",
+                        rate,
+                      });
+                      setNotice(
+                        "New payment to the same recipient. Enter a new amount; preparation will check current funds before review.",
+                      );
+                      document.getElementById("xbt-pay-amount")?.focus();
+                    });
+                  }}
+                >
+                  Send another to this recipient
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          !historyWarning && (
+            <p className="text-sm">
+              No confirmed sent receipts saved on this device yet.
+            </p>
+          )
+        )}
+      </section>
       {pending ? (
         <>
           <h3 className="font-semibold">
@@ -388,28 +456,6 @@ export function SendPaymentPanel({
         </>
       ) : (
         <>
-          {confirmedRecipient && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                invalidate();
-                setDestination(confirmedRecipient);
-                setAmount("");
-                persistDraft({
-                  destination: confirmedRecipient,
-                  amount: "",
-                  rate,
-                });
-                setConfirmedRecipient("");
-                setNotice(
-                  "New payment to the same recipient. Enter the amount, refresh the account and review before signing.",
-                );
-                document.getElementById("xbt-pay-amount")?.focus();
-              }}
-            >
-              Send another to this recipient
-            </Button>
-          )}
           <fieldset disabled={busy || broken} className="space-y-3">
             <div>
               <Label htmlFor="xbt-pay-to">XBT recipient</Label>

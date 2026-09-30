@@ -260,13 +260,13 @@ export function AccountReadPanel({
           <dl className="grid gap-2 sm:grid-cols-2">
             <div>
               <dt className="text-sm text-muted-foreground">
-                Confirmed balance
+                Confirmed balance at last scan
               </dt>
               <dd className="font-mono">{amount(snapshot.confirmed)}</dd>
             </div>
             <div>
               <dt className="text-sm text-muted-foreground">
-                Pending balance change
+                Pending balance change at last scan
               </dt>
               <dd className="font-mono">{amount(snapshot.unconfirmed)}</dd>
             </div>
@@ -275,8 +275,9 @@ export function AccountReadPanel({
             Last completed scan:{" "}
             {new Date(snapshot.observedAt).toLocaleString()}, block{" "}
             {snapshot.height.toLocaleString()}. Refresh to check new transfers.
-            These reads span the scan; they are not an atomic snapshot or a
-            spendable-balance guarantee.
+            Confirming a sent payment keeps this history; refresh to update the
+            balance. These reads span the scan; they are not an atomic snapshot
+            or a spendable-balance guarantee.
           </p>
           <Button
             variant="outline"

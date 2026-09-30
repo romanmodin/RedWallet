@@ -65,9 +65,11 @@ describe("public account receive UI", () => {
         addressBook={book}
       />,
     );
-    expect(screen.queryByText("Confirmed balance")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Confirmed balance at last scan"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^Scan account$/ }));
-    await screen.findByText("Confirmed balance");
+    await screen.findByText("Confirmed balance at last scan");
     fireEvent.click(
       screen.getByRole("button", { name: "Get a new receive address" }),
     );
@@ -92,7 +94,7 @@ describe("public account receive UI", () => {
         onSnapshot={onSnapshot}
       />,
     );
-    await screen.findByText("Confirmed balance");
+    await screen.findByText("Confirmed balance at last scan");
     expect(
       screen.getByText(publicAddress(account.accountXpub, 0, 1)),
     ).toBeInTheDocument();
@@ -117,7 +119,9 @@ describe("public account receive UI", () => {
         onSnapshot={onSnapshot}
       />,
     );
-    expect(screen.getByText("Confirmed balance")).toBeInTheDocument();
+    expect(
+      screen.getByText("Confirmed balance at last scan"),
+    ).toBeInTheDocument();
     expect(onSnapshot.mock.calls.at(-1)?.[0]).toBeNull();
   });
 });

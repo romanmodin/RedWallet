@@ -13,6 +13,10 @@ const fixture = JSON.parse(
 function setup() {
   const data = new Map<string, string>();
   const storage = {
+    get length() {
+      return data.size;
+    },
+    key: (index: number) => [...data.keys()][index] ?? null,
     removeItem: (k: string) => {
       data.delete(k);
     },
@@ -109,4 +113,24 @@ it("requires fresh confirmation and preserves an archive before allowing another
   await f.store.archiveConfirmed(async (current) => current.hex === p.hex);
   expect(f.store.read()).toBeNull();
   expect([...f.data.keys()]).toContain(`${f.store.key}.confirmed.${p.txid}`);
+});
+
+it("restores old confirmed archives, isolates accounts, and reports damaged receipts without hiding good ones", async () => {
+  const f = setup();
+  const p = await save(f.store);
+  await f.store.archiveConfirmed(async () => true);
+  const key = `${f.store.key}.confirmed.${p.txid}`;
+  const original = f.data.get(key)!;
+  expect(f.store.readConfirmed()).toEqual({
+    payments: [{ ...p, state: "confirmed" }],
+    incomplete: false,
+  });
+  f.data.set(`${f.store.key}.confirmed.${"a".repeat(64)}`, original);
+  f.data.set(`${f.store.key}.confirmed.${"b".repeat(64)}`, "corrupt");
+  f.data.set("redwallet.payment.v1.other.confirmed.unrelated", "unrelated");
+  const reopened = new PendingPayments(p.accountXpub, f.storage);
+  expect(reopened.readConfirmed().payments).toHaveLength(1);
+  expect(reopened.readConfirmed().incomplete).toBe(true);
+  expect(f.data.get(key)).toBe(original);
+  expect(reopened.read()).toBeNull();
 });

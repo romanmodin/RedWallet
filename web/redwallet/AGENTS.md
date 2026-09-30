@@ -1,3 +1,15 @@
+# Current release: 0.25 visible confirmed receipts and retained account history
+
+Confirmation must preserve completed scan/history and its original timestamp.
+Treat that snapshot only as discovery hints; current coins, raw parents, change
+history, fees and checkpoint remain mandatory in preparation. Display old balance
+as last-scan data. Read existing v1 confirmed archives for the authenticated account,
+validate their signed amounts/recipients, and show receipts across reloads. Local
+confirmation labels are historical observations, never fresh network proof.
+User-funded web receive/sign/send was verified confirmed at block 974798 on
+2026-09-30. Older outgoing-unverified notes below are superseded. Still preview,
+not full-featured 1.0. User performs every real financial submission.
+
 # Current release preparation: 0.24 acknowledged-payment clarity
 
 Acknowledged receipts show Sent — awaiting confirmation. Hide submission consent

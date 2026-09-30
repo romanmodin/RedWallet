@@ -163,6 +163,8 @@ export class PendingPayments {
     readonly accountXpub: string,
     private storage: AddressIndexStorage & {
       removeItem?: (key: string) => void;
+      readonly length?: number;
+      key?: (index: number) => string | null;
     },
     private mutex: AddressMutex = browserAddressMutex,
   ) {
@@ -172,6 +174,37 @@ export class PendingPayments {
   read(): PendingPayment | null {
     const raw = this.storage.getItem(this.key);
     return raw === null ? null : validatePendingPayment(raw, this.accountXpub);
+  }
+  /** Read existing v1 archives without migration. Display only: local confirmation
+   * labels are not fresh network evidence and never authorize a new spend.
+   * One damaged archive must not hide other receipts or the pending payment.
+   */
+  readConfirmed(): { payments: PendingPayment[]; incomplete: boolean } {
+    if (!this.storage.key || this.storage.length === undefined)
+      throw Error("Payment history storage unavailable");
+    const prefix = `${this.key}.confirmed.`;
+    const payments: PendingPayment[] = [];
+    let incomplete = this.storage.length > 10000;
+    let examined = 0;
+    for (let i = 0; i < Math.min(this.storage.length, 10000); i++) {
+      const key = this.storage.key(i);
+      if (!key?.startsWith(prefix)) continue;
+      if (examined++ >= 100) {
+        incomplete = true;
+        continue;
+      }
+      try {
+        const raw = this.storage.getItem(key);
+        if (raw === null) throw Error("Missing archive");
+        const payment = validatePendingPayment(raw, this.accountXpub);
+        if (key !== `${prefix}${payment.txid}` || payment.state !== "confirmed")
+          throw Error("Invalid archive");
+        payments.push(payment);
+      } catch {
+        incomplete = true;
+      }
+    }
+    return { payments, incomplete };
   }
   async signAndSave(
     plan: SpendPlan,

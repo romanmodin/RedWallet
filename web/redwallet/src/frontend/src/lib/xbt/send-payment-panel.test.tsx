@@ -83,7 +83,6 @@ function setup() {
     snapshot: { observedAt: Date.now() } as AccountSnapshot,
     controller: { withUnlocked: signed } as unknown as VaultController,
     locked: false,
-    onConfirmed: vi.fn(),
   };
   return { keys, signed, actor, props };
 }
@@ -162,6 +161,19 @@ describe("explicit local sign then network submission", () => {
         fixture.plan.destination,
       );
       expect(screen.getByLabelText("Amount in XBT")).toHaveValue("");
+      expect(
+        screen.getByText("Sent · Confirmation recorded"),
+      ).toBeInTheDocument();
+      cleanup();
+      render(<SendPaymentPanel {...f.props} locked />);
+      await screen.findByText("Sent · Confirmation recorded");
+      expect(
+        screen.getByText(`Transaction ID: ${fixture.txid}`),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Send another to this recipient" }),
+      ).toBeEnabled();
+      expect(screen.queryByRole("checkbox")).toBeNull();
       expect(f.signed).toHaveBeenCalledTimes(1);
       expect(f.actor.broadcastSignedTransaction).toHaveBeenCalledTimes(1);
     } finally {
