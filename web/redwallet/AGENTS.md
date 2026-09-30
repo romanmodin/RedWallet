@@ -1,3 +1,20 @@
+# Current release: 0.28 pricing and isolated providers — published
+
+Caffeine internal30 is LIVE at redwallet-7m3.caffeine.xyz. All329 reviewed paths
+present in compiled export:326 exact matches and three expected regenerated
+backend bindings, adopted/typechecked/tested/built. Backend7gylz-gyaaa-aaaab-qhjrq-cai
+retains private operator configuration. Actual public canister metadata/read/fee/
+raw/malformed-broadcast/NeoxEX checks passed at21:49:49Z, height974914, exactpin.
+Live custom home adapter Test/Save/reload passed; mismatched entered host rejected
+without shared mutation; returnbuilt-in/reload passed. Autoquote362.82USDC,
+Manual350save/switch/reload passed; finalAuto. Existing encrypted disposablewallet
+and269history entries/five outcome proofs restored from the original82addressscan
+withoutrescan. No funded transaction submitted. Keys/CSP/native/migrations preserved.
+No independent backup configured or tested: injected default-failover tests pass,
+but no production redundancy is claimed. FullPocketIC gate remains open.
+See V028-PRODUCTION-2026-09-30.md and deploy/adapter/README.md. This supersedes
+older pending-publication sections below; no price-only29 was published.
+
 # Current prepared release: 0.28 pricing and real provider selection
 
 Preserves the pending NeoxEX Auto/Manual work; internal Caffeine29 was compiled
