@@ -256,6 +256,20 @@ describe("actual provider routes", () => {
     await expect(reading).rejects.toThrow(/Provider changed/);
   });
   it("does not proxy arbitrary URLs, credentials or upstream methods", () => {
+    for (const endpoint of ["", "   "]) {
+      expect(() => validateCustomProvider({ ...custom, endpoint })).toThrow(
+        /Enter the HTTPS bridge URL/,
+      );
+    }
+    expect(() =>
+      validateCustomProvider({ ...custom, endpoint: "not a URL" }),
+    ).toThrow(/complete HTTPS bridge URL/);
+    expect(
+      validateCustomProvider({
+        ...custom,
+        endpoint: `  ${HOME_ADAPTER.endpoint}  `,
+      }).endpoint,
+    ).toBe(HOME_ADAPTER.endpoint);
     expect(() =>
       validateCustomProvider({ ...custom, endpoint: "http://localhost" }),
     ).toThrow();

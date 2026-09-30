@@ -1,3 +1,11 @@
+# Prepared0.29: clear required HTTPS bridge URL field
+
+Fixes reported empty URL showing home placeholder and raw Safari parse error.
+Explicit entry prompt/required hint, draft-vs-active service guidance, fixed empty/
+malformed messages and URL keyboard/no capitalization. No default URL substitution,
+route/security/backend/pricing/native changes. See V029-NETWORK-FORM-2026-09-30.md.
+Exact-source compile/export/publish/live verification pending;0.28 remains live.
+
 # 0.28 additional verification: actual PocketIC gate passed
 
 Published Caffeine30 Wasm SHA256

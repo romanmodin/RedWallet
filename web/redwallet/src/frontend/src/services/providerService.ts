@@ -103,7 +103,18 @@ export function validateCustomProvider(raw: CustomProvider): CustomProvider {
     throw Error(
       "Enter the Fulcrum host, a port from 1 to 65535, and TLS setting.",
     );
-  const url = new URL(raw.endpoint);
+  if (typeof raw.endpoint !== "string" || !raw.endpoint.trim())
+    throw Error(
+      "Enter the HTTPS bridge URL. Gray example text is not a saved address.",
+    );
+  let url: URL;
+  try {
+    url = new URL(raw.endpoint.trim());
+  } catch {
+    throw Error(
+      "Enter a complete HTTPS bridge URL, including the HTTPS prefix.",
+    );
+  }
   if (
     url.protocol !== "https:" ||
     url.username ||

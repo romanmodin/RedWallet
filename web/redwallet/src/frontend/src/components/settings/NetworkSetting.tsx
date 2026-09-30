@@ -6,7 +6,6 @@ import { PROVIDER_EVENT } from "@/services/networkGeneration";
 import {
   BUILTIN_BACKUPS,
   type CustomProvider,
-  HOME_ADAPTER,
   providerRouter,
   readProviderSelection,
   saveProviderSelection,
@@ -127,8 +126,8 @@ export function NetworkSetting() {
       {editing && (
         <fieldset disabled={busy} className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Test verifies these details. Save selects this connection for this
-            browser.
+            These are draft settings. The active service stays as shown above
+            until Test connection and Save succeed.
           </p>
           <div>
             <Label htmlFor="provider-host">
@@ -165,12 +164,26 @@ export function NetworkSetting() {
             <Label htmlFor="provider-endpoint">HTTPS bridge endpoint</Label>
             <Input
               id="provider-endpoint"
-              placeholder={HOME_ADAPTER.endpoint}
+              type="url"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+              aria-describedby="provider-endpoint-help"
+              placeholder="Enter your HTTPS bridge URL"
               value={form.endpoint}
               onChange={(e) =>
                 setForm({ ...form, endpoint: e.target.value.trim() })
               }
             />
+            <p
+              id="provider-endpoint-help"
+              className="mt-1 text-xs text-muted-foreground"
+            >
+              Required. Type or paste your bridge URL; gray example text is not
+              saved. To use the home Umbrel, choose Built-in RedWallet service.
+            </p>
           </div>
           <div>
             <Label htmlFor="provider-canister">ICP adapter canister ID</Label>
