@@ -1,3 +1,12 @@
+#0.30 source saved; publication blocked by Caffeine sign-in
+
+Commit e31ab00f5 is on GitHub and Zorin. Exact359file archive accepted via Import
+code; deployment in progress preceded sign-out. Secure sign-in not completed.
+Do not duplicate import before checking its result.0.28 remains verified live;
+0.30 compile/export/browser-WSS/publish are pending authentication. Actual Vite
+worker ran live against home WSS and verified checkpoint/fees. No funded send
+or key access. See V030-DIRECT-WEBSOCKET-2026-09-30.md for evidence and limits.
+
 # Prepared0.30: shared relay default and direct home WSS
 
 Preserves0.29 form fix and0.28 NeoxEX pricing. Direct secure WebSocket worker

@@ -44,3 +44,27 @@ routes preserved. Same node; no independent backup/redundancy is claimed.
 No funded transaction, user key, password or operator secret used in verification.
 
 Caffeine import/export/publication and actual browser WSS checks remain pending.
+
+## Saved source and live worker follow-up
+
+Implementation commit e31ab00f5c2973375c6f0cb6e38203882c2fec4a is confirmed
+on GitHub and the Zorin web deployment checkout; checkout clean. Exact upload:
+359files,7174526bytes,SHA256
+3889ec2862132789a9eb4f9c5efaefcceb60467e1e5f695499ff08483afddc4c.
+Caffeine Import code accepted it and displayed deployment in progress. The
+browser then redirected to sign-in. Secure sign-in was not completed. Draft
+compilation completion, export comparison, browser CSP/WSS and production
+publication remain unverified and blocked by authentication. Do not repeat the
+import before inspecting its existing result. Production remains0.28.
+
+Live native WSS probe passed version/checkpoint/tip/fee/balance/history/UTXO.
+The actual Vite-emitted worker168653bytes was executed on Zorin Node24 against
+the public WSS endpoint: info verified pinned checkpoint/recent tip at974923,
+and typed fee returned1000sat/kB. This is actual emitted-worker/live protocol
+evidence, not a Chrome/Safari/Caffeine CSP result. No raw signed transaction
+was submitted to the production node.
+
+Account UI showed8.03Caffeine credits and credit-purchase auto-top-up off.
+Official Caffeine docs say hosting cycle top-ups are automatic and charged from
+credits at0.5credits/100billioncycles. No billing setting/payment changed; actual
+canister cycle balance/runway is not known. Eight credits are not perpetual.
