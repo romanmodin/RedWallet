@@ -61,7 +61,7 @@ describe("Public manifest metadata description", () => {
     const description = readManifest().description;
     expect(description, "no manifest description").toBeTruthy();
     expect(description ?? "").toMatch(/watch-only/i);
-    expect(description ?? "").toMatch(/0\.20 preview/i);
+    expect(description ?? "").toMatch(/0\.21 preview/i);
     expect(description ?? "").toMatch(/local encrypted native SegWit wallets/i);
   });
 

@@ -10,6 +10,7 @@
 import { BalanceCard } from "@/components/dashboard/BalanceCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
+import { LocalWalletEntry } from "@/components/layout/LocalWalletEntry";
 import { NetworkIndicator } from "@/components/layout/NetworkIndicator";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ErrorState } from "@/components/states/ErrorState";
@@ -87,6 +88,7 @@ export function DashboardPage() {
 
   return (
     <section data-ocid="dashboard.page" className="flex flex-col gap-6">
+      <LocalWalletEntry purpose="home" />
       <PageHeader
         title="Dashboard"
         description={

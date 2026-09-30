@@ -111,6 +111,11 @@ export function WalletsPage() {
         action={addAction}
       />
 
+      <LocalWalletWorkspace />
+      <h2 className="mb-3 mt-8 font-display text-lg font-semibold">
+        Watched addresses and demo accounts
+      </h2>
+
       <div className="mb-5 flex items-start gap-3 rounded-2xl border border-accent/30 bg-accent/[0.07] p-4">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
           <ShieldCheck className="size-4" aria-hidden="true" />
@@ -151,8 +156,6 @@ export function WalletsPage() {
           onSelect={(walletId) => void handleSelect(walletId)}
         />
       )}
-
-      <LocalWalletWorkspace />
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent data-ocid="wallets.add_dialog">

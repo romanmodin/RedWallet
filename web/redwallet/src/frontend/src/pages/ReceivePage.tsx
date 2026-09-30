@@ -7,6 +7,7 @@
  * offline states are handled explicitly.
  */
 
+import { LocalWalletEntry } from "@/components/layout/LocalWalletEntry";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AddressDisplay } from "@/components/receive/AddressDisplay";
 import { QrCodeCard } from "@/components/receive/QrCodeCard";
@@ -58,6 +59,7 @@ export function ReceivePage() {
 
   return (
     <section data-ocid="receive.page" className="animate-fade-up">
+      <LocalWalletEntry purpose="receive" />
       <PageHeader
         title="Receive"
         description={

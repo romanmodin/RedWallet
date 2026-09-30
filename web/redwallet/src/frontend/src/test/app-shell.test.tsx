@@ -42,6 +42,7 @@ describe("App shell", () => {
 
     // Mobile bottom bar carries the primary tabs.
     const bottomBar = navs[1];
+    expect(within(bottomBar).getByText("Wallets")).toBeInTheDocument();
     expect(within(bottomBar).getByText("Home")).toBeInTheDocument();
     expect(within(bottomBar).getByText("Activity")).toBeInTheDocument();
     expect(within(bottomBar).getByText("Send")).toBeInTheDocument();

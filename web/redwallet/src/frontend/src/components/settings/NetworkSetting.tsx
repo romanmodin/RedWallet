@@ -1,10 +1,4 @@
-/**
- * NetworkSetting — XBT network status.
- *
- * This build has no real XBT backend, so there is no network to select and no
- * Mainnet/Testnet claim. The surface states plainly that the network is a demo
- * and not configured, and never discovers or connects to anything.
- */
+/** Public network overview; actual status is read from the deployed backend. */
 
 import { Info } from "lucide-react";
 
@@ -20,11 +14,13 @@ export function NetworkSetting() {
       />
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className="font-display text-sm font-semibold tracking-tight text-foreground">
-          XBT network · read-only bridge
+          XBT network · wallet bridge
         </p>
         <p className="text-xs leading-relaxed text-muted-foreground">
           Open Network status to check connectivity and the configured XBT
-          checkpoint. Demo accounts remain simulated.
+          checkpoint. Local wallets sign on this device; the bridge relays only
+          signed transactions. Watched addresses cannot sign. Demo accounts
+          remain simulated.
         </p>
       </div>
     </div>

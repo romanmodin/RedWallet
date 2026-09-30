@@ -39,7 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/history", label: "Activity", icon: History, primary: true },
   { to: "/send", label: "Send", icon: ArrowUpFromLine, primary: true },
   { to: "/settings", label: "Settings", icon: Settings, primary: true },
-  { to: "/wallets", label: "Wallets", icon: Wallet, primary: false },
+  { to: "/wallets", label: "Wallets", icon: Wallet, primary: true },
   { to: "/receive", label: "Receive", icon: ArrowDownToLine, primary: false },
   { to: "/status", label: "Network", icon: ShieldCheck, primary: false },
 ];

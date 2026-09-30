@@ -13,6 +13,7 @@ import {
   TransactionFilters,
 } from "@/components/history/TransactionFilters";
 import { TransactionList } from "@/components/history/TransactionList";
+import { LocalWalletEntry } from "@/components/layout/LocalWalletEntry";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/states/EmptyState";
 import { ErrorState } from "@/components/states/ErrorState";
@@ -126,6 +127,7 @@ export function HistoryPage() {
 
   return (
     <section data-ocid="history.page" className="flex flex-col">
+      <LocalWalletEntry purpose="history" />
       <PageHeader
         title="Activity"
         description={

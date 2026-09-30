@@ -97,7 +97,7 @@ describe("Operator managed network", () => {
   it("does not offer unsupported chain switching or per-browser server changes", async () => {
     await openSettings();
     expect(screen.getByTestId("settings.network")).toHaveTextContent(
-      "XBT network · read-only bridge",
+      "XBT network · wallet bridge",
     );
     expect(screen.queryByTestId("settings.network.mainnet")).toBeNull();
     expect(screen.queryByTestId("settings.network.testnet")).toBeNull();

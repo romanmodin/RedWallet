@@ -54,7 +54,7 @@ describe("Settings", () => {
   it("explains the operator managed server and stores no bridge credentials", async () => {
     await openSettings();
     expect(screen.getByTestId("settings.network")).toHaveTextContent(
-      "XBT network · read-only bridge",
+      "XBT network · wallet bridge",
     );
     expect(screen.queryByTestId("settings.server.host_input")).toBeNull();
     expect(screen.getByTestId("settings.section.server")).toHaveTextContent(
