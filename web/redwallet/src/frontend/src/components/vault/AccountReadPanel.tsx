@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { AccountReader, type AccountSnapshot } from "@/lib/xbt/account-reader";
+import { accountViewSession } from "@/lib/xbt/account-view-session";
 import type { IssuedAddresses } from "@/lib/xbt/issued-addresses";
 import type { PublicXbtAccount } from "@/lib/xbt/key-material";
 import type { BridgeActor } from "@/services/bridgeService";
 import { QRCodeSVG } from "qrcode.react";
 /** Public account view for the local vault workspace; no key material enters this component. */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export function AccountReadPanel({
   account,
@@ -18,38 +19,46 @@ export function AccountReadPanel({
   addressBook: IssuedAddresses;
   onSnapshot?: (snapshot: AccountSnapshot | null) => void;
 }) {
-  const [snapshot, setSnapshot] = useState<AccountSnapshot | null>(null);
-  const [checked, setChecked] = useState(0);
+  const session = useMemo(
+    () => accountViewSession(actor, account.accountXpub),
+    [actor, account.accountXpub],
+  );
+  const [snapshot, setSnapshot] = useState<AccountSnapshot | null>(
+    session.snapshot,
+  );
+  const [checked, setChecked] = useState(session.checked);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [receive, setReceive] = useState<{
     address: string;
     index: number;
-  } | null>(null);
+  } | null>(session.receive);
   const [copied, setCopied] = useState(false);
-  const [gap, setGap] = useState(20);
-  const [cap, setCap] = useState(1000);
+  const [gap, setGap] = useState(session.gap);
+  const [cap, setCap] = useState(session.cap);
   const notify = useRef(onSnapshot);
   notify.current = onSnapshot;
   useEffect(() => {
-    notify.current?.(snapshot);
-  }, [snapshot]);
-  const reader = useRef<AccountReader | null>(null);
+    notify.current?.(session.reader ? null : snapshot);
+  }, [snapshot, session]);
+  const reader = useRef<AccountReader | null>(session.reader);
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Account, transport or storage changes must discard prior results.
+  // Restore only same-tab, actor-scoped public observations. The timestamp is never renewed.
   useEffect(() => {
-    reader.current = null;
-    setSnapshot(null);
-    setReceive(null);
-    setChecked(0);
+    reader.current = session.reader;
+    setSnapshot(session.snapshot);
+    setReceive(session.receive);
+    setChecked(session.checked);
+    setGap(session.gap);
+    setCap(session.cap);
     setBusy(false);
     return () => {
       generation.current++;
       request.current?.abort();
     };
-  }, [account, actor, addressBook]);
+  }, [session]);
   async function scan(fresh: boolean) {
     if (busy) return;
     const operation = ++generation.current;
@@ -57,8 +66,8 @@ export function AccountReadPanel({
     request.current = abort;
     setBusy(true);
     setError("");
-    setSnapshot(null);
-    setReceive(null);
+    // Keep the last completed view visible while refreshing, but invalidate spending.
+    notify.current?.(null);
     setCopied(false);
     try {
       if (fresh || !reader.current) {
@@ -67,13 +76,24 @@ export function AccountReadPanel({
           maxAddressesPerBranch: cap,
           issuedThrough: addressBook.read(),
         });
+        session.reader = reader.current;
+        session.gap = gap;
+        session.cap = cap;
+        session.checked = 0;
         setChecked(0);
       }
       const result = await reader.current.scan(abort.signal, (value) => {
-        if (generation.current === operation) setChecked(value.checked);
+        if (generation.current === operation) {
+          session.checked = value.checked;
+          setChecked(value.checked);
+        }
       });
-      if (generation.current === operation && !abort.signal.aborted)
+      if (generation.current === operation && !abort.signal.aborted) {
+        session.reader = null;
+        reader.current = null;
+        session.snapshot = result;
         setSnapshot(result);
+      }
     } catch (e) {
       if (generation.current === operation)
         setError(
@@ -103,8 +123,10 @@ export function AccountReadPanel({
         snapshot.branches[0].next.index,
         abort.signal,
       );
-      if (generation.current === operation && !abort.signal.aborted)
+      if (generation.current === operation && !abort.signal.aborted) {
+        session.receive = result;
         setReceive(result);
+      }
     } catch (e) {
       if (generation.current === operation)
         setError(
@@ -144,7 +166,9 @@ export function AccountReadPanel({
       <p className="text-sm text-muted-foreground">
         Account 0, receive and change branches. A scan takes at least a few
         minutes. Only derived public addresses go to the configured XBT bridge.
-        Keys and recovery words stay in this browser.
+        Keys and recovery words stay in this browser. Completed results and a
+        paused scan survive navigation in this tab. Unlock again after returning
+        to restore the view. Reloading or closing the tab starts a new session.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm">
@@ -156,6 +180,7 @@ export function AccountReadPanel({
             onChange={(e) => {
               setGap(Number(e.target.value));
               reader.current = null;
+              session.reader = null;
             }}
             className="rounded border border-border bg-background p-2"
           >
@@ -172,6 +197,7 @@ export function AccountReadPanel({
             onChange={(e) => {
               setCap(Number(e.target.value));
               reader.current = null;
+              session.reader = null;
             }}
             className="rounded border border-border bg-background p-2"
           >
@@ -187,9 +213,9 @@ export function AccountReadPanel({
       </p>
       <div className="flex flex-wrap gap-2">
         <Button disabled={busy} onClick={() => void scan(true)}>
-          Scan account
+          {snapshot ? "Refresh account" : "Scan account"}
         </Button>
-        {!snapshot && reader.current && (
+        {reader.current && (
           <Button
             variant="outline"
             disabled={busy}
@@ -213,6 +239,13 @@ export function AccountReadPanel({
           {error}
         </p>
       )}
+      {!snapshot && (
+        <p className="text-sm text-muted-foreground">
+          The new receive-address button becomes available when the scan
+          finishes. If interrupted, use Resume scan; observations expire after a
+          five-minute pause.
+        </p>
+      )}
       {snapshot && (
         <>
           <dl className="grid gap-2 sm:grid-cols-2">
@@ -230,8 +263,10 @@ export function AccountReadPanel({
             </div>
           </dl>
           <p className="text-xs text-muted-foreground">
-            Observed at block {snapshot.height.toLocaleString()}. These reads
-            span the scan; they are not an atomic snapshot or a
+            Last completed scan:{" "}
+            {new Date(snapshot.observedAt).toLocaleString()}, block{" "}
+            {snapshot.height.toLocaleString()}. Refresh to check new transfers.
+            These reads span the scan; they are not an atomic snapshot or a
             spendable-balance guarantee.
           </p>
           <Button
@@ -279,9 +314,6 @@ export function AccountReadPanel({
               No history found within these scan bounds.
             </p>
           )}
-          <p className="text-sm text-muted-foreground">
-            Sending is not enabled in this revision.
-          </p>
         </>
       )}
     </section>

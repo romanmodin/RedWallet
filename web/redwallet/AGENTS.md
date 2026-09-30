@@ -1,3 +1,17 @@
+# Current prepared release: 0.22 scan navigation fix
+
+Public account scan sessions now survive same-tab navigation and visibility changes.
+Only public AccountReader/results/receive indices are retained; keys and payment
+reviews still lock/invalidate on navigation. Actor and authenticated xpub scope the
+bounded in-memory cache. Completed timestamps never refresh just by restoring.
+Partial scan resume retains the existing five-minute pause expiry. Reload/close
+still clears this memory cache; do not claim durable scan storage. Vault storage
+invalidation and confirmed payment clear the cache. A refresh retains the previous
+view but invalidates spending until a successful completed scan. All signing,
+checkpoint, durable issued-index and explicit submission gates remain unchanged.
+User-facing 0.22, not 1.0. Actual incoming test transfer was verified through the
+production canister on 2026-09-30; outgoing web spending remains unverified.
+
 # Version numbering correction
 
 User clarified on 2026-09-29: this release is 0.20, next is 0.21, then 0.22.

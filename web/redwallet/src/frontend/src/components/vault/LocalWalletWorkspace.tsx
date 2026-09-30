@@ -1,5 +1,6 @@
 import type { backendInterface } from "@/backend";
 import type { AccountSnapshot } from "@/lib/xbt/account-reader";
+import { clearAccountViewSessions } from "@/lib/xbt/account-view-session";
 import { IssuedAddresses } from "@/lib/xbt/issued-addresses";
 import type { PublicXbtAccount } from "@/lib/xbt/key-material";
 import { VaultCatalog } from "@/lib/xbt/vault-catalog";
@@ -89,8 +90,10 @@ function ProtectedLocalWorkspace() {
   }, [selected]);
   useEffect(() => {
     const storage = (event: StorageEvent) => {
-      if (event.key === null || event.key.startsWith("redwallet.vault.v1."))
+      if (event.key === null || event.key.startsWith("redwallet.vault.v1.")) {
+        clearAccountViewSessions();
         setSelected(null);
+      }
     };
     const visibility = () => setVisible(document.visibilityState === "visible");
     const pagehide = () => {
@@ -167,6 +170,7 @@ function ProtectedLocalWorkspace() {
                 controller={catalog.controller(selected.id)}
                 locked={locked}
                 onConfirmed={() => {
+                  clearAccountViewSessions();
                   setSnapshot(null);
                   setScanKey((value) => value + 1);
                 }}

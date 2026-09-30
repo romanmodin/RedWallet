@@ -384,7 +384,7 @@ export function LocalVaultPanel({
               </p>
               <p className="text-xs text-muted-foreground">
                 Scan this public account below to recover its balance and
-                history. Sending is not enabled in this revision.
+                history. Payment preparation requires a fresh account scan.
               </p>
             </div>
           )}
