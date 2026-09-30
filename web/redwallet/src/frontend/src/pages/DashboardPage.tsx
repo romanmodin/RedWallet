@@ -17,6 +17,8 @@ import { ErrorState } from "@/components/states/ErrorState";
 import { LoadingState } from "@/components/states/LoadingState";
 import { OfflineState } from "@/components/states/OfflineState";
 import { Button } from "@/components/ui/button";
+import { useLocalAccount } from "@/components/vault/LocalAccountContext";
+import { LocalAccountOverview } from "@/components/vault/LocalAccountOverview";
 import { useSettings } from "@/hooks/useSettings";
 import { useWallet } from "@/hooks/useWallet";
 import { formatFiat } from "@/lib/format";
@@ -29,6 +31,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const RECENT_LIMIT = 5;
 
 export function DashboardPage() {
+  const local = useLocalAccount();
+  return local?.selected ? (
+    <LocalAccountOverview key={local.selected.id} selected={local.selected} />
+  ) : (
+    <WatchedDashboardPage />
+  );
+}
+
+function WatchedDashboardPage() {
   const { activeWallet, isLoading, error, refresh } = useWallet();
   const { settings } = useSettings();
 

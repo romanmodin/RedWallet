@@ -19,6 +19,8 @@ import { EmptyState } from "@/components/states/EmptyState";
 import { ErrorState } from "@/components/states/ErrorState";
 import { LoadingState } from "@/components/states/LoadingState";
 import { OfflineState } from "@/components/states/OfflineState";
+import { useLocalAccount } from "@/components/vault/LocalAccountContext";
+import { LocalAccountOverview } from "@/components/vault/LocalAccountOverview";
 import { useSettings } from "@/hooks/useSettings";
 import { useWallet } from "@/hooks/useWallet";
 import { bridgeWalletService } from "@/services/bridgeService";
@@ -54,6 +56,19 @@ export function validateHistorySearch(
 }
 
 export function HistoryPage() {
+  const local = useLocalAccount();
+  return local?.selected ? (
+    <LocalAccountOverview
+      key={local.selected.id}
+      selected={local.selected}
+      history
+    />
+  ) : (
+    <WatchedHistoryPage />
+  );
+}
+
+function WatchedHistoryPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/history" });
   const {

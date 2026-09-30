@@ -1,16 +1,8 @@
-/**
- * Isolation invariant for the reviewed XBT wallet-foundation modules.
- *
- * The four modules under `src/lib/xbt` (key-material, vault, vault-controller,
- * spend-plan) are development-only. The accepted requirement is that no route,
- * page, service, component, `App.tsx`, or backend/bridge file imports them, so
- * the live app stays honestly watch-only. This test scans the production source
- * tree and fails if any such file reaches into the signing core.
- *
- * It is a static source scan, not a runtime import graph: it reads the files
- * that ship in the app and asserts the import specifiers they contain. The
- * xbt modules' own tests and the browser harness are the only permitted
- * importers, and they are excluded by path.
+/** Exact client-surface allowlist for local wallet integration.
+ * Key ownership stays in LocalVaultPanel/LocalWalletWorkspace. The navigation
+ * context holds authenticated public data only; overview reads validated public
+ * caches/receipts. Send and Receive mount the existing CSP-gated workspace.
+ * Backend, bridge and service imports remain prohibited.
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -52,6 +44,8 @@ function isPermittedImporter(file: string): boolean {
     [
       "components/vault/LocalVaultPanel.tsx",
       "components/vault/LocalWalletWorkspace.tsx",
+      "components/vault/LocalAccountContext.tsx",
+      "components/vault/LocalAccountOverview.tsx",
       "components/vault/AccountReadPanel.tsx",
       "components/vault/SendPaymentPanel.tsx",
       "components/vault/WalletCompatibilityCheck.tsx",
@@ -109,7 +103,11 @@ describe("XBT foundation isolation", () => {
         offenders.push(rel);
       if (
         /(?:from\s*|import\s*\()["'][^"']*LocalWalletWorkspace/.test(source) &&
-        rel !== "pages/WalletsPage.tsx"
+        ![
+          "pages/WalletsPage.tsx",
+          "pages/SendPage.tsx",
+          "pages/ReceivePage.tsx",
+        ].includes(rel)
       )
         offenders.push(rel);
     }

@@ -2,17 +2,22 @@ import type { backendInterface } from "@/backend";
 import type { AccountSnapshot } from "@/lib/xbt/account-reader";
 import { clearAccountViewSessions } from "@/lib/xbt/account-view-session";
 import { IssuedAddresses } from "@/lib/xbt/issued-addresses";
-import type { PublicXbtAccount } from "@/lib/xbt/key-material";
 import { VaultCatalog } from "@/lib/xbt/vault-catalog";
 import { type BridgeActor, resolveBridgeActor } from "@/services/bridgeService";
 import { useEffect, useMemo, useState } from "react";
 import { AccountReadPanel } from "./AccountReadPanel";
+import {
+  type LocalAccountSelection,
+  useLocalAccount,
+} from "./LocalAccountContext";
 import { LocalVaultPanel } from "./LocalVaultPanel";
 import { SendPaymentPanel } from "./SendPaymentPanel";
 import { WalletCompatibilityCheck } from "./WalletCompatibilityCheck";
 
 /** Local keys are scoped to this workspace. Only authenticated public account data reaches reads. */
-export function LocalWalletWorkspace() {
+export function LocalWalletWorkspace({
+  purpose = "wallets",
+}: { purpose?: "wallets" | "send" | "receive" }) {
   const [protectedPage, setProtectedPage] = useState(false);
   useEffect(() => {
     const root = document.documentElement;
@@ -29,7 +34,7 @@ export function LocalWalletWorkspace() {
   return (
     <div className="mt-6 space-y-4">
       {protectedPage ? (
-        <ProtectedLocalWorkspace />
+        <ProtectedLocalWorkspace purpose={purpose} />
       ) : (
         <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
           Encrypted wallet setup is unavailable until this page confirms that
@@ -41,7 +46,10 @@ export function LocalWalletWorkspace() {
   );
 }
 
-function ProtectedLocalWorkspace() {
+function ProtectedLocalWorkspace({
+  purpose,
+}: { purpose: "wallets" | "send" | "receive" }) {
+  const local = useLocalAccount();
   const [catalog] = useState(() => {
     try {
       return new VaultCatalog(window.localStorage);
@@ -49,10 +57,9 @@ function ProtectedLocalWorkspace() {
       return null;
     }
   });
-  const [selected, setSelected] = useState<{
-    id: string;
-    account: PublicXbtAccount;
-  } | null>(null);
+  const [selected, setSelected] = useState<LocalAccountSelection | null>(
+    local?.selected ?? null,
+  );
   const [actor, setActor] = useState<BridgeActor | null>(null);
   const [actorError, setActorError] = useState(false);
   const [locked, setLocked] = useState(true);
@@ -89,6 +96,7 @@ function ProtectedLocalWorkspace() {
       if (event.key === null || event.key.startsWith("redwallet.vault.v1.")) {
         clearAccountViewSessions();
         setSelected(null);
+        local?.select(null);
       }
     };
     window.addEventListener("storage", storage);
@@ -96,7 +104,7 @@ function ProtectedLocalWorkspace() {
       window.removeEventListener("storage", storage);
       catalog?.lockAll();
     };
-  }, [catalog]);
+  }, [catalog, local?.select]);
   if (!catalog)
     return (
       <p role="alert">
@@ -105,16 +113,20 @@ function ProtectedLocalWorkspace() {
     );
   return (
     <>
-      <WalletCompatibilityCheck />
+      {purpose === "wallets" && <WalletCompatibilityCheck />}
       <LocalVaultPanel
         catalog={catalog}
         onUnlocked={(id, account) => {
+          const name =
+            catalog.list().find((vault) => vault.id === id)?.name ??
+            `Encrypted wallet ${id.slice(0, 8)}`;
+          local?.select({ id, account, name });
           setSelected((current) =>
             !actorError &&
             current?.id === id &&
             current.account.accountXpub === account.accountXpub
               ? current
-              : { id, account },
+              : { id, account, name },
           );
           setLocked(false);
         }}
@@ -147,16 +159,19 @@ function ProtectedLocalWorkspace() {
                 actor={actor}
                 addressBook={book}
                 onSnapshot={setSnapshot}
+                showHistory={purpose === "wallets"}
               />
-              <SendPaymentPanel
-                key={selected.id}
-                account={selected.account}
-                actor={actor as backendInterface}
-                addressBook={book}
-                snapshot={snapshot}
-                controller={catalog.controller(selected.id)}
-                locked={locked}
-              />
+              {purpose !== "receive" && (
+                <SendPaymentPanel
+                  key={selected.id}
+                  account={selected.account}
+                  actor={actor as backendInterface}
+                  addressBook={book}
+                  snapshot={snapshot}
+                  controller={catalog.controller(selected.id)}
+                  locked={locked}
+                />
+              )}
             </>
           )}
         </div>

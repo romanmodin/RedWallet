@@ -15,6 +15,8 @@ import { ErrorState } from "@/components/states/ErrorState";
 import { LoadingState } from "@/components/states/LoadingState";
 import { OfflineState } from "@/components/states/OfflineState";
 import { Button } from "@/components/ui/button";
+import { useLocalAccount } from "@/components/vault/LocalAccountContext";
+import { LocalWalletWorkspace } from "@/components/vault/LocalWalletWorkspace";
 import { useWallet } from "@/hooks/useWallet";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, ShieldCheck } from "lucide-react";
@@ -30,6 +32,21 @@ import { useEffect, useState } from "react";
 const DEMO_RECEIVE_ADDRESS = "xbt-demo-address-not-valid";
 
 export function ReceivePage() {
+  const local = useLocalAccount();
+  return local?.selected ? (
+    <section data-ocid="receive.page" className="space-y-4">
+      <PageHeader
+        title="Receive"
+        description={`${local.selected.name} · local XBT wallet`}
+      />
+      <LocalWalletWorkspace purpose="receive" />
+    </section>
+  ) : (
+    <WatchedReceivePage />
+  );
+}
+
+function WatchedReceivePage() {
   const { activeWallet, isLoading, error, refresh } = useWallet();
   const [isOffline, setIsOffline] = useState(
     typeof navigator !== "undefined" ? !navigator.onLine : false,

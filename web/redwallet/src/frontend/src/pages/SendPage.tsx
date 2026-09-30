@@ -17,6 +17,8 @@ import { SendReview } from "@/components/send/SendReview";
 import { ErrorState } from "@/components/states/ErrorState";
 import { LoadingState } from "@/components/states/LoadingState";
 import { OfflineState } from "@/components/states/OfflineState";
+import { useLocalAccount } from "@/components/vault/LocalAccountContext";
+import { LocalWalletWorkspace } from "@/components/vault/LocalWalletWorkspace";
 import { useSettings } from "@/hooks/useSettings";
 import { useWallet } from "@/hooks/useWallet";
 import { formatAmount } from "@/lib/format";
@@ -43,6 +45,21 @@ function isPlausibleAddress(value: string): boolean {
 }
 
 export function SendPage() {
+  const local = useLocalAccount();
+  return local?.selected ? (
+    <section data-ocid="send.page" className="space-y-4">
+      <PageHeader
+        title="Send"
+        description={`${local.selected.name} · local XBT wallet`}
+      />
+      <LocalWalletWorkspace purpose="send" />
+    </section>
+  ) : (
+    <WatchedSendPage />
+  );
+}
+
+function WatchedSendPage() {
   const {
     activeWallet,
     isLoading: isWalletLoading,

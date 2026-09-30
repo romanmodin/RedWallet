@@ -14,11 +14,13 @@ export function AccountReadPanel({
   actor,
   addressBook,
   onSnapshot,
+  showHistory = true,
 }: {
   account: PublicXbtAccount;
   actor: BridgeActor;
   addressBook: IssuedAddresses;
   onSnapshot?: (snapshot: AccountSnapshot | null) => void;
+  showHistory?: boolean;
 }) {
   const session = useMemo(
     () => accountViewSession(actor, account.accountXpub),
@@ -298,31 +300,35 @@ export function AccountReadPanel({
               </Button>
             </div>
           )}
-          <h3 className="font-semibold">Account history</h3>
-          <p className="text-xs text-muted-foreground">
-            Transaction IDs and confirming heights are available. Amounts,
-            directions and timestamps have not been inferred.
-          </p>
-          {snapshot.history.length ? (
-            <ul className="max-h-72 space-y-2 overflow-auto">
-              {snapshot.history.map((row) => (
-                <li
-                  key={row.txid}
-                  className="rounded-xl border border-border p-3"
-                >
-                  <p className="break-all font-mono text-xs">{row.txid}</p>
-                  <p className="text-xs">
-                    {row.height > 0n
-                      ? `Confirmed at block ${row.height}`
-                      : "Unconfirmed"}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm">
-              No history found within these scan bounds.
-            </p>
+          {showHistory && (
+            <>
+              <h3 className="font-semibold">Account history</h3>
+              <p className="text-xs text-muted-foreground">
+                Transaction IDs and confirming heights are available. Amounts,
+                directions and timestamps have not been inferred.
+              </p>
+              {snapshot.history.length ? (
+                <ul className="max-h-72 space-y-2 overflow-auto">
+                  {snapshot.history.map((row) => (
+                    <li
+                      key={row.txid}
+                      className="rounded-xl border border-border p-3"
+                    >
+                      <p className="break-all font-mono text-xs">{row.txid}</p>
+                      <p className="text-xs">
+                        {row.height > 0n
+                          ? `Confirmed at block ${row.height}`
+                          : "Unconfirmed"}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm">
+                  No history found within these scan bounds.
+                </p>
+              )}
+            </>
           )}
         </>
       )}

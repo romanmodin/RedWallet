@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useLocalAccount } from "@/components/vault/LocalAccountContext";
 import { LocalWalletWorkspace } from "@/components/vault/LocalWalletWorkspace";
 import { WalletList } from "@/components/wallets/WalletList";
 import { useSettings } from "@/hooks/useSettings";
@@ -31,6 +32,7 @@ import { Plus, ShieldCheck, Wallet as WalletIcon } from "lucide-react";
 import { useState } from "react";
 
 export function WalletsPage() {
+  const local = useLocalAccount();
   const {
     wallets,
     activeWallet,
@@ -52,7 +54,8 @@ export function WalletsPage() {
   const [isSelecting, setIsSelecting] = useState(false);
 
   const handleSelect = async (walletId: string) => {
-    if (walletId === activeWallet?.id) return;
+    if (walletId === activeWallet?.id && !local?.selected) return;
+    local?.select(null);
     setIsSelecting(true);
     await selectWallet(walletId);
     setIsSelecting(false);
@@ -79,6 +82,7 @@ export function WalletsPage() {
     setDraftAddress("");
     setIsAddOpen(false);
     if (watchOnly) {
+      local?.select(null);
       await selectWallet(created.id);
       void navigate({ to: "/" });
     }

@@ -6,6 +6,7 @@
  * status dots, keeping crimson for primary actions.
  */
 
+import { useLocalAccount } from "@/components/vault/LocalAccountContext";
 import { useWallet } from "@/hooks/useWallet";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ export function DemoBanner({
   walletManagement = false,
 }: DemoBannerProps) {
   const { activeWallet } = useWallet();
+  const local = useLocalAccount();
   const isDemo = activeWallet?.isDemo !== false;
   return (
     <div
@@ -45,17 +47,21 @@ export function DemoBanner({
       >
         {walletManagement
           ? "Wallet tools"
-          : isDemo
-            ? "Demo mode"
-            : "Watch only"}
+          : local?.selected
+            ? "Local wallet"
+            : isDemo
+              ? "Demo mode"
+              : "Watch only"}
       </span>
       {!compact ? (
         <span className="text-[11px] font-medium text-accent/80">
           {walletManagement
             ? "— XBT local wallets · preview"
-            : isDemo
-              ? "— all data is simulated"
-              : "— live address reads · sending unavailable"}
+            : local?.selected
+              ? "— XBT · preview"
+              : isDemo
+                ? "— all data is simulated"
+                : "— live address reads · sending unavailable"}
         </span>
       ) : null}
     </div>

@@ -11,6 +11,7 @@
 
 import { DemoBanner } from "@/components/layout/DemoBanner";
 import { NetworkIndicator } from "@/components/layout/NetworkIndicator";
+import { useLocalAccount } from "@/components/vault/LocalAccountContext";
 import { useWallet } from "@/hooks/useWallet";
 import { cn } from "@/lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
@@ -74,6 +75,7 @@ function isActive(pathname: string, to: string): boolean {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { activeWallet } = useWallet();
+  const local = useLocalAccount();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -140,11 +142,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           <p className="text-sm text-muted-foreground">
             {pathname === "/wallets"
               ? "Manage watched addresses and encrypted local XBT wallets."
-              : activeWallet?.isDemo
-                ? "Demo wallet — balances, addresses, and transactions are simulated."
-                : activeWallet
-                  ? "Watch-only address — live reads from the XBT network; sending is unavailable."
-                  : "Select an XBT wallet to view its status."}
+              : local?.selected
+                ? `${local.selected.name} — local encrypted XBT wallet · preview`
+                : activeWallet?.isDemo
+                  ? "Demo wallet — balances, addresses, and transactions are simulated."
+                  : activeWallet
+                    ? "Watch-only address — live reads from the XBT network; sending is unavailable."
+                    : "Select an XBT wallet to view its status."}
           </p>
           <NetworkIndicator />
         </header>

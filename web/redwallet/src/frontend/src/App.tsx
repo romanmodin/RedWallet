@@ -8,6 +8,7 @@
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { FirstLaunchSplash } from "@/components/FirstLaunchSplash";
 import { AppShell } from "@/components/layout/AppShell";
+import { LocalAccountProvider } from "@/components/vault/LocalAccountContext";
 import { NetworkStatusProvider } from "@/context/NetworkStatusContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 
@@ -115,7 +116,9 @@ export default function App() {
         <ThemeProvider>
           <NetworkStatusProvider>
             <WalletProvider>
-              <RouterProvider router={router} />
+              <LocalAccountProvider>
+                <RouterProvider router={router} />
+              </LocalAccountProvider>
             </WalletProvider>
           </NetworkStatusProvider>
         </ThemeProvider>

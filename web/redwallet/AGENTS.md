@@ -1,3 +1,18 @@
+# Current release preparation: 0.26 local wallet tabs
+
+Authenticated public account selection now survives same-tab navigation through
+LocalAccountProvider; it contains only id/name/PublicXbtAccount, never controllers,
+secrets, reviews or consent, and is not persisted. Full reload still requires
+unlocking the same vault once. Home and Activity show validated saved observations
+and signed receipts for that account instead of unrelated demo data. Send and
+Receive reuse the exact existing CSP-gated workspace. Navigation unmounts the
+vault form, locks its controllers and invalidates reviews. Each new workspace
+starts locked; public scan/draft restore without rescanning. Current network and
+coin checks remain mandatory for preparation. Legacy watched/demo screens remain
+available when no authenticated local selection exists; selecting one in Wallets
+clears local selection. No backend/bridge/cryptographic changes in this release.
+Do not claim automatic/incremental synchronization or live balances from caches.
+
 # Current release: 0.25 visible confirmed receipts and retained account history
 
 Confirmation must preserve completed scan/history and its original timestamp.
