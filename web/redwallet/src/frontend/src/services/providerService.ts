@@ -9,6 +9,11 @@ import { Actor, HttpAgent } from "@icp-sdk/core/agent";
 import { IDL } from "@icp-sdk/core/candid";
 import { Principal } from "@icp-sdk/core/principal";
 import { providerChanged, providerGeneration } from "./networkGeneration";
+import {
+  type WebsocketProvider,
+  validateWebsocketProvider,
+} from "./websocketConfig";
+import { loadWebsocketConnection } from "./websocketService";
 
 export const PROVIDER_STORAGE_KEY = "redwallet.provider.v1";
 export const CHECKPOINT_HASH =
@@ -33,7 +38,8 @@ export interface CustomProvider {
 }
 export type ProviderSelection =
   | { mode: "builtin" }
-  | { mode: "custom"; config: CustomProvider };
+  | { mode: "custom"; config: CustomProvider }
+  | { mode: "websocket"; config: WebsocketProvider };
 export interface ProviderInfo {
   host: string;
   port: bigint;
@@ -59,6 +65,7 @@ export interface ProviderConnection {
   id: string;
   actor: ProviderActor;
   info(): Promise<ProviderInfo>;
+  close?(): void;
 }
 export interface ActiveProvider {
   name: string;
@@ -78,15 +85,23 @@ function invalidCustom(): ProviderSelection {
 export function readProviderSelection(
   storage: Storage = window.localStorage,
 ): ProviderSelection {
+  let parsed: any;
   try {
     const raw = storage.getItem(PROVIDER_STORAGE_KEY);
     if (!raw) return { mode: "builtin" };
-    const parsed = JSON.parse(raw);
+    parsed = JSON.parse(raw);
     if (parsed?.mode === "builtin") return { mode: "builtin" };
+    if (parsed?.mode === "websocket")
+      return {
+        mode: "websocket",
+        config: validateWebsocketProvider(parsed.config),
+      };
     if (parsed?.mode === "custom")
       return { mode: "custom", config: validateCustomProvider(parsed.config) };
     return invalidCustom();
   } catch {
+    if (parsed?.mode === "websocket")
+      return { mode: "websocket", config: { endpoint: "" } };
     return invalidCustom();
   }
 }
@@ -295,6 +310,7 @@ export class ProviderRouter {
     private load = loadProviderConnection,
     private backups = BUILTIN_BACKUPS,
     private clock = () => Date.now(),
+    private loadDirect = loadWebsocketConnection,
   ) {}
   sync() {
     const selected = this.read();
@@ -303,6 +319,7 @@ export class ProviderRouter {
       const changed = !!this.fingerprint;
       this.fingerprint = key;
       this.selection = selected;
+      this.active?.close?.();
       this.active = null;
       this.metadata = null;
       this.pending = null;
@@ -315,13 +332,15 @@ export class ProviderRouter {
     if (!this.active || !this.metadata) return null;
     return {
       name:
-        this.selection.mode === "custom"
-          ? this.backup
-            ? "Built-in RedWallet service · custom fallback"
-            : "My own Fulcrum"
-          : this.backup
-            ? "RedWallet backup service"
-            : "Built-in RedWallet service",
+        this.selection.mode === "websocket"
+          ? "My home Fulcrum · direct WSS"
+          : this.selection.mode === "custom"
+            ? this.backup
+              ? "Built-in RedWallet service · custom fallback"
+              : "My own Fulcrum"
+            : this.backup
+              ? "RedWallet backup service"
+              : "Built-in RedWallet service",
       id: this.active.id,
       endpoint: this.metadata.endpoint,
       host: this.metadata.host,
@@ -345,10 +364,51 @@ export class ProviderRouter {
     const connection = await timeout(this.load(valid.canisterId));
     return this.check(connection, valid);
   }
+  async testWebsocket(config: WebsocketProvider) {
+    const valid = validateWebsocketProvider(config);
+    const connection = await this.loadDirect(valid.endpoint);
+    try {
+      const info = await this.check(connection);
+      if (info.endpoint !== valid.endpoint)
+        throw Error("Direct WebSocket identity mismatch.");
+      return info;
+    } finally {
+      connection.close?.();
+    }
+  }
   private async choose() {
     const generation = providerGeneration();
     const fingerprint = this.fingerprint;
     const selected = this.selection;
+    if (selected.mode === "websocket") {
+      const valid = validateWebsocketProvider(selected.config);
+      const connection = this.active ?? (await this.loadDirect(valid.endpoint));
+      try {
+        const info = await this.check(connection);
+        if (info.endpoint !== valid.endpoint)
+          throw Error("Direct WebSocket identity mismatch.");
+        this.sync();
+        if (
+          generation !== providerGeneration() ||
+          fingerprint !== this.fingerprint
+        )
+          throw Error("Provider changed; request fresh network data.");
+        this.active = connection;
+        this.metadata = info;
+        this.checkedAt = this.clock();
+        this.healthyHeight =
+          info.height > this.healthyHeight ? info.height : this.healthyHeight;
+        this.backup = false;
+        return;
+      } catch (error) {
+        connection.close?.();
+        if (fingerprint === this.fingerprint) {
+          this.active = null;
+          this.metadata = null;
+        }
+        throw error;
+      }
+    }
     const ids =
       selected.mode === "custom"
         ? [
@@ -466,6 +526,15 @@ export class ProviderRouter {
                 return result;
               } catch (error) {
                 if (
+                  router.selection.mode === "websocket" &&
+                  gen === providerGeneration()
+                ) {
+                  connection.close?.();
+                  router.active = null;
+                  router.metadata = null;
+                  router.checkedAt = 0;
+                }
+                if (
                   method !== "broadcastSignedTransaction" &&
                   gen === providerGeneration() &&
                   ((router.selection.mode === "builtin" &&
@@ -503,9 +572,14 @@ export function saveProviderSelection(
   storage: Storage = window.localStorage,
 ) {
   const value =
-    selection.mode === "custom"
-      ? { mode: "custom", config: validateCustomProvider(selection.config) }
-      : { mode: "builtin" };
+    selection.mode === "websocket"
+      ? {
+          mode: "websocket",
+          config: validateWebsocketProvider(selection.config),
+        }
+      : selection.mode === "custom"
+        ? { mode: "custom", config: validateCustomProvider(selection.config) }
+        : { mode: "builtin" };
   storage.setItem(PROVIDER_STORAGE_KEY, JSON.stringify(value));
   providerRouter.sync();
 }

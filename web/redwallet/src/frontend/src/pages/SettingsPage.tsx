@@ -314,21 +314,22 @@ export function SettingsPage() {
           <SettingsSection
             id="network"
             title="Network"
-            description="The web wallet reads XBT data through its configured Fulcrum bridge."
+            description="Use the shared service or connect directly to your home Fulcrum."
           >
             <NetworkSetting />
           </SettingsSection>
 
           <SettingsSection
             id="server"
-            title="HTTPS adapter setup"
-            description="Each adapter’s operator configures its Fulcrum upstream."
+            title="Home connection"
+            description="Direct WebSockets keep wallet requests off the shared relay."
           >
             <p className="text-xs text-muted-foreground">
-              Use Network above to select your provider. Operator credentials
-              are never stored in your browser. A host and port alone cannot
-              connect from a web browser; your own service needs an HTTPS bridge
-              and a separate ICP adapter.
+              Select My home Fulcrum above and enter its secure WebSocket
+              address. No personal canister is required. Enable WSS on your
+              Fulcrum with a browser-trusted certificate, then Test connection
+              and Save. The built-in shared service remains the default for new
+              devices. Operator credentials are never stored in your browser.
             </p>
             <Button asChild variant="outline">
               <Link to="/status">Check connection</Link>
@@ -338,7 +339,7 @@ export function SettingsPage() {
           <SupportSetting />
           <SettingsSection
             id="about"
-            title="RedWallet 0.29"
+            title="RedWallet 0.30"
             description="Preview release · XBT (BLAKE2b)"
           >
             <p className="text-sm text-muted-foreground">

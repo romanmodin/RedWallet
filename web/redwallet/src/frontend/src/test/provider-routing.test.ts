@@ -65,6 +65,16 @@ function connection(id: string, height = 974900n): ProviderConnection {
 }
 function fixture() {
   let selection: ProviderSelection = { mode: "builtin" };
+  const direct = connection("wss:home");
+  const directInfo = direct.info;
+  direct.info = vi.fn(async () => ({
+    ...(await directInfo()),
+    host: "home.example",
+    port: 50004n,
+    tls: true,
+    endpoint: "wss://home.example:50004/",
+  }));
+  const loadDirect = vi.fn(async () => direct);
   const primary = connection("primary");
   const mine = connection(custom.canisterId);
   const backup = connection("backup");
@@ -81,9 +91,12 @@ function fixture() {
     load,
     [{ id: "backup", name: "independent", endpoint: "https://backup.example" }],
     () => now,
+    loadDirect,
   );
   return {
     router,
+    direct,
+    loadDirect,
     primary,
     mine,
     backup,
@@ -96,6 +109,65 @@ function fixture() {
 }
 beforeEach(() => localStorage.clear());
 describe("actual provider routes", () => {
+  it("direct WSS routes all wallet operations without loading any canister and never falls back", async () => {
+    const f = fixture();
+    f.select({
+      mode: "websocket",
+      config: { endpoint: "wss://home.example:50004/" },
+    });
+    const actor = await f.router.resolve();
+    await actor.getAddressBalance("address");
+    await actor.getAddressHistory("address");
+    await actor.getAddressUtxos("address");
+    await actor.getFeeEstimate();
+    await actor.getRawTransaction("a".repeat(64));
+    await actor.broadcastSignedTransaction("00", "a".repeat(64));
+    expect(f.load).not.toHaveBeenCalled();
+    expect(f.router.current()?.name).toBe("My home Fulcrum · direct WSS");
+    vi.mocked(f.direct.actor.getAddressHistory).mockRejectedValue(
+      Error("disconnected"),
+    );
+    await expect(actor.getAddressHistory("address")).rejects.toThrow();
+    expect(f.primary.info).not.toHaveBeenCalled();
+    expect(f.backup.info).not.toHaveBeenCalled();
+  });
+  it("persists direct selection without canister IDs or fallback and keeps unrelated settings", () => {
+    localStorage.setItem("redwallet.settings.v1", "price fixture");
+    saveProviderSelection({
+      mode: "websocket",
+      config: { endpoint: "wss://home.example:50004" },
+    });
+    expect(readProviderSelection()).toEqual({
+      mode: "websocket",
+      config: { endpoint: "wss://home.example:50004/" },
+    });
+    expect(localStorage.getItem("redwallet.settings.v1")).toBe("price fixture");
+    expect(localStorage.getItem(PROVIDER_STORAGE_KEY)).not.toContain(
+      "canisterId",
+    );
+  });
+  it("closes a direct connection on provider change and discards late responses", async () => {
+    const f = fixture();
+    f.direct.close = vi.fn();
+    f.select({
+      mode: "websocket",
+      config: { endpoint: "wss://home.example:50004/" },
+    });
+    const actor = await f.router.resolve();
+    let finish: (value: any) => void = () => {};
+    vi.mocked(f.direct.actor.getAddressBalance).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = actor.getAddressBalance("address");
+    await Promise.resolve();
+    f.select({ mode: "builtin" });
+    finish({ __kind__: "ok", ok: {} });
+    await expect(pending).rejects.toThrow(/Provider changed/);
+    expect(f.direct.close).toHaveBeenCalled();
+  });
   it("defaults built-in and sends every route to the explicitly selected adapter", async () => {
     const f = fixture();
     const builtin = await f.router.resolve();

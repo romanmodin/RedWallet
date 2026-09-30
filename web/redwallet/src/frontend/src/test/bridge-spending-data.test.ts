@@ -345,7 +345,9 @@ describe("read-only spending-data invariant", () => {
         rel === "backend.d.ts" ||
         rel.startsWith("declarations/") ||
         rel === "services/bridgeService.ts" ||
-        rel === "services/providerService.ts"
+        rel === "services/providerService.ts" ||
+        // Public Electrum transport mirrors the typed provider service seam.
+        rel === "services/directFulcrum.ts"
       )
         continue;
       const source = readFileSync(file, "utf8");

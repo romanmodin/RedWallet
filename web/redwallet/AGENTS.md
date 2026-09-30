@@ -1,3 +1,13 @@
+# Prepared0.30: shared relay default and direct home WSS
+
+Preserves0.29 form fix and0.28 NeoxEX pricing. Direct secure WebSocket worker
+routes every public wallet call without a personal adapter canister. No fallback
+or retry in direct mode; keys/CSP/backend/native unchanged. Frontend362tests,
+typecheck/build/Biome passed. Umbrel WS loopback55004 and /fulcrum-ws TLS10000
+path enabled and public WSS handshake/checkpoint tested. Exact Caffeine import,
+export comparison, publish and browser verification pending. See
+V030-DIRECT-WEBSOCKET-2026-09-30.md.0.28 still production until verified publish.
+
 # Prepared0.29: clear required HTTPS bridge URL field
 
 Fixes reported empty URL showing home placeholder and raw Safari parse error.

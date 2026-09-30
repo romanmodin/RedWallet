@@ -3,15 +3,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { PROVIDER_EVENT } from "@/services/networkGeneration";
+import { providerGeneration } from "@/services/networkGeneration";
 import {
   BUILTIN_BACKUPS,
   type CustomProvider,
+  type ProviderSelection,
   providerRouter,
   readProviderSelection,
   saveProviderSelection,
   validateCustomProvider,
 } from "@/services/providerService";
-import { useEffect, useState } from "react";
+import { validateWebsocketProvider } from "@/services/websocketConfig";
+import { useEffect, useRef, useState } from "react";
 const empty: CustomProvider = {
   host: "",
   port: 50002,
@@ -26,7 +29,14 @@ export function NetworkSetting() {
   const [form, setForm] = useState<CustomProvider>(() =>
     selection.mode === "custom" ? selection.config : empty,
   );
-  const [editing, setEditing] = useState(selection.mode === "custom");
+  const [editing, setEditing] = useState<ProviderSelection["mode"]>(
+    selection.mode,
+  );
+  const [websocketUrl, setWebsocketUrl] = useState(
+    selection.mode === "websocket" ? selection.config.endpoint : "",
+  );
+  const draft = useRef("");
+  draft.current = JSON.stringify({ editing, form, websocketUrl });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => {
@@ -37,11 +47,13 @@ export function NetworkSetting() {
   async function test(save = false) {
     setBusy(true);
     setMessage("");
-    const exact = JSON.stringify(form);
+    const exact = draft.current;
+    const generation = providerGeneration();
     try {
       const config = validateCustomProvider(form);
       const info = await providerRouter.test(config);
-      if (exact !== JSON.stringify(form)) return;
+      if (exact !== draft.current || generation !== providerGeneration())
+        return;
       if (save) {
         saveProviderSelection({ mode: "custom", config });
         setSelection(readProviderSelection());
@@ -56,11 +68,37 @@ export function NetworkSetting() {
       setBusy(false);
     }
   }
+  async function testWebsocket(save = false) {
+    setBusy(true);
+    setMessage("");
+    const exact = draft.current;
+    const generation = providerGeneration();
+    try {
+      const config = validateWebsocketProvider({ endpoint: websocketUrl });
+      const info = await providerRouter.testWebsocket(config);
+      if (exact !== draft.current || generation !== providerGeneration())
+        return;
+      if (save) {
+        saveProviderSelection({ mode: "websocket", config });
+        setSelection(readProviderSelection());
+        void network.refresh();
+      }
+      setMessage(
+        `${save ? "Saved. " : "Test passed. "}Direct home connection verified at XBT block ${info.height}. No shared relay was used.`,
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Direct connection failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   function builtin() {
     try {
       saveProviderSelection({ mode: "builtin" });
       setSelection({ mode: "builtin" });
-      setEditing(false);
+      setEditing("builtin");
       setMessage(
         "Built-in service selected. Wallet data and signed receipts are preserved.",
       );
@@ -72,26 +110,29 @@ export function NetworkSetting() {
   const active = providerRouter.current();
   return (
     <div data-ocid="settings.network" className="space-y-4">
-      <p className="font-semibold text-sm">XBT network · wallet bridge</p>
+      <p className="font-semibold text-sm">XBT network</p>
       <fieldset className="space-y-2" disabled={busy}>
         <legend className="sr-only">Network provider</legend>
         <label className="flex gap-2 rounded-xl border border-border p-3">
           <input
             type="radio"
             name="provider"
-            checked={!editing && selection.mode === "builtin"}
+            checked={editing === "builtin"}
             onChange={builtin}
           />
-          Built-in RedWallet service
+          Built-in RedWallet service (shared relay)
         </label>
         <label className="flex gap-2 rounded-xl border border-border p-3">
           <input
             type="radio"
             name="provider"
-            checked={editing}
-            onChange={() => setEditing(true)}
+            checked={editing === "websocket"}
+            onChange={() => {
+              setEditing("websocket");
+              setMessage("");
+            }}
           />
-          My own Fulcrum
+          My home Fulcrum (direct WebSocket)
         </label>
       </fieldset>
       <div
@@ -100,30 +141,109 @@ export function NetworkSetting() {
       >
         <p className="font-semibold">
           {active?.name ??
-            (selection.mode === "custom"
-              ? "My own Fulcrum"
-              : "Built-in RedWallet service")}{" "}
+            (selection.mode === "websocket"
+              ? "My home Fulcrum · direct WSS"
+              : selection.mode === "custom"
+                ? "My own Fulcrum"
+                : "Built-in RedWallet service")}{" "}
           · {network.connectionState}
         </p>
         {active && (
           <>
             <p className="break-all text-xs">
-              Active HTTPS bridge: {active.endpoint}
+              {selection.mode === "websocket"
+                ? "Direct WSS endpoint"
+                : "Active HTTPS bridge"}
+              : {active.endpoint}
             </p>
             <p className="break-all text-xs">
-              Adapter: {active.id} · Fulcrum {active.host}:{active.port} ·{" "}
-              {active.tls ? "TLS" : "local TCP"}
+              {selection.mode === "websocket"
+                ? "Browser connects directly to your Fulcrum; no shared relay."
+                : `Adapter: ${active.id} · Fulcrum ${active.host}:${active.port} · ${active.tls ? "TLS" : "local TCP"}`}
             </p>
           </>
         )}
         {network.error && <p role="alert">{network.error.message}</p>}
         <p className="mt-2 text-xs text-muted-foreground">
-          {BUILTIN_BACKUPS.length
-            ? `${BUILTIN_BACKUPS.length} verified independent backup adapter(s) configured.`
-            : "No independent backup is configured. The built-in service currently depends on the home Umbrel."}
+          {selection.mode === "websocket"
+            ? "Direct mode never falls back to a public relay. Your Fulcrum sees the requests and your device’s IP address."
+            : BUILTIN_BACKUPS.length
+              ? `${BUILTIN_BACKUPS.length} verified independent backup adapter(s) configured.`
+              : "No independent backup is configured. The built-in service currently depends on the home Umbrel."}
         </p>
       </div>
-      {editing && (
+      {editing === "websocket" && (
+        <fieldset disabled={busy} className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Connect directly to your own Fulcrum. Wallet address lookups and
+            signed transactions bypass the shared relay. No canister or bridge
+            setup is required.
+          </p>
+          <Label htmlFor="provider-websocket">
+            Home Fulcrum WebSocket address
+          </Label>
+          <Input
+            id="provider-websocket"
+            type="url"
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="wss://fulcrum.example.com:50004"
+            value={websocketUrl}
+            onChange={(e) => {
+              setWebsocketUrl(e.target.value);
+              setMessage("");
+            }}
+            aria-describedby="provider-websocket-help"
+          />
+          <p
+            id="provider-websocket-help"
+            className="text-sm text-muted-foreground"
+          >
+            Your server needs WSS enabled and a browser-trusted certificate. Use
+            its WebSocket port, not its ordinary TCP/TLS port. It must be
+            reachable from this device, on your home network or VPN, or through
+            your server’s public address.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            These are draft settings. The active connection stays as shown above
+            until a successful test and Save. If your home connection fails,
+            wallet requests stay disconnected; no public fallback is used. Auto
+            pricing still contacts the public price service without wallet
+            addresses.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => void testWebsocket()}>
+              Test connection
+            </Button>
+            <Button onClick={() => void testWebsocket(true)}>Save</Button>
+            <Button variant="outline" onClick={builtin}>
+              Return to built-in service
+            </Button>
+          </div>
+        </fieldset>
+      )}
+      <details
+        open={editing === "custom"}
+        className="rounded-xl border border-border p-3 text-sm"
+      >
+        <summary className="cursor-pointer font-semibold">
+          Advanced HTTPS adapter
+        </summary>
+        <Button
+          variant="outline"
+          disabled={busy}
+          className="mt-3"
+          onClick={() => {
+            setEditing("custom");
+            setMessage("");
+          }}
+        >
+          Configure existing adapter
+        </Button>
+      </details>
+      {editing === "custom" && (
         <fieldset disabled={busy} className="space-y-3">
           <p className="text-xs text-muted-foreground">
             These are draft settings. The active service stays as shown above
@@ -228,7 +348,7 @@ export function NetworkSetting() {
           {message}
         </output>
       )}
-      {!editing && (
+      {editing === "builtin" && (
         <Button
           variant="outline"
           disabled={busy || network.isRefreshing}
@@ -239,23 +359,25 @@ export function NetworkSetting() {
       )}
       <details className="rounded-xl border border-border p-3 text-xs leading-relaxed">
         <summary className="cursor-pointer font-semibold">
-          How to connect your Fulcrum
+          Connection privacy and setup
         </summary>
         <div className="mt-3 space-y-2">
           <p>
-            A browser cannot open Fulcrum’s TCP/TLS port. Deploy the RedWallet
-            HTTPS bridge beside your Fulcrum and a separate ICP adapter canister
-            using this project’s backend. Configure that adapter’s bridge URL
-            and private credential as its operator; never paste operator
-            credentials into this app.
+            The built-in shared service is ready to use and sees the public
+            addresses and signed transactions you request. Your private keys and
+            recovery phrase stay on this device.
           </p>
           <p>
-            Enter the HTTPS bridge URL, adapter canister ID, and the bridge’s
-            actual Fulcrum host, port and TLS setting. Test checks that exact
-            adapter’s identity, pinned XBT checkpoint and a tip no older than
-            two hours. Save changes only this browser’s route; it never changes
-            the shared bridge or any other user’s settings. Plain TCP is
-            supported only when the bridge reaches Fulcrum on loopback.
+            Direct home WebSocket mode uses Fulcrum’s built-in WSS support.
+            Enter one secure WebSocket address and test it; no personal ICP
+            canister is needed. This avoids our shared wallet relay, but does
+            not hide your requests from your own server or make your IP
+            anonymous.
+          </p>
+          <p>
+            The advanced option preserves existing HTTPS bridges and their
+            independently configured adapters. Only that advanced option needs a
+            canister ID. No connection setting reconfigures the shared service.
           </p>
           <p>
             Provider changes cancel active payment reviews and require fresh

@@ -1,12 +1,45 @@
-# Public and personal RedWallet adapters
+# RedWallet connection options
 
-A web browser cannot open Fulcrum's TCP/TLS socket. This release deliberately
-keeps the browser CSP unchanged. Every wallet route therefore uses an ICP adapter
-canister, which makes authenticated HTTPS outcalls to its separately hosted bridge.
-The bridge opens TCP/TLS to one operator-configured Fulcrum. Neither component
-accepts caller-supplied upstream hosts or arbitrary RPC methods. No keys enter
-these services. This is not a full-node consensus proof: an adapter is a provider
-of public chain data, checked against a pinned checkpoint and recent tip.
+The built-in shared relay remains the default. Settings also offers a direct
+secure WebSocket connection to a user-owned XBT Fulcrum. Existing personal
+HTTPS adapter configurations remain available under Advanced HTTPS adapter.
+
+## Direct home WebSocket
+
+Enter one `wss://` URL under My home Fulcrum, then Test connection and Save.
+No ICP canister or application bridge is required. Enable Fulcrum native WS
+behind a trusted TLS reverse proxy, or native WSS with a browser-trusted
+certificate. The ordinary Electrum TCP/TLS port is not a WebSocket port.
+The address must be reachable from the phone/browser: home LAN, VPN, or a
+public TLS endpoint. The RedWallet page requires secure WSS even for home LAN.
+
+The browser worker talks directly to this endpoint using bounded Electrum JSON
+RPC. It receives only public addresses/IDs and already signed transactions,
+never a seed, private key, password, or vault. Before accepting a provider it
+checks the exact XBT extended checkpoint header at961640, recent header time,
+and chain height. Every wallet read and signed broadcast uses the selected
+connection. Failure stays disconnected; direct mode never falls back to the
+shared relay. Changing providers invalidates old reviews/in-flight results and
+closes the old worker while preserving saved wallet data and receipts.
+
+Auto NeoxEX pricing still uses the public price service, without wallet data.
+Direct wallet routing does not make asset hosting or price requests independent
+of ICP. The main page CSP remains unchanged; its same-origin network worker
+has no key, vault, storage or ICP dependencies.
+
+Operator verification endpoint enabled2026-09-30:
+`wss://umbrel-3.tailaa2bb4.ts.net:10000/fulcrum-ws`. Fulcrum WS binds only to
+loopback55004; the existing Tailscale TLS tunnel forwards this path directly.
+The existing authenticated HTTP bridge root and ports8443/8444 remain intact.
+This is the same home node, so it adds no independent redundancy.
+
+## Advanced HTTPS adapter
+
+The ICP adapter makes authenticated HTTPS outcalls to an operator-hosted bridge.
+The bridge opens TCP/TLS to one configured Fulcrum. Neither component accepts
+caller-supplied upstream hosts or arbitrary methods. This service provides public
+chain data checked against a pinned checkpoint and recent tip; it is not a full
+node consensus proof. The bridge does not receive wallet private keys.
 
 ## Existing built-in public service
 
@@ -41,7 +74,7 @@ service. This endpoint depends on the home Umbrel. It is not an independent back
 4. Verify `getProviderInfo` reports the actual host/port/TLS, exact HTTPS base URL,
    pinned XBT checkpoint and a header-derived tip timestamp within two hours.
    Older bridges/canisters missing this method must be updated before selection.
-5. In Settings → Network → My own Fulcrum, enter those exact host/port/TLS values,
+5. In Settings → Network → Advanced HTTPS adapter, enter those exact host/port/TLS values,
    HTTPS bridge base URL and adapter canister ID. Test connection verifies that
    exact adapter. Save persists only this origin/device's selection. The known
    home HTTPS URL can resolve its adapter ID automatically. A different bridge
