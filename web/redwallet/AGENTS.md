@@ -1,3 +1,15 @@
+# Current release: 0.27 verified in production
+
+Caffeine internal revision28 is live, user-facing0.27. All317 uploaded source
+files matched the compiled export exactly. Production Settings confirms0.27,
+external analytics blocked and bridge Connected. Explicit history amount lookup
+and raw-proof cache restore passed on the published disposable fixture across
+Home/Activity/Wallets and full reload, retaining the original82-address scan.
+Manual price save/rate/time/clear passed. Automatic market pricing remains
+unimplemented. iPhone background/reopen validation remains a user check; no new
+funded payment needed. See V027-PRODUCTION-2026-09-30.md for exact verified scope.
+Earlier prepared0.27 authentication/import blocks below are superseded.
+
 # Current release preparation: 0.27 transaction outcomes and manual price clarity
 
 History may explicitly load bounded raw transaction/parent data through the
