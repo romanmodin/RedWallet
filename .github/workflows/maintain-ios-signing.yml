@@ -1,0 +1,125 @@
+name: Maintain iOS signing storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type ROTATE to re-encrypt existing signing storage
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maintain-ios-signing
+  cancel-in-progress: false
+
+jobs:
+  rotate:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirmation == 'ROTATE' }}
+    environment: ios-signing-bootstrap
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Set up trusted Ruby
+        uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+        with:
+          ruby-version: 3.4.10
+
+      - name: Install pinned signing-storage tooling
+        run: |
+          gem fetch fastlane --version 2.237.0
+          printf '%s\n' 'bb1e867bc070fb328741b5e6e7606d5ba596941a9ecca0478f60ef22d1009db9  fastlane-2.237.0.gem' | shasum -a 256 -c -
+          gem install ./fastlane-2.237.0.gem --no-document
+
+      - name: Rotate and verify storage encryption
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          NEXT_MATCH_PASSWORD: ${{ secrets.NEXT_MATCH_PASSWORD }}
+          GIT_URL: ${{ secrets.GIT_URL }}
+          GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_HIDE_CHANGELOG: '1'
+          FASTLANE_OPT_OUT_USAGE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          signing_key="$RUNNER_TEMP/signing-storage-maintenance-key"
+          trap 'rm -f "$signing_key"' EXIT
+          printf '%s\n' "$GIT_PRIVATE_KEY_CONTENT" > "$signing_key"
+          unset GIT_PRIVATE_KEY_CONTENT
+          export MATCH_GIT_PRIVATE_KEY="$signing_key"
+          mkdir -p "$HOME/.ssh"
+          curl --fail --silent --show-error https://api.github.com/meta | python3 -c 'import json,sys; print("\n".join("github.com " + k for k in json.load(sys.stdin)["ssh_keys"]))' > "$HOME/.ssh/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i \"$signing_key\" -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes"
+          git config --global user.name 'Roman Modin'
+          git config --global user.email '262861426+romanmodin@users.noreply.github.com'
+          ruby <<'RUBY'
+          require 'fastlane'
+          require 'match'
+          require 'digest'
+          require 'json'
+          require 'open3'
+          require 'tempfile'
+
+          previous = ENV.fetch('MATCH_PASSWORD')
+          replacement = ENV.fetch('NEXT_MATCH_PASSWORD')
+          raise 'Invalid replacement passphrase' if replacement.length < 32 || previous == replacement
+          raise 'Unexpected signing repository' unless ENV.fetch('GIT_URL') == 'git@github.com:romanmodin/RedWallet-signing.git'
+          params = FastlaneCore::Configuration.create(Match::Options.available_options, {
+            storage_mode: 'git', git_url: ENV.fetch('GIT_URL'), git_branch: 'main',
+            git_private_key: ENV.fetch('MATCH_GIT_PRIVATE_KEY'), readonly: false,
+            type: 'appstore', platform: 'ios'
+          })
+          storage = nil
+          begin
+            storage = Match::Storage.from_params(params)
+            storage.download
+            encryption = Match::Encryption.for_storage_mode('git', {
+              git_url: params[:git_url], working_directory: storage.working_directory,
+              force_legacy_encryption: false
+            })
+            encryption.decrypt_files
+            root = storage.working_directory
+            files = Dir[File.join(root, '**', '*.{cer,p12,mobileprovision,provisionprofile}')].sort
+            raise 'Signing storage is empty' if files.empty?
+            baseline = files.to_h { |f| [f, Digest::SHA256.file(f).hexdigest] }
+            profiles = files.select { |f| f.end_with?('.mobileprovision') }
+            teams = profiles.flat_map do |f|
+              xml, status = Open3.capture2('security', 'cms', '-D', '-i', f)
+              raise 'Cannot decode provisioning profile' unless status.success?
+              require 'plist'
+              Plist.parse_xml(xml).fetch('TeamIdentifier')
+            end.uniq
+            raise 'Expected one Apple signing team' unless teams.length == 1 && teams.first.match?(/\A[A-Z0-9]{10}\z/)
+            encrypted_files = encryption.encrypt_files(password: replacement)
+            ENV['MATCH_PASSWORD'] = replacement
+            encryption.decrypt_files
+            raise 'Re-encryption changed signing material' unless files.all? { |f| Digest::SHA256.file(f).hexdigest == baseline.fetch(f) }
+            encryption.encrypt_files(password: replacement)
+            probe = Tempfile.new(['match-rotation-check', '.cer'])
+            begin
+              probe.binmode
+              probe.write(File.binread(files.first))
+              probe.flush
+              old_password_accepted = false
+              begin
+                Match::Encryption::MatchFileEncryption.new.decrypt(file_path: probe.path, password: previous)
+                old_password_accepted = true
+              rescue OpenSSL::Cipher::CipherError, RuntimeError
+              end
+              raise 'Previous passphrase still decrypts storage' if old_password_accepted
+            ensure
+              probe.close!
+            end
+            storage.save_changes!(files_to_commit: encrypted_files, custom_message: '[fastlane] Rotate signing-storage passphrase')
+            File.open(ENV.fetch('GITHUB_STEP_SUMMARY'), 'a') do |out|
+              out.puts "Signing storage re-encrypted and verified. Existing certificates and profiles preserved."
+              out.puts "Apple team: #{teams.first}. Previous passphrase rejected."
+            end
+            puts "ROTATION_VERIFIED team_id=#{teams.first} files=#{files.length}"
+          ensure
+            storage.clear_changes if storage
+          end
+          RUBY
