@@ -13,3 +13,9 @@ Publication is not complete. Automatic approval review rejected opening the supp
 ## Local verification
 
 Node24.21.0 / corepack pnpm10.14.0: recovery form12 tests PASS; frontend typecheck PASS; Biome220 files PASS. The full frontend run executed393 tests:392 passed and one metadata test still expected0.39. Updated both release-metadata assertions for0.40; reran both metadata files, all19 tests PASS. No runtime test failure was observed. Clean CI will verify the final committed source in one run. Build result is recorded after completion.
+
+## Clean final CI
+
+GitHub RedWallet Web run36925726467 at sourcefc63f5ffe25dc992c2b41c0e336c1531c99a543a completed SUCCESS on2026-10-01: pinned Node24/pnpm10.14.0 frozen dependency install; production audit with0known advisories; frontend typecheck/Biome220;63frontend files/393tests PASS; frontend build PASS; bridge typecheck/80tests/build PASS. The local build also passed after providing the pinned pnpm executable to its nested copy:env script. This clean run supersedes the intermediate stale-version assertion failure.
+
+Runtime source is unchanged after that clean run. Only verification documentation was updated. Prepared source ZIP contains379tracked app files. Publication remains blocked/pending; public0.39 is unchanged. This is a tested source fix, not a claimed live or independently verified iPhone fix.

@@ -6,7 +6,8 @@ across brief visibility/pagehide events within the original five-minute deadline
 Return checks both clocks even if timers were suspended. No plaintext storage or
 network transfer. Keys/pending encryption/unlock still lock/cancel. Cancel,
 expiry, vault invalidation and unmount clear entry; reload has no draft to restore.
-Focused12 tests PASS. Full verification is recorded in V040.
+Clean GitHub36925726467/sourcefc63f5ffe PASS:393frontend/80bridge tests,
+typechecks, Biome220, builds, production audit. See V040.
 Automatic approval review rejected opening the private Caffeine project URL as
 outside the explicitly authorized fix; no indirect UI access attempted. Public
 remains0.39. Exact import/export/publish and actual iPhone switch check pending.
