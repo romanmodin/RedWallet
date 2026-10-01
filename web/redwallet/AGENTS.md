@@ -1,3 +1,7 @@
+# 0.39 published — wallet removal and corrected demo pricing
+
+Caffeine42/public0.39 LIVE. Source b95792db4; clean GitHub36922369490 PASS:388frontend tests/63files, Biome220/typecheck/build/audit, bridge checks. All378source paths exactly match export; backend digest unchanged. Browser encrypted removal gates/cancel, individual demo removal/reload, hide-all/reload/empty dashboard/restore PASS. Both fixture vaults preserved. All visible demo fiat amounts now use configured NeoxEX/manual XBT quote, no BTC-sized sample rate; live USDC/Stale labels verified. See V039. This supersedes pending/sign-in notes below. Native iPhone untouched.
+
 # 0.39 ready; publication blocked by sign-in
 
 Source b8fd08687 pushed. Clean GitHub CI36921093626 PASS across frontend/bridge tests, checks, builds and audit.377file source ZIP ready. Caffeine signed out; Google passkey challenge failed. Stop automated auth; user handoff required before import/publish. Public remains0.38. See V039.

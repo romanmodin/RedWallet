@@ -13,3 +13,11 @@ GitHub run36921093626 at source b8fd08687174a8440b80d07c4981fb28e752d084 complet
 ## XBT quote follow-up
 
 User found demo balances still using the historical64,250USD sample rate. All visible demo fiat amounts (dashboard, wallet rows, transaction rows/details, send balance and fee estimates) now use the same NeoxEX/manual XBT quote component as real accounts. Unknown quotes remain unavailable and automatic quotes are labeled USDC. Simulated XBT balances remain marked demo. Dashboard regression uses355.15USD/XBT and rejects former BTC-sized output.18focused price/dashboard/settings tests, typecheck, Biome220 and build PASS. Fresh final CI required before publication. Sign-in has been restored.
+
+## Published and verified
+
+Caffeine42/public0.39 LIVE on2026-10-01. Final clean GitHub run36922369490/source b95792db45dbaec3468ee4ad1ea28c146a23bd5b PASS:63frontend files/388tests, Biome220, typecheck/build, production audit with0known advisories, bridge typecheck/tests/build. All378reviewed paths in redwallet-039-source-final.zip byte-match actual exported redwallet (37).zip. Backend SHA256 remains6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001.
+
+Live checks PASS: exact RedWallet0.39 settings label; encrypted confirmation disabled with name alone, enabled with backup acknowledgment, Cancel preserves both fixture vaults; Cold Savings demo removal persists across reload and leaves other demo/vault entries; hide-all persists across reload and dashboard shows onboarding; restore brings back all3demo entries. Connected primary unchanged. Demo dashboard and rows use configured NeoxEX USDC estimate (475.79USDC/1.2485XBT from the retained quote, visibly Stale), with no old64,250USD output. No irreversible browser vault deletion or funded payment performed.
+
+Proof: redwallet-039-removal-and-xbt-price.jpg, saved. Public app /wallets verified. This supersedes the earlier publication blocker. Runtime is unchanged after the verified final source; follow-up documentation only.

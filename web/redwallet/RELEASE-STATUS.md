@@ -1,19 +1,21 @@
 # RedWallet Web release status — 2026-10-01
 
-Public release: 0.38, Caffeine 40. Web branch: `web/caffeine-bridge-deployment`.
+Public release: 0.39, Caffeine 42. Web branch: `web/caffeine-bridge-deployment`.
 This record supersedes earlier watch-only/unmounted statements in foundation
 notes. It describes the current scoped preview, not a version1.0 claim.
+
+Individual wallet removal and persistent demo hide/restore are available on Wallets. Encrypted removal requires a backup acknowledgment and wallet name; public recovery indexes/history remain. Demo and real balances use configured XBT estimates. See V039 for final checks.
 
 ## Completed verification
 
 | Area | Evidence |
 | --- | --- |
-| Current frontend |63 files / 382 tests PASS; TypeScript, Biome 219 files and production build PASS |
-| Bridge |80 tests, typecheck and build PASS in0.38 clean GitHub runner |
+| Current frontend |63 files / 388 tests PASS; TypeScript, Biome 220 files and production build PASS |
+| Bridge |80 tests, typecheck and build PASS in0.39 clean GitHub runner |
 | Published backend |25 PocketIC tests against exact Wasm; unchanged digest in0.38 export |
 | Pure Motoko contracts |16 tests PASS with locked dependencies and native compiler |
 | Signer |Eight Knots vectors, accepted fixture parity, synthetic signing and browser-without-Node-globals checks; node acceptance/replay-negative evidence in `test/regtest` |
-| Release import |All 376 reviewed 0.38 source paths exactly match actual Caffeine export |
+| Release import |All 378 reviewed 0.39 source paths exactly match actual Caffeine export |
 | Browser lifecycle |Disposable fixture recovery/unlock/reload/navigation lock, retained scan/draft/history, provider selection and protection checks recorded in0.23–0.37reports |
 | User iPhone checks |Connection changes and background/unlock retain history;0.37Keychain automatic zoom fix confirmed by user |
 | Backup routing |Live mempool.guide protocol/checkpoint/reads and real router with simulated primary outage PASS; production primary stayed online |
