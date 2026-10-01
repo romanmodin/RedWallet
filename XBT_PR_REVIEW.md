@@ -56,3 +56,11 @@ the source-map phase and both dSYM upload phases from the project, including
 the watch target. Removed the watch initializer and remaining watch/widget
 reporting keys as well. Native build verification is recorded separately from
 the passing unit and Android UI checks.
+
+## Released native app synchronization
+
+Merged the existing `fix/ios-signing-bootstrap` release branch so this PR keeps
+the red app icons, crimson/burgundy theme, voluntary donation screen, scoped
+SSH signing setup, signed IPA verifier, and previously recorded independent
+Bitcoin Core rejection receipts. Updated the segmented-control unit fixture
+to supply the navigation theme now required by the released component.

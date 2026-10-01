@@ -195,3 +195,45 @@ Android compiled and passed all 3 selected UI suites (12 passed, 5 explicitly
 deferred tests skipped), including manual-price save/restart/clear. The iOS
 simulator build passed; its UI run was still active when this checkpoint was
 recorded. This is not a signed device build or a TestFlight upload.
+
+## Independent Bitcoin Core replay rejection — passed 2026-09-28
+
+Bitcoin Core **29.0** independently rejected transactions signed by the actual
+XBT wallet on an isolated regtest chain. A normal Bitcoin signature over the
+**same non-witness transaction** was accepted into its mempool and confirmed
+in a block. All three variants have transaction ID
+`2829c3303527361f72b2349d54599bf28d8714b61275a7c935e9a7c18d89e631`.
+
+| Variant | Core result |
+| --- | --- |
+| XBT Unified signatures, type 0x21 | Rejected by mandatory script verification |
+| Both Unified flags stripped to 0x01 | Rejected by mandatory script verification |
+| Bitcoin BIP143 signatures, type 0x01 | Accepted and confirmed once |
+
+The Core 29.0 Linux archive SHA256 was
+`a681e4f6ce524c338a105f214613605bac6c33d58c31dc5135bbc02bc458bb6c`,
+matching both the official bitcoincore.org checksum file and achow101's
+29.0 Guix build attestation. The temporary native process used a fresh data
+directory, explicit regtest configuration, disabled P2P networking/listening,
+loopback-only RPC, and zero peer connections. It was stopped and its temporary
+chain data removed after the check. No production wallet or network was used.
+
+The public funding transaction, signed variants, and node receipts are in
+`tests/fixtures/xbt-bitcoin-regtest-rejection.json`. Signing code was unchanged
+from `c12e63271`. The opt-in bridge
+`tests/integration/xbt-bitcoin-replay.test.ts` signs only the published BIP84
+mnemonic and skips by default. Its successful run alone is not a node receipt.
+
+To reproduce: start an isolated Core 29.0 regtest node, generate mature faucet
+funds, fund the two public regtest source addresses in the Knots fixture with
+60,000 and 40,000 sats as ordinary outputs, and confirm that funding. Save
+`{chain:"regtest", implementation:"Bitcoin Core", fundingHex, confirmations}`
+as JSON. Run the bridge with explicit absolute `XBT_BITCOIN_FIXTURE` and
+`XBT_BITCOIN_RESULT` paths. Call Core's `testmempoolaccept` separately on
+`unifiedHex`, `strippedUnifiedHex`, and `bitcoinControlHex`. Require the
+first two to fail script verification and the control to pass; then submit
+and mine **only the control on isolated regtest**. Stop the temporary node.
+
+This closes the independent Bitcoin-node rejection check for the tested
+two-input P2WPKH flow. It does not prove the complete phone/Fulcrum send flow,
+physical iPhone behavior, other script types, or TestFlight readiness.

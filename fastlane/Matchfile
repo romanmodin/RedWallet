@@ -26,13 +26,11 @@ readonly(ENV["MATCH_READONLY"] == "false" ? false : true)
 # Define the platform to use
 platform("ios")
 
-# Base64-encoded username:token for the private signing repository (not a raw PAT).
-# Match applies this header only to its repository access; see RELEASE.md.
-git_basic_authorization(ENV["GIT_ACCESS_TOKEN"])
+# Repository-scoped deploy key; never use the account-wide GitHub credential.
+git_private_key(ENV["MATCH_GIT_PRIVATE_KEY"])
 
 # Storage mode (git by default)
 storage_mode("git")
 
-# Optional: The Git branch that is used for match
-# Default is 'master'
-# branch("main")
+# The initialized private signing repository uses main.
+git_branch("main")

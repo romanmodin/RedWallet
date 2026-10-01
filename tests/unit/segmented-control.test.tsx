@@ -1,5 +1,7 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render as renderComponent } from '@testing-library/react-native';
+import { ThemeProvider } from '@react-navigation/native';
+import { BlueDefaultTheme } from '../../components/themes';
 import SegmentedControl from '../../components/SegmentedControl';
 
 jest.mock('../../codegen/SegmentedControlNativeComponent', () => {
@@ -11,6 +13,11 @@ jest.mock('../../codegen/SegmentedControlNativeComponent', () => {
     default: MockSegmentedControl,
   };
 });
+
+const render = (element: React.ReactElement) =>
+  renderComponent(element, {
+    wrapper: ({ children }) => <ThemeProvider value={BlueDefaultTheme}>{children}</ThemeProvider>,
+  });
 
 describe('SegmentedControl', () => {
   const VALUES = ['One', 'Two', 'Three'];
