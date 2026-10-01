@@ -1,6 +1,6 @@
 import { AccountReadPanel } from "@/components/vault/AccountReadPanel";
 import type { BridgeActor } from "@/services/bridgeService";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearAccountViewSessions } from "./account-view-session";
 import { type AddressMutex, IssuedAddresses } from "./issued-addresses";
@@ -109,7 +109,14 @@ describe("public account receive UI", () => {
     fixture.scan.mockRejectedValueOnce(Error("Bridge unavailable"));
     fireEvent.click(screen.getByRole("button", { name: "Refresh account" }));
     await screen.findByText("Bridge unavailable");
-    expect(onSnapshot.mock.calls.at(-1)?.[0]).toBe(originalSnapshot);
+    // The error can render before finally clears busy and the snapshot effect
+    // restores the completed observation to the parent.
+    await waitFor(() => {
+      expect(onSnapshot.mock.calls.at(-1)?.[0]).toBe(originalSnapshot);
+      expect(
+        screen.getByRole("button", { name: "Refresh account" }),
+      ).toBeEnabled();
+    });
     restored.unmount();
     render(
       <AccountReadPanel

@@ -1,10 +1,21 @@
-# 0.37 published — Safari focus zoom prevention candidate
+# 0.37 final regression passed
+
+User confirmed iPhone Keychain zoom resolved at2026-10-01 11:12PDT.
+Final full frontend63files/382tests PASS; typecheck/Biome219 PASS. Initial
+full run found one existing snapshot callback timing race in a test; wait for
+restored observation and enabled Refresh fixes test without weakening it.
+Product runtime unchanged, no new publication/version required. Public0.37
+reloaded/protection blocked/home Test connection connected. See V037-FINAL
+report and V037 zoom report; supersedes pending phone notes below.
+
+# 0.37 published — iPhone Keychain zoom fix confirmed
 
 Caffeine39/public0.37 LIVE. All373reviewed source paths exactly match export;
 backend Wasm unchanged.31focused/typecheck/Biome219/build PASS. Public
 release/protection plus disposable fixture unlock/focus release/no overflow
-PASS in Chromium. Actual iPhone Keychain prevention and pinch zoom need user
-check. User confirms0.36 reset failed; no Safari success claimed. See V037.
+PASS in Chromium. On2026-10-01 at11:12PDT, user confirmed0.37 resolves
+the reported automatic Keychain zoom issue. Earlier0.35/0.36 attempts failed.
+This supersedes pending Safari confirmation notes below. See V037.
 
 # 0.37 prepared — prevent Safari password focus zoom
 

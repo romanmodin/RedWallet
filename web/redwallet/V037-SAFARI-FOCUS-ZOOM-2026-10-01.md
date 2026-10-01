@@ -28,3 +28,14 @@ Public0.37 analytics blocked, disposable BIP84 fixture unlock authenticated
 expected first address; focusBODY, normal viewport unchanged, width485 /
 innerWidth500. No actual Safari/Keychain simulation possible in Chromium.
 iPhone final check pending. Screenshot redwallet-037-published.jpg.
+
+## iPhone confirmation
+
+2026-10-01 11:12PDT: after being asked to check0.37 with Keychain, the user
+reported: "Yes that did it." The reported retained automatic password zoom
+issue is resolved on their iPhone. This is user device verification, distinct
+from the earlier Chromium checks. Supersedes phone-check pending notes above.
+
+Final full frontend regression:63files/382tests PASS after fixing an
+existing callback timing assertion; typecheck/Biome219 PASS. No product
+runtime changes in follow-up; public remains0.37. See V037-FINAL report.
