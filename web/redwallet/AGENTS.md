@@ -9,8 +9,8 @@ on return and on save; active timers clear it at30seconds even before return.
 User requested30seconds rather than5minutes. Focused14tests PASS. No plaintext storage or
 network transfer. Keys/pending encryption/unlock still lock/cancel. Cancel,
 expiry, vault invalidation and unmount clear entry; reload has no draft to restore.
-Previous5minute version clean GitHub36925726467/sourcefc63f5ffe PASS.
-Final30second source requires its own clean CI, recorded in V040.
+Final30second sourcea9b679065/GitHub36928226353 PASS:395frontend/80bridge
+tests, both builds/typechecks, Biome220 and production audit. See V040.
 Automatic approval review rejected opening the private Caffeine project URL as
 outside the explicitly authorized fix; no indirect UI access attempted. Public
 remains0.39. Exact import/export/publish and actual iPhone switch check pending.

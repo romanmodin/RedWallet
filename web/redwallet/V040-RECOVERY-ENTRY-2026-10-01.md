@@ -16,7 +16,11 @@ Focused14recovery form tests PASS, including exactly29999ms vs30000ms,
 foreground entry longer than30seconds, timely return/new grace, duplicate hide
 events, both clocks with suspended timers/backward wall clock, and hidden expiry.
 This supersedes the five-minute background-retention description below.
-Final verification and publication remain to be recorded. Public remains0.39.
+Final30second sourcea9b679065ec028d1284be103b9b9fd3732d0f7a4 passed clean
+GitHub36928226353:395frontend tests/63files,80bridge tests, typechecks,
+Biome220, both builds and production audit with0known advisories.
+Local14focused/typecheck/lint/build also PASS. Publication remains pending;
+public remains0.39. Runtime unchanged after CI; this update is documentation only.
 
 # 0.40 — Preserve recovery entry during brief app switches
 
