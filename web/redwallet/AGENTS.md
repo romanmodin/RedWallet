@@ -1,3 +1,14 @@
+# 0.34 published — home primary, mempool.guide WSS backup
+
+Caffeine36/public0.34 LIVE. All368 source files exactly match compiled export;
+backend Wasm unchanged (6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001).
+Public Settings0.34/home HTTPS bridge connected/built-in selected/backup privacy
+and no-payment-retry copy verified. Analytics blocked. Routing/display28 and
+full frontend374 passed as recorded; final source375 cases. Actual router with
+simulated primary outage reached live mempool.guide; production home stayed
+online. Direct-home no fallback and custom public opt-in preserved. This
+supersedes pending-publication notes below. See V034 report.
+
 # 0.34 prepared — home primary, mempool.guide WSS backup
 
 User authorized mempool.guide backup with home Umbrel primary. Source routes

@@ -1,8 +1,13 @@
 # 0.34 — Umbrel primary, mempool.guide WSS backup
 
-Prepared and verified source; Caffeine sign-in currently blocks publication.
-Public remains 0.33 until exact import/export comparison, unchanged backend
-Wasm verification, publication and live verification are completed.
+Published as Caffeine version36 / public RedWallet0.34 on2026-10-01.
+All368 reviewed source files from commit3b28972 exactly match the actual
+compiled export. Backend Wasm remains unchanged (690890bytes; SHA256 below).
+Caffeine reports version36 live; the public Settings page shows0.34 and the
+configured home-primary/mempool.guide-WSS-backup privacy/payment disclosure.
+The public browser subsequently connected to the home HTTPS bridge and adapter
+7gylz-gyaaa-aaaab-qhjrq-cai with built-in selected. External analytics remains
+blocked. Proof: redwallet-034-primary-backup.jpg. No production outage was induced.
 
 The built-in service tries the home Umbrel adapter first. If it is unavailable,
 the fixed backup is wss://mempool.guide/electrum-websocket/, using the existing
