@@ -38,3 +38,17 @@ workspace/read/vault9). All364 tests are covered; the full suite was not rerun.
 Typecheck, Biome216 and production Vite build passed; existing ancestor React
 Native config and Browserslist warnings persist. Caffeine exact-source import,
 export comparison, publication and browser verification pending.
+
+## Publication blocked — 2026-10-01 UTC
+
+Implementation commit8a5b8d7f2 pushed to GitHub and Zorin, clean worktrees.
+Exact source ZIP362files/7187762bytes/SHA256
+da5cfbf78ee6925b77d5229f9218c62f78739be6406f29d25399b6be18e05281.
+Public Settings was verified0.31/shared connected/analytics blocked before
+publication. Caffeine internal33 remained current. Clicking Import code led
+to Caffeine sign-in before a file chooser opened; no0.32 upload occurred.
+Secure browserAuth method handoff selected Google; target page still displayed
+Caffeine sign-in afterward. Publication/exact export/live behavior checks remain
+blocked pending completion of sign-in. Do not claim this fix is live or duplicate
+a build that has not been observed. User should reload/unlock existing vault on
+0.31 as a temporary stale-actor reset; never delete or reimport their wallet.

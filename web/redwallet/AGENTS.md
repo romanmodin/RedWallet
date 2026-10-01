@@ -1,3 +1,11 @@
+#0.32 saved; Caffeine sign-in blocks publication
+
+Source8a5b8d7f2 pushed GitHub/Zorin. Import code redirected to sign-in before
+file chooser; sourceZIP not uploaded. Secure method request selected Google,
+target login remained. Finish secure/manual cloud sign-in, import reviewed
+362file0.32 archive, compare export/backend hash, publish and verify publicly.
+0.31 is still live. See V032 report. Never claim prepared changes are live.
+
 #0.32 prepared — explicit reconnect preserves completed discovery
 
 User reports provider-change scan stuck before any address read. Completed scans
