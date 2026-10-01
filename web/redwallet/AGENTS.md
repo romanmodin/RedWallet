@@ -1,3 +1,16 @@
+#0.32 published — reconnect without mandatory recovery discovery
+
+Caffeine34/public0.32 LIVE. All362 reviewed source files exact export matches;
+actual compiled backend Wasm unchanged from25PocketIC-tested0.28. Public
+Settings0.32/shared connected/analytics blocked; directWSS Test/Save/reload
+connected at974937; return built-in checked. Completed historical scans remain
+address hints after failed refresh. Explicit reconnect replaces stale actors,
+invalidates reviews/late reads and restores saved scan/draft without discovery.
+Fresh coins/raw parents/fees/pin/change still mandatory for payment preparation.
+No automatic reconnect/fallback/signing/broadcast retry. Actual iPhone saved-vault
+reconnect remains user's check. Native/backend/bridge/keys/CSP unchanged.
+See V032 report; earlier sign-in/pending-publication notes are superseded.
+
 #0.32 saved; Caffeine sign-in blocks publication
 
 Source8a5b8d7f2 pushed GitHub/Zorin. Import code redirected to sign-in before

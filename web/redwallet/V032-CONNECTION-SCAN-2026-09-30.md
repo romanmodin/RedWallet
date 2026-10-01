@@ -52,3 +52,28 @@ Caffeine sign-in afterward. Publication/exact export/live behavior checks remain
 blocked pending completion of sign-in. Do not claim this fix is live or duplicate
 a build that has not been observed. User should reload/unlock existing vault on
 0.31 as a temporary stale-actor reset; never delete or reimport their wallet.
+
+## Production verification — 2026-10-01 UTC
+
+Sign-in restored; reviewed0.32 ZIP imported successfully. Caffeine draft34
+compiled and exported as /workspace/scratch/redwallet (30).zip. All362 reviewed
+source files matched exactly with none missing or changed. Built JavaScript
+contains the explicit reconnect control; product package0.32.0 confirmed.
+Actual compiled backend Wasm remains the25PocketIC-tested artifact:
+6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001.
+
+Pushed34 to production. Caffeine's live menu now identifies Open live app v34
+and offers no pending version update; actual public Settings renders0.32 and
+observed analytics protection remains blocked. Public shared service connected.
+Direct home WSS Test/Save passed at974937 with no shared relay; full reload
+retained selected WSS endpoint and connected state. Return to built-in checked.
+No user keys or funded submission were accessed. Browser tests are desktop
+Chrome; the actual iPhone saved-wallet reconnect remains a user verification.
+Native/backend/bridge/CSP changes remain absent. This supersedes the publication
+block above. Full recovery scans remain optional for completed-scan wallets
+when reconnecting; Refresh account deliberately does perform a complete scan
+to update historical balances and discover new transfers.
+
+Final shared service connected and browser analytics block reverified. Desktop
+proof screenshot redwallet-032-published-settings.jpg inspected and saved.
+Verified public URL https://redwallet-7m3.caffeine.xyz/settings.
