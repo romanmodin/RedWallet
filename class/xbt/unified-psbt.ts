@@ -9,7 +9,7 @@ export type UnifiedSigner = {
 
 export type UnifiedSignatureVerifier = (publicKey: Uint8Array, messageHash: Uint8Array, signature: Uint8Array) => boolean;
 
-const SIGHASH_ALL_UNIFIED = 0x21;
+export const SIGHASH_ALL_UNIFIED = 0x21;
 const STANDARD_SIGHASH_ALL = 0x01;
 
 function buildUnsignedTransaction(psbt: Psbt): Transaction {
@@ -129,7 +129,7 @@ export function signUnifiedP2wpkhInput(psbt: Psbt, inputIndex: number, signer: U
   const encodedSignature = Buffer.from(script.signature.encode(compactSignature, STANDARD_SIGHASH_ALL));
   encodedSignature[encodedSignature.length - 1] = SIGHASH_ALL_UNIFIED;
   psbt.data.updateInput(inputIndex, {
-    sighashType: SIGHASH_ALL_UNIFIED,
+    ...(input.sighashType === undefined ? { sighashType: SIGHASH_ALL_UNIFIED } : {}),
     partialSig: [{ pubkey: publicKey, signature: encodedSignature }],
   });
   return psbt;

@@ -277,7 +277,7 @@ const useCompanionListeners = (skipIfNotInitialized = true) => {
   }, [shouldActivateListeners]);
 
   const handleOpenURL = useCallback(
-    async (event: { url: string }): Promise<void> => {
+    async (event: { url: string }, allowPaymentUri = false): Promise<void> => {
       if (!shouldActivateListeners) return;
 
       try {
@@ -309,7 +309,8 @@ const useCompanionListeners = (skipIfNotInitialized = true) => {
             setSharedCosigner,
           });
         } else {
-          DeeplinkSchemaMatch.navigationRouteFor(event, (value: [string, any]) => navigationRef.navigate(...value), {
+          const routeFor = allowPaymentUri ? 'navigationRouteFor' : 'navigationRouteForExternal';
+          DeeplinkSchemaMatch[routeFor](event, (value: [string, any]) => navigationRef.navigate(...value), {
             wallets,
             addWallet,
             saveToDisk,
@@ -327,7 +328,7 @@ const useCompanionListeners = (skipIfNotInitialized = true) => {
 
   const showClipboardAlert = useCallback(
     ({ contentType }: { contentType: undefined | string }) => {
-      if (!shouldActivateListeners) return;
+      if (!shouldActivateListeners || contentType !== ClipboardContentType.BITCOIN) return;
 
       triggerHapticFeedback(HapticFeedbackTypes.ImpactLight);
       getClipboardContent().then(clipboard => {
@@ -335,7 +336,7 @@ const useCompanionListeners = (skipIfNotInitialized = true) => {
         ActionSheet.showActionSheetWithOptions(
           {
             title: loc._.clipboard,
-            message: contentType === ClipboardContentType.BITCOIN ? loc.wallets.clipboard_bitcoin : loc.wallets.clipboard_lightning,
+            message: 'Use this address for an XBT payment? BTC and XBT addresses look the same. Confirm that the recipient expects XBT.',
             options: [loc._.cancel, loc._.continue],
             cancelButtonIndex: 0,
           },
@@ -344,7 +345,7 @@ const useCompanionListeners = (skipIfNotInitialized = true) => {
               case 0:
                 break;
               case 1:
-                handleOpenURL({ url: clipboard });
+                handleOpenURL({ url: clipboard }, true);
                 break;
             }
           },

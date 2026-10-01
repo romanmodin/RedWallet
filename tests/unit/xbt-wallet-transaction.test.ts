@@ -1,11 +1,16 @@
 import * as bitcoin from 'bitcoinjs-lib';
+import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import { HDSegwitBech32Transaction } from '../../class/hd-segwit-bech32-transaction';
+import { TransactionInputReference } from '../../class/xbt/coinbase-maturity';
 import ecc from 'tiny-secp256k1';
 
 import { unifiedSegwitV0SighashAll } from '../../class/xbt/unified-sighash';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import knotsAcceptance from '../fixtures/xbt-knots-regtest-acceptance.json';
 
-jest.mock('../../blue_modules/BlueElectrum', () => ({}));
+jest.mock('../../blue_modules/BlueElectrum', () => ({
+  multiGetTransactionByTxid: jest.fn(),
+}));
 
 const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const coinbaseTxid = '0'.repeat(64);
@@ -26,7 +31,7 @@ function derSignatureToCompact(signature: Buffer): Buffer {
 }
 
 describe('XBT wallet transaction flow', () => {
-  function createWalletWithParent(inputs: { txid: string; vout: number }[], confirmations: number) {
+  function createWalletWithParent(inputs: TransactionInputReference[], confirmations: number) {
     const wallet = new XbtSegwitBech32Wallet();
     wallet.setSecret(mnemonic);
     jest.spyOn(wallet, 'getTransactions').mockReturnValue([{ txid: fundingTxid, inputs, confirmations } as any]);
@@ -157,6 +162,148 @@ describe('XBT wallet transaction flow', () => {
         wallet._getInternalAddressByIndex(0),
       ),
     ).toThrow('Cannot verify XBT input transaction and coinbase maturity');
+  });
+
+  it('declares Unified Sighash on every exported unsigned PSBT input and survives serialization', () => {
+    const wallet = createWalletWithParent([{ txid: ordinaryTxid, vout: 0 }], 100);
+    const { psbt, tx } = wallet.createTransaction(
+      [0, 1].map(vout => ({
+        txid: fundingTxid,
+        vout,
+        address: wallet._getExternalAddressByIndex(0),
+        value: 60_000,
+        confirmations: 100,
+      })),
+      [{ address: wallet._getExternalAddressByIndex(1), value: 100_000 }],
+      1,
+      wallet._getInternalAddressByIndex(0),
+      undefined,
+      true,
+    );
+    expect(tx).toBeUndefined();
+    const restored = bitcoin.Psbt.fromBase64(psbt.toBase64());
+    expect(restored.data.inputs).toHaveLength(2);
+    expect(restored.data.inputs.every(input => input.sighashType === 0x21 && !input.partialSig)).toBe(true);
+  });
+
+  it.each([0, 100, 6479])('filters and refuses verbose coinbase rewards at %i confirmations', confirmations => {
+    const wallet = createWalletWithParent([{ coinbase: '03e8ab0e' }], confirmations);
+    const utxo = {
+      txid: fundingTxid,
+      vout: 0,
+      address: wallet._getExternalAddressByIndex(0),
+      value: 100_000,
+      confirmations,
+    };
+    wallet._utxo = [utxo];
+    expect(wallet.getUtxo()).toEqual([]);
+    expect(() =>
+      wallet.createTransaction(
+        [utxo],
+        [{ address: wallet._getExternalAddressByIndex(1), value: 50_000 }],
+        1,
+        wallet._getInternalAddressByIndex(0),
+      ),
+    ).toThrow('XBT coinbase outputs require 6480 confirmations');
+  });
+
+  it('signs a mature verbose coinbase reward with Unified Sighash', () => {
+    const wallet = createWalletWithParent([{ coinbase: '03e8ab0e' }], 6480);
+    const { tx } = wallet.createTransaction(
+      [
+        {
+          txid: fundingTxid,
+          vout: 0,
+          address: wallet._getExternalAddressByIndex(0),
+          value: 100_000,
+          confirmations: 6480,
+        },
+      ],
+      [{ address: wallet._getExternalAddressByIndex(1), value: 50_000 }],
+      1,
+      wallet._getInternalAddressByIndex(0),
+    );
+    expect(tx!.ins[0].witness[0].at(-1)).toBe(0x21);
+  });
+
+  it.each(['bump', 'cancel', 'cpfp'])('fee %s dispatches through the XBT signer with 0x21 signatures', async action => {
+    const wallet = createWalletWithParent([{ txid: ordinaryTxid, vout: 0 }], 100);
+    const recipient = new XbtSegwitBech32Wallet();
+    recipient.setSecret(mnemonic);
+    recipient.setPassphrase('recipient');
+    const destination = recipient._getExternalAddressByIndex(0);
+    const source = wallet._getExternalAddressByIndex(0);
+    const change = wallet._getInternalAddressByIndex(0);
+    jest.spyOn(wallet, 'getChangeAddressAsync').mockResolvedValue(change);
+    const utxo = {
+      txid: fundingTxid,
+      vout: 0,
+      address: source,
+      value: 100_000,
+      confirmations: 100,
+    };
+    const original = wallet.createTransaction([utxo], [{ address: destination, value: 50_000 }], 1, change, 0xfffffffd).tx!;
+    const parent = {
+      txid: fundingTxid,
+      inputs: [{ txid: ordinaryTxid, vout: 0 }],
+      confirmations: 100,
+    };
+    jest
+      .spyOn(wallet, 'getTransactions')
+      .mockReturnValue([parent, { txid: original.getId(), inputs: parent.inputs, confirmations: 0 }] as any);
+    const remote = {
+      confirmations: 0,
+      vout: original.outs.map((output, n) => ({
+        n,
+        value: Number(output.value) / 1e8,
+        scriptPubKey: {
+          address: bitcoin.address.fromOutputScript(output.script),
+        },
+      })),
+    };
+    (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (txids: string[]) =>
+      Object.fromEntries(
+        txids.map(txid => [
+          txid,
+          txid === fundingTxid
+            ? {
+                vout: [{ value: 0.001, scriptPubKey: { address: source } }],
+              }
+            : remote,
+        ]),
+      ),
+    );
+    const helper = new HDSegwitBech32Transaction(original.toHex(), null, wallet);
+    expect(await helper.isSequenceReplaceable()).toBe(true);
+    const replacement =
+      action === 'bump'
+        ? await helper.createRBFbumpFee(3)
+        : action === 'cancel'
+          ? await helper.createRBFcancelTx(3)
+          : await helper.createCPFPbumpFee(5);
+    expect(replacement.tx!.getId()).not.toBe(original.getId());
+    const spentOutputs = replacement.tx!.ins.map(input => {
+      const txid = Buffer.from(input.hash).reverse().toString('hex');
+      if (txid === fundingTxid) return { value: 100_000n, script: bitcoin.address.toOutputScript(source) };
+      expect(txid).toBe(original.getId());
+      return original.outs[input.index];
+    });
+    replacement.tx!.ins.forEach((input, index) => {
+      const [signature, publicKey] = input.witness;
+      expect(signature.at(-1)).toBe(0x21);
+      const scriptCode = bitcoin.payments.p2pkh({ hash: bitcoin.crypto.hash160(publicKey) }).output!;
+      const digest = unifiedSegwitV0SighashAll(replacement.tx!, index, spentOutputs, scriptCode);
+      expect(ecc.verify(digest, publicKey, derSignatureToCompact(Buffer.from(signature.subarray(0, -1))))).toBe(true);
+    });
+    if (action === 'bump')
+      expect(
+        replacement.tx!.outs.some(
+          output => output.value === 50_000n && Buffer.from(output.script).equals(Buffer.from(bitcoin.address.toOutputScript(destination))),
+        ),
+      ).toBe(true);
+    expect(replacement.tx!.ins.every(input => input.sequence < 0xfffffffe)).toBe(true);
+    if (action !== 'cpfp')
+      expect(replacement.fee).toBeGreaterThan(100_000 - original.outs.reduce((sum, output) => sum + Number(output.value), 0));
   });
 
   it('refuses to sign an immature coinbase input', () => {

@@ -510,7 +510,8 @@ const ElectrumSettings: React.FC = () => {
           <View style={settingsCardContent}>
             <SettingsFootnote>
               {loc.settings.electrum_preferred_server_description}
-              RedWallet checks the XBT BLAKE2b fork checkpoint and never switches networks.
+              RedWallet compares a known XBT BLAKE2b fork header and never switches networks. This checks compatibility, not server trust or
+              the current chain. Use a server you trust.
             </SettingsFootnote>
 
             <View style={styles.inputGroupSpacing}>

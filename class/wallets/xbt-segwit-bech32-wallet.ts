@@ -2,7 +2,7 @@ import { ECPairFactory } from 'ecpair';
 
 import ecc from '../../blue_modules/noble_ecc';
 import { isCoinbaseTransaction, isMatureXbtCoinbase } from '../xbt/coinbase-maturity';
-import { finalizeUnifiedP2wpkhInput, signUnifiedP2wpkhInput } from '../xbt/unified-psbt';
+import { finalizeUnifiedP2wpkhInput, signUnifiedP2wpkhInput, SIGHASH_ALL_UNIFIED } from '../xbt/unified-psbt';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
 import { HDSegwitBech32Wallet } from './hd-segwit-bech32-wallet';
 
@@ -61,6 +61,9 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
       return { ...utxo, coinbase, confirmations };
     });
     const result = super.createTransaction(verifiedUtxos, targets, feeRate, changeAddress, sequence, true, masterFingerprint);
+    result.psbt.data.inputs.forEach((_, inputIndex) => {
+      result.psbt.updateInput(inputIndex, { sighashType: SIGHASH_ALL_UNIFIED });
+    });
     if (skipSigning) return result;
 
     result.inputs.forEach((input, inputIndex) => {

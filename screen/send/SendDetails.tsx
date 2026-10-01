@@ -1,3 +1,4 @@
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { XBT_PROFILE } from '../../class/xbt/profile';
 import { normalizeXbtUnit } from '../../class/xbt/units';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -283,7 +284,8 @@ const SendDetails = () => {
     setParams({
       ...(walletActuallyChanged ? { utxos: null } : {}),
       isTransactionReplaceable:
-        (wallet.type === HDSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) && !routeParams.isTransactionReplaceable
+        (wallet.type === HDSegwitBech32Wallet.type || wallet.type === XbtSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) &&
+        !routeParams.isTransactionReplaceable
           ? true
           : undefined,
     });
@@ -1166,7 +1168,10 @@ const SendDetails = () => {
       {
         ...CommonToolTipActions.AllowRBF,
         menuState: isTransactionReplaceable,
-        hidden: !((wallet.type === HDSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) && isTransactionReplaceable !== undefined),
+        hidden: !(
+          (wallet.type === HDSegwitBech32Wallet.type || wallet.type === XbtSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) &&
+          isTransactionReplaceable !== undefined
+        ),
       },
     ];
     walletActions.push(rbfAction);

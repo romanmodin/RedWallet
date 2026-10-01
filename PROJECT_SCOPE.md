@@ -60,3 +60,7 @@ Integration testing will use a privately configured XBT-compatible Fulcrum endpo
 ## App Store distribution gate
 
 Apple's current App Review Guidelines say cryptocurrency wallet apps must be offered by a developer enrolled as an organization. The Apple Developer Program is currently USD $99/year. Confirm an eligible organization account before planning App Store or TestFlight distribution; a free Apple Account can still be used to install a development build on a personal iPhone through Xcode. RedWallet also needs its own registered bundle ID, distinct product icon and listing, privacy details, a reviewable live backend, and App Review approval. See Apple's [wallet guideline](https://developer.apple.com/app-store/review/guidelines/), [enrollment](https://developer.apple.com/help/account/membership/program-enrollment), and [upload workflow](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds).
+
+## Native review follow-up
+
+See [XBT_PR_REVIEW.md](XBT_PR_REVIEW.md) for the 2026-10-01 corrections, reviewer credit, replay-protection limits, and validation.

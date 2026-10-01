@@ -3,6 +3,8 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { Keyboard, Platform, StyleSheet, View } from 'react-native';
 import BlueFormLabel from '../../components/BlueFormLabel';
+import BlueText from '../../components/BlueText';
+import { XBT_REPLAY_NOTICE } from '../../class/xbt/replay-notice';
 import BlueFormMultiInput from '../../components/BlueFormMultiInput';
 import Button from '../../components/Button';
 import {
@@ -144,6 +146,8 @@ const ImportWallet = () => {
     <SafeAreaScrollView contentContainerStyle={styles.root} keyboardShouldPersistTaps="always" automaticallyAdjustKeyboardInsets>
       <BlueSpacing20 />
       <BlueFormLabel>{loc.wallets.import_explanation}</BlueFormLabel>
+      <BlueSpacing20 />
+      <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
       <BlueSpacing20 />
       <BlueFormMultiInput
         value={importText}

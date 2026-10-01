@@ -7,6 +7,12 @@ describe('XBT coinbase maturity', () => {
     expect(isCoinbaseTransaction([])).toBe(false);
   });
 
+  it('recognizes Knots and Fulcrum verbose coinbase inputs without txid or vout', () => {
+    expect(isCoinbaseTransaction([{ coinbase: '03e8ab0e', sequence: 0xffffffff } as any])).toBe(true);
+    expect(isCoinbaseTransaction([{ coinbase: '' }])).toBe(true);
+    expect(isCoinbaseTransaction([{ coinbase: '03e8ab0e' }, { txid: '1'.repeat(64), vout: 0 }])).toBe(false);
+  });
+
   it('requires 6480 confirmations and rejects unknown or fractional counts', () => {
     expect(XBT_COINBASE_MATURITY).toBe(6480);
     expect(isMatureXbtCoinbase(6479)).toBe(false);

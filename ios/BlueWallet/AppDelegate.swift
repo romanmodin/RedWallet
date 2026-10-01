@@ -3,7 +3,6 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import UserNotifications
-import Bugsnag
 
 
 @main
@@ -33,15 +32,8 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
             NSLog("[AppDelegate] Do Not Track enabled: set deviceUIDCopy to 'Disabled'")
           
         } else {
-      #if targetEnvironment(macCatalyst)
-      let config = BugsnagConfiguration.loadConfig()
-      config.appType = "macOS"
-      Bugsnag.start(with: config)
-      copyDeviceUID()
-      #else
-      Bugsnag.start()
-      copyDeviceUID()
-      #endif
+            // Remote crash reporting is disabled for RedWallet.
+            copyDeviceUID()
         }
 
         self.moduleName = "BlueWallet"

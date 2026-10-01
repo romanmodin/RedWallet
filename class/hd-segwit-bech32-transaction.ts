@@ -4,6 +4,7 @@ import assert from 'assert';
 
 import * as BlueElectrum from '../blue_modules/BlueElectrum';
 import { HDSegwitBech32Wallet } from './wallets/hd-segwit-bech32-wallet';
+import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
 import { SegwitBech32Wallet } from './wallets/segwit-bech32-wallet';
 import { CreateTransactionUtxo } from './wallets/types.ts';
 import { CoinSelectOutput, CoinSelectReturnInput } from 'coinselect';
@@ -16,7 +17,7 @@ import { isUint8Array, uint8ArrayToHex } from '../blue_modules/uint8array-extras
 export class HDSegwitBech32Transaction {
   private _txhex: string | null;
   private _txid: string | null;
-  private _wallet: HDSegwitBech32Wallet | undefined;
+  private _wallet: HDSegwitBech32Wallet | XbtSegwitBech32Wallet | undefined;
   private _txDecoded: bitcoin.Transaction | undefined;
   private _remoteTx: any;
   private _mfp?: number;
@@ -27,7 +28,7 @@ export class HDSegwitBech32Transaction {
    * @param wallet {HDSegwitBech32Wallet|null} If set - a wallet object to which transacton belongs
    * @param mfp {number|undefined} set mfp if it is an HD Segwit Bech32 watch-only wallet
    */
-  constructor(txhex: string | null, txid: string | null, wallet: HDSegwitBech32Wallet | null, mfp?: number) {
+  constructor(txhex: string | null, txid: string | null, wallet: HDSegwitBech32Wallet | XbtSegwitBech32Wallet | null, mfp?: number) {
     if (!txhex && !txid) throw new Error('Bad arguments');
     this._txhex = txhex;
     this._txid = txid;
@@ -37,7 +38,7 @@ export class HDSegwitBech32Transaction {
     }
 
     if (wallet) {
-      if (wallet.type === HDSegwitBech32Wallet.type) {
+      if (wallet.type === HDSegwitBech32Wallet.type || wallet.type === XbtSegwitBech32Wallet.type) {
         this._wallet = wallet;
       } else {
         throw new Error('Only HD Bech32 wallets supported');
@@ -203,7 +204,8 @@ export class HDSegwitBech32Transaction {
     let changeAmount = 0;
     const targets: { value?: number; address: string }[] = [];
     for (const outp of this._remoteTx.vout) {
-      const address = outp.scriptPubKey.addresses[0];
+      const address = outp.scriptPubKey.address ?? outp.scriptPubKey.addresses?.[0];
+      if (!address) throw new Error('Cannot determine transaction output address');
       const value = new BigNumber(outp.value).multipliedBy(100000000).toNumber();
       if (this._wallet.weOwnAddress(address)) {
         changeAmount += value;
@@ -216,7 +218,8 @@ export class HDSegwitBech32Transaction {
     // lets find outputs we own that current transaction creates. can be used in CPFP
     const unconfirmedUtxos = [];
     for (const outp of this._remoteTx.vout) {
-      const address = outp.scriptPubKey.addresses[0];
+      const address = outp.scriptPubKey.address ?? outp.scriptPubKey.addresses?.[0];
+      if (!address) throw new Error('Cannot determine transaction output address');
       const value = new BigNumber(outp.value).multipliedBy(100000000).toNumber();
       if (this._wallet.weOwnAddress(address)) {
         unconfirmedUtxos.push({
@@ -294,6 +297,11 @@ export class HDSegwitBech32Transaction {
     return true;
   }
 
+  private async replacementSequence() {
+    if (this._wallet?.type === XbtSegwitBech32Wallet.type) return HDSegwitBech32Wallet.defaultRBFSequence;
+    return (await this.getMaxUsedSequence()) + 1;
+  }
+
   /**
    * Creates an RBF transaction that can replace previous one and basically cancel it (rewrite
    * output to the one our wallet controls). Note, this cannot add more utxo in RBF transaction if
@@ -318,7 +326,7 @@ export class HDSegwitBech32Transaction {
         [{ address: myAddress }],
         newFeerate,
         myAddress,
-        (await this.getMaxUsedSequence()) + 1,
+        await this.replacementSequence(),
         true,
         this._mfp ?? 0,
       );
@@ -329,7 +337,7 @@ export class HDSegwitBech32Transaction {
       [{ address: myAddress }],
       newFeerate,
       /* meaningless in this context */ myAddress,
-      (await this.getMaxUsedSequence()) + 1,
+      await this.replacementSequence(),
     );
   }
 
@@ -362,18 +370,10 @@ export class HDSegwitBech32Transaction {
 
     // if there is no secret then its a watch only wallet, skip signing and also pass the masterfingerprint
     if (!this._wallet.secret) {
-      return this._wallet.createTransaction(
-        utxos,
-        targets,
-        newFeerate,
-        myAddress,
-        (await this.getMaxUsedSequence()) + 1,
-        true,
-        this._mfp ?? 0,
-      );
+      return this._wallet.createTransaction(utxos, targets, newFeerate, myAddress, await this.replacementSequence(), true, this._mfp ?? 0);
     }
 
-    return this._wallet.createTransaction(utxos, targets, newFeerate, myAddress, (await this.getMaxUsedSequence()) + 1);
+    return this._wallet.createTransaction(utxos, targets, newFeerate, myAddress, await this.replacementSequence());
   }
 
   /**

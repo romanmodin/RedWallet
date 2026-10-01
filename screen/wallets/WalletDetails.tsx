@@ -5,6 +5,8 @@ import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/h
 import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
 import BlueCard from '../../components/BlueCard';
 import BlueText from '../../components/BlueText';
+import { XBT_REPLAY_NOTICE } from '../../class/xbt/replay-notice';
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { HDAezeedWallet } from '../../class/wallets/hd-aezeed-wallet';
 import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
 import { LegacyWallet } from '../../class/wallets/legacy-wallet';
@@ -503,6 +505,11 @@ const WalletDetails: React.FC = () => {
           <BlueLoading />
         ) : (
           <>
+            {wallet?.type === XbtSegwitBech32Wallet.type && (
+              <BlueCard>
+                <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
+              </BlueCard>
+            )}
             <BlueCard style={styles.address}>
               <Text style={[styles.textLabel2, stylesHook.textLabel2]}>{loc.wallets.add_wallet_name}</Text>
               <View style={[styles.nameRow, stylesHook.nameRow]}>
@@ -821,6 +828,11 @@ const WalletDetails: React.FC = () => {
               )}
             </SettingsSection>
 
+            {wallet?.type === XbtSegwitBech32Wallet.type && (
+              <BlueCard>
+                <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
+              </BlueCard>
+            )}
             <BlueCard style={styles.address}>
               <View>
                 <SecondButton
