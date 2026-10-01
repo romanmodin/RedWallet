@@ -64,8 +64,12 @@ See XBT_VALIDATION.md for recorded results and their limits.
 
 ## GitHub Actions configuration
 
-Pull requests run unsigned simulator and unit/UI checks. The **Approved iOS
-Release** workflow is manual-only and accepts the reviewed `main` commit.
+Pull requests run unsigned simulator and unit/UI checks. The old signed PR
+workflow is disabled. **Build approved private iOS source** is manual-only on
+`main` and pins a reviewed commit in the private native-source repository.
+Actions are disabled in that source repository. The public workflow contains
+release orchestration; tester packages are encrypted before public artifact
+storage and authenticated against the source commit, workflow commit, and run.
 Signing and upload run behind separate environments with required owner review
 and deployment restricted to `main`. Keep signing and upload secrets in their
 respective environments; remove repository-level copies after rotation so a
@@ -73,8 +77,8 @@ PR-controlled workflow cannot request them directly.
 
 | Environment | Secrets |
 | --- | --- |
-| `ios-signing` | `APPLE_ID`, `TEAM_ID`, `ITC_TEAM_NAME`, `GIT_URL`, `GIT_PRIVATE_KEY_CONTENT`, `MATCH_PASSWORD`, `KEYCHAIN_PASSWORD` |
-| `ios-upload` | `APPLE_ID`, `TEAM_ID`, `ITC_TEAM_NAME`, `APP_STORE_CONNECT_API_KEY_CONTENT` |
+| `ios-signing` | `APPLE_ID`, `TEAM_ID`, `GIT_URL`, `GIT_PRIVATE_KEY_CONTENT`, `MATCH_PASSWORD`, `KEYCHAIN_PASSWORD`, `SOURCE_READONLY_DEPLOY_KEY`, `IPA_ARTIFACT_KEY` |
+| `ios-upload` | `APPLE_ID`, `TEAM_ID`, `APP_STORE_CONNECT_API_KEY_CONTENT`, `SOURCE_READONLY_DEPLOY_KEY`, `IPA_ARTIFACT_KEY` |
 | `ios-signing-bootstrap` | Separately approved maintenance only; write deploy key and any certificate-management API credential |
 
 The normal Match deploy key must be read-only at the signing repository,
@@ -83,16 +87,32 @@ existing certificates/profiles without App Store Connect authentication.
 Certificate creation and storage updates belong in a separately approved
 bootstrap operation; there is no bootstrap option in the release workflow.
 
+### Credential rotation checkpoint (2026-10-01)
+
+- Match encryption password, signing-repository deploy keys, temporary-keychain
+  password, and App Store Connect upload key were rotated. Apple confirms the
+  old upload key is revoked; the replacement authenticated to the RedWallet app.
+- The normal deploy key is read-only. The write key is confined to the reviewed
+  bootstrap environment. Rotation preserved and reverified all four existing
+  certificate/profile files; certificates were not replaced in this operation.
+- Repository-level signing passwords and private keys were removed. Remaining
+  repository values are account/team/repository metadata. The Apple upload key
+  is stored only in `ios-upload` and is absent from the build job.
+- Signing, upload, and bootstrap environments require owner review and allow
+  deployments only from `main`.
+
 ## Build and upload
 
-1. Review the exact `main` source revision, then dispatch **Approved iOS
-   Release** with `upload_to_testflight=false`. Approve the signing environment
-   for that revision after checking source and workflow changes.
+1. Review the pinned private source revision and the exact public `main`
+   workflow revision, then dispatch **Build approved private iOS source** with
+   `upload_to_testflight=false`. Approve the signing environment after checking
+   both revisions. An early macOS check parses the certificate requirement
+   before dependency installation and compilation.
 2. The macOS verifier requires an Apple certificate from the configured team,
    verifies each app/extension identifier and profile-authorized leaf
    certificate, and checks entitlements and arm64 architecture. It emits an IPA
    SHA-256 receipt tied to the source commit.
-3. To upload the same package, dispatch on the same commit with its successful
+3. To upload the same encrypted package, dispatch on the same workflow commit with its successful
    `source_run_id` and `upload_to_testflight=true`. The source must be a successful
    manual release from the same repository, `main` branch and exact commit.
    Fork and PR artifacts are rejected. Approve the separate upload environment.
