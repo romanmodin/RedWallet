@@ -1,0 +1,328 @@
+name: Build approved private iOS source
+'on':
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Verified successful run of this workflow to upload without rebuilding
+        required: false
+        type: string
+        default: ''
+      upload_to_testflight:
+        description: Upload this branch build to TestFlight after signing is configured
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+env:
+  SOURCE_COMMIT: 659d53da9de756f75001d4116413c6db4bf18c56
+  FASTLANE_OPT_OUT_USAGE: '1'
+  FASTLANE_SKIP_UPDATE_CHECK: '1'
+  FASTLANE_HIDE_CHANGELOG: '1'
+concurrency:
+  group: approved-private-ios-release
+  cancel-in-progress: true
+jobs:
+  build:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !inputs.source_run_id }}
+    environment: ios-signing
+    runs-on: macos-26
+    timeout-minutes: 180
+    outputs:
+      new_build_number: ${{ steps.generate_build_number.outputs.build_number }}
+      project_version: ${{ steps.determine_marketing_version.outputs.project_version }}
+      ipa_output_path: ${{ steps.build_app.outputs.ipa_output_path }}
+      latest_commit_message: ${{ steps.get_latest_commit_details.outputs.commit_message }}
+      branch_name: ${{ steps.get_latest_commit_details.outputs.branch_name }}
+    env:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      SKIP_APP_STORE_CONNECT_AUTH: '1'
+      MATCH_READONLY: 'true'
+    steps:
+    - name: Checkout Project
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        fetch-depth: 0
+        ref: 659d53da9de756f75001d4116413c6db4bf18c56
+        persist-credentials: false
+        repository: romanmodin/RedWallet-native-review
+        ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
+    - name: Verify approved source
+      run: |-
+        test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+        printf 'LATEST_COMMIT_MESSAGE=Approved iOS tester build\nCURRENT_BRANCH=main\n' >> "$GITHUB_ENV"
+        printf 'branch_name=main\ncommit_message=Approved iOS tester build\n' >> "$GITHUB_OUTPUT"
+      id: get_latest_commit_details
+    - name: Validate signing configuration
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        TEAM_ID: ${{ secrets.TEAM_ID }}
+        ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
+        GIT_URL: ${{ secrets.GIT_URL }}
+        GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
+        MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      run: |
+        missing=0
+        for name in APPLE_ID TEAM_ID ITC_TEAM_NAME GIT_URL GIT_PRIVATE_KEY_CONTENT MATCH_PASSWORD KEYCHAIN_PASSWORD; do
+          if [ -z "${!name}" ]; then
+            echo "::error::Signing configuration missing: $name"
+            missing=1
+          fi
+        done
+        if [ "$missing" -ne 0 ]; then
+          echo "See RELEASE.md before running a signed build."
+          exit 1
+        fi
+    - name: Specify Node.js Version
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version: 24
+        cache: npm
+    - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90
+      with:
+        xcode-version: latest
+    - name: Set Up Ruby
+      uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+      with:
+        ruby-version: 3.4.10
+    - name: Install Dependencies with Bundler
+      run: |
+        bundle config path vendor/bundle
+        bundle install --jobs 4 --retry 3 --quiet
+    - name: Install Node Modules
+      run: npm ci --omit=dev --yes
+    - name: Cache CocoaPods
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: |
+          ios/Pods
+          ~/Library/Caches/CocoaPods
+          ~/.cocoapods/repos
+        key: ${{ runner.os }}-pods-ios-release-${{ hashFiles('ios/Podfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pods-ios-release-
+    - name: Install CocoaPods Dependencies
+      env:
+        RCT_USE_RN_DEP: '1'
+        RCT_USE_PREBUILT_RNCORE: '1'
+      run: |
+        bundle exec fastlane ios install_pods
+        echo "CocoaPods dependencies installed successfully"
+    - name: Generate Build Number Based on Timestamp
+      id: generate_build_number
+      run: |
+        NEW_BUILD_NUMBER=$(date +%s)
+        echo "NEW_BUILD_NUMBER=$NEW_BUILD_NUMBER" >> $GITHUB_ENV
+        echo "build_number=$NEW_BUILD_NUMBER" >> $GITHUB_OUTPUT
+    - name: Set Build Number
+      run: bundle exec fastlane ios increment_build_number_lane
+    - name: Determine Marketing Version
+      id: determine_marketing_version
+      run: |
+        MARKETING_VERSION=$(grep MARKETING_VERSION BlueWallet.xcodeproj/project.pbxproj | awk -F '= ' '{print $2}' | tr -d ' ;' | head -1)
+        echo "PROJECT_VERSION=$MARKETING_VERSION" >> $GITHUB_ENV
+        echo "project_version=$MARKETING_VERSION" >> $GITHUB_OUTPUT
+      working-directory: ios
+    - name: Prepare signing repository key
+      env:
+        GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        umask 077
+        printf '%s\n' "$GIT_PRIVATE_KEY_CONTENT" > "$RUNNER_TEMP/redwallet-signing-key"
+        mkdir -p "$HOME/.ssh"
+        gh api meta --jq '.ssh_keys[] | "github.com " + .' >> "$HOME/.ssh/known_hosts"
+        echo "MATCH_GIT_PRIVATE_KEY=$RUNNER_TEMP/redwallet-signing-key" >> "$GITHUB_ENV"
+    - name: Create Temporary Keychain
+      run: bundle exec fastlane ios create_temp_keychain
+      env:
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+    - name: Setup Provisioning Profiles
+      env:
+        MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
+        GIT_URL: ${{ secrets.GIT_URL }}
+        TEAM_ID: ${{ secrets.TEAM_ID }}
+        ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        MATCH_READONLY: 'true'
+        SKIP_APP_STORE_CONNECT_AUTH: '1'
+      run: |
+        umask 077
+        bundle exec fastlane ios setup_provisioning_profiles
+    - name: Build App
+      id: build_app
+      env:
+        TEAM_ID: ${{ secrets.TEAM_ID }}
+        SKIP_APP_STORE_CONNECT_AUTH: '1'
+      run: |-
+        bundle exec fastlane ios build_app_lane
+        ipa_path=$(cat ./ios/build/ipa_path.txt)
+        test -f "$ipa_path"
+        printf 'IPA_OUTPUT_PATH=%s\n' "$ipa_path" >> "$GITHUB_ENV"
+        printf 'ipa_output_path=%s\n' "$ipa_path" >> "$GITHUB_OUTPUT"
+    - name: Verify signed iPhone package
+      env:
+        TEAM_ID: ${{ secrets.TEAM_ID }}
+      run: |-
+        python3 .github/scripts/verify-ios-ipa.py "$IPA_OUTPUT_PATH"
+        python3 - <<'PYCODE'
+        import json,os
+        from pathlib import Path
+        p=Path('ios-ipa-verification.json');r=json.loads(p.read_text())
+        r['sourceCommit']=os.environ['SOURCE_COMMIT'];r['orchestrationCommit']=os.environ['GITHUB_SHA'];r['sourceRunId']=os.environ['GITHUB_RUN_ID']
+        p.write_text(json.dumps(r,indent=2)+'\n')
+        PYCODE
+    - name: Encrypt private tester package
+      env:
+        IPA_ARTIFACT_KEY: ${{ secrets.IPA_ARTIFACT_KEY }}
+      run: |-
+        node <<'JS'
+        const fs=require('node:fs'),crypto=require('node:crypto');
+        const key=Buffer.from(process.env.IPA_ARTIFACT_KEY,'base64');
+        if(key.length!==32)throw Error('Invalid artifact key');
+        const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',key,iv);
+        const aad=`RedWallet:${process.env.SOURCE_COMMIT}:${process.env.GITHUB_SHA}:${process.env.GITHUB_RUN_ID}`;
+        cipher.setAAD(Buffer.from(aad));
+        const encrypted=Buffer.concat([cipher.update(fs.readFileSync(process.env.IPA_OUTPUT_PATH)),cipher.final()]);
+        fs.writeFileSync('redwallet.ipa.enc',Buffer.concat([Buffer.from('RWIPA1'),iv,cipher.getAuthTag(),encrypted]),{mode:0o600});
+        JS
+    - name: Save encrypted tester package
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: RedWallet_Encrypted_IPA
+        path: redwallet.ipa.enc
+        retention-days: 7
+    - name: Save signing verification receipt
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: ios-build-verification
+        path: ios-ipa-verification.json
+        retention-days: 7
+    - name: Delete Temporary Keychain
+      if: always()
+      run: |-
+        bundle exec fastlane ios delete_temp_keychain
+        rm -f "$RUNNER_TEMP/redwallet-signing-key"
+  testflight-upload:
+    needs: build
+    runs-on: macos-26
+    if: ${{ always() && !cancelled() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.upload_to_testflight
+      && (inputs.source_run_id != '' || needs.build.result == 'success') }}
+    environment: ios-upload
+    env:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      NEW_BUILD_NUMBER: ${{ needs.build.outputs.new_build_number }}
+      PROJECT_VERSION: ${{ needs.build.outputs.project_version }}
+      LATEST_COMMIT_MESSAGE: ${{ needs.build.outputs.latest_commit_message }}
+      BRANCH_NAME: ${{ needs.build.outputs.branch_name }}
+    steps:
+    - name: Checkout Project
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        repository: romanmodin/RedWallet-native-review
+        ref: 659d53da9de756f75001d4116413c6db4bf18c56
+        persist-credentials: false
+        ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
+    - name: Set Up Ruby
+      uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+      with:
+        ruby-version: 3.4.10
+    - name: Install Dependencies with Bundler
+      run: |
+        bundle config path vendor/bundle
+        bundle install --jobs 4 --retry 3 --quiet
+    - name: Validate source release run
+      if: inputs.source_run_id != ''
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      run: |-
+        python3 - <<'PYCODE'
+        import json,os,re,subprocess
+        repo=os.environ['GITHUB_REPOSITORY'];rid=os.environ['SOURCE_RUN_ID']
+        assert rid.isdecimal(),'Source run must be numeric'
+        r=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{rid}']))
+        assert r['repository']['full_name']==repo and r['head_repository']['full_name']==repo,'Wrong source repository'
+        assert r['path']=='.github/workflows/build-ios-approved-source.yml','Wrong source workflow'
+        assert r['status']=='completed' and r['conclusion']=='success','Source build must have succeeded'
+        assert r['event']=='workflow_dispatch' and r['head_branch']=='main','Source must be an approved main dispatch'
+        assert r['head_sha']==os.environ['GITHUB_SHA'],'Source must match this approved workflow commit'
+        PYCODE
+    - name: Download IPA from Artifact
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: RedWallet_Encrypted_IPA
+        path: ./
+        run-id: ${{ inputs.source_run_id || github.run_id }}
+        github-token: ${{ github.token }}
+    - name: Specify Node.js Version
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version: 24
+    - name: Authenticate and decrypt tester package
+      env:
+        IPA_ARTIFACT_KEY: ${{ secrets.IPA_ARTIFACT_KEY }}
+        SOURCE_RUN_ID: ${{ inputs.source_run_id || github.run_id }}
+      run: |-
+        test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+        node <<'JS'
+        const fs=require('node:fs'),crypto=require('node:crypto');
+        const data=fs.readFileSync('redwallet.ipa.enc'),key=Buffer.from(process.env.IPA_ARTIFACT_KEY,'base64');
+        if(key.length!==32||data.length<34||data.subarray(0,6).toString()!=='RWIPA1')throw Error('Invalid encrypted package');
+        const decipher=crypto.createDecipheriv('aes-256-gcm',key,data.subarray(6,18));
+        decipher.setAAD(Buffer.from(`RedWallet:${process.env.SOURCE_COMMIT}:${process.env.GITHUB_SHA}:${process.env.SOURCE_RUN_ID}`));
+        decipher.setAuthTag(data.subarray(18,34));
+        const plain=Buffer.concat([decipher.update(data.subarray(34)),decipher.final()]);
+        fs.writeFileSync('RedWallet.ipa',plain,{mode:0o600});
+        JS
+    - name: Create App Store Connect API Key JSON
+      env:
+        APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+      run: |
+        umask 077
+        printf '%s' "$APP_STORE_CONNECT_API_KEY_CONTENT" > ./appstore_api_key.json
+    - name: Verify signed iPhone package
+      env:
+        TEAM_ID: ${{ secrets.TEAM_ID }}
+      run: |-
+        ipa_path=$(find "$PWD" -maxdepth 1 -name '*.ipa' -type f)
+        test "$(printf '%s\n' "$ipa_path" | wc -l | tr -d ' ')" = 1
+        python3 .github/scripts/verify-ios-ipa.py "$ipa_path"
+
+        python3 - <<'PYCODE'
+        import json,os
+        from pathlib import Path
+        p=Path('ios-ipa-verification.json');r=json.loads(p.read_text());r['sourceCommit']=os.environ['SOURCE_COMMIT'];r['orchestrationCommit']=os.environ['GITHUB_SHA'];p.write_text(json.dumps(r,indent=2)+'\n')
+        PYCODE
+    - name: Save package verification receipt
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: ios-ipa-verification
+        path: ios-ipa-verification.json
+        retention-days: 7
+    - name: Verify IPA Path Before Upload
+      run: "if [ ! -f \"$IPA_OUTPUT_PATH\" ]; then\n  echo \"\u274C IPA file not found at path: $IPA_OUTPUT_PATH\"\n  ls -la $(pwd)\n  exit 1\n\
+        else\n  echo \"\u2705 Found IPA at: $IPA_OUTPUT_PATH\"\nfi\n"
+    - name: Print Environment Variables for Debugging
+      run: |
+        echo "LATEST_COMMIT_MESSAGE: $LATEST_COMMIT_MESSAGE"
+        echo "BRANCH_NAME: $BRANCH_NAME"
+        echo "PROJECT_VERSION: $PROJECT_VERSION"
+        echo "NEW_BUILD_NUMBER: $NEW_BUILD_NUMBER"
+        echo "IPA_OUTPUT_PATH: $IPA_OUTPUT_PATH"
+    - name: Upload to TestFlight
+      run: bundle exec fastlane ios upload_to_testflight_lane
+      env:
+        SKIP_APP_STORE_CONNECT_AUTH: '1'
+        ITC_TEAM_NAME: ${{ secrets.ITC_TEAM_NAME }}
+        APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+        APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+    - name: Remove upload credential
+      if: always()
+      run: |-
+        rm -f ./appstore_api_key.json
+        rm -f ./RedWallet.ipa
+    timeout-minutes: 30
