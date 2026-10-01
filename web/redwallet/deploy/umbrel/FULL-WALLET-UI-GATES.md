@@ -1,8 +1,9 @@
-# Remaining full-wallet integration
+# Full-wallet integration checklist
 
-Standing user authorization covers implementation and deployment. Live remains
-watch-only until these concrete integration checks pass. This document is the
-implementation checklist, not a claim that the features below exist.
+The checklist below records the integration requirements. Local vault, recovery,
+discovery, review/signing and constrained broadcast are now published in0.37.
+The earlier watch-only posture is historical. Current verification and remaining
+profile limits are in [RELEASE-STATUS.md](../../RELEASE-STATUS.md).
 
 ## Recovery and vault UI
 

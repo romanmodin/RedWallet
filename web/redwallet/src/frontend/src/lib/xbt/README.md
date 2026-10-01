@@ -1,9 +1,9 @@
-# Isolated XBT signing core
+# Browser XBT signing core
 
-This directory ports the native RedWallet P2WPKH Unified Sighash core. It is not
-connected to the web wallet UI, key storage, canister or bridge. The deployed
-web product remains watch-only until the spending workflow is implemented and
-verified end to end.
+This directory ports the native RedWallet P2WPKH Unified Sighash core. The
+local wallet workflow now uses it for0.37reviewed payments. Keys and signing
+stay in the browser; the adapter/bridge receive only public data and signed
+transactions. Current evidence and limits: [release status](../../../../../RELEASE-STATUS.md).
 
 ## Provenance
 
@@ -61,7 +61,8 @@ Run `pnpm --dir src/frontend test src/lib/xbt` from the project root.
   it is not physical iPhone or complete browser UI validation.
 
 The `*-harness.ts`, `test-helpers.ts`, `accepted-fixture.ts`, JSON fixtures and test
-files are test-only. No application page or service imports them or the core.
+files are test-only. No application page or service imports the test-only harnesses or fixtures;
+production components use the reviewed signing/vault modules.
 
 ## Gates before enabling web spending
 

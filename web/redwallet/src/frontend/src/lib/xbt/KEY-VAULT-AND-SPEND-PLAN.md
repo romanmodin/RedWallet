@@ -1,8 +1,8 @@
-# Isolated browser wallet foundation
+# Browser wallet foundation
 
-This is development code, not an enabled spending wallet. No route, backend actor,
-bridge endpoint, or application service imports these modules. Live Caffeine v7
-remains watch-only.
+These reviewed modules are now integrated into the local0.37wallet workflow.
+The v7 watch-only/unmounted posture is historical. Current deployment evidence
+and remaining limitations are in [release status](../../../../../RELEASE-STATUS.md).
 
 ## Implemented
 

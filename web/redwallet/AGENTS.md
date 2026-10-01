@@ -1,3 +1,12 @@
+# Release documentation and web CI follow-up
+
+0.37 runtime remains unchanged and user-confirmed. Main README and foundation
+notes now point to RELEASE-STATUS rather than obsolete v7 watch-only posture.
+Separate .github/workflows/redwallet-web.yml runs pinned Node24/pnpm10.14.0
+frontend and bridge checks on web pushes/PRs, read-only permissions/no secrets.
+Native workflows untouched. YAML/scope/doc links PASS; first GitHub run pending.
+See RELEASE-STATUS. Prior382frontend tests remain current.
+
 # 0.37 final regression passed
 
 User confirmed iPhone Keychain zoom resolved at2026-10-01 11:12PDT.

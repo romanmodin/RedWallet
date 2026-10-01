@@ -4,24 +4,13 @@ Non-secret record of the gates that must be satisfied before any signing or
 seed UI is wired into RedWallet. It contains no bridge URL, bridge secret,
 operator principal, draft access-token URL, seed, or private key.
 
-This document does not enable anything. Live Caffeine v7 remains watch-only:
-send, seed, and recovery stay disabled, and the isolated signing core under
-`src/frontend/src/lib/xbt` stays disconnected from every route, service, and
-backend file. The gates below are the conditions that must hold before that
-posture changes.
+## Current integration status
 
-## Current posture
-
-- The isolated foundation (`key-material.ts`, `vault.ts`, `vault-controller.ts`,
-  `spend-plan.ts`, `discovery.ts`) is imported only by its own tests and
-  harness. No route, hook, context, or service imports it.
-- The read-only spending-data layer (`address.utxos`, `transaction.raw`) is a
-  service-layer capability only; it is not wired into any page.
-- The live Umbrel bridge does not yet expose `address.utxos` or
-  `transaction.raw`. No live UTXO or raw-transaction read has been performed or
-  claimed.
-- No broadcast, signing, or private-key endpoint exists in the bridge or the
-  canister.
+As of0.37, local vault/recovery/discovery, review/signing and constrained
+broadcast are connected and published. The earlier v7 watch-only posture is
+historical. See the current [release status](../../../../../RELEASE-STATUS.md)
+for completed evidence and remaining profile limits. Private keys/passwords
+remain local; no private-key endpoint exists in the adapter or bridge.
 
 ## Gates before any signing or seed UI is connected
 

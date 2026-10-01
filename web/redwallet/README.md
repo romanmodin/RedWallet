@@ -1,54 +1,82 @@
-# RedWallet Web — XBT watch-only preview
+# RedWallet Web — XBT wallet preview
 
-RedWallet's web interface with an ICP/Motoko service and an authenticated
-HTTPS bridge to the operator's XBT Fulcrum server. The native RedWallet and
-BlueWallet are the feature references. Credit to the BlueWallet team for the
-wallet interface and functionality that inspired this project.
+RedWallet 0.37 is published at https://redwallet-7m3.caffeine.xyz.
+It combines a local browser wallet with an ICP/Motoko adapter and an
+authenticated HTTPS bridge to the operator's XBT Fulcrum server. Credit to
+the BlueWallet team for the interface and functionality that inspired this
+project. The native iPhone app is maintained separately.
 
 ## Current capabilities
 
-- Add a watch-only XBT address and retain its label locally in the browser.
-- Read confirmed and pending balance, transaction IDs and block heights.
-- Copy or display the entered address for receiving.
-- Read actual network height, fork checkpoint status and fee estimates.
-- Optionally enter a manual XBT/USD conversion rate.
-- Keep demonstration wallets explicitly separate from live watch-only data.
+- Watch public XBT addresses and keep their labels on this device.
+- Create or recover a local encrypted BIP39/BIP84 account-0 wallet; verify the
+  recovery backup, unlock with a password, and lock on leaving or timeout.
+- Scan receive/change branches with bounded progress, pause/resume, and saved
+  completed balances/history. Switching connections retains completed scans.
+- Reserve receive/change indices durably before exposing new addresses.
+- Prepare, review, locally sign and broadcast supported XBT P2WPKH payments.
+  Preparation checks current coins and parent transactions; changing inputs,
+  connection or wallet invalidates the review. Unknown submission outcomes are
+  reconciled by txid; payments are never automatically retried or replaced.
+- Use the built-in shared relay by default: home Umbrel first, public
+  mempool.guide WSS backup. Alternatively connect directly to a personal
+  Fulcrum WSS address without deploying a canister. Personal HTTPS adapters
+  remain available under Advanced HTTPS adapter.
+- Display NeoxEX XBT/USDC quotes or a manual USD estimate. Display estimates
+  do not determine transaction amounts or fees.
 
-History entries do not invent amounts, directions, timestamps or confirmations
-that the read-only history API does not provide. An outage does not substitute
-sample values for a watch-only wallet.
+Keys, recovery phrases and wallet passwords stay in the browser. Public
+addresses and signed transactions go to the selected service. Clearing browser
+storage removes saved vaults and observations: keep the recovery phrase and
+any optional BIP39 passphrase offline. A password alone is not a recovery backup.
 
-This version cannot generate or recover a spending wallet, hold wallet keys,
-sign transactions, or send funds. It is not a completed replacement for the
-native iPhone wallet. Funds can be spent using the separate wallet that owns
-the entered address.
+## Preview limits
 
-An isolated browser-compatible XBT signing core is being ported from the tested
-native RedWallet implementation. This development module does not enable
-spending in the web UI. Its own tests and provenance are documented under
-`src/frontend/src/lib/xbt`; end-to-end wallet and deployment gates remain
-separate.
+Spending supports native SegWit P2WPKH on BIP84 account 0 only. Taproot,
+legacy-input spending, unconfirmed inputs, coinbase inputs, RBF UI and other
+accounts remain unsupported. Recovery uses gap 20 by default and1,000 addresses
+per branch; selectable bounds are gap 100 and2,000 addresses per branch. A bounded
+scan does not prove that no additional funds exist; use the native wallet for
+other profiles or larger recovery ranges.
 
-## Source layout
+Historical balances are observations, not a current spendability guarantee.
+Demo accounts are labelled. Failed reads never substitute sample values.
+Checkpoint/parent validation is not a full independent SPV proof. Encryption
+at rest does not protect an unlocked wallet from compromised page code.
 
-- `src/frontend`: React application, existing red design and routes.
-- `src/backend`: Motoko bridge client with a pinned configuration operator,
-  typed parsing and bounded paid HTTPS calls.
-- `src/bridge`: Node bridge, Docker image and transport/security tests.
-- `deploy/umbrel`: isolated Umbrel deployment and private configuration helper.
+Version 1.0 remains reserved for a full-featured release. See
+[RELEASE-STATUS.md](RELEASE-STATUS.md) for completed checks, evidence and limits.
 
-No bridge secret or operator private identity belongs in source control.
-The bridge validates the configured XBT checkpoint against exact trusted
-extended header bytes obtained from Knots and Fulcrum.
+## Source and deployment
 
-The canister uses a single-replica HTTPS outcall for these watch-only reads.
-Displayed data is supplied by the operator's server, not an independently
-verified proof of chain state suitable for signing decisions.
+- `src/frontend`: React wallet, direct WSS worker and local signing/vault logic.
+- `src/backend`: bounded Motoko HTTPS adapter with a pinned operator.
+- `src/bridge`: authenticated Node bridge, transaction validation and quotas.
+- `deploy/adapter`: personal WSS/HTTPS and independent backup instructions.
+- `deploy/umbrel`: private operator deployment and configuration helpers.
+
+No bridge secret, operator private identity or real wallet secret belongs in
+source control. The canister and bridge accept public queries and signed raw
+transactions; they do not hold wallet keys. A new canister pointing to the
+home bridge does not remove the home-node dependency.
 
 ## Validation
 
-Run frontend typecheck, tests and build with the scripts in
-`src/frontend/package.json`; bridge checks with `npm test` and `npm run build`
-inside `src/bridge`; Motoko checks with the project's pinned mops toolchain.
-Deployment requires an external HTTPS check and a real canister outcall in
-addition to local bridge checks.
+Use Node 24 and pnpm 10.14.0 from this directory:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm --dir src/frontend typecheck
+pnpm --dir src/frontend check
+pnpm --dir src/frontend test
+pnpm --dir src/frontend build
+pnpm --dir src/bridge typecheck
+pnpm --dir src/bridge test
+pnpm --dir src/bridge build
+```
+
+The separate `RedWallet Web` GitHub workflow runs these frontend/bridge checks
+for web changes; it does not alter native iPhone workflows. Actual compiled
+backend tests use the hash-verified isolated runner in `test/pocketic/README.md`;
+pure Motoko contracts use `src/backend/test/README.md`. Missing backend artifacts
+or infrastructure are never counted as passing tests.
