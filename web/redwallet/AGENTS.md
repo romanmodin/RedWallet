@@ -9,7 +9,12 @@ Live public test identity scanned82addresses at974957; pause/resume, switching
 WSS to shared, reload/unlock and explicit reconnect preserve exact displayed
 history/count/original observation without new scan. No funded submission or
 user keys accessed. ActualiPhone remains user's test; cosmetic splash deferred.
-Standalone Motoko runner unavailable/prior interpreter overflow unresolved;
+Standalone Motoko contracts now PASS: native moc1.16.0/Mops3.4.1,
+locked dependencies, exact source copies, all16tests including oversized
+fixtures; repeatable command exit0. Total485cases. WASI exploratory compile
+unsupported by implicit core async APIs, not counted as passing. Reproduction
+src/backend/test/README.md. Independent backup operator steps prepared in
+deploy/adapter/INDEPENDENT-BACKUP.md; no independent host found in saved notes.
 BUILTIN_BACKUPS empty/no independent redundancy claimed. Verification only,
 public remains0.33. See V033-AUTOMATED-RELEASE-CHECKS-2026-10-01.md.
 
