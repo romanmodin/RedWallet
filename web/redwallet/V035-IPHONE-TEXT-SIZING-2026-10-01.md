@@ -1,6 +1,12 @@
 # 0.35 — stabilize iPhone control text sizing
 
-Prepared source; publication and iPhone verification pending. User verified0.34
+Published Caffeine37/public0.35 on2026-10-01; iPhone verification pending.
+All369 reviewed paths from commitc5cab3063 exactly match actual compiled export;
+backend Wasm unchanged; generated CSS includes touch sizing rules. Caffeine
+reports live; public Settings shows0.35/home adapter connected/analytics blocked.
+Empty create form rendered text/password fields16px and page width485 within
+500px viewport. Cancelled without generating a wallet. Desktop Chromium proves
+rendering only, not iPhone Safari zoom. Proof: redwallet-035-published.jpg. User verified0.34
 connection switching works and phone unlock preserves history. User reports
 slight viewport enlargement after wallet lock/unlock and moving between views;
 screenshot shows content extending beyond the left edge. Exact Safari behavior

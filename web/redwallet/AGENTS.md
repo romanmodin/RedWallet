@@ -1,3 +1,13 @@
+# 0.35 published — touch control sizing
+
+Caffeine37/public0.35 LIVE; all369 paths exactly match reviewed export and
+backend Wasm unchanged. Public home bridge connected/0.35/analytics blocked.
+Touch sizing CSS present; empty create text/password fields16px, no horizontal
+overflow at500px desktop viewport; cancelled without wallet generation.
+Typecheck/Biome217/build/22focused PASS. Actual iPhone zoom still requires user
+check; do not claim Safari fixed from Chromium. Supersedes pending notes below.
+See V035 report.
+
 # 0.35 prepared — iPhone control text sizing
 
 User verified0.34 phone provider switching/history retention. Reports slight
