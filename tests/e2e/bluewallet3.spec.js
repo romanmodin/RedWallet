@@ -1,4 +1,4 @@
-import { dismissAlertByText, dismissMnemonicKeyboard, waitForId, waitForText } from './helperz';
+import { dismissAlertByText, enterMnemonicText, waitForId, waitForText } from './helperz';
 
 // if loglevel is set to `error`, this kind of logging will still get through
 console.warn = console.log = (...args) => {
@@ -17,10 +17,9 @@ describe('RedWallet XBT-only import', () => {
     await waitForId('ImportWallet');
     await element(by.id('ImportWallet')).tap();
     await waitForId('MnemonicInput');
-    await element(by.id('MnemonicInput')).replaceText(
+    await enterMnemonicText(
       'zpub6s2EvLxwvDpaHNVP5vfordTyi8cH1fR8usmEjz7RsSQjfTTGU2qA5VEcEyYYBxpZAyBarJoTraB4VRJKVz97Au9jRNYfLAeeHC5UnRZbz8Y',
     );
-    await dismissMnemonicKeyboard();
     await element(by.id('DoImport')).tap();
     await waitForText('RedWallet currently imports a BIP39 recovery phrase for its XBT BIP84 wallet.', 30_000);
     if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss unsupported import error');

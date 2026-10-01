@@ -140,6 +140,20 @@ export async function dismissMnemonicKeyboard() {
     .withTimeout(10000);
 }
 
+// iOS replaceText can skip input callbacks, leaving the controlled field empty
+// after blur. Exercise keyboard input and verify the value before and after Done.
+export async function enterMnemonicText(text) {
+  const input = element(by.id('MnemonicInput'));
+  if (device.getPlatform() === 'ios') {
+    await input.typeText(text);
+  } else {
+    await input.replaceText(text);
+  }
+  await expect(input).toHaveText(text);
+  await dismissMnemonicKeyboard();
+  await expect(input).toHaveText(text.replace(/^\s+|\s+$|\s+(?=\s)/g, ''));
+}
+
 export async function helperImportWallet(importText, walletType, expectedWalletLabel, expectedBalance, passphrase) {
   await waitForId('WalletsList');
   await waitFor(element(by.id('CreateAWallet')))

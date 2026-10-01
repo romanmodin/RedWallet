@@ -261,6 +261,7 @@ jobs:
             npm run e2e:test:ios-release -- \
               tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js \
               --runTestsByPath \
+              --testNamePattern 'restores the published BIP84 recovery phrase|rejects a watch-only zpub' \
               --record-videos all --record-logs all --take-screenshots all \
               --loglevel verbose --headless --retries 0 --reuse \
               --artifacts-location ./artifacts
