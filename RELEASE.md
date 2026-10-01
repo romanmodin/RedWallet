@@ -64,47 +64,43 @@ See XBT_VALIDATION.md for recorded results and their limits.
 
 ## GitHub Actions configuration
 
-The iOS release workflow uses these repository secrets:
+Pull requests run unsigned simulator and unit/UI checks. The **Approved iOS
+Release** workflow is manual-only and accepts the reviewed `main` commit.
+Signing and upload run behind separate environments with required owner review
+and deployment restricted to `main`. Keep signing and upload secrets in their
+respective environments; remove repository-level copies after rotation so a
+PR-controlled workflow cannot request them directly.
 
-| Secret | Expected value |
+| Environment | Secrets |
 | --- | --- |
-| `APPLE_ID` | Apple Account email for the selected team |
-| `TEAM_ID` | Apple Developer team ID |
-| `ITC_TEAM_NAME` | Exact selected team name |
-| `GIT_URL` | SSH URL of the private Match signing repository |
-| `GIT_PRIVATE_KEY_CONTENT` | Deploy private key restricted to the signing repository |
-| `MATCH_PASSWORD` | Password encrypting the Match repository |
-| `KEYCHAIN_PASSWORD` | Temporary build-keychain password |
-| `APP_STORE_CONNECT_API_KEY_CONTENT` | Fastlane API-key JSON with `key_id`, `issuer_id`, and PEM `key` content |
+| `ios-signing` | `APPLE_ID`, `TEAM_ID`, `ITC_TEAM_NAME`, `GIT_URL`, `GIT_PRIVATE_KEY_CONTENT`, `MATCH_PASSWORD`, `KEYCHAIN_PASSWORD` |
+| `ios-upload` | `APPLE_ID`, `TEAM_ID`, `ITC_TEAM_NAME`, `APP_STORE_CONNECT_API_KEY_CONTENT` |
+| `ios-signing-bootstrap` | Separately approved maintenance only; write deploy key and any certificate-management API credential |
 
-Initialize the Match repository's `main` branch before using
-`clone_branch_directly`. Restrict its credential to that repository.
-A normal build uses existing profiles in read-only mode. A bootstrap run with
-`create_signing_material=true` can create certificates/profiles and write them
-to the encrypted signing repository; use it only after those changes have
-been authorized. The workflow checks missing configuration before starting
-the expensive native build and does not upload to Bugsnag.
+The normal Match deploy key must be read-only at the signing repository,
+independently of Fastlane's `readonly: true` setting. Normal builds install
+existing certificates/profiles without App Store Connect authentication.
+Certificate creation and storage updates belong in a separately approved
+bootstrap operation; there is no bootstrap option in the release workflow.
 
 ## Build and upload
 
-Use the workflow **Build Release and Upload to TestFlight (iOS)** on the exact
-reviewed feature branch. The workflow preserves branch names containing
-slashes.
-
-1. First use `upload_to_testflight=false` to verify a signed Release archive
-   and exported IPA.
-2. The macOS verifier checks bundle identities, entitlements, signing team,
-   embedded profiles, extension signatures, and arm64 architecture. It emits
-   an IPA SHA-256 receipt. Confirm the build source revision as well.
-3. To reuse the signed artifact without rebuilding, set `source_run_id` to its
-   successful release run. First keep `upload_to_testflight=false` for verification
-   only; then set it to `true` to upload that same package. Confirm Apple's
-   processing result in App Store Connect; a successful upload alone does not
-   mean testers can install it.
-4. Complete the applicable beta metadata, export-compliance questions, tester
-   access, and any required Beta App Review from verified facts.
-5. Install through TestFlight on the intended iPhone and perform the device
-   checks below. Do not label a simulator artifact as an iPhone download.
+1. Review the exact `main` source revision, then dispatch **Approved iOS
+   Release** with `upload_to_testflight=false`. Approve the signing environment
+   for that revision after checking source and workflow changes.
+2. The macOS verifier requires an Apple certificate from the configured team,
+   verifies each app/extension identifier and profile-authorized leaf
+   certificate, and checks entitlements and arm64 architecture. It emits an IPA
+   SHA-256 receipt tied to the source commit.
+3. To upload the same package, dispatch on the same commit with its successful
+   `source_run_id` and `upload_to_testflight=true`. The source must be a successful
+   manual release from the same repository, `main` branch and exact commit.
+   Fork and PR artifacts are rejected. Approve the separate upload environment.
+4. Confirm Apple's processing result, beta metadata, export compliance, tester
+   access and any required Beta App Review. Upload success alone does not mean
+   testers can install the package.
+5. Install through TestFlight and perform the applicable device checks below.
+   Simulator artifacts are for simulator tests.
 
 ## Beta readiness gates
 

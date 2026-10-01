@@ -479,7 +479,8 @@ platform :ios do
 
   desc "Synchronize certificates and provisioning profiles"
   lane :setup_provisioning_profiles do
-    required_vars = ["MATCH_GIT_PRIVATE_KEY", "GIT_URL", "TEAM_ID", "ITC_TEAM_NAME", "KEYCHAIN_PASSWORD", "APP_STORE_CONNECT_API_KEY_PATH"]
+    required_vars = ["MATCH_GIT_PRIVATE_KEY", "GIT_URL", "TEAM_ID", "ITC_TEAM_NAME", "KEYCHAIN_PASSWORD"]
+    required_vars << "APP_STORE_CONNECT_API_KEY_PATH" if ENV["MATCH_READONLY"] == "false"
     ensure_env_vars(required_vars)
     
     UI.message("Setting up provisioning profiles...")

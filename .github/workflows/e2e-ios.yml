@@ -207,16 +207,7 @@ jobs:
           SOURCE_RUN: ${{ inputs.source_run_id }}
         run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" > source-run.json
-          node <<'JS'
-          const fs = require('fs');
-          const source = JSON.parse(fs.readFileSync('source-run.json', 'utf8'));
-          if (source.repository.full_name !== process.env.GITHUB_REPOSITORY ||
-              source.path !== '.github/workflows/e2e-ios.yml' || source.status !== 'completed') {
-            throw new Error('Unexpected simulator source run');
-          }
-          fs.writeFileSync('simulator-source.txt', source.head_sha + '\n');
-          JS
+          python3 .github/scripts/verify-ios-source-run.py simulator "$SOURCE_RUN"
           # Reuse is safe only for test/workflow/docs changes, never app changes.
           git fetch --depth=1 origin "$(cat simulator-source.txt)"
           git diff --name-only "$(cat simulator-source.txt)" HEAD > source-diff.txt

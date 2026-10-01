@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -13,6 +14,8 @@ import zipfile
 
 ipa = Path(sys.argv[1]).resolve()
 team = os.environ["TEAM_ID"]
+assert re.fullmatch(r"[A-Z0-9]{10}", team), "Invalid signing team"
+requirement = 'anchor apple generic and certificate leaf[subject.OU] = "' + team + '"'
 expected_ids = {"com.romanmodin.redwallet", "com.romanmodin.redwallet.Stickers"}
 
 def run(*args):
@@ -33,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
     apps = list((root / "Payload").glob("*.app"))
     assert len(apps) == 1, "Expected one main iOS app"
     app = apps[0]
-    run("codesign", "--verify", "--deep", "--strict", str(app))
+    run("codesign", "--verify", "--deep", "--strict", "-R", requirement, str(app))
     bundles = [app, *app.rglob("*.appex"), *app.rglob("*.app")]
     seen = set()
     receipt = []
@@ -42,6 +45,7 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
         identifier = info["CFBundleIdentifier"]
         assert identifier in expected_ids and identifier not in seen, "Unexpected embedded bundle"
         seen.add(identifier)
+        run("codesign", "--verify", "--strict", "-R", requirement + ' and identifier "' + identifier + '"', str(bundle))
         assert "iPhoneOS" in info.get("CFBundleSupportedPlatforms", []), "Not a device build"
         signature = subprocess.run(
             ["codesign", "-d", "--entitlements", ":-", str(bundle)],
@@ -49,6 +53,10 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
         )
         entitlements = plist_from_output(signature.stdout + signature.stderr)
         profile = plistlib.loads(run("security", "cms", "-D", "-i", str(bundle / "embedded.mobileprovision")))
+        certificate_prefix = str(root / ("certificate-" + str(len(receipt)) + "-"))
+        run("codesign", "-d", "--extract-certificates", certificate_prefix, str(bundle))
+        leaf_certificate = Path(certificate_prefix + "0").read_bytes()
+        assert leaf_certificate in profile["DeveloperCertificates"], "Signer not authorized by profile"
         profile_entitlements = profile["Entitlements"]
         expected_app_id = team + "." + identifier
         assert entitlements.get("application-identifier") == expected_app_id, "Wrong signed app identity"
@@ -72,7 +80,7 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
                         "profileExpires": profile["ExpirationDate"].isoformat()})
     assert seen == expected_ids, "Missing required extension"
     digest = hashlib.sha256(ipa.read_bytes()).hexdigest()
-    result = {"ipaSha256": digest, "bundles": receipt, "signatureVerification": "passed"}
+    result = {"ipaSha256": digest, "bundles": receipt, "signatureVerification": "passed", "sourceCommit": os.environ.get("GITHUB_SHA")}
     Path("ios-ipa-verification.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
     if os.environ.get("GITHUB_ENV"):
