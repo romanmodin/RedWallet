@@ -16,7 +16,7 @@ permissions:
   contents: read
   actions: read
 env:
-  SOURCE_COMMIT: 659d53da9de756f75001d4116413c6db4bf18c56
+  SOURCE_COMMIT: 804b146c86e742c64c750285c9e3348026005f6e
   FASTLANE_OPT_OUT_USAGE: '1'
   FASTLANE_SKIP_UPDATE_CHECK: '1'
   FASTLANE_HIDE_CHANGELOG: '1'
@@ -44,7 +44,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         fetch-depth: 0
-        ref: 659d53da9de756f75001d4116413c6db4bf18c56
+        ref: 804b146c86e742c64c750285c9e3348026005f6e
         persist-credentials: false
         repository: romanmodin/RedWallet-native-review
         ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
@@ -54,6 +54,10 @@ jobs:
         printf 'LATEST_COMMIT_MESSAGE=Approved iOS tester build\nCURRENT_BRANCH=main\n' >> "$GITHUB_ENV"
         printf 'branch_name=main\ncommit_message=Approved iOS tester build\n' >> "$GITHUB_OUTPUT"
       id: get_latest_commit_details
+    - name: Validate certificate requirement syntax
+      env:
+        TEAM_ID: ${{ secrets.TEAM_ID }}
+      run: python3 .github/scripts/verify-ios-ipa.py --check-requirement
     - name: Validate signing configuration
       env:
         APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -231,7 +235,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         repository: romanmodin/RedWallet-native-review
-        ref: 659d53da9de756f75001d4116413c6db4bf18c56
+        ref: 804b146c86e742c64c750285c9e3348026005f6e
         persist-credentials: false
         ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
     - name: Set Up Ruby
