@@ -1,3 +1,12 @@
+# 0.33 published — inline welcome video
+
+Caffeine35/public0.33 LIVE; all363 source paths exactly match actual export,
+backend Wasm unchanged. Public Settings0.33/analytics blocked, NetworkConnected
+at974954. Native controls removed, playsInline/muted autoplay retained, picture
+in picture/remote playback disabled. Splash/metadata19tests/typecheck/Biome/build
+PASS. iPhone playback remains user's check in a fresh private tab. No wallet,
+backend/native/keys/CSP changes. See V033 report; prior pending note superseded.
+
 # 0.33 prepared — splash stays in main page
 
 Removed native video controls; retained playsInline/muted autoplay/Continue.
