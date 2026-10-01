@@ -18,6 +18,11 @@ describe("first launch introduction", () => {
   it("shows once and persists across remounts after continuing", () => {
     const view = mount();
     expect(screen.queryByText("Wallet contents")).toBeNull();
+    const video = screen.getByLabelText("XBT BLAKE2B introduction");
+    expect(video.hasAttribute("playsinline")).toBe(true);
+    expect(video.hasAttribute("controls")).toBe(false);
+    expect(video.hasAttribute("disablepictureinpicture")).toBe(true);
+    expect(screen.queryByRole("link")).toBeNull();
     fireEvent.click(
       screen.getByRole("button", { name: "Continue to RedWallet" }),
     );

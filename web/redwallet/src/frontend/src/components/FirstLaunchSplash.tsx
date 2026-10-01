@@ -37,7 +37,8 @@ export function FirstLaunchSplash({ children }: { children: ReactNode }) {
         autoPlay
         muted
         playsInline
-        controls
+        disablePictureInPicture
+        disableRemotePlayback
         preload="auto"
         onEnded={() => setVisible(false)}
         onError={() => setVisible(false)}
@@ -55,7 +56,7 @@ export function FirstLaunchSplash({ children }: { children: ReactNode }) {
       >
         Continue to RedWallet
       </button>
-      <p className="text-xs text-white/50">RedWallet 0.27 · Preview</p>
+      <p className="text-xs text-white/50">RedWallet 0.33 · Preview</p>
     </main>
   );
 }

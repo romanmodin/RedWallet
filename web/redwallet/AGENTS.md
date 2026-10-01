@@ -1,3 +1,10 @@
+# 0.33 prepared — splash stays in main page
+
+Removed native video controls; retained playsInline/muted autoplay/Continue.
+Picture-in-picture and remote playback disabled. Splash/metadata 19 tests,
+typecheck/Biome/build PASS. Source publication pending Caffeine sign-in.
+No wallet/backend/native/CSP changes. See V033 report; do not claim live.
+
 #0.32 published — reconnect without mandatory recovery discovery
 
 Caffeine34/public0.32 LIVE. All362 reviewed source files exact export matches;
