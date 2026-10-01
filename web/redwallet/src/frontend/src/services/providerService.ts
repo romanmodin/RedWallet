@@ -349,6 +349,16 @@ export class ProviderRouter {
       backup: this.backup,
     };
   }
+  /** Explicit user reconnect; invalidate old reads/reviews without rediscovering addresses. */
+  reconnect() {
+    this.active?.close?.();
+    this.active = null;
+    this.metadata = null;
+    this.checkedAt = 0;
+    this.pending = null;
+    this.unavailable.clear();
+    providerChanged();
+  }
   private async check(connection: ProviderConnection, custom?: CustomProvider) {
     const info = validateProviderInfo(
       await timeout(connection.info()),
@@ -402,7 +412,10 @@ export class ProviderRouter {
         return;
       } catch (error) {
         connection.close?.();
-        if (fingerprint === this.fingerprint) {
+        if (
+          generation === providerGeneration() &&
+          fingerprint === this.fingerprint
+        ) {
           this.active = null;
           this.metadata = null;
         }
@@ -504,13 +517,19 @@ export class ProviderRouter {
                   router.checkedAt = router.clock();
                 }
                 router.sync();
-                if (gen !== providerGeneration())
+                if (
+                  gen !== providerGeneration() ||
+                  router.active !== connection
+                )
                   throw Error(
                     "Provider changed; fresh network reads required.",
                   );
                 const result = await timeout(value.apply(target, args));
                 router.sync();
-                if (gen !== providerGeneration())
+                if (
+                  gen !== providerGeneration() ||
+                  router.active !== connection
+                )
                   throw Error(
                     "Provider changed during request; discard this result.",
                   );
@@ -527,7 +546,8 @@ export class ProviderRouter {
               } catch (error) {
                 if (
                   router.selection.mode === "websocket" &&
-                  gen === providerGeneration()
+                  gen === providerGeneration() &&
+                  router.active === connection
                 ) {
                   connection.close?.();
                   router.active = null;

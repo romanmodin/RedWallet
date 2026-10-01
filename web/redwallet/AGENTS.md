@@ -1,3 +1,13 @@
+#0.32 prepared — explicit reconnect preserves completed discovery
+
+User reports provider-change scan stuck before any address read. Completed scans
+remain historical public hints after failed refresh; current coin/parent/fee/pin/
+change checks remain mandatory. Explicit reconnect invalidates bound reads/reviews
+and restores saved scan/draft without discovery. No automatic reconnect, fallback
+or broadcast retry. Late WSS resolution cannot clear a replacement session.
+Native/backend/bridge/keys/CSP unchanged. Exact Caffeine import/export/publish and
+live verification pending; see V032-CONNECTION-SCAN-2026-09-30.md.
+
 # 0.31 published — detailed own-canister guide in separate tab
 
 Caffeine33/public0.31 LIVE. All361 uploaded source paths exact export matches;

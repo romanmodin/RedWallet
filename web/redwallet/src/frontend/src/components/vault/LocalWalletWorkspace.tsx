@@ -1,4 +1,5 @@
 import type { backendInterface } from "@/backend";
+import { Button } from "@/components/ui/button";
 import type { AccountSnapshot } from "@/lib/xbt/account-reader";
 import { clearAccountViewSessions } from "@/lib/xbt/account-view-session";
 import { IssuedAddresses } from "@/lib/xbt/issued-addresses";
@@ -8,6 +9,7 @@ import {
   PROVIDER_EVENT,
   providerGeneration,
 } from "@/services/networkGeneration";
+import { providerRouter } from "@/services/providerService";
 import { useEffect, useMemo, useState } from "react";
 import { AccountReadPanel } from "./AccountReadPanel";
 import {
@@ -158,10 +160,19 @@ function ProtectedLocalWorkspace({
           )}
           {actorError && (
             <p role="alert">
-              The configured account backend is unavailable. Unlock again after
-              the connection is restored.
+              The selected connection is unavailable. Reconnect after the
+              service is reachable; your completed scan stays saved.
             </p>
           )}
+          <Button
+            variant="outline"
+            disabled={!actor && !actorError}
+            onClick={() => providerRouter.reconnect()}
+          >
+            {!actor && !actorError
+              ? "Checking selected connection…"
+              : "Reconnect selected connection"}
+          </Button>
           {book && actor && (
             <>
               <AccountReadPanel

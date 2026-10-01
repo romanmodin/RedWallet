@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import App from "@/App";
 import { resolveBridgeActor } from "@/services/bridgeService";
+import { providerChanged } from "@/services/networkGeneration";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
@@ -148,6 +149,25 @@ it("keeps the authenticated account, history and draft across real tabs; navigat
   ).not.toBeInTheDocument();
   expect(screen.getByText("Locked", { exact: true })).toBeInTheDocument();
   expect(screen.queryByTestId("send.form")).not.toBeInTheDocument();
+  // Provider handoff discards the bound actor but restores completed discovery
+  // and drafts without requesting another recovery scan.
+  const replacement = {
+    ...actor,
+    getAddressHistory: vi.fn(),
+    getAddressBalance: vi.fn(),
+    getServerStatus: vi.fn(),
+  };
+  vi.mocked(resolveBridgeActor).mockResolvedValue(replacement as any);
+  await act(async () => providerChanged());
+  await screen.findByRole("button", { name: "Refresh account" });
+  expect(screen.getByText("42 addresses checked")).toBeInTheDocument();
+  expect(screen.getByText("0.01000000 XBT")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Resume scan" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Amount in XBT")).toHaveValue("0.005");
+  for (const fn of Object.values(replacement))
+    expect(fn).not.toHaveBeenCalled();
   await user.click(screen.getByTestId("app_shell.nav.receive"));
   await screen.findByRole("button", { name: "Get a new receive address" });
   expect(screen.queryByLabelText("Local XBT payment")).not.toBeInTheDocument();

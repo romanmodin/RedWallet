@@ -109,7 +109,7 @@ describe("public account receive UI", () => {
     fixture.scan.mockRejectedValueOnce(Error("Bridge unavailable"));
     fireEvent.click(screen.getByRole("button", { name: "Refresh account" }));
     await screen.findByText("Bridge unavailable");
-    expect(onSnapshot.mock.calls.at(-1)?.[0]).toBeNull();
+    expect(onSnapshot.mock.calls.at(-1)?.[0]).toBe(originalSnapshot);
     restored.unmount();
     render(
       <AccountReadPanel
@@ -122,7 +122,7 @@ describe("public account receive UI", () => {
     expect(
       screen.getByText("Confirmed balance at last scan"),
     ).toBeInTheDocument();
-    expect(onSnapshot.mock.calls.at(-1)?.[0]).toBeNull();
+    expect(onSnapshot.mock.calls.at(-1)?.[0]).toBe(originalSnapshot);
   });
 });
 

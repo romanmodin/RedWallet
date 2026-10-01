@@ -386,7 +386,8 @@ export function LocalVaultPanel({
               </p>
               <p className="text-xs text-muted-foreground">
                 Scan this public account below to recover its balance and
-                history. Payment preparation requires a fresh account scan.
+                history. A saved completed scan restores after unlocking;
+                payment preparation checks current coins again.
               </p>
             </div>
           )}

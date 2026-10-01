@@ -44,8 +44,10 @@ export function AccountReadPanel({
   const notify = useRef(onSnapshot);
   notify.current = onSnapshot;
   useEffect(() => {
-    notify.current?.(session.reader ? null : snapshot);
-  }, [snapshot, session]);
+    // A completed observation remains an address hint after a failed refresh.
+    // SpendPreparation always verifies current coins, parents, fees and the pin.
+    notify.current?.(busy ? null : snapshot);
+  }, [snapshot, busy]);
   const reader = useRef<AccountReader | null>(session.reader);
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);
@@ -110,7 +112,9 @@ export function AccountReadPanel({
       if (generation.current === operation)
         setError(
           e instanceof Error
-            ? e.message
+            ? /Provider changed/.test(e.message)
+              ? "The connection changed. Use Reconnect selected connection above, then retry. Your completed scan is retained."
+              : e.message
             : "Account discovery failed. No empty wallet was assumed.",
         );
     } finally {
@@ -181,7 +185,10 @@ export function AccountReadPanel({
         Keys and recovery words stay in this browser. Completed results are
         saved on this device, including after a reload. Unlock the same wallet
         to restore them. A paused, incomplete scan can resume in this tab.
-        Preparing a payment checks current coins again.
+        Switching connections keeps the completed scan; no new recovery scan is
+        required. Preparing a payment checks current coins again through the
+        selected connection. Refresh account runs a new recovery scan to update
+        the displayed balance and find new transfers.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm">

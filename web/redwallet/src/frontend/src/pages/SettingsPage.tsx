@@ -339,7 +339,7 @@ export function SettingsPage() {
           <SupportSetting />
           <SettingsSection
             id="about"
-            title="RedWallet 0.31"
+            title="RedWallet 0.32"
             description="Preview release · XBT (BLAKE2b)"
           >
             <p className="text-sm text-muted-foreground">

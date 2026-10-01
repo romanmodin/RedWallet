@@ -109,6 +109,68 @@ function fixture() {
 }
 beforeEach(() => localStorage.clear());
 describe("actual provider routes", () => {
+  it("a late connection check cannot clear a successfully reconnected WSS session", async () => {
+    const f = fixture();
+    f.select({
+      mode: "websocket",
+      config: { endpoint: "wss://home.example:50004/" },
+    });
+    let finish: (value: ProviderInfo) => void = () => {};
+    const info = await f.direct.info();
+    const stale = {
+      ...f.direct,
+      close: vi.fn(),
+      info: vi.fn(
+        () =>
+          new Promise<ProviderInfo>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    };
+    f.loadDirect.mockResolvedValueOnce(stale);
+    const pending = f.router.resolve();
+    await vi.waitFor(() => expect(stale.info).toHaveBeenCalled());
+    f.router.reconnect();
+    const actor = await f.router.resolve();
+    finish(info);
+    await expect(pending).rejects.toThrow(/Provider changed/);
+    expect(f.router.current()?.name).toBe("My home Fulcrum · direct WSS");
+    await actor.getAddressBalance("address");
+    expect(f.direct.actor.getAddressBalance).toHaveBeenCalledOnce();
+  });
+  it("explicit reconnect replaces the connection and rejects old reads without retrying submissions", async () => {
+    const f = fixture();
+    f.direct.close = vi.fn();
+    f.select({
+      mode: "websocket",
+      config: { endpoint: "wss://home.example:50004/" },
+    });
+    const oldActor = await f.router.resolve();
+    let finish: (value: any) => void = () => {};
+    vi.mocked(f.direct.actor.getAddressHistory).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = oldActor.getAddressHistory("address");
+    await Promise.resolve();
+    const generation = providerGeneration();
+    f.router.reconnect();
+    expect(providerGeneration()).toBe(generation + 1);
+    expect(f.direct.close).toHaveBeenCalledOnce();
+    expect(f.loadDirect).toHaveBeenCalledTimes(1);
+    const newActor = await f.router.resolve();
+    finish({ __kind__: "ok", ok: {} });
+    await expect(pending).rejects.toThrow(/Provider changed/);
+    await expect(oldActor.getAddressBalance("address")).rejects.toThrow(
+      /Provider changed/,
+    );
+    await newActor.getAddressBalance("address");
+    expect(f.loadDirect).toHaveBeenCalledTimes(2);
+    expect(f.direct.actor.broadcastSignedTransaction).not.toHaveBeenCalled();
+    expect(f.load).not.toHaveBeenCalled();
+  });
   it("direct WSS routes all wallet operations without loading any canister and never falls back", async () => {
     const f = fixture();
     f.select({
