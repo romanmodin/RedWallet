@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Set up your own ICP canister — RedWallet</title>
+<style>
+:root{color-scheme:dark;--bg:#100b0b;--card:#201717;--line:#503b3b;--text:#f8f1ef;--muted:#ccbdb9;--red:#ff8585}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:17px/1.65 system-ui,-apple-system,sans-serif}header,main,footer{max-width:900px;margin:auto;padding:24px}header{padding-top:36px;border-bottom:1px solid var(--line)}h1{font-size:clamp(28px,5vw,42px);line-height:1.2}h2{font-size:25px;line-height:1.3;margin-top:0}h3{font-size:19px}a{color:var(--red);text-underline-offset:4px}a:focus-visible{outline:3px solid var(--red);outline-offset:5px}p{margin:12px 0}section,aside{margin:24px 0;padding:24px;background:var(--card);border:1px solid var(--line);border-radius:16px}.lead,.muted{color:var(--muted)}nav{display:flex;gap:12px 24px;flex-wrap:wrap;margin:24px 0}li{margin:10px 0}pre{overflow-x:auto;background:#0e0909;border:1px solid var(--line);padding:16px;border-radius:10px;font-size:13px;line-height:1.6;tab-size:2}code{overflow-wrap:anywhere;font-size:.9em}pre code{overflow-wrap:normal}table{border-collapse:collapse;width:100%;font-size:15px}td,th{text-align:left;padding:12px 8px;border-bottom:1px solid var(--line);vertical-align:top}.table-wrap{overflow-x:auto}footer{color:var(--muted);font-size:14px}@media(max-width:540px){header,main,footer{padding:18px}section,aside{padding:18px}ol,ul{padding-left:22px}}
+</style>
+</head>
+<body>
+<header>
+<a href="/settings">← RedWallet settings</a>
+<p class="muted">RedWallet · Connection guide · Reviewed September 30, 2026</p>
+<h1>Set up your own ICP canister</h1>
+<p class="lead">A detailed guide for the Advanced HTTPS adapter option. Your existing wallet stays open in its original tab.</p>
+<nav aria-label="Guide contents"><a href="#choose">Choose a connection</a><a href="#prepare">What you need</a><a href="#bridge">Bridge container</a><a href="#canister">ICP deployment</a><a href="#connect">Connect and test</a><a href="#credits">Cycles and upkeep</a><a href="#troubleshoot">Troubleshooting</a></nav>
+</header>
+<main>
+<section id="choose">
+<h2>1. First, choose the right connection</h2>
+<p>On ICP, the word is <strong>canister</strong>: an application running on the Internet Computer. A <strong>Docker container</strong> is a program running on your own computer. This setup uses both: a local bridge container and an ICP adapter canister.</p>
+<div class="table-wrap"><table><thead><tr><th>Option in Settings</th><th>What you provide</th><th>Your own canister?</th></tr></thead><tbody>
+<tr><td>Built-in RedWallet service</td><td>Nothing. The shared service is ready to use.</td><td>No</td></tr>
+<tr><td>My home Fulcrum</td><td>One working <code>wss://</code> WebSocket URL.</td><td>No</td></tr>
+<tr><td>Advanced HTTPS adapter</td><td>Your bridge HTTPS URL, its configured Fulcrum host/port/TLS, and your adapter canister ID.</td><td>Yes</td></tr>
+</tbody></table></div>
+<p><strong>For the easiest private wallet connection, use direct WSS.</strong> Wallet lookups and signed transactions go directly from your browser to your own Fulcrum. The hosted app and Auto price service still use public infrastructure.</p>
+<p>Continue below if you want the HTTPS adapter architecture we use. The adapter makes authenticated HTTPS requests to your bridge; the bridge talks to your Fulcrum over TCP/TLS. Neither service receives your recovery phrase or private keys.</p>
+<p>Our shared adapter is configured for our node. Entering someone else's Fulcrum address cannot reconfigure it. Your own adapter is a separate deployment.</p>
+</section>
+<section id="prepare">
+<h2>2. Gather the prerequisites</h2>
+<ul><li>A synchronized <strong>XBT / BLAKE2b-compatible</strong> node and Fulcrum. An ordinary Bitcoin-only server will fail RedWallet's checkpoint check.</li><li>A Linux host with Docker Compose, Git, and Node.js for the private operator tools. These commands assume Linux host networking; Windows and macOS need adapted networking.</li><li>A public HTTPS hostname with a trusted certificate, forwarding to your bridge. ICP must reach it from the public internet; a LAN-only address or private VPN hostname is insufficient.</li><li>A separate Caffeine project/account with publishing access and credits, or a developer-managed ICP deployment preserving this backend's migration chain.</li><li>A private directory outside your source checkout for the bridge secret and operator identity. Keep a secure backup of the operator identity.</li></ul>
+<p>An <strong>endpoint</strong> is the address at which a service answers requests. Example bridge endpoint: <code>https://bridge.example.com</code>. A <strong>canister ID</strong> identifies your deployed ICP backend; it is neither your Fulcrum hostname nor your Caffeine project ID.</p>
+<p>Use the reviewed source on the <a href="https://github.com/romanmodin/RedWallet/tree/web/caffeine-bridge-deployment/web/redwallet" target="_blank" rel="noopener noreferrer">RedWallet web deployment branch</a>. Its <code>deploy/adapter/README.md</code> and <code>deploy/umbrel/README.md</code> are the operator references. This is an advanced installation, not a one-click canister installer.</p>
+<pre><code>git clone --branch web/caffeine-bridge-deployment \
+  https://github.com/romanmodin/RedWallet.git redwallet-source
+cd redwallet-source/web/redwallet</code></pre>
+</section>
+<section id="bridge">
+<h2>3. Run your own bridge container</h2>
+<ol><li>Create a private installation directory, for example <code>~/redwallet-bridge</code>. Copy the repository's <code>deploy/umbrel/compose.yaml</code> there and place the source checkout at <code>~/redwallet-bridge/repository</code>, as its build path expects.</li><li>Create a private <code>.env</code> in the installation directory. Restrict the directory to your account and the file to mode <code>600</code>. Generate a random secret locally, for example with <code>openssl rand -hex 32</code>, and save it as <code>BRIDGE_SECRET</code>. Do not put it in a prompt, source archive, browser field, or Git commit.</li><li>Add the checkpoint values below. Retrieve and independently verify the <strong>exact extended header</strong> for block 961640 against your XBT node. Copy that verified header into <code>CHECKPOINT_HEADER_HEX</code>; the placeholder is not a working value.</li></ol>
+<pre><code># Private .env — replace placeholders before starting
+BRIDGE_SECRET=YOUR_LOCALLY_GENERATED_RANDOM_SECRET
+CHECKPOINT_HEIGHT=961640
+CHECKPOINT_HASH=0000000000000050c1e5f69672f459293be14f46e5a494e7a8c8541396f18eeb
+CHECKPOINT_HEADER_HEX=YOUR_INDEPENDENTLY_VERIFIED_EXTENDED_XBT_HEADER
+ENABLE_BROADCAST=false</code></pre>
+<p>The supplied Compose file sets the bridge listener to <code>127.0.0.1:8090</code> and Fulcrum to <code>127.0.0.1:55001</code> with TLS off. Those example ports match our Umbrel. <strong>Edit Compose's environment values for your installation</strong>; they override matching <code>.env</code> entries. Loopback means “this host as seen by the bridge,” not the user's phone.</p>
+<p>Plain Fulcrum TCP is accepted only at literal loopback. If Fulcrum is on another machine, use its verified TLS port and set <code>FULCRUM_TLS: "true"</code>. Keep the bridge HTTP listener on loopback behind your HTTPS reverse proxy.</p>
+<pre><code>cd ~/redwallet-bridge
+chmod 700 .
+chmod 600 .env
+docker compose --project-directory . -f compose.yaml up -d --build
+docker compose --project-directory . -f compose.yaml ps
+curl -i http://127.0.0.1:8090/health</code></pre>
+<p>Configure your reverse proxy/tunnel so <code>https://bridge.example.com</code> forwards to <code>http://127.0.0.1:8090</code>. The root base URL is what you enter in RedWallet; do not append <code>/rpc</code>. Test <code>/health</code> publicly. An unauthenticated request to <code>/rpc</code> must be rejected with <code>401</code>.</p>
+<p>Health alone does not prove Fulcrum or ICP connectivity. Keep request limits, quotas, certificate validation and the checkpoint gate enabled. Read-only setup comes first. Sending through this adapter requires your explicit later <code>ENABLE_BROADCAST=true</code> choice and a container restart; only already signed transactions are accepted.</p>
+</section>
+<section id="canister">
+<h2>4. Deploy a separate adapter canister</h2>
+<h3>Create your private operator identity</h3>
+<p>Use the repository's <code>@icp-sdk/core</code> dependency in a private operator directory. This example creates an Ed25519 identity locally and prints only its <strong>public principal</strong>. Install Node dependencies in that directory first:</p>
+<pre><code>cd ~/redwallet-bridge
+mkdir -m 700 operator
+cd operator
+npm init -y
+npm install @icp-sdk/core@5.3.0
+node --input-type=module &lt;&lt;'JS'
+import fs from 'node:fs';
+import { Ed25519KeyIdentity } from '@icp-sdk/core/identity';
+const identity = Ed25519KeyIdentity.generate();
+fs.writeFileSync('operator-identity.json',
+  JSON.stringify(identity.toJSON()), { mode: 0o600, flag: 'wx' });
+console.log(identity.getPrincipal().toText());
+JS</code></pre>
+<p>Keep <code>operator-identity.json</code> private. The public principal can appear in your backend source. The private identity file cannot.</p>
+<h3>Route A — Caffeine project</h3>
+<ol><li>Make a <strong>new, independent project</strong> in your own Caffeine account. Do not import your changes into the shared RedWallet project.</li><li>Prepare a source archive from <code>web/redwallet</code>, keeping its dependencies and complete enhanced-migration chain. Exclude private files, <code>.env</code>, operator identities, local build caches and <code>node_modules</code>.</li><li>For this <strong>fresh installation only</strong>, replace the public operator principal in <code>src/backend/migrations/20260929_083000.mo</code> with the principal you just generated. Retain the controller-only setter and disabled first-user admin promotion. Do not rewrite an already deployed migration to rotate operators.</li><li>Use the project's <strong>Import code</strong> action with that prepared archive. Review the compiled draft and export its source to check the import. Preserve the private-operator authority and the existing checkpoint rules; a generic new canister does not implement RedWallet's adapter API.</li><li>Publish the new project. Record its <strong>live backend canister ID</strong>, not its frontend ID or temporary draft ID. If the platform does not expose it clearly, ask it to identify the live backend canister and inspect its deployment configuration.</li><li>Verify that the operator-signed <code>getBridgeOperatorStatus</code> reports <code>isOperator=true</code> before configuring secrets. If the fresh migration did not appoint your identity, have the canister controller call <code>setBridgeOperator(yourPublicPrincipal)</code>. Signing into the app does not grant controller authority.</li></ol>
+<p>Caffeine creates and hosts the deployed canisters. Its controller access is platform-managed; do not assume your ordinary login gives you a local controller key. Establish a supported controller/recovery procedure before relying on your deployment.</p>
+<h3>Route B — developer-managed ICP</h3>
+<p>Use your own deployment identity and ICP toolchain to build and install the backend with its full migration workflow. This repository uses <code>caffeine.toml</code> and enhanced migrations; a generic <code>dfx deploy</code> command without compatible configuration is not a complete installer. A developer must prepare that configuration and verify initialization, API and upgrades.</p>
+<p>Once deployed, the controller appoints your public operator principal using <code>setBridgeOperator</code>. For developer-managed canisters, keep controller recovery access and fund/monitor cycles yourself. See the <a href="https://docs.internetcomputer.org/guides/canister-management/lifecycle/" target="_blank" rel="noopener noreferrer">official ICP deployment lifecycle</a> and <a href="https://docs.internetcomputer.org/guides/canister-management/cycles-management/" target="_blank" rel="noopener noreferrer">cycles management guide</a>.</p>
+</section>
+<section id="connect">
+<h2>5. Configure, verify, then connect RedWallet</h2>
+<p>Copy <code>configure-canister.mjs</code> and <code>verify-canister.mjs</code> from the source's <code>deploy/umbrel</code> directory into your private <code>operator</code> directory. The configure helper reads <code>operator-identity.json</code> and <code>../.env</code> locally, then makes an authenticated <code>setBridgeConfig</code> call. The secret is never entered in wallet Settings.</p>
+<pre><code>cd ~/redwallet-bridge/operator
+node configure-canister.mjs YOUR_LIVE_BACKEND_CANISTER_ID \
+  https://bridge.example.com
+node verify-canister.mjs YOUR_LIVE_BACKEND_CANISTER_ID</code></pre>
+<p>Replace both example values with yours. The read-only verifier checks the pinned XBT checkpoint and actual status, a published test address's balance/history, and fees through your canister. Do not treat a syntax check or local container health as a successful canister test.</p>
+<ol><li>Return to <strong>RedWallet → Settings → Network → Advanced HTTPS adapter</strong>.</li><li>Click <strong>Configure existing adapter</strong>. Enter the exact Fulcrum host, port and TLS setting that your bridge actually uses.</li><li>Enter your public bridge HTTPS base URL and your live backend canister ID. Our ID connects to our bridge, not yours.</li><li>Decide whether to enable the optional built-in fallback. Leave it off if wallet requests must remain on your own service.</li><li>Click <strong>Test connection</strong>. It must verify your entered identity and pinned checkpoint. Then click <strong>Save</strong> and confirm the active service shows yours. Reload once and check again.</li></ol>
+<p>Saved settings are per browser/device. Test failure does not switch your wallet to the draft connection. Changing providers preserves saved wallets and receipts but cancels payment reviews and requires fresh network checks.</p>
+</section>
+<section id="credits">
+<h2>6. Keep the bridge and canister running</h2>
+<p>Your local bridge needs its host, internet connection, node and Fulcrum online. Your ICP canister separately needs <strong>cycles</strong>, the fuel for computation, storage and HTTPS calls. An online canister cannot make an offline home node answer.</p>
+<p>For Caffeine hosting, cycle monitoring and top-ups are managed automatically and charged against your Caffeine credits. Check your account's credit usage and billing options. Automatic cycle top-up and automatic credit purchases are different settings. Credits are not perpetual; frequent wallet scans and HTTP requests increase usage. See <a href="https://help.caffeine.ai/hc/en-us/articles/47213749447828-Understanding-Canister-Cycles" target="_blank" rel="noopener noreferrer">Caffeine's cycle explanation</a>.</p>
+<p>For a developer-managed deployment, monitor the actual canister balance with your controller identity and arrange top-ups. The official ICP guide describes balance checks and funding. Keep enough reserve for your measured workload; no fixed number of credits guarantees a lifetime.</p>
+<p>Back up source, public deployment IDs, private operator identity and bridge configuration securely. Upgrade code with the existing migration chain. Re-test checkpoint, identity, reads and authorization after changes. Do not remove controllers or reinstall live state as a routine fix.</p>
+</section>
+<section id="troubleshoot">
+<h2>7. Troubleshooting</h2>
+<dl><dt><strong>Unauthorized operator</strong></dt><dd>Your identity does not match the appointed operator. A controller must appoint it; wallet login is insufficient. Do not weaken authorization.</dd><dt><strong>Canister not configured</strong></dt><dd>Check the live backend ID, appointed identity and successful private configuration call.</dd><dt><strong>Endpoint unreachable</strong></dt><dd>Check the public certificate, reverse proxy, tunnel, bridge health and node sync. ICP cannot access a private LAN address directly.</dd><dt><strong>Fulcrum identity mismatch</strong></dt><dd>Enter the host/port/TLS as seen by the bridge. Compose environment values override .env entries.</dd><dt><strong>Checkpoint mismatch or stale tip</strong></dt><dd>Check that your node is XBT-compatible and synchronized. Independently compare block 961640 and its extended header. Do not bypass the pin.</dd><dt><strong>Reads work, send unavailable</strong></dt><dd>The HTTPS bridge defaults to read-only. Enabling signed relay requires the operator's explicit broadcast opt-in. Never supply a private key to a server.</dd><dt><strong>Low cycles or paid-call quota</strong></dt><dd>Inspect balance/credit usage and wait for the quota window where applicable. Repeated retries can make usage worse.</dd></dl>
+<p><a href="/settings">Return to RedWallet settings</a>, or switch back to your original wallet tab. This guide performs no setup actions and never requests wallet secrets.</p>
+</section>
+</main>
+<footer>Instructions describe RedWallet's current adapter implementation. Platform interfaces may change; use the linked official documentation for current hosting and cycle procedures.</footer>
+</body>
+</html>

@@ -68,3 +68,18 @@ Account UI showed8.03Caffeine credits and credit-purchase auto-top-up off.
 Official Caffeine docs say hosting cycle top-ups are automatic and charged from
 credits at0.5credits/100billioncycles. No billing setting/payment changed; actual
 canister cycle balance/runway is not known. Eight credits are not perpetual.
+
+## Production completion — 2026-10-01 UTC
+
+Caffeine32 / public0.30 published successfully. All359 reviewed source files
+matched compiled export exactly, none missing. Actual backend Wasm SHA256
+6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001
+is identical to tested0.28 artifact (25PocketIC PASS).
+Chrome draft and public WSS Test/Save/full reload passed at974926 withoutshared
+relay. Return to built-in connected passed. Public browser reports analytics
+blocked. Auto NeoxEX quote352.66824003USDC/XBT available. Anonymous production
+canister probe00:06:56Z verified pin961640, tip974926, public BIP84 fixture
+balance0/history176/fee1000sat/kB. No key access/funded broadcast/nativechange.
+Safari direct WSS/funded WSS remain user checks; no independent backup added.
+Proof redwallet-030-live-settings.jpg saved and displayed. This supersedes
+earlier authentication/publication blockers.

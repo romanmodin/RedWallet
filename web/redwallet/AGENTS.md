@@ -1,3 +1,15 @@
+# 0.30 published; 0.31 canister guide in preparation
+
+Caffeine32/public0.30 LIVE, all359 source paths exact export match. Actual
+backend Wasm identical to0.28 tested25PocketIC artifact. Chrome draft/public
+WSS Test/Save/reload at974926 passed; shared default/return connected passed;
+public analytics block observed. Production canister read/pin/fee probe PASS.
+No key access/funded broadcast/native changes. See V030 report.
+User requests detailed own-canister guide opening a separate browser tab.
+0.31 adds same-origin static script-free help and a target=_blank/noopener link.
+No provider/backend/key/CSP changes. Exact import/export/publish required.
+This supersedes earlier0.30 pending-authentication notes below.
+
 #0.30 source saved; publication blocked by Caffeine sign-in
 
 Commit e31ab00f5 is on GitHub and Zorin. Exact359file archive accepted via Import

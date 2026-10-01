@@ -243,6 +243,14 @@ export function NetworkSetting() {
           Configure existing adapter
         </Button>
       </details>
+      <a
+        href="/help/icp-canister.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block text-sm text-primary underline underline-offset-4"
+      >
+        How to set up your own ICP canister (opens a new tab)
+      </a>
       {editing === "custom" && (
         <fieldset disabled={busy} className="space-y-3">
           <p className="text-xs text-muted-foreground">
