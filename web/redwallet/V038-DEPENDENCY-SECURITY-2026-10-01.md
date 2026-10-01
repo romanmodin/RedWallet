@@ -40,4 +40,12 @@ Clean GitHub runner PASS at source188c6e28ba5fc64c2d8c633718a9cddcdc2d898c:
 https://github.com/romanmodin/RedWallet/actions/runs/36910218269.
 All steps passed: locked install, production audit, frontend typecheck/lint,
 63files/382tests and build, bridge typecheck/tests and build.
-Exact Caffeine publication pending: current editor session is signed out.
+Caffeine40/public0.38 LIVE on2026-10-01 after user restored sign-in.
+Actual export redwallet (36).zip matches all376reviewed source files byte for
+byte. Published backend SHA256 unchanged:
+6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001.
+Public Settings reloaded:0.38 and external analytics blocked.
+Frontend382tests and bridge80tests passed; total462.
+
+Live Test connection PASS: built-in service connected through primary home
+Umbrel HTTPS bridge. No funded transaction was submitted.

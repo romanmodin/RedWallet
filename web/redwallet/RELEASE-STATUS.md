@@ -1,6 +1,6 @@
 # RedWallet Web release status — 2026-10-01
 
-Public release: 0.37, Caffeine 39. Web branch: `web/caffeine-bridge-deployment`.
+Public release: 0.38, Caffeine 40. Web branch: `web/caffeine-bridge-deployment`.
 This record supersedes earlier watch-only/unmounted statements in foundation
 notes. It describes the current scoped preview, not a version1.0 claim.
 
@@ -9,11 +9,11 @@ notes. It describes the current scoped preview, not a version1.0 claim.
 | Area | Evidence |
 | --- | --- |
 | Current frontend |63 files / 382 tests PASS; TypeScript, Biome 219 files and production build PASS |
-| Bridge |80 tests, typecheck and build PASS in0.33 verification; unchanged since |
-| Published backend |25 PocketIC tests against exact Wasm; unchanged digest in0.37 export |
+| Bridge |80 tests, typecheck and build PASS in0.38 clean GitHub runner |
+| Published backend |25 PocketIC tests against exact Wasm; unchanged digest in0.38 export |
 | Pure Motoko contracts |16 tests PASS with locked dependencies and native compiler |
 | Signer |Eight Knots vectors, accepted fixture parity, synthetic signing and browser-without-Node-globals checks; node acceptance/replay-negative evidence in `test/regtest` |
-| Release import |All 373 reviewed 0.37 source paths exactly match actual Caffeine export |
+| Release import |All 376 reviewed 0.38 source paths exactly match actual Caffeine export |
 | Browser lifecycle |Disposable fixture recovery/unlock/reload/navigation lock, retained scan/draft/history, provider selection and protection checks recorded in0.23–0.37reports |
 | User iPhone checks |Connection changes and background/unlock retain history;0.37Keychain automatic zoom fix confirmed by user |
 | Backup routing |Live mempool.guide protocol/checkpoint/reads and real router with simulated primary outage PASS; production primary stayed online |
@@ -21,8 +21,9 @@ notes. It describes the current scoped preview, not a version1.0 claim.
 
 The unchanged published backend SHA256 is
 `6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001`.
-Counts above come from separate verified runs; they are not all rerun in0.37.
-See V033, V034, V037 and V037-FINAL reports for exact evidence and scope.
+Counts above come from separate verified runs; they are not all rerun in0.38.
+Production dependency audit:0known advisories after scoped cleanup, down from9.
+See V033, V034, V037, V037-FINAL and V038 reports for exact evidence and scope.
 
 ## Remaining scope and limits
 
