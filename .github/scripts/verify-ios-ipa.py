@@ -12,14 +12,18 @@ import sys
 import tempfile
 import zipfile
 
-ipa = Path(sys.argv[1]).resolve()
 team = os.environ["TEAM_ID"]
 assert re.fullmatch(r"[A-Z0-9]{10}", team), "Invalid signing team"
-requirement = 'anchor apple generic and certificate leaf[subject.OU] = "' + team + '"'
+# codesign/csreq require '=' to distinguish an inline rule from a filename.
+requirement = '=anchor apple generic and certificate leaf[subject.OU] = "' + team + '"'
 expected_ids = {"com.romanmodin.redwallet", "com.romanmodin.redwallet.Stickers"}
 
 def run(*args):
-    return subprocess.run(args, check=True, capture_output=True).stdout
+    try:
+        return subprocess.run(args, check=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as error:
+        sys.stderr.buffer.write(error.stderr or b"")
+        raise
 
 def plist_from_output(data):
     start = data.find(b"<?xml")
@@ -27,6 +31,12 @@ def plist_from_output(data):
     end = data.index(b"</plist>", start) + len(b"</plist>")
     return plistlib.loads(data[start:end])
 
+if sys.argv[1:] == ["--check-requirement"]:
+    run("csreq", "-r", requirement, "-t")
+    print("Signing certificate requirement parsed successfully")
+    sys.exit(0)
+
+ipa = Path(sys.argv[1]).resolve()
 with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
     root = Path(temporary)
     with zipfile.ZipFile(ipa) as archive:
