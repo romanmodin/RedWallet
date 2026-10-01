@@ -151,14 +151,16 @@ export function NetworkSetting() {
         {active && (
           <>
             <p className="break-all text-xs">
-              {selection.mode === "websocket"
+              {active.endpoint.startsWith("wss://")
                 ? "Direct WSS endpoint"
                 : "Active HTTPS bridge"}
               : {active.endpoint}
             </p>
             <p className="break-all text-xs">
-              {selection.mode === "websocket"
-                ? "Browser connects directly to your Fulcrum; no shared relay."
+              {active.endpoint.startsWith("wss://")
+                ? active.backup
+                  ? "Browser connects directly to mempool.guide while the primary is unavailable."
+                  : "Browser connects directly to your Fulcrum; no shared relay."
                 : `Adapter: ${active.id} · Fulcrum ${active.host}:${active.port} · ${active.tls ? "TLS" : "local TCP"}`}
             </p>
           </>
@@ -167,9 +169,13 @@ export function NetworkSetting() {
         <p className="mt-2 text-xs text-muted-foreground">
           {selection.mode === "websocket"
             ? "Direct mode never falls back to a public relay. Your Fulcrum sees the requests and your device’s IP address."
-            : BUILTIN_BACKUPS.length
-              ? `${BUILTIN_BACKUPS.length} verified independent backup adapter(s) configured.`
-              : "No independent backup is configured. The built-in service currently depends on the home Umbrel."}
+            : selection.mode === "custom"
+              ? selection.config.allowBuiltinFallback
+                ? "Your adapter is primary. If it fails, the built-in service can use home Umbrel, then mempool.guide over WSS. Public services see queried addresses and signed transactions; the WSS backup also sees your device’s IP address. Payments are never automatically retried."
+                : "Your adapter is primary. Public fallback is disabled; a failed custom connection stays disconnected."
+              : BUILTIN_BACKUPS.length
+                ? "Primary: home Umbrel. Backup: mempool.guide over WSS. The backup sees queried public addresses, signed transactions and your device’s IP address. Switching services requires fresh payment checks; payments are never automatically retried."
+                : "No independent backup is configured. The built-in service currently depends on the home Umbrel."}
         </p>
       </div>
       {editing === "websocket" && (

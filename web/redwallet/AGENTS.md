@@ -1,3 +1,19 @@
+# 0.34 prepared — home primary, mempool.guide WSS backup
+
+User authorized mempool.guide backup with home Umbrel primary. Source routes
+fixed registered WSS through existing worker, labels active backup and IP/privacy,
+preserves direct-home no-fallback and custom public opt-in. Primary first,
+checkpoint/time/6-block freshness gates, old actor/review invalidation,
+retired/reused workers, no read replay or automatic broadcast retry.
+Actual public browser worker Test975042 PASS; actual transport balance/history176/
+UTXO/fee1011/raw223bytes PASS; malformed unsigned remote broadcast rejected.
+Actual router with simulated primary outage uses live WSS correctly, exit0.
+Full frontend374 PASS; final routing/display28 includes new375th privacy case.
+Typecheck/Biome217/build PASS. Backend/native/bridge/CSP unchanged. Caffeine
+sign-in blocks publication: public0.33 still live. Restore sign-in, import exact
+reviewed source, compare actual export and unchanged backend digest, publish and
+verify public0.34. See V034-MEMPOOL-BACKUP-2026-10-01.md.
+
 # 0.33 automated release checks completed
 
 All available automated lanes PASS: frontend61files/364tests, bridge80tests,

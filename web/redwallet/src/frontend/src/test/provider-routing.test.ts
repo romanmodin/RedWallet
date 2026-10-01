@@ -108,6 +108,180 @@ function fixture() {
   };
 }
 beforeEach(() => localStorage.clear());
+function websocketBackupFixture() {
+  let selection: ProviderSelection = { mode: "builtin" };
+  let time = now;
+  const registered = BUILTIN_BACKUPS[0];
+  const primary = connection("primary");
+  const backup = connection(registered.id);
+  const original = backup.info;
+  backup.info = vi.fn(async () => ({
+    ...(await original()),
+    endpoint: registered.endpoint,
+    host: "mempool.guide",
+    port: 443n,
+    tls: true,
+  }));
+  backup.close = vi.fn();
+  const load = vi.fn(async () => primary);
+  const loadDirect = vi.fn(async () => backup);
+  const router = new ProviderRouter(
+    () => selection,
+    load,
+    BUILTIN_BACKUPS,
+    () => time,
+    loadDirect,
+  );
+  return {
+    router,
+    primary,
+    backup,
+    load,
+    loadDirect,
+    advance: (ms: number) => {
+      time += ms;
+    },
+    select: (value: ProviderSelection) => {
+      selection = value;
+      router.sync();
+    },
+  };
+}
+describe("registered mempool.guide WSS backup", () => {
+  it("keeps Umbrel first and contacts no public backup while the primary is healthy", async () => {
+    const f = websocketBackupFixture();
+    await (await f.router.resolve()).getFeeEstimate();
+    expect(f.load).toHaveBeenCalledWith(undefined);
+    expect(f.loadDirect).not.toHaveBeenCalled();
+    expect(f.router.current()?.backup).toBe(false);
+  });
+  it("initial primary outage routes every wallet read to the named WSS backup", async () => {
+    const f = websocketBackupFixture();
+    vi.mocked(f.primary.info).mockRejectedValue(Error("offline"));
+    const actor = await f.router.resolve();
+    await actor.getAddressBalance("public");
+    await actor.getAddressHistory("public");
+    await actor.getAddressUtxos("public");
+    await actor.getFeeEstimate();
+    await actor.getRawTransaction("public-id");
+    expect(f.loadDirect).toHaveBeenCalledWith(BUILTIN_BACKUPS[0].endpoint);
+    expect(f.load).toHaveBeenCalledTimes(1);
+    for (const method of [
+      "getAddressBalance",
+      "getAddressHistory",
+      "getAddressUtxos",
+      "getFeeEstimate",
+      "getRawTransaction",
+    ] as const)
+      expect(f.backup.actor[method]).toHaveBeenCalledTimes(1);
+    expect(f.router.current()).toMatchObject({
+      name: "mempool.guide · backup",
+      backup: true,
+      endpoint: BUILTIN_BACKUPS[0].endpoint,
+    });
+  });
+  it("runtime outage invalidates the old actor and never replays the failed read or a payment", async () => {
+    const f = websocketBackupFixture();
+    const old = await f.router.resolve();
+    const generation = providerGeneration();
+    vi.mocked(f.primary.actor.getAddressBalance).mockRejectedValue(
+      Error("offline"),
+    );
+    await expect(old.getAddressBalance("public")).rejects.toThrow();
+    expect(providerGeneration()).toBeGreaterThan(generation);
+    expect(f.backup.actor.getAddressBalance).not.toHaveBeenCalled();
+    await expect(old.getFeeEstimate()).rejects.toThrow(/Provider changed/);
+    await (await f.router.resolve()).getAddressBalance("public");
+    expect(f.backup.actor.getAddressBalance).toHaveBeenCalledTimes(1);
+    expect(f.backup.actor.broadcastSignedTransaction).not.toHaveBeenCalled();
+  });
+  it("reuses a healthy backup worker and restores Umbrel priority after a later check", async () => {
+    const f = websocketBackupFixture();
+    vi.mocked(f.primary.info).mockRejectedValue(Error("offline"));
+    await f.router.resolve();
+    f.advance(60001);
+    await f.router.resolve();
+    expect(f.loadDirect).toHaveBeenCalledTimes(1);
+    vi.mocked(f.primary.info).mockResolvedValue(
+      await connection("primary").info(),
+    );
+    f.advance(60001);
+    await expect(f.router.resolve()).rejects.toThrow(/Provider changed/);
+    expect(f.backup.close).toHaveBeenCalledTimes(1);
+    expect(await f.router.resolve()).toBeTruthy();
+    expect(f.router.current()?.backup).toBe(false);
+  });
+  it("retires failed WSS workers and recreates them after the cooldown", async () => {
+    const f = websocketBackupFixture();
+    vi.mocked(f.primary.info).mockRejectedValue(Error("offline"));
+    const actor = await f.router.resolve();
+    vi.mocked(f.backup.actor.getAddressHistory).mockRejectedValue(
+      Error("closed"),
+    );
+    await expect(actor.getAddressHistory("public")).rejects.toThrow();
+    expect(f.backup.close).toHaveBeenCalled();
+    const replacement = { ...f.backup, close: vi.fn() };
+    f.loadDirect.mockResolvedValue(replacement);
+    f.advance(60001);
+    await f.router.resolve();
+    expect(f.loadDirect).toHaveBeenCalledTimes(2);
+  });
+  it("rejects stale, wrong-chain, wrong-endpoint and wrong-identity backups before wallet reads", async () => {
+    for (const patch of [
+      { checkpointHash: "wrong" },
+      { height: 1n },
+      { tipTimestamp: 1n },
+      { endpoint: "wss://other.example/" },
+    ]) {
+      const f = websocketBackupFixture();
+      vi.mocked(f.primary.info).mockRejectedValue(Error("offline"));
+      vi.mocked(f.backup.info).mockResolvedValue({
+        ...(await f.backup.info()),
+        ...patch,
+      });
+      await expect(f.router.resolve()).rejects.toThrow();
+      expect(f.backup.close).toHaveBeenCalled();
+      expect(f.backup.actor.getAddressBalance).not.toHaveBeenCalled();
+    }
+    const f = websocketBackupFixture();
+    vi.mocked(f.primary.info).mockRejectedValue(Error("offline"));
+    f.loadDirect.mockResolvedValue({ ...f.backup, id: "unregistered" });
+    await expect(f.router.resolve()).rejects.toThrow(/identity/);
+  });
+  it("a failed explicit broadcast is not retried or switched to another service", async () => {
+    const f = websocketBackupFixture();
+    vi.mocked(f.primary.info).mockRejectedValue(Error("offline"));
+    const actor = await f.router.resolve();
+    const calls = f.load.mock.calls.length;
+    vi.mocked(f.backup.actor.broadcastSignedTransaction).mockRejectedValue(
+      Error("unknown outcome"),
+    );
+    await expect(
+      actor.broadcastSignedTransaction("signed", "id"),
+    ).rejects.toThrow(/unknown/);
+    expect(f.backup.actor.broadcastSignedTransaction).toHaveBeenCalledTimes(1);
+    expect(f.primary.actor.broadcastSignedTransaction).not.toHaveBeenCalled();
+    expect(f.load).toHaveBeenCalledTimes(calls);
+  });
+  it("user-owned WSS and custom HTTPS without opt-in never use the registered backup", async () => {
+    for (const selection of [
+      { mode: "websocket", config: { endpoint: BUILTIN_BACKUPS[0].endpoint } },
+      { mode: "custom", config: custom },
+    ] as ProviderSelection[]) {
+      const f = websocketBackupFixture();
+      f.select(selection);
+      vi.mocked(f.primary.info).mockRejectedValue(Error("offline"));
+      vi.mocked(f.backup.info).mockRejectedValue(Error("offline"));
+      await expect(f.router.resolve()).rejects.toThrow();
+      expect(f.loadDirect.mock.calls.length).toBe(
+        selection.mode === "websocket" ? 1 : 0,
+      );
+      expect(f.load.mock.calls.length).toBe(
+        selection.mode === "custom" ? 1 : 0,
+      );
+    }
+  });
+});
 describe("actual provider routes", () => {
   it("a late connection check cannot clear a successfully reconnected WSS session", async () => {
     const f = fixture();
@@ -332,7 +506,10 @@ describe("actual provider routes", () => {
     await a.getAddressBalance("address");
     expect(f.backup.actor.getAddressBalance).toHaveBeenCalledTimes(1);
     expect(f.router.current()?.backup).toBe(true);
-    expect(BUILTIN_BACKUPS).toEqual([]); // No live redundancy claim until an independent deployment is verified.
+    expect(BUILTIN_BACKUPS[0]).toMatchObject({
+      endpoint: "wss://mempool.guide/electrum-websocket/",
+      transport: "websocket",
+    });
   });
   it("rejects a backup behind the last healthy height or with wrong checkpoint", async () => {
     const f = fixture();

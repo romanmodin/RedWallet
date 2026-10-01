@@ -1,8 +1,12 @@
 # Independent shared-service backup
 
 The current HTTPS bridge and direct WSS endpoint both use the home Umbrel.
-Neither is an independent backup. The production `BUILTIN_BACKUPS` registry
-remains empty until a separately hosted service passes live verification.
+Neither is an independent backup. The 0.34 source now registers the public
+mempool.guide WSS service after that primary, with live checkpoint, browser
+worker, wallet-read and simulated-primary-outage verification. Publication
+status is in V034-MEMPOOL-BACKUP-2026-10-01.md. The home primary stayed online.
+No funded backup transaction or actual home outage was used for verification.
+The steps below apply when adding another operator-hosted service.
 
 ## Host information needed
 
@@ -11,7 +15,7 @@ remains empty until a separately hosted service passes live verification.
 | Independent host | An always-on machine outside the home's power and internet connection, with operator access |
 | XBT node and index | Its own synced XBT-compatible node and Fulcrum, with capacity for their chain data and index |
 | Public service | A reachable HTTPS hostname with a trusted certificate |
-| ICP adapter | A separately deployed backend canister, controlled and funded by its operator |
+| ICP adapter | Required for an HTTPS bridge; native WSS uses no extra canister |
 
 Use `src/bridge/Dockerfile` and the existing protected environment workflow in
 `deploy/umbrel/README.md`. Follow `deploy/adapter/README.md` for checkpoint,
@@ -39,6 +43,8 @@ A canister pointing to the existing home bridge does not satisfy independence.
    checkpoint, tip and test results. Only then add the entry to `BUILTIN_BACKUPS`,
    run the provider tests, publish and verify the actual public release.
 
-These steps are prepared, not evidence of a deployed backup. No independent
-host was found in the saved infrastructure notes on 2026-10-01. Creating another
-canister alone would leave the current home-node outage dependency unchanged.
+No independent operator-owned host was found in the saved infrastructure notes
+on 2026-10-01. The public mempool.guide service avoids needing a second full
+node of our own. Its hosting, capacity and availability remain controlled by
+that operator; the protocol checks do not establish a service guarantee.
+Creating another canister alone would leave the home-node dependency unchanged.

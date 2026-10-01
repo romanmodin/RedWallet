@@ -92,9 +92,22 @@ if its presence cannot be ruled out, no retry or replacement payment is dispatch
 
 ## Independent built-in backups
 
-`BUILTIN_BACKUPS` in `services/providerService.ts` is intentionally empty.
-Only add an adapter after live testing on a separate host/node/failure domain.
-Record its canister ID, name and exact HTTPS bridge base URL; verify checkpoint,
+The 0.34 source registers `wss://mempool.guide/electrum-websocket/` as a public
+backup after the home Umbrel primary. It uses the same public-network worker as
+personal WSS, without another ICP canister or a home-hosted bridge. Settings
+names the active service and explains that this direct public connection exposes
+queried addresses, signed transactions and the device IP to that service.
+Checkpoint, tip-time and last-healthy-height gates apply before wallet reads.
+An operation that fails remains failed; later fresh reads can use the backup.
+Provider changes invalidate reviews, and broadcasts are never automatically
+retried. User-owned WSS never falls back. Custom HTTPS uses the built-in service
+and its backup only when the user has explicitly enabled public fallback.
+
+Publication status is recorded in V034-MEMPOOL-BACKUP-2026-10-01.md. Source
+registration alone does not prove the published app has changed.
+Only add further providers after live testing on a separate host/node/failure domain.
+For HTTPS adapters, record the canister ID, name and exact bridge base URL;
+for WSS, record the exact endpoint and connection identity. Verify checkpoint,
 recent header time, balance/history/UTXO/fee/raw routes, disabled/invalid broadcast
 rejection, and primary-outage failover. A recent backup must also be no more than
 six blocks behind the last observed healthy tip. Local router tests prove the

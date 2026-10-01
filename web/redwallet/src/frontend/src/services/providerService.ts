@@ -18,12 +18,20 @@ import { loadWebsocketConnection } from "./websocketService";
 export const PROVIDER_STORAGE_KEY = "redwallet.provider.v1";
 export const CHECKPOINT_HASH =
   "0000000000000050c1e5f69672f459293be14f46e5a494e7a8c8541396f18eeb";
-/** Add only independently hosted and live-tested adapter deployments. Empty means no redundancy. */
+/** Fixed, live-tested public backups. User-owned WSS never uses this registry. */
 export const BUILTIN_BACKUPS: readonly {
   id: string;
   name: string;
   endpoint: string;
-}[] = [];
+  transport?: "websocket";
+}[] = [
+  {
+    id: "wss:wss://mempool.guide/electrum-websocket/",
+    name: "mempool.guide · backup",
+    endpoint: "wss://mempool.guide/electrum-websocket/",
+    transport: "websocket",
+  },
+];
 export const HOME_ADAPTER = {
   id: "7gylz-gyaaa-aaaab-qhjrq-cai",
   endpoint: "https://umbrel-3.tailaa2bb4.ts.net:10000",
@@ -330,16 +338,19 @@ export class ProviderRouter {
   }
   current(): ActiveProvider | null {
     if (!this.active || !this.metadata) return null;
+    const registered = this.backups.find((b) => b.id === this.active?.id);
     return {
       name:
         this.selection.mode === "websocket"
           ? "My home Fulcrum · direct WSS"
           : this.selection.mode === "custom"
             ? this.backup
-              ? "Built-in RedWallet service · custom fallback"
+              ? registered
+                ? `${registered.name} · custom fallback`
+                : "Built-in RedWallet service · custom fallback"
               : "My own Fulcrum"
             : this.backup
-              ? "RedWallet backup service"
+              ? (registered?.name ?? "RedWallet backup service")
               : "Built-in RedWallet service",
       id: this.active.id,
       endpoint: this.metadata.endpoint,
@@ -426,25 +437,37 @@ export class ProviderRouter {
       selected.mode === "custom"
         ? [
             selected.config.canisterId,
-            ...(selected.config.allowBuiltinFallback ? [undefined] : []),
+            ...(selected.config.allowBuiltinFallback
+              ? [undefined, ...this.backups.map((b) => b.id)]
+              : []),
           ]
         : [undefined, ...this.backups.map((b) => b.id)];
     let last: unknown;
     for (const id of ids) {
+      const registered = this.backups.find((backup) => backup.id === id);
+      let connection: ProviderConnection | undefined;
       try {
         const custom =
           selected.mode === "custom" && id === selected.config.canisterId
             ? validateCustomProvider(selected.config)
             : undefined;
-        const connection = await timeout(this.load(id));
+        if (id && (this.unavailable.get(id) ?? 0) > this.clock())
+          throw Error("Provider is temporarily unavailable.");
+        connection =
+          registered?.transport === "websocket"
+            ? this.active && this.active.id === id && this.metadata
+              ? this.active
+              : await this.loadDirect(registered.endpoint)
+            : await timeout(this.load(id));
         if ((this.unavailable.get(connection.id) ?? 0) > this.clock())
           throw Error("Provider is temporarily unavailable.");
         const info = await this.check(connection, custom);
-        const registered = this.backups.find((backup) => backup.id === id);
         if (registered && info.endpoint !== registered.endpoint)
           throw Error(
-            "Backup HTTPS identity does not match the registered endpoint.",
+            "Backup identity does not match the registered endpoint.",
           );
+        if (registered && connection.id !== registered.id)
+          throw Error("Backup connection identity mismatch.");
         this.sync();
         if (
           fingerprint !== this.fingerprint ||
@@ -452,21 +475,31 @@ export class ProviderRouter {
         )
           throw Error("Provider changed; request fresh network data.");
         const switched = this.active && this.active.id !== connection.id;
+        if (this.active !== connection) this.active?.close?.();
         this.active = connection;
         this.metadata = info;
         this.checkedAt = this.clock();
         this.healthyHeight =
           info.height > this.healthyHeight ? info.height : this.healthyHeight;
         this.backup =
-          selected.mode === "builtin" ? id !== undefined : id === undefined;
+          selected.mode === "builtin"
+            ? id !== undefined
+            : id !== selected.config.canisterId;
         if (switched) {
           providerChanged();
           throw Error(
-            "Provider changed to a verified backup; prepare a new review with fresh reads.",
+            "Provider changed; prepare a new review with fresh reads.",
           );
         }
         return;
       } catch (error) {
+        if (
+          connection &&
+          (this.active !== connection ||
+            (generation === providerGeneration() &&
+              fingerprint === this.fingerprint))
+        )
+          connection.close?.();
         last = error;
         if (
           generation !== providerGeneration() ||
@@ -545,12 +578,14 @@ export class ProviderRouter {
                 return result;
               } catch (error) {
                 if (
-                  router.selection.mode === "websocket" &&
+                  connection.close &&
                   gen === providerGeneration() &&
                   router.active === connection
                 ) {
                   connection.close?.();
-                  router.active = null;
+                  // Keep identity until choose() so a fallback invalidates old reads/reviews.
+                  if (router.selection.mode === "websocket")
+                    router.active = null;
                   router.metadata = null;
                   router.checkedAt = 0;
                 }
