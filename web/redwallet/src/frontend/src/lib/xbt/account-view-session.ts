@@ -46,9 +46,9 @@ export function accountViewSession(actor: BridgeActor, accountXpub: string) {
   return session;
 }
 
-export function clearAccountViewSessions() {
+export function clearAccountViewSessions(preserveSavedSnapshots = false) {
   try {
-    clearPublicSnapshots();
+    if (!preserveSavedSnapshots) clearPublicSnapshots();
   } catch {
     /* unavailable storage */
   }

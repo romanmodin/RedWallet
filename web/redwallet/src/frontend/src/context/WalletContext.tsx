@@ -32,6 +32,9 @@ export interface WalletContextValue {
   refresh: () => Promise<void>;
   selectWallet: (walletId: string) => Promise<void>;
   addWallet: (name: string, address?: string) => Promise<Wallet | null>;
+  removeWallet: (id: string) => Promise<boolean>;
+  hideDemoWallets: () => Promise<boolean>;
+  restoreDemoWallets: () => Promise<boolean>;
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -68,7 +71,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       ),
     );
     setActiveWallet(activeResult.ok ? activeResult.value : null);
-    setError(activeResult.ok ? null : activeResult.error);
+    setError(
+      activeResult.ok || listResult.value.length === 0
+        ? null
+        : activeResult.error,
+    );
     setIsLoading(false);
   }, []);
 
@@ -89,9 +96,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setActiveWallet((current) => (current ? clear(current) : null));
       void refresh();
     };
+    const storageChanged = (event: StorageEvent) => {
+      if (
+        event.key === null ||
+        [
+          "redwallet.watch-wallets.v1",
+          "redwallet.hidden-demos.v1",
+          "redwallet.active-wallet.v1",
+        ].includes(event.key)
+      )
+        void refresh();
+    };
+    window.addEventListener("storage", storageChanged);
     window.addEventListener(PROVIDER_EVENT, changed);
     return () => {
       request.current++;
+      window.removeEventListener("storage", storageChanged);
       window.removeEventListener(PROVIDER_EVENT, changed);
     };
   }, [refresh]);
@@ -125,6 +145,34 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return result.value;
   }, []);
 
+  const mutateWallets = useCallback(
+    async (
+      action: () => Promise<import("@/services/types").ServiceResult<boolean>>,
+    ) => {
+      request.current++;
+      const result = await action();
+      if (!result.ok) {
+        setError(result.error);
+        return false;
+      }
+      await refresh();
+      return true;
+    },
+    [refresh],
+  );
+  const removeWallet = useCallback(
+    (id: string) => mutateWallets(() => bridgeWalletService.removeWallet(id)),
+    [mutateWallets],
+  );
+  const hideDemoWallets = useCallback(
+    () => mutateWallets(() => bridgeWalletService.hideDemoWallets()),
+    [mutateWallets],
+  );
+  const restoreDemoWallets = useCallback(
+    () => mutateWallets(() => bridgeWalletService.restoreDemoWallets()),
+    [mutateWallets],
+  );
+
   const value = useMemo<WalletContextValue>(
     () => ({
       wallets,
@@ -134,8 +182,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       refresh,
       selectWallet,
       addWallet,
+      removeWallet,
+      hideDemoWallets,
+      restoreDemoWallets,
     }),
-    [wallets, activeWallet, isLoading, error, refresh, selectWallet, addWallet],
+    [
+      wallets,
+      activeWallet,
+      isLoading,
+      error,
+      refresh,
+      selectWallet,
+      addWallet,
+      removeWallet,
+      hideDemoWallets,
+      restoreDemoWallets,
+    ],
   );
 
   return (

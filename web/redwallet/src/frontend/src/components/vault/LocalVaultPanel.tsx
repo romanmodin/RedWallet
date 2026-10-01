@@ -22,6 +22,7 @@ export interface LocalVaultPanelProps {
   cryptoApi?: Crypto;
   onUnlocked?: (id: string, account: PublicXbtAccount) => void;
   onLocked?: () => void;
+  onRemoved?: (id: string) => void;
 }
 type Mode = "idle" | "create" | "backup" | "verify" | "recover" | "unlock";
 
@@ -30,7 +31,11 @@ export function LocalVaultPanel({
   cryptoApi = globalThis.crypto,
   onUnlocked,
   onLocked,
+  onRemoved,
 }: LocalVaultPanelProps) {
+  const [removing, setRemoving] = useState<SavedVault | null>(null);
+  const [backupConfirmed, setBackupConfirmed] = useState(false);
+  const [removeName, setRemoveName] = useState("");
   const [mode, setMode] = useState<Mode>("idle");
   const [saved, setSaved] = useState<SavedVault[]>([]);
   const [name, setName] = useState("");
@@ -83,6 +88,9 @@ export function LocalVaultPanel({
     }
   }, [catalog]);
   function cancel() {
+    setRemoving(null);
+    setBackupConfirmed(false);
+    setRemoveName("");
     generation.current++;
     catalog.lockAll();
     setUnlocked(null);
@@ -361,9 +369,9 @@ export function LocalVaultPanel({
             {saved.map((vault) => (
               <li
                 key={vault.id}
-                className="flex items-center justify-between gap-2 rounded-xl border border-border p-3"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3"
               >
-                <span>
+                <span className="min-w-0 flex-1 break-words">
                   {vault.name}
                   <span className="block text-xs text-muted-foreground">
                     {vault.damaged
@@ -373,19 +381,31 @@ export function LocalVaultPanel({
                         : "Locked"}
                   </span>
                 </span>
-                {unlocked?.id === vault.id ? (
-                  <Button variant="outline" onClick={cancel}>
-                    Lock wallet
-                  </Button>
-                ) : (
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {unlocked?.id === vault.id ? (
+                    <Button variant="outline" onClick={cancel}>
+                      Lock wallet
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      disabled={vault.damaged}
+                      onClick={() => begin("unlock", vault.id)}
+                    >
+                      Unlock
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
-                    disabled={vault.damaged}
-                    onClick={() => begin("unlock", vault.id)}
+                    onClick={() => {
+                      cancel();
+                      setRemoving(vault);
+                    }}
+                    aria-label={`Remove ${vault.name}`}
                   >
-                    Unlock
+                    Remove
                   </Button>
-                )}
+                </div>
               </li>
             ))}
           </ul>
@@ -405,6 +425,64 @@ export function LocalVaultPanel({
             </div>
           )}
         </>
+      )}
+      {removing && (
+        <section
+          aria-label="Remove encrypted wallet"
+          className="space-y-3 rounded-xl border border-destructive/50 p-4"
+        >
+          <h3 className="font-semibold">Remove {removing.name}?</h3>
+          <p className="text-sm text-muted-foreground">
+            This permanently removes this encrypted wallet copy from this
+            browser. Funds stay on the network. To regain access, you need your
+            recovery phrase and any BIP39 passphrase. Your browser password
+            alone cannot recover it. Saved public history and address indexes
+            are retained for recovery.
+          </p>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={backupConfirmed}
+              onChange={(e) => setBackupConfirmed(e.target.checked)}
+            />
+            I have my recovery backup, or this is a disposable test wallet.
+          </label>
+          <Label htmlFor="remove-vault-name">
+            Type the wallet name to confirm
+          </Label>
+          <Input
+            id="remove-vault-name"
+            value={removeName}
+            onChange={(e) => setRemoveName(e.target.value)}
+            autoComplete="off"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setRemoving(null)}>
+              Cancel removal
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!backupConfirmed || removeName !== removing.name}
+              onClick={() => {
+                const id = removing.id;
+                try {
+                  catalog.remove(id);
+                  onRemoved?.(id);
+                  cancel();
+                  setNotice("Encrypted wallet removed from this browser.");
+                } catch {
+                  onRemoved?.(id);
+                  cancel();
+                  setError(
+                    "Removal could not fully finish. Check the wallet list before retrying; keep your recovery backup.",
+                  );
+                }
+              }}
+            >
+              Remove encrypted wallet
+            </Button>
+          </div>
+        </section>
       )}
       {mode !== "idle" && (
         <div className="space-y-3" data-private="true">

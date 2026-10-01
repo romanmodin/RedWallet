@@ -1,3 +1,7 @@
+# 0.39 wallet removal prepared
+
+User authorized individual test/demo wallet removal. Backup/name-gated encrypted deletion locks keys and preserves other vaults plus public indexes. Watch removal and persistent demo hide/restore added; empty dashboard handled. See V039. Publication pending.
+
 # 0.38 live lifecycle follow-up PASS
 
 Public fixture only. Encryption/signing self-test, wrong-password rejection,

@@ -204,3 +204,33 @@ describe("Live watched addresses", () => {
     ).toBe("unknown");
   });
 });
+
+it("removes watched addresses independently and persists/restores hidden demos", async () => {
+  seedWatch();
+  const service = new BridgeWalletService(async () => makeActor());
+  const initial = await service.listWallets();
+  if (!initial.ok) throw Error("Expected wallet list");
+  const demo = initial.value.find((w) => w.isDemo);
+  const watch = initial.value.find((w) => !w.isDemo);
+  if (!demo || !watch) throw Error("Expected demo and watched fixture");
+  await service.setActiveWallet(demo.id);
+  expect((await service.removeWallet(demo.id)).ok).toBe(true);
+  const next = await new BridgeWalletService(async () =>
+    makeActor(),
+  ).listWallets();
+  expect(next.ok && next.value.some((w) => w.id === demo.id)).toBe(false);
+  expect(next.ok && next.value.some((w) => w.id === watch.id)).toBe(true);
+  expect((await service.setActiveWallet(demo.id)).ok).toBe(false);
+  await service.hideDemoWallets();
+  const watches = await service.listWallets();
+  expect(watches.ok && watches.value.every((w) => !w.isDemo)).toBe(true);
+  await service.removeWallet(watch.id);
+  const empty = await service.listWallets();
+  expect(empty.ok && empty.value).toEqual([]);
+  expect((await service.getActiveWallet()).ok).toBe(false);
+  await service.restoreDemoWallets();
+  const restored = await service.listWallets();
+  expect(restored.ok && restored.value.some((w) => w.id === demo.id)).toBe(
+    true,
+  );
+});

@@ -1,7 +1,10 @@
 import type { BridgeActor } from "@/services/bridgeService";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AccountSnapshot } from "./account-reader";
-import { accountViewSession } from "./account-view-session";
+import {
+  accountViewSession,
+  clearAccountViewSessions,
+} from "./account-view-session";
 import { XbtKeySession, publicAddress } from "./key-material";
 import {
   loadPaymentDraft,
@@ -36,6 +39,19 @@ function fixture() {
   return { xpub, snapshot };
 }
 describe("durable public account observations", () => {
+  it("vault catalog changes reset live sessions without deleting saved account scans", () => {
+    const f = fixture();
+    const actor = {} as BridgeActor;
+    savePublicSnapshot(f.xpub, f.snapshot);
+    const before = accountViewSession(actor, f.xpub);
+    clearAccountViewSessions(true);
+    const after = accountViewSession(actor, f.xpub);
+    expect(after).not.toBe(before);
+    expect(after.snapshot).toEqual(f.snapshot);
+    expect(after.checked).toBe(41);
+    clearAccountViewSessions();
+    expect(loadPublicSnapshot(f.xpub)).toBeNull();
+  });
   it("restores after new actor/session with original time and bigint values", () => {
     const f = fixture();
     savePublicSnapshot(f.xpub, f.snapshot);

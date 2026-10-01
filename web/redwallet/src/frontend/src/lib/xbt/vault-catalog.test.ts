@@ -17,6 +17,9 @@ function storage(
     },
     key: (i) => [...values.keys()][i] ?? null,
     getItem: (key) => values.get(key) ?? null,
+    removeItem: (key) => {
+      values.delete(key);
+    },
     setItem: (key, value) => {
       if (failLabels && key.startsWith("redwallet.vault-label."))
         throw Error("quota");
@@ -82,5 +85,50 @@ describe("encrypted wallet inventory", () => {
       catalog.create("New", { mnemonic: phrase, passphrase: "" }, password),
     ).rejects.toThrow("Storage denied");
     expect(store.values.size).toBe(1);
+  });
+});
+
+describe("individual vault removal", () => {
+  it("locks the removed vault, preserves another encrypted copy and public indexes, and cancels pending unlock", async () => {
+    const store = storage();
+    const catalog = new VaultCatalog(store, cryptoApi);
+    const a = await catalog.create(
+      "A",
+      { mnemonic: phrase, passphrase: "" },
+      password,
+    );
+    const b = await catalog.create(
+      "B",
+      { mnemonic: phrase, passphrase: "" },
+      password,
+    );
+    const other = store.getItem(`redwallet.vault.v1.${b.id}`);
+    store.setItem("redwallet.issued.v1.public-test", "retained");
+    const controller = catalog.controller(a.id);
+    await controller.unlock(password);
+    const pending = controller.unlock(password);
+    const rejected = expect(pending).rejects.toThrow("cancelled");
+    catalog.remove(a.id);
+    await rejected;
+    expect(controller.locked).toBe(true);
+    expect(catalog.list().map((v) => v.id)).toEqual([b.id]);
+    expect(store.getItem(`redwallet.vault.v1.${b.id}`)).toBe(other);
+    expect(store.getItem(`redwallet.vault-label.v1.${a.id}`)).toBeNull();
+    expect(store.getItem("redwallet.issued.v1.public-test")).toBe("retained");
+  });
+  it("reports a refused deletion and keeps its encrypted copy discoverable", async () => {
+    const store = storage();
+    const catalog = new VaultCatalog(store, cryptoApi);
+    const { id } = await catalog.create(
+      "A",
+      { mnemonic: phrase, passphrase: "" },
+      password,
+    );
+    store.removeItem = () => {};
+    expect(() => catalog.remove(id)).toThrow("could not be removed");
+    expect(catalog.list()).toHaveLength(1);
+    expect(() => catalog.remove("../other")).toThrow(
+      "Invalid wallet identifier",
+    );
   });
 });

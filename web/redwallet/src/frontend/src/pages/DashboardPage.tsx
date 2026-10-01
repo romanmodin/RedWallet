@@ -13,6 +13,7 @@ import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
 import { LocalWalletEntry } from "@/components/layout/LocalWalletEntry";
 import { NetworkIndicator } from "@/components/layout/NetworkIndicator";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/states/EmptyState";
 import { ErrorState } from "@/components/states/ErrorState";
 import { LoadingState } from "@/components/states/LoadingState";
 import { OfflineState } from "@/components/states/OfflineState";
@@ -25,6 +26,7 @@ import { formatFiat } from "@/lib/format";
 import { bridgeWalletService } from "@/services/bridgeService";
 import { fallbackRate } from "@/services/fiatRate";
 import type { FiatRate, Transaction } from "@/services/types";
+import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -54,7 +56,12 @@ function WatchedDashboardPage() {
   const walletId = activeWallet?.id ?? null;
 
   const loadActivity = useCallback(async () => {
-    if (!walletId) return;
+    if (!walletId) {
+      ++requestSequence.current;
+      setTransactions([]);
+      setIsLoadingActivity(false);
+      return;
+    }
     const request = ++requestSequence.current;
     setTransactions([]);
     setIsLoadingActivity(true);
@@ -103,9 +110,11 @@ function WatchedDashboardPage() {
       <PageHeader
         title="Dashboard"
         description={
-          activeWallet?.isDemo !== false
-            ? "Your demo wallet at a glance"
-            : "Your watched XBT address at a glance"
+          !activeWallet
+            ? "Add or recover a wallet to get started"
+            : activeWallet.isDemo
+              ? "Your demo wallet at a glance"
+              : "Your watched XBT address at a glance"
         }
         action={
           <div className="flex items-center gap-2">
@@ -132,8 +141,18 @@ function WatchedDashboardPage() {
           description={error.message}
           onRetry={handleRetry}
         />
-      ) : isLoading || !activeWallet ? (
-        <LoadingState rows={4} label="Loading your demo wallet" />
+      ) : isLoading ? (
+        <LoadingState rows={4} label="Loading your wallet" />
+      ) : !activeWallet ? (
+        <EmptyState
+          title="No wallet selected"
+          description="Add a public address, create an encrypted wallet, or recover your wallet from a backup."
+          action={
+            <Button asChild>
+              <Link to="/wallets">Open wallets</Link>
+            </Button>
+          }
+        />
       ) : (
         <>
           <BalanceCard

@@ -12,6 +12,26 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 describe("Dashboard", () => {
+  it("hides demo accounts, offers empty onboarding, and restores them", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByTestId("dashboard.balance_card");
+    await user.click(screen.getByTestId("app_shell.nav.wallets"));
+    await user.click(
+      await screen.findByRole("button", { name: "Hide demo accounts" }),
+    );
+    await screen.findByText("No wallets yet");
+    await user.click(screen.getByTestId("app_shell.nav.home"));
+    expect(await screen.findByText("No wallet selected")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("dashboard.balance_card"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "Open wallets" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Restore demo accounts" }),
+    );
+    await screen.findByText("Primary Vault");
+  });
   it("shows the active wallet's XBT balance and fiat equivalent", async () => {
     render(<App />);
 

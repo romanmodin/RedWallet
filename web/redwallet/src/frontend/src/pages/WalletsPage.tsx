@@ -1,12 +1,4 @@
-/**
- * WalletsPage — demo wallet / account selector.
- *
- * Lists the demo wallets, marks the active one, and lets the user switch the
- * active wallet (reflected everywhere the wallet context is consumed) or add
- * a new clearly-labeled demo wallet by name. No keys, mnemonics, imports, or
- * address derivation exist anywhere on this screen.
- */
-
+/** Browser-local encrypted wallets, watched addresses and optional demo accounts. */
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/states/EmptyState";
 import { ErrorState } from "@/components/states/ErrorState";
@@ -41,10 +33,18 @@ export function WalletsPage() {
     refresh,
     selectWallet,
     addWallet,
+    removeWallet,
+    hideDemoWallets,
+    restoreDemoWallets,
   } = useWallet();
   const { settings } = useSettings();
   const navigate = useNavigate();
 
+  const [removeTarget, setRemoveTarget] = useState<
+    (typeof wallets)[number] | null
+  >(null);
+  const [removeError, setRemoveError] = useState("");
+  const [isRemoving, setIsRemoving] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftAddress, setDraftAddress] = useState("");
@@ -120,6 +120,22 @@ export function WalletsPage() {
         Watched addresses and demo accounts
       </h2>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          disabled={isLoading || isSelecting || isRemoving}
+          onClick={() => void hideDemoWallets()}
+        >
+          Hide demo accounts
+        </Button>
+        <Button
+          variant="outline"
+          disabled={isLoading || isSelecting || isRemoving}
+          onClick={() => void restoreDemoWallets()}
+        >
+          Restore demo accounts
+        </Button>
+      </div>
       <div className="mb-5 flex items-start gap-3 rounded-2xl border border-accent/30 bg-accent/[0.07] p-4">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
           <ShieldCheck className="size-4" aria-hidden="true" />
@@ -158,9 +174,57 @@ export function WalletsPage() {
           displayUnit={settings.displayUnit}
           disabled={isSelecting}
           onSelect={(walletId) => void handleSelect(walletId)}
+          onRemove={(id) => {
+            setRemoveTarget(wallets.find((w) => w.id === id) ?? null);
+            setRemoveError("");
+          }}
         />
       )}
 
+      <Dialog
+        open={!!removeTarget}
+        onOpenChange={(open) => {
+          if (!open && !isRemoving) setRemoveTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove {removeTarget?.name}?</DialogTitle>
+            <DialogDescription>
+              {removeTarget?.isDemo
+                ? "This hides this simulated account. You can bring it back with Restore demo accounts."
+                : "This removes the watched public address from this browser. Funds and the wallet that holds your keys are unaffected. You can add the address again later."}
+            </DialogDescription>
+          </DialogHeader>
+          {removeError && <p role="alert">{removeError}</p>}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={isRemoving}
+              onClick={() => setRemoveTarget(null)}
+            >
+              Cancel removal
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isRemoving}
+              onClick={async () => {
+                if (!removeTarget) return;
+                setIsRemoving(true);
+                const removed = await removeWallet(removeTarget.id);
+                setIsRemoving(false);
+                if (removed) setRemoveTarget(null);
+                else
+                  setRemoveError(
+                    "Could not remove the account. Retry when browser storage is available.",
+                  );
+              }}
+            >
+              Remove account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent data-ocid="wallets.add_dialog">
           <DialogHeader>

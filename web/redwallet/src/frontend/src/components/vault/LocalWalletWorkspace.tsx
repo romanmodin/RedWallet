@@ -107,7 +107,7 @@ function ProtectedLocalWorkspace({
   useEffect(() => {
     const storage = (event: StorageEvent) => {
       if (event.key === null || event.key.startsWith("redwallet.vault.v1.")) {
-        clearAccountViewSessions();
+        clearAccountViewSessions(true);
         setSelected(null);
         local?.select(null);
       }
@@ -144,6 +144,13 @@ function ProtectedLocalWorkspace({
           setLocked(false);
         }}
         onLocked={() => setLocked(true)}
+        onRemoved={(id) => {
+          if (selected?.id === id) {
+            setSelected(null);
+            setSnapshot(null);
+          }
+          if (local?.selected?.id === id) local.select(null);
+        }}
       />
       {selected && (
         <div className="space-y-4">

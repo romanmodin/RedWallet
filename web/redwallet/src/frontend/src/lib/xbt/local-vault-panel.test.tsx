@@ -236,3 +236,53 @@ describe("local-only encrypted vault form", () => {
     await waitFor(() => expect(catalog.list()).toHaveLength(0));
   });
 });
+
+it("requires backup acknowledgment and exact wallet name, and cancellation preserves the vault", async () => {
+  const catalog = new VaultCatalog(localStorage, cryptoApi);
+  const { id } = await catalog.create(
+    "Public removal fixture",
+    { mnemonic: phrase, passphrase: "" },
+    password,
+  );
+  const removed = vi.fn();
+  render(
+    <LocalVaultPanel
+      catalog={catalog}
+      cryptoApi={cryptoApi}
+      onRemoved={removed}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Remove Public removal fixture" }),
+  );
+  expect(
+    screen.getByRole("button", { name: "Remove encrypted wallet" }),
+  ).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel removal" }));
+  expect(catalog.list()).toHaveLength(1);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Remove Public removal fixture" }),
+  );
+  fireEvent.click(
+    screen.getByLabelText(
+      "I have my recovery backup, or this is a disposable test wallet.",
+    ),
+  );
+  fireEvent.change(screen.getByLabelText("Type the wallet name to confirm"), {
+    target: { value: "wrong" },
+  });
+  expect(
+    screen.getByRole("button", { name: "Remove encrypted wallet" }),
+  ).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Type the wallet name to confirm"), {
+    target: { value: "Public removal fixture" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Remove encrypted wallet" }),
+  );
+  expect(catalog.list()).toHaveLength(0);
+  expect(removed).toHaveBeenCalledWith(id);
+  expect(
+    screen.getByText("Encrypted wallet removed from this browser."),
+  ).toBeInTheDocument();
+});

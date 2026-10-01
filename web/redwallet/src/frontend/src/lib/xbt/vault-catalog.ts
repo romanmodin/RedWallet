@@ -5,6 +5,7 @@ import { VaultController, type VaultStorage } from "./vault-controller";
 
 export interface CatalogStorage extends VaultStorage {
   readonly length: number;
+  removeItem(key: string): void;
   key(index: number): string | null;
 }
 export interface SavedVault {
@@ -103,6 +104,18 @@ export class VaultCatalog {
       /* Ciphertext remains discoverable directly by its own key. */
     }
     return { id, labelSaved };
+  }
+
+  /** Locks and removes only this encrypted copy. Public account indexes are retained
+   * so recovering the same account does not reuse previously issued addresses. */
+  remove(id: string): void {
+    checkedId(id);
+    this.#controllers.get(id)?.lock();
+    this.storage.removeItem(PREFIX + id);
+    if (this.storage.getItem(PREFIX + id) !== null)
+      throw Error("Wallet could not be removed from this browser.");
+    this.#controllers.delete(id);
+    this.storage.removeItem(LABEL_PREFIX + id);
   }
 
   lockAll(): void {

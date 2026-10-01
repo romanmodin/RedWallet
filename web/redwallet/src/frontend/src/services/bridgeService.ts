@@ -162,16 +162,102 @@ export class BridgeWalletService implements WalletService {
     }
   }
 
+  private hiddenDemos(): string[] {
+    try {
+      const value = JSON.parse(
+        localStorage.getItem("redwallet.hidden-demos.v1") || "[]",
+      );
+      return Array.isArray(value)
+        ? value.filter((id) => typeof id === "string" && id.startsWith("wlt-"))
+        : [];
+    } catch {
+      return [];
+    }
+  }
   async listWallets(): Promise<ServiceResult<Wallet[]>> {
     const demos = await this.demo.listWallets();
-    return ok([...this.watchWallets(), ...(demos.ok ? demos.value : [])]);
+    const hidden = new Set(this.hiddenDemos());
+    return ok([
+      ...this.watchWallets(),
+      ...(demos.ok ? demos.value.filter((w) => !hidden.has(w.id)) : []),
+    ]);
+  }
+
+  async removeWallet(id: string): Promise<ServiceResult<boolean>> {
+    try {
+      const watches = this.watchWallets();
+      if (watches.some((w) => w.id === id)) {
+        localStorage.setItem(
+          this.storageKey,
+          JSON.stringify(
+            watches
+              .filter((w) => w.id !== id)
+              .map(({ id, name, address }) => ({ id, name, address })),
+          ),
+        );
+        if (this.watchWallets().some((w) => w.id === id))
+          throw Error("Not removed");
+      } else {
+        const demos = await this.demo.listWallets();
+        if (!demos.ok || !demos.value.some((w) => w.id === id))
+          return err("not_found", "Wallet not found.");
+        localStorage.setItem(
+          "redwallet.hidden-demos.v1",
+          JSON.stringify([...new Set([...this.hiddenDemos(), id])]),
+        );
+        if (!this.hiddenDemos().includes(id)) throw Error("Not removed");
+      }
+      this.activeId = null;
+      if (localStorage.getItem("redwallet.active-wallet.v1") === id)
+        localStorage.removeItem("redwallet.active-wallet.v1");
+      return ok(true);
+    } catch {
+      return err("unknown", "Could not remove this wallet from this browser.");
+    }
+  }
+  async hideDemoWallets(): Promise<ServiceResult<boolean>> {
+    try {
+      const demos = await this.demo.listWallets();
+      if (!demos.ok) return demos;
+      localStorage.setItem(
+        "redwallet.hidden-demos.v1",
+        JSON.stringify(demos.value.map((w) => w.id)),
+      );
+      if (demos.value.some((w) => !this.hiddenDemos().includes(w.id)))
+        throw Error("Not hidden");
+      this.activeId = null;
+      return ok(true);
+    } catch {
+      return err("unknown", "Could not hide demo accounts.");
+    }
+  }
+  async restoreDemoWallets(): Promise<ServiceResult<boolean>> {
+    try {
+      localStorage.removeItem("redwallet.hidden-demos.v1");
+      if (localStorage.getItem("redwallet.hidden-demos.v1") !== null)
+        throw Error("Not restored");
+      return ok(true);
+    } catch {
+      return err("unknown", "Could not restore demo accounts.");
+    }
   }
 
   async getActiveWallet(): Promise<ServiceResult<Wallet>> {
     const id =
       this.activeId ?? localStorage.getItem("redwallet.active-wallet.v1");
-    const watch = this.watchWallets().find((w) => w.id === id);
-    if (!watch) return this.demo.getActiveWallet();
+    const list = await this.listWallets();
+    if (!list.ok) return list;
+    const demoActive = await this.demo.getActiveWallet();
+    const chosen =
+      list.value.find((w) => w.id === id) ??
+      (demoActive.ok
+        ? list.value.find((w) => w.id === demoActive.value.id)
+        : undefined) ??
+      list.value[0];
+    if (!chosen)
+      return err("not_found", "No wallet selected. Add or recover a wallet.");
+    if (chosen.isDemo) return this.demo.setActiveWallet(chosen.id);
+    const watch = chosen;
     const balance = await this.getBalance(watch.id);
     const rate = await this.getFiatRate();
     return ok({
@@ -191,6 +277,8 @@ export class BridgeWalletService implements WalletService {
       localStorage.setItem("redwallet.active-wallet.v1", walletId);
       return this.getActiveWallet();
     }
+    if (this.hiddenDemos().includes(walletId))
+      return err("not_found", "This demo account is hidden.");
     const result = await this.demo.setActiveWallet(walletId);
     if (result.ok) {
       this.activeId = walletId;
@@ -200,7 +288,21 @@ export class BridgeWalletService implements WalletService {
   }
 
   async addDemoWallet(name: string): Promise<ServiceResult<Wallet>> {
-    return this.demo.addDemoWallet(name);
+    const result = await this.demo.addDemoWallet(name);
+    if (!result.ok) return result;
+    try {
+      localStorage.setItem(
+        "redwallet.hidden-demos.v1",
+        JSON.stringify(
+          this.hiddenDemos().filter((id) => id !== result.value.id),
+        ),
+      );
+      if (this.hiddenDemos().includes(result.value.id))
+        throw Error("Still hidden");
+      return result;
+    } catch {
+      return err("unknown", "Could not show the new demo account.");
+    }
   }
 
   async addWatchWallet(
@@ -586,4 +688,4 @@ export class BridgeWalletService implements WalletService {
 }
 
 /** Shared singleton used by the app. */
-export const bridgeWalletService: WalletService = new BridgeWalletService();
+export const bridgeWalletService = new BridgeWalletService();

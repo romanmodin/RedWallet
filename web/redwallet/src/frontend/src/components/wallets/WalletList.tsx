@@ -15,6 +15,7 @@ interface WalletListProps {
   /** Disable interaction while a selection is in flight. */
   disabled?: boolean;
   onSelect: (walletId: string) => void;
+  onRemove?: (walletId: string) => void;
 }
 
 export function WalletList({
@@ -23,6 +24,7 @@ export function WalletList({
   displayUnit,
   disabled = false,
   onSelect,
+  onRemove,
 }: WalletListProps) {
   return (
     <ul
@@ -43,6 +45,17 @@ export function WalletList({
             disabled={disabled}
             onSelect={onSelect}
           />
+          {onRemove && (
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label={`Remove ${wallet.name}`}
+              onClick={() => onRemove(wallet.id)}
+              className="mt-2 rounded-lg border border-border px-3 py-2 text-sm"
+            >
+              Remove
+            </button>
+          )}
         </li>
       ))}
     </ul>
