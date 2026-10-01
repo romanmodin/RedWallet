@@ -1,3 +1,12 @@
+# 0.35 prepared — iPhone control text sizing
+
+User verified0.34 phone provider switching/history retention. Reports slight
+zoom after lock/unlock/navigation. Touch controls now at least16CSSpx across
+breakpoints; text-size-adjust100%; normal pinch/page zoom preserved. CSS only
+plus release metadata. Typecheck/Biome217/build/metadata-CSP-display22 PASS.
+Caffeine exact import/export/hash/publish pending; iPhone final check required.
+See V035-IPHONE-TEXT-SIZING-2026-10-01.md.
+
 # 0.34 published — home primary, mempool.guide WSS backup
 
 Caffeine36/public0.34 LIVE. All368 source files exactly match compiled export;

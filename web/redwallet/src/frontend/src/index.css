@@ -20,6 +20,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Keep Safari text sizing stable as wallet panels appear and disappear. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Touch devices need readable controls even at desktop-width breakpoints.
+   Leave user-controlled page zoom available. */
+@media (any-pointer: coarse) {
+  #root input:not([type="checkbox"]):not([type="radio"]),
+  #root textarea,
+  #root select {
+    font-size: max(16px, 1rem);
+  }
+}
+
 @layer base {
   :root {
     color-scheme: dark;

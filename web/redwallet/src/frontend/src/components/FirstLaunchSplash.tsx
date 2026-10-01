@@ -56,7 +56,7 @@ export function FirstLaunchSplash({ children }: { children: ReactNode }) {
       >
         Continue to RedWallet
       </button>
-      <p className="text-xs text-white/50">RedWallet 0.34 · Preview</p>
+      <p className="text-xs text-white/50">RedWallet 0.35 · Preview</p>
     </main>
   );
 }
