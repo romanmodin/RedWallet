@@ -1,3 +1,11 @@
+# 0.36 published — Safari Keychain zoom recovery
+
+Caffeine38/public0.36 LIVE. All372source paths match actual export, backend
+unchanged.29focused/typecheck/Biome219/build PASS. Live disposable fixture
+unlock/focus release/no overflow PASS. iPhone Keychain zoom result remains
+user check; temporary viewport reset is a candidate fix, not proven on Safari.
+No persistent pinch restriction. See V036 report; supersedes pending notes.
+
 # 0.36 prepared — Safari Keychain zoom recovery
 
 User reports0.35 still zooms after Keychain autofill; manual pinch out restores
