@@ -104,7 +104,11 @@ describe("local-only encrypted vault form", () => {
     fireEvent.change(screen.getByLabelText("Wallet password"), {
       target: { value: password },
     });
+    const passwordField = screen.getByLabelText("Wallet password");
+    passwordField.focus();
+    expect(passwordField).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Unlock wallet" }));
+    expect(passwordField).not.toHaveFocus();
     await screen.findByText("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
     expect(unlocked).toHaveBeenCalledTimes(1);
     fireEvent(window, new Event("pagehide"));

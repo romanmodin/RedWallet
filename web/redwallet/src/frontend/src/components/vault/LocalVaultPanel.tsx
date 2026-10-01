@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { restoreWalletViewport } from "@/lib/wallet-viewport";
 import {
   type PublicXbtAccount,
   generateRecoveryPhrase,
@@ -43,6 +44,7 @@ export function LocalVaultPanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const generation = useRef(0);
+  const unlockPassword = useRef<HTMLInputElement>(null);
   const formDeadline = useRef({ wall: 0, monotonic: 0 });
   const formExpired = useCallback(
     () =>
@@ -253,6 +255,8 @@ export function LocalVaultPanel({
     }
     const operation = ++generation.current;
     const secretPassword = password;
+    // Dismiss the Keychain/keyboard focus before disabling the password field.
+    unlockPassword.current?.blur();
     setPassword("");
     setBusy(true);
     setError("");
@@ -272,6 +276,7 @@ export function LocalVaultPanel({
       }
       setUnlocked({ id: selected, account });
       setMode("idle");
+      restoreWalletViewport();
       callbacks.current.onUnlocked?.(selected, account);
     } catch {
       if (generation.current === operation)
@@ -486,6 +491,7 @@ export function LocalVaultPanel({
                 <Label htmlFor="unlock-vault-password">Wallet password</Label>
                 <Input
                   id="unlock-vault-password"
+                  ref={unlockPassword}
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

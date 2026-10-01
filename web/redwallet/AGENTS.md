@@ -1,3 +1,13 @@
+# 0.36 prepared — Safari Keychain zoom recovery
+
+User reports0.35 still zooms after Keychain autofill; manual pinch out restores
+layout. Explicitly blur unlock password before disabling; successful unlock
+requests normal viewport scale for350ms only on zoomed iPhone/iPad/iPod Safari.
+Restore original viewport, leave other browsers and unzoomed Safari unchanged.
+29focused tests/typecheck/Biome219/build PASS. Caffeine publication pending;
+actual Safari Keychain cannot be reproduced in cloud Chromium, phone check required.
+See V036 report. This supersedes0.35 pending phone notes.
+
 # 0.35 published — touch control sizing
 
 Caffeine37/public0.35 LIVE; all369 paths exactly match reviewed export and
