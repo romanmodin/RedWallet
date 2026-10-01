@@ -31,9 +31,18 @@ def plist_from_output(data):
     end = data.index(b"</plist>", start) + len(b"</plist>")
     return plistlib.loads(data[start:end])
 
+def extract_leaf_certificate(bundle, prefix):
+    # This optional codesign argument must be attached, or the prefix is a file operand.
+    run("codesign", "-d", "--extract-certificates=" + str(prefix), str(bundle))
+    return Path(str(prefix) + "0").read_bytes()
+
 if sys.argv[1:] == ["--check-requirement"]:
     run("csreq", "-r", requirement, "-t")
-    print("Signing certificate requirement parsed successfully")
+    developer = Path(run("xcode-select", "-p").decode().strip())
+    with tempfile.TemporaryDirectory(prefix="redwallet-certificate-check-") as temporary:
+        leaf = extract_leaf_certificate(developer.parent.parent, Path(temporary) / "certificate-")
+        assert leaf, "Missing Xcode signing certificate"
+    print("Signing requirement parsed and certificate extraction passed")
     sys.exit(0)
 
 ipa = Path(sys.argv[1]).resolve()
@@ -64,8 +73,7 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
         entitlements = plist_from_output(signature.stdout + signature.stderr)
         profile = plistlib.loads(run("security", "cms", "-D", "-i", str(bundle / "embedded.mobileprovision")))
         certificate_prefix = str(root / ("certificate-" + str(len(receipt)) + "-"))
-        run("codesign", "-d", "--extract-certificates=" + certificate_prefix, str(bundle))
-        leaf_certificate = Path(certificate_prefix + "0").read_bytes()
+        leaf_certificate = extract_leaf_certificate(bundle, certificate_prefix)
         assert leaf_certificate in profile["DeveloperCertificates"], "Signer not authorized by profile"
         profile_entitlements = profile["Entitlements"]
         expected_app_id = team + "." + identifier
