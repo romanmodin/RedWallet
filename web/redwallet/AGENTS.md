@@ -5,7 +5,9 @@ unused Quill/react-use/3D template packages; pinned seroval1.5.3/lodash4.18.0
 via scoped web workspace overrides. Frozen install and fresh production audit
 PASS:0known advisories,200dependencies vs301. Crypto and direct router versions
 unchanged;0.37Safari focus fix retained. Added production audit to separate web
-CI. Full clean-runner tests/builds and exact Caffeine publication pending.
+CI. Clean GitHub run36910218269 passed every step: frontend382tests,
+bridge tests, both typechecks/builds and audit. Exact Caffeine publication
+pending; editor session signed out.
 No exploit demonstrated; audit count is not proof of runtime exposure. See V038.
 
 # Release documentation and web CI follow-up

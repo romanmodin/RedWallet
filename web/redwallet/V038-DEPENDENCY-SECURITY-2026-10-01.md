@@ -34,4 +34,10 @@ advisories and200dependencies, previously301. Local and Zorin lock SHA256:
 Audit artifacts: /tmp/redwallet-production-audit-20261001.json and
 /tmp/redwallet-038-audit.json on Zorin. New GitHub step audits production
 packages at every web push/PR and fails on reported vulnerabilities or audit
-errors. Clean-runner regression/build and exact Caffeine publication pending.
+errors.
+
+Clean GitHub runner PASS at source188c6e28ba5fc64c2d8c633718a9cddcdc2d898c:
+https://github.com/romanmodin/RedWallet/actions/runs/36910218269.
+All steps passed: locked install, production audit, frontend typecheck/lint,
+63files/382tests and build, bridge typecheck/tests and build.
+Exact Caffeine publication pending: current editor session is signed out.
