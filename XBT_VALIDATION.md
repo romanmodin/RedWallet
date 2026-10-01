@@ -237,3 +237,36 @@ and mine **only the control on isolated regtest**. Stop the temporary node.
 This closes the independent Bitcoin-node rejection check for the tested
 two-input P2WPKH flow. It does not prove the complete phone/Fulcrum send flow,
 physical iPhone behavior, other script types, or TestFlight readiness.
+
+## Wallet safety review checkpoint — 2026-10-01
+
+The pinned bitcoinjs-lib 7.0.1 dependency reproduces the loss of `sighashType`
+when a finalized input is cleared and re-signed. The resulting default Bitcoin
+signature ends in `0x01`. This dependency-level regression does not establish
+that every step of the reported UI attack succeeds end to end.
+
+XBT Payjoin is now rejected at transaction construction and signing, and its
+URL and switch are gated by wallet capability. Both Electrum broadcast entry
+points and the XBT wallet reject malformed P2WPKH witnesses and signatures
+without the Unified `0x21` flag before network access. These broadcast guards
+check encoding and flags; validating the cryptographic digest also requires
+the previous outputs and remains the node/signing regression above.
+
+The complete local unit run passed 68 suites: 638 tests passed and one skipped.
+TypeScript, lint, localization, Fastlane metadata, and the four source-run
+provenance regression tests passed. No production app code changed after this
+run; subsequent changes concern test interaction and release verification.
+
+iOS simulator run `36926153210` passed the supported-profile, creation/receive
+amount, and manual-price persistence checks. Run `36930416883` passed rejection
+of the unsupported watch-only zpub with real keyboard input and text-retention
+assertions. Its recovery case timed out on the initial native splash screen,
+before exercising recovery; run `36932680800` reruns both import checks with a
+bounded cold-start wait. That pending run is not recorded as a pass.
+
+These simulator checks reuse the owner repository's unsigned simulator build
+from run `36913419745`. Its recovery and receive implementation is unchanged,
+but it predates the Payjoin/broadcast changes; the new safety behavior is
+covered by the real-dependency unit regressions rather than this simulator
+artifact. Physical iPhone checks and the complete phone/Fulcrum send flow
+remain open.
