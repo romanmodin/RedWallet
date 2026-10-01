@@ -133,8 +133,10 @@ export async function dismissMnemonicKeyboard() {
     .toBeVisible()
     .withTimeout(10000);
   await element(by.text('Done')).tap();
+  // Rounded button corners are clipped by the wrapper. Use Detox's normal
+  // visibility threshold before exercising its real tap action.
   await waitFor(element(by.id('DoImport')))
-    .toBeVisible(100)
+    .toBeVisible()
     .withTimeout(10000);
 }
 
