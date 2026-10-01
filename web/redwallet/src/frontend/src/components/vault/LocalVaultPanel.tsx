@@ -55,6 +55,8 @@ export function LocalVaultPanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const generation = useRef(0);
+  const formState = useRef({ mode, busy });
+  formState.current = { mode, busy };
   const unlockPassword = useRef<HTMLInputElement>(null);
   const formDeadline = useRef({ wall: 0, monotonic: 0 });
   const formExpired = useCallback(
@@ -112,8 +114,34 @@ export function LocalVaultPanel({
       setMode("idle");
       setBusy(false);
     };
+    const background = () => {
+      // Keep only an unfinished recovery entry in this resident tab, bounded by
+      // the original deadline. Saved-wallet keys and pending operations still lock.
+      if (
+        formState.current.mode === "recover" &&
+        !formState.current.busy &&
+        !formExpired()
+      ) {
+        catalog.lockAll();
+        setUnlocked(null);
+        callbacks.current.onLocked?.();
+        return;
+      }
+      lock();
+    };
+    const foreground = () => {
+      // Safari may suspend timers in the background. Check both clocks before
+      // showing or accepting a retained entry; backgrounding never extends it.
+      if (formState.current.mode === "recover" && formExpired()) {
+        lock();
+        setNotice(
+          "Recovery entry expired after five minutes. Secret fields were cleared; start again to continue.",
+        );
+      }
+    };
     const visibility = () => {
-      if (document.visibilityState !== "visible") lock();
+      if (document.visibilityState === "visible") foreground();
+      else background();
     };
     const storage = (event: StorageEvent) => {
       if (event.key === null || event.key.startsWith("redwallet.vault.v1.")) {
@@ -121,18 +149,20 @@ export function LocalVaultPanel({
         refresh();
       }
     };
-    window.addEventListener("pagehide", lock);
+    window.addEventListener("pagehide", background);
+    window.addEventListener("pageshow", foreground);
     window.addEventListener("storage", storage);
     document.addEventListener("visibilitychange", visibility);
     return () => {
       generation.current++;
       catalog.lockAll();
       callbacks.current.onLocked?.();
-      window.removeEventListener("pagehide", lock);
+      window.removeEventListener("pagehide", background);
+      window.removeEventListener("pageshow", foreground);
       window.removeEventListener("storage", storage);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [catalog, clearSecrets, refresh]);
+  }, [catalog, clearSecrets, refresh, formExpired]);
   useEffect(() => {
     if (!unlocked) return;
     const timer = setInterval(() => {
@@ -490,6 +520,11 @@ export function LocalVaultPanel({
             {(mode === "create" || mode === "recover") && entryFields}
             {mode === "recover" && (
               <>
+                <p className="text-xs text-muted-foreground">
+                  You can briefly switch apps and return to this entry in the
+                  same tab, for up to five minutes. Cancel, reload, or closing
+                  the tab clears it.
+                </p>
                 <Label htmlFor="local-vault-phrase">Recovery phrase</Label>
                 <textarea
                   id="local-vault-phrase"

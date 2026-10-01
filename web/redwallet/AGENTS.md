@@ -1,3 +1,17 @@
+# 0.40 recovery-entry fix prepared — publication pending
+
+User confirmed web wallet, phrase/password entry resets on leaving the screen.
+LocalVaultPanel now retains only unfinished non-busy recovery entry in memory
+across brief visibility/pagehide events within the original five-minute deadline.
+Return checks both clocks even if timers were suspended. No plaintext storage or
+network transfer. Keys/pending encryption/unlock still lock/cancel. Cancel,
+expiry, vault invalidation and unmount clear entry; reload has no draft to restore.
+Focused12 tests PASS. Full verification is recorded in V040.
+Automatic approval review rejected opening the private Caffeine project URL as
+outside the explicitly authorized fix; no indirect UI access attempted. Public
+remains0.39. Exact import/export/publish and actual iPhone switch check pending.
+Native worktrees/backend/provider/signing/pricing unchanged.
+
 # 0.39 published — wallet removal and corrected demo pricing
 
 Caffeine42/public0.39 LIVE. Source b95792db4; clean GitHub36922369490 PASS:388frontend tests/63files, Biome220/typecheck/build/audit, bridge checks. All378source paths exactly match export; backend digest unchanged. Browser encrypted removal gates/cancel, individual demo removal/reload, hide-all/reload/empty dashboard/restore PASS. Both fixture vaults preserved. All visible demo fiat amounts now use configured NeoxEX/manual XBT quote, no BTC-sized sample rate; live USDC/Stale labels verified. See V039. This supersedes pending/sign-in notes below. Native iPhone untouched.

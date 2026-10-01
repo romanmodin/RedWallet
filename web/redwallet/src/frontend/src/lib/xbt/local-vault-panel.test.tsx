@@ -87,6 +87,154 @@ describe("local-only encrypted vault form", () => {
       clock.mockRestore();
     }
   });
+  it("keeps recovery fields across app switches and pagehide, then saves only ciphertext", async () => {
+    const catalog = new VaultCatalog(localStorage, cryptoApi);
+    const network = vi.spyOn(globalThis, "fetch");
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    try {
+      render(<LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />);
+      fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+      fillDetails();
+      fireEvent.change(screen.getByLabelText("Recovery phrase"), {
+        target: { value: phrase },
+      });
+      fireEvent.change(screen.getByLabelText("Optional BIP39 passphrase"), {
+        target: { value: "public resume fixture" },
+      });
+      fireEvent.click(screen.getByRole("checkbox"));
+      for (let i = 0; i < 2; i++) {
+        visibility.mockReturnValue("hidden");
+        fireEvent(document, new Event("visibilitychange"));
+        fireEvent(window, new Event("pagehide"));
+        visibility.mockReturnValue("visible");
+        fireEvent(document, new Event("visibilitychange"));
+        fireEvent(window, new Event("pageshow"));
+        expect(screen.getByLabelText("Wallet name")).toHaveValue(
+          "Public test fixture",
+        );
+        expect(screen.getByLabelText("Recovery phrase")).toHaveValue(phrase);
+        expect(screen.getByLabelText("Optional BIP39 passphrase")).toHaveValue(
+          "public resume fixture",
+        );
+        expect(screen.getByLabelText("Browser wallet password")).toHaveValue(
+          password,
+        );
+        expect(screen.getByLabelText("Confirm password")).toHaveValue(password);
+        expect(screen.getByRole("checkbox")).toBeChecked();
+      }
+      expect(localStorage.length).toBe(0);
+      expect(network).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Save encrypted wallet" }),
+      );
+      await screen.findByText(
+        "Encrypted wallet saved in this browser. Unlock it to verify its address.",
+      );
+      expect(catalog.list()).toHaveLength(1);
+      const stored = Array.from({ length: localStorage.length }, (_, i) =>
+        localStorage.getItem(localStorage.key(i)!),
+      ).join();
+      expect(stored).not.toContain(phrase);
+      expect(stored).not.toContain(password);
+      expect(stored).not.toContain("public resume fixture");
+      expect(screen.queryByLabelText("Recovery phrase")).toBeNull();
+    } finally {
+      visibility.mockRestore();
+      network.mockRestore();
+    }
+  });
+
+  it.each(["wall", "monotonic"])(
+    "clears recovery on return when the %s deadline expired while timers were suspended",
+    (expiredClock) => {
+      let wall = 1000;
+      let monotonic = 1000;
+      const wallClock = vi.spyOn(Date, "now").mockImplementation(() => wall);
+      const monoClock = vi
+        .spyOn(performance, "now")
+        .mockImplementation(() => monotonic);
+      const visibility = vi.spyOn(document, "visibilityState", "get");
+      try {
+        const catalog = new VaultCatalog(localStorage, cryptoApi);
+        render(<LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />);
+        fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+        fillDetails();
+        fireEvent.change(screen.getByLabelText("Recovery phrase"), {
+          target: { value: phrase },
+        });
+        visibility.mockReturnValue("hidden");
+        fireEvent(document, new Event("visibilitychange"));
+        if (expiredClock === "wall") wall += 300001;
+        else {
+          monotonic += 300001;
+          wall -= 60000;
+        }
+        visibility.mockReturnValue("visible");
+        fireEvent(document, new Event("visibilitychange"));
+        expect(screen.queryByLabelText("Recovery phrase")).toBeNull();
+        expect(screen.getByText(/Recovery entry expired/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+        expect(screen.getByLabelText("Recovery phrase")).toHaveValue("");
+        expect(screen.getByLabelText("Browser wallet password")).toHaveValue(
+          "",
+        );
+        expect(localStorage.length).toBe(0);
+      } finally {
+        visibility.mockRestore();
+        monoClock.mockRestore();
+        wallClock.mockRestore();
+      }
+    },
+  );
+
+  it("discards recovery on navigation unmount or vault storage invalidation", () => {
+    const catalog = new VaultCatalog(localStorage, cryptoApi);
+    const view = render(
+      <LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+    fillDetails();
+    fireEvent.change(screen.getByLabelText("Recovery phrase"), {
+      target: { value: phrase },
+    });
+    fireEvent(window, new Event("pagehide"));
+    view.unmount();
+    render(<LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />);
+    fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+    expect(screen.getByLabelText("Recovery phrase")).toHaveValue("");
+    expect(screen.getByLabelText("Browser wallet password")).toHaveValue("");
+    fillDetails();
+    fireEvent.change(screen.getByLabelText("Recovery phrase"), {
+      target: { value: phrase },
+    });
+    fireEvent(
+      window,
+      new StorageEvent("storage", { key: "redwallet.vault.v1.other" }),
+    );
+    expect(screen.queryByLabelText("Recovery phrase")).toBeNull();
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("still cancels encryption on backgrounding instead of saving a hidden wallet", async () => {
+    const catalog = new VaultCatalog(localStorage, cryptoApi);
+    const create = vi.spyOn(catalog, "create");
+    render(<LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />);
+    fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+    fillDetails();
+    fireEvent.change(screen.getByLabelText("Recovery phrase"), {
+      target: { value: phrase },
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save encrypted wallet" }),
+    );
+    const pending = create.mock.results[0]!.value;
+    fireEvent(window, new Event("pagehide"));
+    await expect(pending).rejects.toThrow("cancelled");
+    expect(screen.queryByLabelText("Recovery phrase")).toBeNull();
+    expect(catalog.list()).toHaveLength(0);
+  });
+
   it("cancels an in-flight encryption without saving a hidden wallet", async () => {
     const catalog = new VaultCatalog(localStorage, cryptoApi);
     const create = vi.spyOn(catalog, "create");
@@ -205,7 +353,7 @@ describe("local-only encrypted vault form", () => {
       localStorage.getItem(`redwallet.vault.v1.${catalog.list()[0]!.id}`),
     ).not.toContain(words.join(" "));
   });
-  it("clears unsaved phrase/password/passphrase on backgrounding and never saves invalid recovery", async () => {
+  it("preserves invalid recovery entry on backgrounding, rejects it, and clears it on cancel", async () => {
     const catalog = new VaultCatalog(localStorage, cryptoApi);
     render(<LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />);
     fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
@@ -225,6 +373,13 @@ describe("local-only encrypted vault form", () => {
     );
     expect(catalog.list()).toHaveLength(0);
     fireEvent(window, new Event("pagehide"));
+    expect(screen.getByLabelText("Recovery phrase")).toHaveValue(
+      "invalid recovery words",
+    );
+    expect(screen.getByLabelText("Browser wallet password")).toHaveValue(
+      password,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
     for (const name of [
       "Recovery phrase",
