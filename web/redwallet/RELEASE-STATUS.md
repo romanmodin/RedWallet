@@ -46,5 +46,11 @@ frozen lockfile. It uses read-only repository permissions and no wallet/operator
 secrets. It does not deploy the app or run native iPhone checks. Backend artifact
 and Motoko verification remain explicit isolated lanes.
 
-First GitHub workflow run: pending verification. Public app remains0.37;
-this documentation/workflow follow-up changes no product runtime code.
+First GitHub run passed all steps on2026-10-01:
+https://github.com/romanmodin/RedWallet/actions/runs/36907379969
+
+Verified commit:`e93b52f01e95f51c040c83d2bb19031570e67765`. Clean locked
+install, frontend382tests in63files, bridge80tests, frontend/bridge typecheck
+and builds, and Biome219files all passed. This is462tests in a fresh GitHub
+runner, separate from backend/Motoko lanes. Native workflows were untouched.
+Public app remains0.37; follow-up commits update documentation only.

@@ -4,7 +4,10 @@
 notes now point to RELEASE-STATUS rather than obsolete v7 watch-only posture.
 Separate .github/workflows/redwallet-web.yml runs pinned Node24/pnpm10.14.0
 frontend and bridge checks on web pushes/PRs, read-only permissions/no secrets.
-Native workflows untouched. YAML/scope/doc links PASS; first GitHub run pending.
+Native workflows untouched. YAML/scope/doc links PASS. First GitHub run
+36907379969 passed every step: frontend382/bridge80tests, clean locked
+install, typecheck/lint/build. Verified source e93b52f01. Documentation-only
+follow-up; no Caffeine publication required.
 See RELEASE-STATUS. Prior382frontend tests remain current.
 
 # 0.37 final regression passed
