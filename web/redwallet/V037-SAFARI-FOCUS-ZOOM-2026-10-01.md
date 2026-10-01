@@ -19,4 +19,12 @@ unverified until the user checks0.37.
 31focused tests PASS: vault6/viewport6/CSP15/manifest4. Typecheck, Biome219,
 production build PASS. Lifecycle regression covers guard before password focus,
 wrong-password retention, cancel and unmount restoration. No network/backend,
-bridge, keys, scan state or native changes. Publication pending.
+bridge, keys, scan state or native changes. Published Caffeine39 / public0.37. All373source entries exactly match
+actual export /workspace/scratch/redwallet (35).zip. Backend Wasm SHA256
+6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001 unchanged.
+Source64d4b1dadefb77054b3f7fd7822e687fc0d6494f. Source ZIP SHA256
+c85b6e7d440201f8daab062346004e2440576904c3cf28e76021dbb1477b497b.
+Public0.37 analytics blocked, disposable BIP84 fixture unlock authenticated
+expected first address; focusBODY, normal viewport unchanged, width485 /
+innerWidth500. No actual Safari/Keychain simulation possible in Chromium.
+iPhone final check pending. Screenshot redwallet-037-published.jpg.

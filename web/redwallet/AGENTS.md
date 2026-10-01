@@ -1,3 +1,11 @@
+# 0.37 published — Safari focus zoom prevention candidate
+
+Caffeine39/public0.37 LIVE. All373reviewed source paths exactly match export;
+backend Wasm unchanged.31focused/typecheck/Biome219/build PASS. Public
+release/protection plus disposable fixture unlock/focus release/no overflow
+PASS in Chromium. Actual iPhone Keychain prevention and pinch zoom need user
+check. User confirms0.36 reset failed; no Safari success claimed. See V037.
+
 # 0.37 prepared — prevent Safari password focus zoom
 
 User confirms0.36 post-unlock zoom reset failed. Replace it with Safari-only
