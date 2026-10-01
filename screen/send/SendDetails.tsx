@@ -1,3 +1,4 @@
+import { getPayjoinUrl, supportsPayjoin } from '../../class/payjoin-policy';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { XBT_PROFILE } from '../../class/xbt/profile';
 import { normalizeXbtUnit } from '../../class/xbt/units';
@@ -91,7 +92,6 @@ const SendDetails = () => {
   const frozenBalance = route.params?.frozenBalance ?? 0;
   const transactionMemo = route.params?.transactionMemo;
   const utxos = route.params?.utxos;
-  const payjoinUrl = route.params?.payjoinUrl;
   const isTransactionReplaceable = route.params?.isTransactionReplaceable;
   const routeParams = route.params;
   const scrollView = useRef<FlatList<IPaymentDestinations>>(null);
@@ -104,6 +104,8 @@ const SendDetails = () => {
   const [dimensions, setDimensions] = useState({ width: Dimensions.get('window').width, height: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [wallet, setWallet] = useState<TWallet | null>(null);
+  const payjoinAllowed = supportsPayjoin(wallet);
+  const payjoinUrl = getPayjoinUrl(wallet, route.params?.payjoinUrl);
   const { isVisible } = useKeyboard();
   const [addresses, setAddresses] = useState<IPaymentDestinations[]>([{ address: '', key: String(Math.random()), unit: amountUnit }]);
   const [networkTransactionFees, setNetworkTransactionFees] = useState(new NetworkTransactionFee(3, 2, 1));
@@ -189,7 +191,7 @@ const SendDetails = () => {
         if (memo?.trim().length > 0) {
           setParams({ transactionMemo: memo });
         }
-        setParams({ payjoinUrl: pjUrl, amountUnit: BitcoinUnit.BTC });
+        setParams({ payjoinUrl: getPayjoinUrl(wallet, pjUrl), amountUnit: BitcoinUnit.BTC });
       } catch (error) {
         console.log(error);
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
@@ -229,7 +231,7 @@ const SendDetails = () => {
     }
     // this effect only to run once when screen is mounted or params change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeParams.uri, routeParams.address, routeParams.addRecipientParams]);
+  }, [routeParams.uri, routeParams.address, routeParams.addRecipientParams, payjoinAllowed]);
 
   useEffect(() => {
     // check if we have a suitable wallet
@@ -498,7 +500,7 @@ const SendDetails = () => {
           addrs[scrollIndex.current].unit = BitcoinUnit.BTC;
           return [...addrs];
         });
-        setParams({ transactionMemo: options.label || '', amountUnit: BitcoinUnit.BTC, payjoinUrl: options.pj || '' }); // there used to be `options.message` here as well. bug?
+        setParams({ transactionMemo: options.label || '', amountUnit: BitcoinUnit.BTC, payjoinUrl: getPayjoinUrl(wallet, options.pj) }); // there used to be `options.message` here as well. bug?
         // RN Bug: contentOffset gets reset to 0 when state changes. Remove code once this bug is resolved.
         setTimeout(() => scrollView.current?.scrollToIndex({ index: currentIndex, animated: false }), 50);
       }
@@ -1492,7 +1494,11 @@ const SendDetails = () => {
                 setParams({ transactionMemo: memo });
               }
               setIsLoading(false);
-              setParams(hasPositiveAmount ? { payjoinUrl: pjUrl, amountUnit: BitcoinUnit.BTC } : { payjoinUrl: pjUrl });
+              setParams(
+                hasPositiveAmount
+                  ? { payjoinUrl: getPayjoinUrl(wallet, pjUrl), amountUnit: BitcoinUnit.BTC }
+                  : { payjoinUrl: getPayjoinUrl(wallet, pjUrl) },
+              );
             }}
             address={item.address}
             isLoading={isLoading}

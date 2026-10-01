@@ -12,6 +12,7 @@ import type { TaprootWallet as TaprootWalletT } from '../class/wallets/taproot-w
 import presentAlert from '../components/Alert';
 import loc from '../loc';
 import { isXbtMainnetCheckpointHeader, XBT_MAINNET_CHECKPOINT_HEIGHT } from '../class/xbt/electrum-checkpoint';
+import { assertXbtUnifiedTransaction } from '../class/xbt/broadcast-validation';
 import { GROUP_IO_BLUEWALLET } from './currency';
 import { ElectrumServerItem } from '../screen/settings/ElectrumSettings';
 import { triggerWarningHapticFeedback } from './hapticFeedback';
@@ -1348,6 +1349,7 @@ export const serverFeatures = async function () {
 };
 
 export const broadcast = async function (hex: string) {
+  assertXbtUnifiedTransaction(hex);
   if (!mainClient) throw new Error('Electrum client is not connected');
   try {
     const res = await mainClient.blockchainTransaction_broadcast(hex);
@@ -1358,6 +1360,7 @@ export const broadcast = async function (hex: string) {
 };
 
 export const broadcastV2 = async function (hex: string): Promise<string> {
+  assertXbtUnifiedTransaction(hex);
   if (!mainClient) throw new Error('Electrum client is not connected');
   return mainClient.blockchainTransaction_broadcast(hex);
 };

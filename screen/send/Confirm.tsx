@@ -1,3 +1,4 @@
+import { getPayjoinUrl } from '../../class/payjoin-policy';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { PayjoinClient } from 'payjoin-client';
@@ -74,11 +75,12 @@ const Confirm: React.FC = () => {
   const { isBiometricUseCapableAndEnabled } = useBiometrics();
   const navigation = useExtendedNavigation<ConfirmNavigationProp>();
   const route = useRoute<ConfirmRouteProp>(); // Get the route and its params
-  const { recipients, targets, walletID, fee, memo, tx, satoshiPerByte, psbt, payjoinUrl } = route.params; // Destructure params
+  const { recipients, targets, walletID, fee, memo, tx, satoshiPerByte, psbt, payjoinUrl: requestedPayjoinUrl } = route.params; // Destructure params
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const { navigate, setOptions, goBack } = navigation;
   const wallet = wallets.find((w: TWallet) => w.getID() === walletID) as TWallet;
+  const payjoinUrl = getPayjoinUrl(wallet, requestedPayjoinUrl);
   const feeSatoshi = new BigNumber(fee).multipliedBy(100000000).toNumber();
   const { colors } = useTheme();
 
@@ -189,6 +191,7 @@ const Confirm: React.FC = () => {
     dispatch({ type: ActionType.SET_BUTTON_DISABLED, payload: true });
     dispatch({ type: ActionType.SET_LOADING, payload: true });
     try {
+      if (state.isPayjoinEnabled && !payjoinUrl) throw new Error('Payjoin is not supported by this wallet');
       // Perform biometric authentication first
       if (await isBiometricUseCapableAndEnabled()) {
         if (!(await unlockWithBiometrics())) {

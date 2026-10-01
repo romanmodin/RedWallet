@@ -5,6 +5,7 @@ import { isCoinbaseTransaction, isMatureXbtCoinbase } from '../xbt/coinbase-matu
 import { finalizeUnifiedP2wpkhInput, signUnifiedP2wpkhInput, SIGHASH_ALL_UNIFIED } from '../xbt/unified-psbt';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
 import { HDSegwitBech32Wallet } from './hd-segwit-bech32-wallet';
+import { assertXbtUnifiedTransaction } from '../xbt/broadcast-validation';
 
 const ECPair = ECPairFactory(ecc);
 
@@ -21,6 +22,11 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
 
   allowPayJoin() {
     return false;
+  }
+
+  async broadcastTx(txhex: string): Promise<boolean> {
+    assertXbtUnifiedTransaction(txhex);
+    return super.broadcastTx(txhex);
   }
 
   allowCosignPsbt() {
