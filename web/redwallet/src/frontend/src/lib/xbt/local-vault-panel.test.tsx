@@ -1,6 +1,12 @@
 import { webcrypto } from "node:crypto";
 import { LocalVaultPanel } from "@/components/vault/LocalVaultPanel";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { VaultCatalog } from "./vault-catalog";
 
@@ -164,15 +170,17 @@ describe("local-only encrypted vault form", () => {
         });
         visibility.mockReturnValue("hidden");
         fireEvent(document, new Event("visibilitychange"));
-        if (expiredClock === "wall") wall += 300001;
+        if (expiredClock === "wall") wall += 30000;
         else {
-          monotonic += 300001;
+          monotonic += 30000;
           wall -= 60000;
         }
         visibility.mockReturnValue("visible");
         fireEvent(document, new Event("visibilitychange"));
         expect(screen.queryByLabelText("Recovery phrase")).toBeNull();
-        expect(screen.getByText(/Recovery entry expired/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Recovery entry expired after 30 seconds away/),
+        ).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
         expect(screen.getByLabelText("Recovery phrase")).toHaveValue("");
         expect(screen.getByLabelText("Browser wallet password")).toHaveValue(
@@ -186,6 +194,67 @@ describe("local-only encrypted vault form", () => {
       }
     },
   );
+
+  it("starts the 30-second grace on leaving, does not extend duplicate hide events, and resets it after a timely return", () => {
+    let now = 1000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    try {
+      const catalog = new VaultCatalog(localStorage, cryptoApi);
+      render(<LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />);
+      fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+      fillDetails();
+      fireEvent.change(screen.getByLabelText("Recovery phrase"), {
+        target: { value: phrase },
+      });
+      now += 60000; // More than 30 seconds of foreground entry remains allowed.
+      visibility.mockReturnValue("hidden");
+      fireEvent(document, new Event("visibilitychange"));
+      now += 29000;
+      fireEvent(window, new Event("pagehide"));
+      visibility.mockReturnValue("visible");
+      fireEvent(document, new Event("visibilitychange"));
+      expect(screen.getByLabelText("Recovery phrase")).toHaveValue(phrase);
+      now += 10000;
+      visibility.mockReturnValue("hidden");
+      fireEvent(document, new Event("visibilitychange"));
+      now += 29000;
+      fireEvent(window, new Event("pagehide")); // Must not restart the countdown.
+      now += 1000;
+      visibility.mockReturnValue("visible");
+      fireEvent(window, new Event("pageshow"));
+      expect(screen.queryByLabelText("Recovery phrase")).toBeNull();
+      expect(screen.getByText(/30 seconds away/)).toBeInTheDocument();
+      expect(localStorage.length).toBe(0);
+    } finally {
+      visibility.mockRestore();
+      clock.mockRestore();
+    }
+  });
+
+  it("clears the recovery entry at 30 seconds away even before returning", () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    try {
+      const catalog = new VaultCatalog(localStorage, cryptoApi);
+      render(<LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />);
+      fireEvent.click(screen.getByRole("button", { name: "Recover wallet" }));
+      fillDetails();
+      fireEvent.change(screen.getByLabelText("Recovery phrase"), {
+        target: { value: phrase },
+      });
+      visibility.mockReturnValue("hidden");
+      fireEvent(document, new Event("visibilitychange"));
+      act(() => vi.advanceTimersByTime(29999));
+      expect(screen.getByLabelText("Recovery phrase")).toHaveValue(phrase);
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.queryByLabelText("Recovery phrase")).toBeNull();
+      expect(screen.getByText(/30 seconds away/)).toBeInTheDocument();
+    } finally {
+      visibility.mockRestore();
+      vi.useRealTimers();
+    }
+  });
 
   it("discards recovery on navigation unmount or vault storage invalidation", () => {
     const catalog = new VaultCatalog(localStorage, cryptoApi);

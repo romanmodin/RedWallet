@@ -58,12 +58,24 @@ export function LocalVaultPanel({
   const formState = useRef({ mode, busy });
   formState.current = { mode, busy };
   const unlockPassword = useRef<HTMLInputElement>(null);
+  const recoveryAwayDeadline = useRef<{
+    wall: number;
+    monotonic: number;
+  } | null>(null);
+  const recoveryAwayExpired = useCallback(() => {
+    const deadline = recoveryAwayDeadline.current;
+    return (
+      deadline !== null &&
+      (Date.now() >= deadline.wall || performance.now() >= deadline.monotonic)
+    );
+  }, []);
   const formDeadline = useRef({ wall: 0, monotonic: 0 });
   const formExpired = useCallback(
     () =>
       Date.now() >= formDeadline.current.wall ||
-      performance.now() >= formDeadline.current.monotonic,
-    [],
+      performance.now() >= formDeadline.current.monotonic ||
+      recoveryAwayExpired(),
+    [recoveryAwayExpired],
   );
   const callbacks = useRef({ onUnlocked, onLocked });
   callbacks.current = { onUnlocked, onLocked };
@@ -72,6 +84,7 @@ export function LocalVaultPanel({
   }, [mode]);
 
   const clearSecrets = useCallback(() => {
+    recoveryAwayDeadline.current = null;
     setPhrase("");
     setPassphrase("");
     setPassword("");
@@ -115,13 +128,17 @@ export function LocalVaultPanel({
       setBusy(false);
     };
     const background = () => {
-      // Keep only an unfinished recovery entry in this resident tab, bounded by
-      // the original deadline. Saved-wallet keys and pending operations still lock.
+      // Retain unfinished recovery for at most 30 seconds away, also bounded
+      // by the original setup deadline. Duplicate hide events cannot extend it.
       if (
         formState.current.mode === "recover" &&
         !formState.current.busy &&
         !formExpired()
       ) {
+        recoveryAwayDeadline.current ??= {
+          wall: Date.now() + 30_000,
+          monotonic: performance.now() + 30_000,
+        };
         catalog.lockAll();
         setUnlocked(null);
         callbacks.current.onLocked?.();
@@ -133,10 +150,15 @@ export function LocalVaultPanel({
       // Safari may suspend timers in the background. Check both clocks before
       // showing or accepting a retained entry; backgrounding never extends it.
       if (formState.current.mode === "recover" && formExpired()) {
+        const awayExpired = recoveryAwayExpired();
         lock();
         setNotice(
-          "Recovery entry expired after five minutes. Secret fields were cleared; start again to continue.",
+          awayExpired
+            ? "Recovery entry expired after 30 seconds away. Secret fields were cleared; start again to continue."
+            : "Recovery entry expired after five minutes. Secret fields were cleared; start again to continue.",
         );
+      } else {
+        recoveryAwayDeadline.current = null;
       }
     };
     const visibility = () => {
@@ -162,7 +184,7 @@ export function LocalVaultPanel({
       window.removeEventListener("storage", storage);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [catalog, clearSecrets, refresh, formExpired]);
+  }, [catalog, clearSecrets, refresh, formExpired, recoveryAwayExpired]);
   useEffect(() => {
     if (!unlocked) return;
     const timer = setInterval(() => {
@@ -180,6 +202,7 @@ export function LocalVaultPanel({
     if (mode === "idle") return;
     const timer = setInterval(() => {
       if (!formExpired()) return;
+      const awayExpired = recoveryAwayExpired();
       generation.current++;
       catalog.lockAll();
       setUnlocked(null);
@@ -188,16 +211,21 @@ export function LocalVaultPanel({
       setMode("idle");
       setBusy(false);
       setNotice(
-        "Setup timed out after five minutes. Secret fields were cleared; start again to continue.",
+        awayExpired
+          ? "Recovery entry expired after 30 seconds away. Secret fields were cleared; start again to continue."
+          : "Setup timed out after five minutes. Secret fields were cleared; start again to continue.",
       );
     }, 250);
     return () => clearInterval(timer);
-  }, [mode, catalog, clearSecrets, formExpired]);
+  }, [mode, catalog, clearSecrets, formExpired, recoveryAwayExpired]);
   function requireActiveForm() {
     if (formExpired()) {
+      const awayExpired = recoveryAwayExpired();
       cancel();
       throw Error(
-        "Setup timed out after five minutes. Secret fields were cleared.",
+        awayExpired
+          ? "Recovery entry expired after 30 seconds away. Secret fields were cleared."
+          : "Setup timed out after five minutes. Secret fields were cleared.",
       );
     }
   }
@@ -521,9 +549,9 @@ export function LocalVaultPanel({
             {mode === "recover" && (
               <>
                 <p className="text-xs text-muted-foreground">
-                  You can briefly switch apps and return to this entry in the
-                  same tab, for up to five minutes. Cancel, reload, or closing
-                  the tab clears it.
+                  You can switch apps and return to this entry in the same tab
+                  within 30 seconds. Staying away longer clears it. Cancel,
+                  reload, or closing the tab also clears it.
                 </p>
                 <Label htmlFor="local-vault-phrase">Recovery phrase</Label>
                 <textarea

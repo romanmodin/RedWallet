@@ -2,12 +2,15 @@
 
 User confirmed web wallet, phrase/password entry resets on leaving the screen.
 LocalVaultPanel now retains only unfinished non-busy recovery entry in memory
-across brief visibility/pagehide events within the original five-minute deadline.
-Return checks both clocks even if timers were suspended. No plaintext storage or
+across brief visibility/pagehide events for30seconds away, still capped by the
+original five-minute setup deadline. Duplicate hide events cannot extend the
+grace; a timely return resets it for the next switch. Both clocks are checked
+on return and on save; active timers clear it at30seconds even before return.
+User requested30seconds rather than5minutes. Focused14tests PASS. No plaintext storage or
 network transfer. Keys/pending encryption/unlock still lock/cancel. Cancel,
 expiry, vault invalidation and unmount clear entry; reload has no draft to restore.
-Clean GitHub36925726467/sourcefc63f5ffe PASS:393frontend/80bridge tests,
-typechecks, Biome220, builds, production audit. See V040.
+Previous5minute version clean GitHub36925726467/sourcefc63f5ffe PASS.
+Final30second source requires its own clean CI, recorded in V040.
 Automatic approval review rejected opening the private Caffeine project URL as
 outside the explicitly authorized fix; no indirect UI access attempted. Public
 remains0.39. Exact import/export/publish and actual iPhone switch check pending.

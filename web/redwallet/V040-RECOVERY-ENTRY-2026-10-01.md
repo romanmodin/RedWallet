@@ -1,3 +1,23 @@
+# Latest refinement — 30 seconds away
+
+User requested a maximum30seconds on2026-10-01. Recovery entry now starts a
+separate30second wall/monotonic deadline when leaving the screen. Duplicate
+visibility/pagehide events do not extend it. Returning within30seconds retains
+the entry and clears that away deadline; the next app switch gets a new grace.
+The original five-minute overall setup deadline still applies, so30seconds is
+not a timeout measured from beginning foreground phrase entry.
+
+Active timers clear the entry at30seconds even without returning. Suspended
+timers cannot bypass expiry: return/save checks both clocks synchronously.
+No plaintext storage or network transfer. Saved keys and pending operations
+still lock immediately. Cancel/reload/unmount/invalidation behavior is retained.
+
+Focused14recovery form tests PASS, including exactly29999ms vs30000ms,
+foreground entry longer than30seconds, timely return/new grace, duplicate hide
+events, both clocks with suspended timers/backward wall clock, and hidden expiry.
+This supersedes the five-minute background-retention description below.
+Final verification and publication remain to be recorded. Public remains0.39.
+
 # 0.40 — Preserve recovery entry during brief app switches
 
 The user reports that RedWallet web resets phrase/password entry on leaving the screen. Confirmed scope: web app, before saving the recovered wallet, rather than the address/history scan.
