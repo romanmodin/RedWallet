@@ -47,3 +47,12 @@ TestFlight build. No production transaction was signed or broadcast in this revi
 The Android application-ID change installs RedWallet separately from BlueWallet;
 it does not automatically migrate an old BlueWallet installation's data. The iOS
 bundle ID remains unchanged.
+
+## iOS CI follow-up
+
+The first post-review iOS simulator build failed because an inherited Xcode
+source-map upload phase still required the removed Bugsnag API key. Removed
+the source-map phase and both dSYM upload phases from the project, including
+the watch target. Removed the watch initializer and remaining watch/widget
+reporting keys as well. Native build verification is recorded separately from
+the passing unit and Android UI checks.
