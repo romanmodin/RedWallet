@@ -46,7 +46,8 @@ describe('RedWallet XBT-only release UI', () => {
   beforeEach(async () => {
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
-    await waitForId('WalletsList');
+    // A fresh hosted simulator can take longer to leave the native splash screen.
+    await waitForId('WalletsList', 120_000);
     // These deterministic no-funds tests cover offline creation and recovery.
     // Network acceptance is exercised by the separate Fulcrum and Knots gates.
     await element(by.id('SettingsButton')).tap();
