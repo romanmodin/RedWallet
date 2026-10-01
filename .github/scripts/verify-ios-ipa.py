@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
         entitlements = plist_from_output(signature.stdout + signature.stderr)
         profile = plistlib.loads(run("security", "cms", "-D", "-i", str(bundle / "embedded.mobileprovision")))
         certificate_prefix = str(root / ("certificate-" + str(len(receipt)) + "-"))
-        run("codesign", "-d", "--extract-certificates", certificate_prefix, str(bundle))
+        run("codesign", "-d", "--extract-certificates=" + certificate_prefix, str(bundle))
         leaf_certificate = Path(certificate_prefix + "0").read_bytes()
         assert leaf_certificate in profile["DeveloperCertificates"], "Signer not authorized by profile"
         profile_entitlements = profile["Entitlements"]
