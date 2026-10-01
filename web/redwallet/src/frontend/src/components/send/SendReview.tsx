@@ -1,3 +1,4 @@
+import { XbtAmountEstimate } from "@/components/settings/XbtAmountEstimate";
 /**
  * SendReview — step two of the demo send flow.
  *
@@ -7,7 +8,7 @@
  */
 
 import { Button } from "@/components/ui/button";
-import { formatAmount, formatFiat, truncateAddress } from "@/lib/format";
+import { formatAmount, truncateAddress } from "@/lib/format";
 import type { DisplayUnit, FeeEstimate } from "@/services/types";
 import { ArrowLeft, Info, Lock, ShieldCheck } from "lucide-react";
 
@@ -23,7 +24,7 @@ interface SendReviewProps {
 interface SummaryRow {
   label: string;
   value: string;
-  hint?: string;
+  hint?: React.ReactNode;
   emphasis?: boolean;
 }
 
@@ -51,9 +52,11 @@ export function SendReview({
     {
       label: "Estimated fee",
       value: feeEstimate ? formatAmount(feeXbt, displayUnit) : "—",
-      hint: feeEstimate
-        ? `≈ ${formatFiat(feeEstimate.feeUsd)} · estimate only`
-        : "Fee estimate unavailable",
+      hint: feeEstimate ? (
+        <XbtAmountEstimate amountXbt={feeXbt} />
+      ) : (
+        "Fee estimate unavailable"
+      ),
     },
     {
       label: "Total",

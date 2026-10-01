@@ -1,3 +1,4 @@
+import { XbtAmountEstimate } from "@/components/settings/XbtAmountEstimate";
 /**
  * WalletRow — a single selectable demo wallet card.
  *
@@ -7,9 +8,8 @@
  * a real button so it is keyboard reachable and announced as a control.
  */
 
-import { ManualFiatEstimate } from "@/components/settings/ManualFiatEstimate";
 import { Badge } from "@/components/ui/badge";
-import { formatAmount, formatFiat } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { DisplayUnit, Wallet } from "@/services/types";
 import { Check, Wallet as WalletIcon } from "lucide-react";
@@ -84,17 +84,7 @@ export function WalletRow({
           {formatAmount(wallet.balanceXbt, wallet.isDemo ? displayUnit : "XBT")}
         </span>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {wallet.isDemo ? (
-            formatFiat(wallet.fiatValueUsd)
-          ) : Number.isFinite(wallet.balanceXbt) &&
-            Number.isSafeInteger(Math.round(wallet.balanceXbt * 1e8)) ? (
-            <ManualFiatEstimate
-              satoshis={BigInt(Math.round(wallet.balanceXbt * 1e8))}
-              compact
-            />
-          ) : (
-            "Price unavailable"
-          )}
+          <XbtAmountEstimate amountXbt={wallet.balanceXbt} />
         </span>
       </span>
     </button>

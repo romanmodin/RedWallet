@@ -22,10 +22,8 @@ import { useLocalAccount } from "@/components/vault/LocalAccountContext";
 import { LocalAccountOverview } from "@/components/vault/LocalAccountOverview";
 import { useSettings } from "@/hooks/useSettings";
 import { useWallet } from "@/hooks/useWallet";
-import { formatFiat } from "@/lib/format";
 import { bridgeWalletService } from "@/services/bridgeService";
-import { fallbackRate } from "@/services/fiatRate";
-import type { FiatRate, Transaction } from "@/services/types";
+import type { Transaction } from "@/services/types";
 import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -47,7 +45,6 @@ function WatchedDashboardPage() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const requestSequence = useRef(0);
-  const [rate] = useState<FiatRate>(() => fallbackRate());
   const [isOffline, setIsOffline] = useState(false);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
   const [activityError, setActivityError] = useState<string | null>(null);
@@ -96,13 +93,6 @@ function WatchedDashboardPage() {
     void refresh();
     void loadActivity();
   }, [refresh, loadActivity]);
-
-  const fiatUsd = activeWallet
-    ? activeWallet.balanceXbt *
-      (activeWallet.isDemo
-        ? rate.usdPerXbt
-        : (settings.manualUsdPerXbt ?? Number.NaN))
-    : 0;
 
   return (
     <section data-ocid="dashboard.page" className="flex flex-col gap-6">
@@ -161,7 +151,7 @@ function WatchedDashboardPage() {
             walletName={activeWallet.name}
             walletShortId={activeWallet.shortId}
             balanceXbt={activeWallet.balanceXbt}
-            fiatUsd={fiatUsd}
+            fiatUsd={Number.NaN}
             displayUnit={activeWallet.isDemo ? settings.displayUnit : "XBT"}
             visible={visible}
             onToggleVisibility={() => setVisible((current) => !current)}
@@ -200,11 +190,8 @@ function WatchedDashboardPage() {
           )}
 
           <p className="text-center text-[11px] text-muted-foreground">
-            {activeWallet.isDemo
-              ? `Fiat equivalent uses a demo rate of ${formatFiat(rate.usdPerXbt)} per XBT — not a live price feed.`
-              : settings.manualUsdPerXbt
-                ? `Manual price: ${formatFiat(settings.manualUsdPerXbt)} per XBT. Update it in Settings.`
-                : "Fiat price unavailable. Set a manual XBT price in Settings."}
+            Estimates use the XBT price source selected in Settings. Demo
+            balances are simulated.
           </p>
         </>
       )}

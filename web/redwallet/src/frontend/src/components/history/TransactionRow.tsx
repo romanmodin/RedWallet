@@ -1,3 +1,4 @@
+import { XbtAmountEstimate } from "@/components/settings/XbtAmountEstimate";
 /**
  * TransactionRow — a single transaction card in the history list.
  *
@@ -7,7 +8,7 @@
  */
 
 import { StatusBadge } from "@/components/history/StatusBadge";
-import { formatAmount, formatFiat, formatRelativeDate } from "@/lib/format";
+import { formatAmount, formatRelativeDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { DisplayUnit, Transaction } from "@/services/types";
 import { Link } from "@tanstack/react-router";
@@ -98,7 +99,11 @@ export function TransactionRow({
           {signedAmount}
         </span>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {transaction.isLive ? "" : formatFiat(transaction.fiatUsd)}
+          {transaction.isLive ? (
+            ""
+          ) : (
+            <XbtAmountEstimate amountXbt={transaction.amountXbt} />
+          )}
         </span>
       </span>
 

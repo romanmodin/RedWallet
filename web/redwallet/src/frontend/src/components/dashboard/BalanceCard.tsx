@@ -1,3 +1,4 @@
+import { XbtAmountEstimate } from "@/components/settings/XbtAmountEstimate";
 /**
  * BalanceCard — the dashboard's signature surface.
  *
@@ -6,9 +7,8 @@
  * toggle, which is announced politely to assistive technology.
  */
 
-import { ManualFiatEstimate } from "@/components/settings/ManualFiatEstimate";
 import { Button } from "@/components/ui/button";
-import { formatAmount, formatFiat } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { DisplayUnit } from "@/services/types";
 import { Link } from "@tanstack/react-router";
@@ -32,7 +32,6 @@ export function BalanceCard({
   walletName,
   walletShortId,
   balanceXbt,
-  fiatUsd,
   displayUnit,
   visible,
   onToggleVisibility,
@@ -109,22 +108,7 @@ export function BalanceCard({
           </Button>
         </div>
         <span className="font-mono text-sm text-primary-foreground/80 tabular-nums">
-          {visible ? (
-            !isDemo &&
-            Number.isFinite(balanceXbt) &&
-            Number.isSafeInteger(Math.round(balanceXbt * 1e8)) ? (
-              <ManualFiatEstimate
-                satoshis={BigInt(Math.round(balanceXbt * 1e8))}
-                compact
-              />
-            ) : Number.isFinite(fiatUsd) ? (
-              `≈ ${formatFiat(fiatUsd)}`
-            ) : (
-              "Fiat price unavailable"
-            )
-          ) : (
-            "≈ ••••"
-          )}
+          {visible ? <XbtAmountEstimate amountXbt={balanceXbt} /> : "≈ ••••"}
         </span>
       </div>
 

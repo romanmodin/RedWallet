@@ -9,3 +9,7 @@ Tests cover confirmation gates, cancel, pending-unlock cancellation, another vau
 ## Clean verification
 
 GitHub run36921093626 at source b8fd08687174a8440b80d07c4981fb28e752d084 completed successfully: pinned Node24/pnpm10.14.0 frozen install, production audit, frontend typecheck/lint/tests/build, bridge typecheck/tests/build. Publication is pending: Caffeine signed out; Google passkey challenge returned Something went wrong. Source archive prepared with377tracked app files. No0.39 live claim.
+
+## XBT quote follow-up
+
+User found demo balances still using the historical64,250USD sample rate. All visible demo fiat amounts (dashboard, wallet rows, transaction rows/details, send balance and fee estimates) now use the same NeoxEX/manual XBT quote component as real accounts. Unknown quotes remain unavailable and automatic quotes are labeled USDC. Simulated XBT balances remain marked demo. Dashboard regression uses355.15USD/XBT and rejects former BTC-sized output.18focused price/dashboard/settings tests, typecheck, Biome220 and build PASS. Fresh final CI required before publication. Sign-in has been restored.

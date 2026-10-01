@@ -1,3 +1,4 @@
+import { XbtAmountEstimate } from "@/components/settings/XbtAmountEstimate";
 /**
  * SendForm — step one of the demo send flow.
  *
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatAmount, formatFiat } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import type {
   DisplayUnit,
   FeeEstimate as FeeEstimateValue,
@@ -52,7 +53,6 @@ export function SendForm({
   onSubmit,
   displayUnit,
   availableXbt,
-  availableFiatUsd,
   feeEstimate,
   isFeeLoading,
   feeError,
@@ -140,7 +140,8 @@ export function SendForm({
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            ≈ {formatFiat(availableFiatUsd)} available in this demo wallet
+            <XbtAmountEstimate amountXbt={availableXbt} /> available in this
+            demo wallet
           </p>
         )}
         <button

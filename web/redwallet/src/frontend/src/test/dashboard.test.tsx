@@ -7,6 +7,7 @@
  */
 
 import App from "@/App";
+import { settingsService } from "@/services/settingsService";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -32,7 +33,12 @@ describe("Dashboard", () => {
     );
     await screen.findByText("Primary Vault");
   });
-  it("shows the active wallet's XBT balance and fiat equivalent", async () => {
+  it("uses the configured XBT price for a simulated demo balance", async () => {
+    settingsService.updateSettings({
+      priceMode: "manual",
+      manualUsdPerXbt: 355.15,
+      manualPriceUpdatedAt: Date.now(),
+    });
     render(<App />);
 
     const card = await screen.findByTestId("dashboard.balance_card");
@@ -40,7 +46,8 @@ describe("Dashboard", () => {
 
     const amount = within(card).getByTestId("dashboard.balance_card.amount");
     expect(amount).toHaveTextContent("1.24850000 XBT");
-    expect(within(card).getByText(/≈ \$80,216\.13/)).toBeInTheDocument();
+    expect(within(card).getByText(/443.40 USD.*Manual/)).toBeInTheDocument();
+    expect(screen.queryByText(/64,250|80,216/)).not.toBeInTheDocument();
   });
 
   it("hides and shows the balance with the visibility toggle", async () => {

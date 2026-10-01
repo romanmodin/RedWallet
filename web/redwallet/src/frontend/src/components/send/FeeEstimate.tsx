@@ -1,3 +1,4 @@
+import { XbtAmountEstimate } from "@/components/settings/XbtAmountEstimate";
 /**
  * FeeEstimate — live fee estimate readout for the send flow.
  *
@@ -8,7 +9,7 @@
  */
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatAmount, formatFiat } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
   DisplayUnit,
@@ -74,8 +75,9 @@ export function FeeEstimate({
             {formatAmount(estimate.feeXbt, displayUnit)}
           </p>
           <p className="text-xs text-muted-foreground">
-            ≈ {formatFiat(estimate.feeUsd)} · {estimate.satPerVbyte} sat/vB ·
-            confirms in ~{estimate.estimatedBlocks} blocks
+            <XbtAmountEstimate amountXbt={estimate.feeXbt} /> ·{" "}
+            {estimate.satPerVbyte} sat/vB · confirms in ~
+            {estimate.estimatedBlocks} blocks
           </p>
         </div>
       ) : (

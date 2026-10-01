@@ -1,3 +1,4 @@
+import { XbtAmountEstimate } from "@/components/settings/XbtAmountEstimate";
 /**
  * TransactionDetailPage — full metadata for a single demo transaction.
  *
@@ -14,7 +15,7 @@ import { LoadingState } from "@/components/states/LoadingState";
 import { OfflineState } from "@/components/states/OfflineState";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/hooks/useSettings";
-import { formatAmount, formatFiat, truncateAddress } from "@/lib/format";
+import { formatAmount, truncateAddress } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { bridgeWalletService } from "@/services/bridgeService";
 import {
@@ -35,7 +36,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 interface DetailRow {
   label: string;
-  value: string;
+  value: React.ReactNode;
   mono?: boolean;
   /** Render a copy control for this value. */
   copyValue?: string;
@@ -238,7 +239,7 @@ export function TransactionDetailPage() {
     },
     {
       label: "Fiat value",
-      value: formatFiat(transaction.fiatUsd),
+      value: <XbtAmountEstimate amountXbt={transaction.amountXbt} />,
       mono: true,
     },
     {
@@ -283,9 +284,11 @@ export function TransactionDetailPage() {
               {signedAmount}
             </output>
             <span className="font-mono text-sm tabular-nums text-muted-foreground">
-              {transaction.isLive
-                ? "Amount and time are not supplied by address history"
-                : `≈ ${formatFiat(transaction.fiatUsd)}`}
+              {transaction.isLive ? (
+                "Amount and time are not supplied by address history"
+              ) : (
+                <XbtAmountEstimate amountXbt={transaction.amountXbt} />
+              )}
             </span>
           </div>
           <StatusBadge status={transaction.status} />
