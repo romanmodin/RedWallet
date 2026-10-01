@@ -1,14 +1,10 @@
-/** Release Safari's retained password-focus zoom after a successful unlock.
- * The viewport clamp is temporary: restore the exact original setting so
- * ordinary pinch zoom remains available. Other browsers are left alone.
+/** Suppress Safari's automatic focus zoom before the password field is used.
+ * Safari still permits manual pinch zoom. Restore the exact viewport on exit;
+ * never apply this setting to browsers that enforce maximum-scale for pinch.
  */
-export function restoreWalletViewport() {
+export function preventWalletFocusZoom() {
   const ua = navigator.userAgent;
-  if (
-    !/iPhone|iPad|iPod/.test(ua) ||
-    !/Version\/.*Safari\//.test(ua) ||
-    !(window.visualViewport && window.visualViewport.scale > 1.01)
-  ) {
+  if (!/iPhone|iPad|iPod/.test(ua) || !/Version\/.*Safari\//.test(ua)) {
     return;
   }
   const viewport = document.querySelector<HTMLMetaElement>(
@@ -16,13 +12,13 @@ export function restoreWalletViewport() {
   );
   if (!viewport) return;
   const original = viewport.content;
-  const reset = `${original
+  const guarded = `${original
     .split(",")
-    .filter((part) => !/^\s*(initial|minimum|maximum)-scale\s*=/i.test(part))
-    .join(",")}, initial-scale=1, minimum-scale=1, maximum-scale=1`;
-  viewport.content = reset;
-  window.setTimeout(() => {
+    .filter((part) => !/^\s*maximum-scale\s*=/i.test(part))
+    .join(",")}, maximum-scale=1`;
+  viewport.content = guarded;
+  return () => {
     // Do not overwrite a subsequent viewport change by another owner.
-    if (viewport.content === reset) viewport.content = original;
-  }, 350);
+    if (viewport.content === guarded) viewport.content = original;
+  };
 }

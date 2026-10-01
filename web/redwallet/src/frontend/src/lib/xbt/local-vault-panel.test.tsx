@@ -20,6 +20,47 @@ function fillDetails() {
   });
 }
 describe("local-only encrypted vault form", () => {
+  it("guards Safari before password focus, keeps the guard after a wrong password, and restores on exit", async () => {
+    const ua = vi
+      .spyOn(navigator, "userAgent", "get")
+      .mockReturnValue(
+        "Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/26.0 Mobile/15E148 Safari/604.1",
+      );
+    const viewport = document.createElement("meta");
+    viewport.name = "viewport";
+    viewport.content = "width=device-width, initial-scale=1.0";
+    document.head.append(viewport);
+    const catalog = new VaultCatalog(localStorage, cryptoApi);
+    await catalog.create(
+      "Fixture",
+      { mnemonic: phrase, passphrase: "" },
+      password,
+    );
+    const view = render(
+      <LocalVaultPanel catalog={catalog} cryptoApi={cryptoApi} />,
+    );
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
+      expect(viewport.content).toContain("maximum-scale=1");
+      expect(screen.getByLabelText("Wallet password")).not.toHaveFocus();
+      fireEvent.change(screen.getByLabelText("Wallet password"), {
+        target: { value: "wrong fixture password" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Unlock wallet" }));
+      await screen.findByText(/Could not unlock/);
+      expect(viewport.content).toContain("maximum-scale=1");
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(viewport.content).toBe("width=device-width, initial-scale=1.0");
+      fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
+      expect(viewport.content).toContain("maximum-scale=1");
+      view.unmount();
+      expect(viewport.content).toBe("width=device-width, initial-scale=1.0");
+    } finally {
+      view.unmount();
+      viewport.remove();
+      ua.mockRestore();
+    }
+  });
   it("rejects an expired recovery form even when the timer has not run", () => {
     let now = 1000;
     const clock = vi.spyOn(Date, "now").mockImplementation(() => now);

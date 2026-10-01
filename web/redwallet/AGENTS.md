@@ -1,3 +1,13 @@
+# 0.37 prepared — prevent Safari password focus zoom
+
+User confirms0.36 post-unlock zoom reset failed. Replace it with Safari-only
+maximum-scale1 while unlock form is mounted, installed in layout effect before
+field focus. Restore exact original viewport on success/cancel/unmount. No
+initial/minimum-scale changes; existing manual scale preserved, Safari permits
+manual pinch. Other browsers/embedded webviews unchanged.31focused tests,
+typecheck/Biome219/build PASS. Publish and actual iPhone Keychain check pending.
+See V037 report. Supersedes0.36 zoom claims.
+
 # 0.36 published — Safari Keychain zoom recovery
 
 Caffeine38/public0.36 LIVE. All372source paths match actual export, backend

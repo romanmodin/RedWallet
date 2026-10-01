@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { restoreWalletViewport } from "@/lib/wallet-viewport";
+import { preventWalletFocusZoom } from "@/lib/wallet-viewport";
 import {
   type PublicXbtAccount,
   generateRecoveryPhrase,
@@ -9,7 +9,13 @@ import {
 } from "@/lib/xbt/key-material";
 import type { SavedVault, VaultCatalog } from "@/lib/xbt/vault-catalog";
 /** Local-only vault form; mounted only behind the verified browser protection gate. */
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 export interface LocalVaultPanelProps {
   catalog: VaultCatalog;
@@ -54,6 +60,9 @@ export function LocalVaultPanel({
   );
   const callbacks = useRef({ onUnlocked, onLocked });
   callbacks.current = { onUnlocked, onLocked };
+  useLayoutEffect(() => {
+    if (mode === "unlock") return preventWalletFocusZoom();
+  }, [mode]);
 
   const clearSecrets = useCallback(() => {
     setPhrase("");
@@ -276,7 +285,6 @@ export function LocalVaultPanel({
       }
       setUnlocked({ id: selected, account });
       setMode("idle");
-      restoreWalletViewport();
       callbacks.current.onUnlocked?.(selected, account);
     } catch {
       if (generation.current === operation)
