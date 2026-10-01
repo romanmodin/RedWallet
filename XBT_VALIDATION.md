@@ -258,11 +258,12 @@ provenance regression tests passed. No production app code changed after this
 run; subsequent changes concern test interaction and release verification.
 
 iOS simulator run `36926153210` passed the supported-profile, creation/receive
-amount, and manual-price persistence checks. Run `36930416883` passed rejection
-of the unsupported watch-only zpub with real keyboard input and text-retention
-assertions. Its recovery case timed out on the initial native splash screen,
-before exercising recovery; run `36932680800` reruns both import checks with a
-bounded cold-start wait. That pending run is not recorded as a pass.
+amount, and manual-price persistence checks. Run `36932680800` passed recovery
+of the published BIP84 phrase, receive-address preservation after restart,
+and rejection of the unsupported watch-only zpub. Both import cases use real
+iOS keyboard input and text-retention assertions, with a bounded wait for the
+initial native splash screen. The five selected checks passed across these
+two runs; the targeted import run explicitly skipped the other three cases.
 
 These simulator checks reuse the owner repository's unsigned simulator build
 from run `36913419745`. Its recovery and receive implementation is unchanged,
