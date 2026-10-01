@@ -1,3 +1,18 @@
+# 0.33 automated release checks completed
+
+All available automated lanes PASS: frontend61files/364tests, bridge80tests,
+actual hash-matched compiled backend25PocketICtests on isolatedZorin; frontend
+and bridge typecheck/build, Biome216. Current offline signer matches previously
+node-tested XBT/Bitcoin fixtures exactly. PublicChrome self-test/recovery/wrong
+password/reload/navigation lock/5minlock/WSSsave-reload/WSrejection PASS.
+Live public test identity scanned82addresses at974957; pause/resume, switching
+WSS to shared, reload/unlock and explicit reconnect preserve exact displayed
+history/count/original observation without new scan. No funded submission or
+user keys accessed. ActualiPhone remains user's test; cosmetic splash deferred.
+Standalone Motoko runner unavailable/prior interpreter overflow unresolved;
+BUILTIN_BACKUPS empty/no independent redundancy claimed. Verification only,
+public remains0.33. See V033-AUTOMATED-RELEASE-CHECKS-2026-10-01.md.
+
 # 0.33 published — inline welcome video
 
 Caffeine35/public0.33 LIVE; all363 source paths exactly match actual export,
