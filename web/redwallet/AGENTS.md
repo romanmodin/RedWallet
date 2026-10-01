@@ -1,3 +1,14 @@
+# 0.31 published — detailed own-canister guide in separate tab
+
+Caffeine33/public0.31 LIVE. All361 uploaded source paths exact export matches;
+built guide asset exact and backend Wasm unchanged from25PocketIC-tested0.28.
+Public Settings guide click opened separate tab with full1796word/7section
+static guide; original wallet tab stayed open/built-in connected. Desktop
+layout verified; public analytics block still observed. No scripts/forms or
+secret fields in guide. Typecheck/Biome/build and Settings/metadata10tests PASS.
+No key access/funded broadcast/native/bridge/backend change. See V031 report.
+This supersedes earlier guide-preparation and pending-publication notes.
+
 # 0.30 published; 0.31 canister guide in preparation
 
 Caffeine32/public0.30 LIVE, all359 source paths exact export match. Actual
