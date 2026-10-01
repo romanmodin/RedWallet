@@ -39,6 +39,7 @@ jobs:
           NEXT_MATCH_PASSWORD: ${{ secrets.NEXT_MATCH_PASSWORD }}
           GIT_URL: ${{ secrets.GIT_URL }}
           GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
+          GH_TOKEN: ${{ github.token }}
           FASTLANE_SKIP_UPDATE_CHECK: '1'
           FASTLANE_HIDE_CHANGELOG: '1'
           FASTLANE_OPT_OUT_USAGE: '1'
@@ -51,7 +52,7 @@ jobs:
           unset GIT_PRIVATE_KEY_CONTENT
           export MATCH_GIT_PRIVATE_KEY="$signing_key"
           mkdir -p "$HOME/.ssh"
-          curl --fail --silent --show-error https://api.github.com/meta | python3 -c 'import json,sys; print("\n".join("github.com " + k for k in json.load(sys.stdin)["ssh_keys"]))' > "$HOME/.ssh/known_hosts"
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' > "$HOME/.ssh/known_hosts"
           export GIT_SSH_COMMAND="ssh -i \"$signing_key\" -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes"
           git config --global user.name 'Roman Modin'
           git config --global user.email '262861426+romanmodin@users.noreply.github.com'
