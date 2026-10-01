@@ -33,6 +33,14 @@ function looksAddressLike(value: string): boolean {
   return /[a-z0-9]{20,}/i.test(value);
 }
 
+// textContent joins adjacent blocks without spaces, creating artificial
+// address-like runs. Check individual text nodes with word separators.
+function readableText(element: HTMLElement) {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const parts: string[] = [];
+  while (walker.nextNode()) parts.push(walker.currentNode.textContent ?? "");
+  return parts.join(" ");
+}
 async function openWallets() {
   const user = userEvent.setup();
   render(<App />);
@@ -50,7 +58,7 @@ describe("Dashboard balance card address safety", () => {
     expect(within(card).getByText("Primary Vault")).toBeInTheDocument();
     expect(within(card).getByText(NEUTRAL_DEMO_LABEL)).toBeInTheDocument();
     expect(card.textContent ?? "").not.toMatch(/xbt1/i);
-    expect(looksAddressLike(card.textContent ?? "")).toBe(false);
+    expect(looksAddressLike(readableText(card))).toBe(false);
   });
 });
 
@@ -63,7 +71,7 @@ describe("Wallet selector address safety", () => {
       within(list).getAllByText(NEUTRAL_DEMO_LABEL).length,
     ).toBeGreaterThan(0);
     expect(list.textContent ?? "").not.toMatch(/xbt1/i);
-    expect(looksAddressLike(list.textContent ?? "")).toBe(false);
+    expect(looksAddressLike(readableText(list))).toBe(false);
 
     // Each seeded wallet row pairs its name with the neutral label.
     for (const name of ["Primary Vault", "Cold Savings", "Daily Spending"]) {
