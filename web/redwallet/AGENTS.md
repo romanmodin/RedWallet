@@ -1,3 +1,12 @@
+# 0.38 live lifecycle follow-up PASS
+
+Public fixture only. Encryption/signing self-test, wrong-password rejection,
+unlock, navigation lock and encrypted-vault reload PASS. Live home bridge
+scan pause/resume completed50addresses/block975058; zero balance,22history
+entries. Reload/reunlock restores completed scan/history without rescanning;
+history pagination PASS. Fixture locked; no broadcast. Latest GitHub run
+36912821013 PASS. Verification-only docs, runtime unchanged. See V038.
+
 # 0.38 published — production dependency security cleanup
 
 Audit found9production advisories (1critical/3high/4moderate/1low). Removed

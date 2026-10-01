@@ -49,3 +49,22 @@ Frontend382tests and bridge80tests passed; total462.
 
 Live Test connection PASS: built-in service connected through primary home
 Umbrel HTTPS bridge. No funded transaction was submitted.
+
+## Live post-publication lifecycle checks
+
+2026-10-01: public0.38 local encryption/signing self-test PASS, no broadcast.
+Recovered standard published BIP39 test vector into disposable
+PUBLIC0.38TEST—NEVERFUND with dummy password; no user secret was used.
+Wrong password rejected; correct unlock PASS. Navigation locks keys, reload
+retains encrypted vault, repeated unlock restores identical first address.
+Live home-bridge recovery scan paused and resumed after the in-flight read
+finished. Early resume correctly reports outstanding request, no overlapping
+scan. Completed50addresses at block975058, zero balance and public history.
+Latest GitHub source/docs run36912821013 completed successfully.
+
+Reload/reunlock restored exact completed scan timestamp/block,50addresses
+and22history entries without a rescan. Pagination21–22of22PASS.
+Fixture explicitly locked after checks. Saved screenshot:
+redwallet-038-history-restored.jpg. These are Chromium live checks; iPhone
+Keychain behavior remains the user's prior0.37confirmation. No new runtime
+changes or publication required for this verification-only follow-up.
