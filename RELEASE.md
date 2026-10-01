@@ -101,6 +101,34 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 - Signing, upload, and bootstrap environments require owner review and allow
   deployments only from `main`.
 
+### Reviewed wallet-safety tester release (2026-10-01)
+
+- Fixed iPhone version **8.0.1 (1790892958)** is processed and available to
+  both **Roman iPhone Testing** and **RedWallet Early Testers**. Apple reports
+  `VALID`, beta review `APPROVED`, and `IN_BETA_TESTING` for internal and external
+  access. The existing [TestFlight link](https://testflight.apple.com/join/UuExh5RP)
+  remains enabled with its 20-tester limit.
+- Approved private source: `fd4cedfb98fa608941c591fd2387b14b1dedfced`;
+  public orchestration: `d9e3550f8cf9f90f7f8128938759fd6c0b871f11`.
+  Its production app code matches the reviewed safety changes in this branch;
+  later changes concern tests, documentation, and the release verifier.
+- [Build run 36933275202](https://github.com/romanmodin/RedWallet/actions/runs/36933275202)
+  and [upload run 36935579376](https://github.com/romanmodin/RedWallet/actions/runs/36935579376)
+  completed successfully. Both receipts confirm the same IPA SHA-256:
+  `1d5892bcfa024bdbc33c5af22041737033c19e2afa21abbfd63dc673c5fe0304`.
+- macOS verified the signing team, both bundle identities, profile-authorized
+  signing certificates, distribution entitlements, profile validity, and arm64
+  architecture. The package was encrypted for artifact storage and authenticated
+  against its approved source, workflow commit, and originating run before upload.
+- The replacement Apple upload key completed this release after the old key
+  was revoked. Signing used the read-only Match key; Apple authentication was
+  confined to the separately reviewed upload job.
+- All five selected simulator checks passed across the two runs recorded in
+  XBT_VALIDATION.md, including recovery/restart and unsupported import rejection.
+  That document records the reused simulator's source limits and the 638 passing
+  unit tests. Physical iPhone QA and the complete phone/Fulcrum send flow remain
+  open; this tester release does not close those gates.
+
 ## Build and upload
 
 1. Review the pinned private source revision and the exact public `main`
