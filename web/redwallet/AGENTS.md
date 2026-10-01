@@ -1,3 +1,7 @@
+# 0.39 ready; publication blocked by sign-in
+
+Source b8fd08687 pushed. Clean GitHub CI36921093626 PASS across frontend/bridge tests, checks, builds and audit.377file source ZIP ready. Caffeine signed out; Google passkey challenge failed. Stop automated auth; user handoff required before import/publish. Public remains0.38. See V039.
+
 # 0.39 wallet removal prepared
 
 User authorized individual test/demo wallet removal. Backup/name-gated encrypted deletion locks keys and preserves other vaults plus public indexes. Watch removal and persistent demo hide/restore added; empty dashboard handled. See V039. Publication pending.
