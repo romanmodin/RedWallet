@@ -1,3 +1,15 @@
+# 0.42 LIVE — public scan navigation and maturity
+
+Caffeine45 published; source d1bfc717f79d27419570e7028c217a72cfc13628.
+All385 reviewed source paths match export; backend hash unchanged. CI37005235278
+PASS:420frontend/80bridge, typechecks, Biome224, builds, audit0advisories.
+Public Settings0.42/protection verified. Navigation now reconnects to active scan
+with keys locked; explicit Pause/Resume retains public checkpoint.0.41 same job
+completed41addresses on Home. iPhone suspension remains a device check.
+Mature native SegWit rewards use6,480-block relay policy and authenticated parent
+height checks. No funded broadcast or new live-node coinbase acceptance claimed.
+Native apps untouched. Supersedes prepared/pending records below. See V041.
+
 # 0.42 route identity follow-up prepared
 
 Live0.41/Caffeine44 import matched385files/backend unchanged; self-test PASS.

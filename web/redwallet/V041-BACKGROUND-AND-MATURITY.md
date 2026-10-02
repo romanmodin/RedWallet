@@ -71,3 +71,24 @@ identity only for the same provider connection+generation, after existing
 resolution checks. Reconnect still replaces identity and rejects old reads.
 Regression covers repeated resolve and reconnect. No freshness check bypassed.
 0.42 publication and live navigation verification pending.
+
+## Published0.42 / Caffeine45 — 2026-10-02
+
+Runtime commit d1bfc717f79d27419570e7028c217a72cfc13628. Clean GitHub
+37005235278 SUCCESS:420frontend tests/65files,80bridge tests, TypeScript,
+Biome224, both builds and production audit0known vulnerabilities. Actual
+Caffeine45 export matches all385 reviewed source paths. Backend SHA256 remains
+6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001.
+Caffeine confirms Version45 live; public Settings shows0.42 and analytics blocked.
+
+Public0.41 disposable fixture completed41addresses while on Home and Home
+updated automatically (block975161). Public0.42 restored that completed result
+after reload/unlock, then Refresh started a new scan. Navigating Home and back
+now shows Reading account with all signing keys locked. Explicit Pause retains
+a new scan checkpoint and Resume works while locked. No funded broadcast.
+Actual iPhone suspension/minimization still needs device testing; uninterrupted
+execution while iOS suspends the browser is not promised.
+
+After manual Pause at1address, Resume while locked advanced to4 then5addresses
+after Home/Wallets navigation. Screenshot captures5addresses actively reading
+and the locked-key public-account message together.

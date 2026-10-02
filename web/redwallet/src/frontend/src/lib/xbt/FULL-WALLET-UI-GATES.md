@@ -47,11 +47,11 @@ replace them.
    an unlocked wallet from malicious page code or a compromised origin, and
    that the public xpub is stored unencrypted and is sensitive wallet-activity
    metadata.
-9. **Coinbase maturity.** 0.41 prepared source integrates the XBT mainnet
+9. **Coinbase maturity.** Published0.42 integrates the XBT mainnet
    consensus boundaries and stricter6,480-block relay policy, with authenticated
    raw-parent height checks and boundary/signing/selection regressions. See
    V041-BACKGROUND-AND-MATURITY.md at the app root for evidence and publication
-   status. Public0.40 still rejects coinbase until this update is published.
+   status. No new funded live-node coinbase acceptance is claimed.
 
 ## Explicitly out of scope until the gates pass
 
