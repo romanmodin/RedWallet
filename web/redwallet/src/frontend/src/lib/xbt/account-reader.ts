@@ -2,6 +2,7 @@
 import type { BridgeActor } from "@/services/bridgeService";
 import type { BranchDiscovery } from "./discovery";
 import { type DiscoveryProgress, DiscoverySession } from "./discovery-session";
+import type { ScanCheckpoint } from "./scan-checkpoint";
 
 const CHECKPOINT_HEIGHT = 961640n;
 const CHECKPOINT_HASH =
@@ -71,6 +72,8 @@ export class AccountReader {
   #busy = false;
   #history = new Map<string, PublicHistoryRow[]>();
   readonly #discovery: DiscoverySession;
+  #branches: readonly [BranchDiscovery, BranchDiscovery] | null = null;
+  readonly #startedAt: number;
   constructor(
     readonly accountXpub: string,
     private readonly actor: BridgeActor,
@@ -81,7 +84,16 @@ export class AccountReader {
     } = {},
     private readonly clock: () => number = () => performance.now(),
     private readonly wait: Wait = pause,
+    recovery?: {
+      checkpoint?: ScanCheckpoint | null;
+      onCheckpoint: (value: ScanCheckpoint) => void;
+    },
   ) {
+    const saved = recovery?.checkpoint;
+    this.#startedAt = saved?.startedAt ?? Date.now();
+    // A saved entry is used only when discovery derives that exact address from
+    // the unlocked account. These are historical hints, never spendable coins.
+    this.#history = new Map(saved?.history ?? []);
     this.#discovery = new DiscoverySession(
       accountXpub,
       async (address, signal) => {
@@ -90,11 +102,21 @@ export class AccountReader {
         );
         const entries = checkHistory(history.entries);
         this.#history.set(address, entries);
+        recovery?.onCheckpoint({
+          startedAt: this.#startedAt,
+          gap: bounds.gapLimit ?? 20,
+          cap: bounds.maxAddressesPerBranch ?? 1000,
+          history: [...this.#history],
+        });
         return entries.length > 0;
       },
       bounds,
       clock,
       wait,
+      (address) => {
+        const cached = this.#history.get(address);
+        return cached ? cached.length > 0 : undefined;
+      },
     );
   }
 
@@ -159,7 +181,17 @@ export class AccountReader {
     this.#busy = true;
     try {
       await this.#height(signal);
-      const branches = await this.#discovery.run(signal, progress);
+      // Discovery may have completed before a later balance request failed.
+      // Resume that phase instead of rerunning a completed DiscoverySession.
+      const branches =
+        this.#branches ??
+        (await this.#discovery.run(signal, (value) =>
+          progress?.({
+            ...value,
+            checked: Math.max(value.checked, this.#history.size),
+          }),
+        ));
+      this.#branches = branches;
       let confirmed = 0n;
       let unconfirmed = 0n;
       const txs = new Map<string, PublicHistoryRow>();
@@ -210,7 +242,7 @@ export class AccountReader {
         unconfirmed,
         history: Object.freeze([...txs.values()]),
         height,
-        observedAt: Date.now(),
+        observedAt: this.#startedAt,
       });
     } finally {
       this.#busy = false;

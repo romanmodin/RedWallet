@@ -5,10 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearAccountViewSessions } from "./account-view-session";
 import { type AddressMutex, IssuedAddresses } from "./issued-addresses";
 import { XbtKeySession, publicAddress } from "./key-material";
+import { loadScanCheckpoint, saveScanCheckpoint } from "./scan-checkpoint";
 
-const fixture = vi.hoisted(() => ({ scan: vi.fn() }));
+const fixture = vi.hoisted(() => ({ scan: vi.fn(), construct: vi.fn() }));
 vi.mock("@/lib/xbt/account-reader", () => ({
   AccountReader: class {
+    constructor(...args: unknown[]) {
+      fixture.construct(...args);
+    }
     scan = fixture.scan;
   },
 }));
@@ -113,9 +117,7 @@ describe("public account receive UI", () => {
     // restores the completed observation to the parent.
     await waitFor(() => {
       expect(onSnapshot.mock.calls.at(-1)?.[0]).toBe(originalSnapshot);
-      expect(
-        screen.getByRole("button", { name: "Refresh account" }),
-      ).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Resume scan" })).toBeEnabled();
     });
     restored.unmount();
     render(
@@ -175,4 +177,59 @@ it("preserves partial progress across unmount and resumes without restarting; ac
     screen.queryByRole("button", { name: "Resume scan" }),
   ).not.toBeInTheDocument();
   expect(screen.getByText("0 addresses checked")).toBeInTheDocument();
+});
+
+it("restores a durable checkpoint after memory reset, pauses on pagehide and only restarts explicitly", async () => {
+  const keys = new XbtKeySession(
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  );
+  const account = keys.account;
+  keys.destroy();
+  const checkpoint = {
+    startedAt: Date.now(),
+    gap: 20,
+    cap: 1000,
+    history: [[account.firstAddress, []]],
+  } as const;
+  saveScanCheckpoint(account.accountXpub, {
+    ...checkpoint,
+    history: [[account.firstAddress, []]],
+  });
+  clearAccountViewSessions(true);
+  const book = new IssuedAddresses(
+    account.accountXpub,
+    { getItem: () => null, setItem: () => {} },
+    async (_name, action) => action(),
+  );
+  fixture.scan.mockImplementationOnce(
+    (signal: AbortSignal) =>
+      new Promise((_resolve, reject) => {
+        signal.addEventListener(
+          "abort",
+          () => reject(Error("Account read cancelled")),
+          { once: true },
+        );
+      }),
+  );
+  const view = render(
+    <AccountReadPanel
+      account={account}
+      actor={{} as BridgeActor}
+      addressBook={book}
+    />,
+  );
+  expect(screen.getByText("1 addresses checked")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Resume scan" }));
+  expect(fixture.construct.mock.calls.at(-1)?.[5].checkpoint).toEqual(
+    checkpoint,
+  );
+  fireEvent(window, new Event("pagehide"));
+  await screen.findByText("Account read cancelled");
+  expect(loadScanCheckpoint(account.accountXpub)).toEqual(checkpoint);
+  fixture.scan.mockRejectedValueOnce(Error("Restart reached fresh reader"));
+  fireEvent.click(screen.getByRole("button", { name: "Restart scan" }));
+  await screen.findByText("Restart reached fresh reader");
+  expect(fixture.construct.mock.calls.at(-1)?.[5].checkpoint).toBeNull();
+  expect(loadScanCheckpoint(account.accountXpub)).toBeNull();
+  view.unmount();
 });

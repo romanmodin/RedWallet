@@ -29,6 +29,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 
 /**
  * Reuses successful observations across pause/retry within this one scan only.
+ * An optional caller-owned historical checkpoint can seed a resumed scan.
  * Never persists observations or returns a partial scan as complete. Start a
  * new session to refresh completed results. A five-minute pause discards the
  * cache; this is bounded recovery, not a live balance or freshness guarantee.
@@ -53,6 +54,9 @@ export class DiscoverySession {
       ms: number,
       signal?: AbortSignal,
     ) => Promise<void> = delay,
+    private readonly savedObservation?: (
+      address: string,
+    ) => boolean | undefined,
   ) {
     this.#bounds = {
       ...bounds,
@@ -85,6 +89,13 @@ export class DiscoverySession {
             reused++;
             progress?.({ checked: this.checked, reused });
             return this.#observations.get(address)!;
+          }
+          const saved = this.savedObservation?.(address);
+          if (saved !== undefined) {
+            this.#observations.set(address, saved);
+            reused++;
+            progress?.({ checked: this.checked, reused });
+            return saved;
           }
           const remaining = 3500 - (this.clock() - this.#lastStart);
           if (remaining > 0) await this.wait(remaining, signal);

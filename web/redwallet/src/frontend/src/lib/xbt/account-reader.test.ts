@@ -1,7 +1,16 @@
 import type { BridgeActor } from "@/services/bridgeService";
 import { describe, expect, it, vi } from "vitest";
 import { AccountReader } from "./account-reader";
+import {
+  accountViewSession,
+  clearAccountViewSessions,
+} from "./account-view-session";
 import { XbtKeySession, publicAddress } from "./key-material";
+import {
+  type ScanCheckpoint,
+  loadScanCheckpoint,
+  saveScanCheckpoint,
+} from "./scan-checkpoint";
 
 function fixture() {
   const keys = new XbtKeySession(
@@ -49,7 +58,7 @@ function fixture() {
         clock += ms;
       },
     );
-  return { actor, reader, starts };
+  return { actor, reader, starts, xpub };
 }
 describe("public account discovery and aggregation", () => {
   it("paces public reads, requires the XBT checkpoint and deduplicates shared history", async () => {
@@ -104,4 +113,68 @@ describe("public account discovery and aggregation", () => {
     expect(f.actor.getAddressHistory).toHaveBeenCalledTimes(1);
     finish?.();
   });
+});
+
+it("saves each successful address and resumes after reload/reconnect without repeating history or pacing cached reads", async () => {
+  localStorage.clear();
+  const f = fixture();
+  const startedAt = Date.now();
+  const abort = new AbortController();
+  let time = 0;
+  const wait = vi.fn(async (ms: number) => {
+    time += ms;
+  });
+  const save = (checkpoint: ScanCheckpoint) => {
+    saveScanCheckpoint(f.xpub, checkpoint);
+    if (checkpoint.history.length === 6) abort.abort();
+  };
+  const first = new AccountReader(
+    f.xpub,
+    f.actor as unknown as BridgeActor,
+    {},
+    () => time,
+    wait,
+    { onCheckpoint: save },
+  );
+  await expect(first.scan(abort.signal)).rejects.toThrow(/cancelled/);
+  expect(f.actor.getAddressHistory).toHaveBeenCalledTimes(6);
+  const checkpoint = loadScanCheckpoint(f.xpub)!;
+  expect(checkpoint.history).toHaveLength(6);
+  expect(checkpoint.startedAt).toBeGreaterThanOrEqual(startedAt);
+  clearAccountViewSessions(true);
+  const nextActor = { ...f.actor } as unknown as BridgeActor;
+  const session = accountViewSession(nextActor, f.xpub);
+  expect(session.checked).toBe(6);
+  expect(session.checkpoint).toEqual(checkpoint);
+  // Model an overnight pause. A checkpoint is historical, not freshly stamped.
+  time += 86400000;
+  const progress = vi.fn();
+  wait.mockClear();
+  const second = new AccountReader(f.xpub, nextActor, {}, () => time, wait, {
+    checkpoint: session.checkpoint,
+    onCheckpoint: (value) => saveScanCheckpoint(f.xpub, value),
+  });
+  const result = await second.scan(undefined, progress);
+  expect(f.actor.getAddressHistory).toHaveBeenCalledTimes(42);
+  expect(
+    new Set(f.actor.getAddressHistory.mock.calls.map(([address]) => address))
+      .size,
+  ).toBe(42);
+  expect(progress.mock.calls.every(([value]) => value.checked >= 6)).toBe(true);
+  expect(wait).toHaveBeenCalledTimes(39); // 36 new histories, 2 balances, final status
+  expect(result.observedAt).toBe(checkpoint.startedAt);
+  expect(result.history).toEqual([{ txid: "a".repeat(64), height: 974000n }]);
+  localStorage.clear();
+});
+it("resumes balance aggregation after discovery completed and keeps fresh balance/checkpoint reads", async () => {
+  const f = fixture();
+  f.actor.getAddressBalance.mockRejectedValueOnce(Error("connection closed"));
+  const reader = f.reader();
+  await expect(reader.scan()).rejects.toThrow("connection closed");
+  const historyCalls = f.actor.getAddressHistory.mock.calls.length;
+  const snapshot = await reader.scan();
+  expect(f.actor.getAddressHistory).toHaveBeenCalledTimes(historyCalls);
+  expect(f.actor.getAddressBalance).toHaveBeenCalledTimes(3);
+  expect(f.actor.getServerStatus).toHaveBeenCalledTimes(3);
+  expect(snapshot.history).toHaveLength(1);
 });

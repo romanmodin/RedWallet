@@ -113,6 +113,12 @@ describe("individual vault removal", () => {
     expect(controller.locked).toBe(true);
     expect(catalog.list().map((v) => v.id)).toEqual([b.id]);
     expect(store.getItem(`redwallet.vault.v1.${b.id}`)).toBe(other);
+    const reopened = new VaultCatalog(store, cryptoApi);
+    expect(reopened.list()[0]?.damaged).toBe(false);
+    expect(
+      (await reopened.controller(b.id).unlock(password)).firstAddress,
+    ).toBe("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
+    reopened.lockAll();
     expect(store.getItem(`redwallet.vault-label.v1.${a.id}`)).toBeNull();
     expect(store.getItem("redwallet.issued.v1.public-test")).toBe("retained");
   });

@@ -6,9 +6,11 @@ import {
   loadPublicSnapshot,
   publicStorageKey,
 } from "./public-wallet-storage";
+import { type ScanCheckpoint, loadScanCheckpoint } from "./scan-checkpoint";
 
 export interface AccountViewSession {
   reader: AccountReader | null;
+  checkpoint: ScanCheckpoint | null;
   snapshot: AccountSnapshot | null;
   checked: number;
   gap: number;
@@ -17,7 +19,7 @@ export interface AccountViewSession {
 }
 let sessions = new WeakMap<BridgeActor, Map<string, AccountViewSession>>();
 
-/** Actor and authenticated account scope prevent cross-network/account reuse. */
+/** Live readers are actor-scoped; durable XBT observations are historical account hints. */
 export function accountViewSession(actor: BridgeActor, accountXpub: string) {
   let accounts = sessions.get(actor);
   if (!accounts) {
@@ -28,12 +30,14 @@ export function accountViewSession(actor: BridgeActor, accountXpub: string) {
   if (!session) {
     // Same bound as the vault catalog; this cache must not grow without limit.
     if (accounts.size >= 100) accounts.delete(accounts.keys().next().value!);
+    const checkpoint = loadScanCheckpoint(accountXpub);
     session = {
+      checkpoint,
       reader: null,
       snapshot: loadPublicSnapshot(accountXpub),
-      checked: 0,
-      gap: 20,
-      cap: 1000,
+      checked: checkpoint?.history.length ?? 0,
+      gap: checkpoint?.gap ?? 20,
+      cap: checkpoint?.cap ?? 1000,
       receive: null,
     };
     accounts.set(accountXpub, session);

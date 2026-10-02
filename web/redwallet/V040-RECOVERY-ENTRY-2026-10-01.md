@@ -1,3 +1,46 @@
+# Combined source validation
+
+Local full frontend:64files/401tests PASS, TypeScript PASS, Biome222files PASS,
+production Vite build/copy:env PASS. Scoped git diff check PASS. The build emitted
+existing root-native tsconfig/Browserslist age warnings; no native files changed.
+Clean GitHub CI and Caffeine exact source/import/export/publication still pending.
+
+# Follow-up: durable interrupted recovery scans
+
+User reports scan progress lost after switching away and supplies screenshots of
+Direct Fulcrum connection closed and Account read timed out. Sign-in to Caffeine
+is now restored, and publication authorization was explicitly granted. Earlier
+blocked-publication statements below are historical. Public remains 0.39 pending
+this combined release.
+
+Each successful public history response checkpoints locally under the authenticated
+account hash and XBT profile. Load bounds size/counts/fields and accepts only public
+history rows; discovery uses cached entries only for addresses freshly derived from
+the unlocked account. No key/phrase/password is persisted by this mechanism.
+Incomplete scans survive reload and provider reconnect. The primary action resumes;
+Restart is explicit. Changing gap/cap starts fresh. A completed scan replaces its
+checkpoint only after successful durable snapshot saving. Storage failures are visible.
+Background/pagehide pauses requests; return requires Resume. Closed/time-out errors
+direct the user to Reconnect selected connection, then Resume. No automatic provider
+fallback or payment replay added. Discovery completion is retained through balance
+read failures so retry works. Cached addresses avoid both network calls and pacing.
+
+Saved history is historical, including unused observations. Resume preserves the
+scan start timestamp; Refresh/Restart checks new transfers to previously read
+addresses. Display copy states this limitation. Every payment still needs fresh
+coins, parent transactions, fees, checkpoint and change-address history checks.
+
+A fixture regression deletes one encrypted wallet and checks another is byte-for-byte
+unchanged, lists undamaged after catalog reload, and decrypts correctly. These tests
+do not establish what happened to the user's own local data. Actual corruption has
+not been demonstrated by the supplied screenshots.
+
+Checks added: reload/new-actor resume after an overnight pause, no repeated history
+or pacing for saved addresses, non-regressing count, preserved observation time,
+balance-phase retry, pagehide pause, explicit restart, account isolation, malformed/
+oversized/future/duplicate checkpoint rejection and storage refusal. Validation and
+publication results will be recorded after they finish.
+
 # Latest refinement — 30 seconds away
 
 User requested a maximum30seconds on2026-10-01. Recovery entry now starts a

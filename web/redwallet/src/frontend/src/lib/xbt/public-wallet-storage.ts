@@ -94,7 +94,8 @@ export function savePublicSnapshot(xpub: string, snapshot: AccountSnapshot) {
 }
 export function clearPublicSnapshots() {
   for (const key of Object.keys(localStorage))
-    if (key.startsWith(`${PREFIX}scan.`)) localStorage.removeItem(key);
+    if (key.startsWith(`${PREFIX}scan.`) || key.startsWith(`${PREFIX}partial.`))
+      localStorage.removeItem(key);
 }
 export interface PaymentDraft {
   destination: string;

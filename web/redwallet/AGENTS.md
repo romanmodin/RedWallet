@@ -1,3 +1,18 @@
+# 0.40 scan resume follow-up — prepared, not yet published
+
+Caffeine sign-in restored; user explicitly authorized publication. Prior automatic
+approval/sign-in blocker below is superseded. Public remains 0.39 until verified.
+New screenshots show direct Fulcrum closed/timeouts, not proof of vault corruption.
+Partial public history checkpoints are now saved per authenticated account/profile
+and restored across reload/reconnect. Resume is primary; explicit Restart discards
+hints. Background/pagehide pauses. Completed discovery can retry balance aggregation.
+Original scan observation time stays visible; cached history is historical and
+fresh signing/coin/parent/fee/checkpoint checks remain mandatory. No secrets saved.
+30-second recovery-entry grace retained. Removal fixture verifies another saved
+vault remains byte-identical and unlocks after catalog reload; no removal corruption
+reproduced. Native/backend/provider/security code unchanged. Local401frontend tests/64files, typecheck/Biome222/build PASS;
+clean CI and exact import/export/backend hash/publication gates still required. See V040.
+
 # 0.40 recovery-entry fix prepared — publication pending
 
 User confirmed web wallet, phrase/password entry resets on leaving the screen.
