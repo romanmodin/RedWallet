@@ -215,7 +215,7 @@ const ElectrumSettings: React.FC = () => {
         const serverTlsCa = serverSslPort ? (v ? v.tlsCa || '' : tlsCa).trim() : '';
         if (
           serverTlsCa &&
-          (serverTlsCa.length > 16384 || !/^-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----$/.test(serverTlsCa))
+          (serverTlsCa.length > 16384 || !/^-----BEGIN CERTIFICATE-----\s+[A-Za-z0-9+/=\s]+-----END CERTIFICATE-----$/.test(serverTlsCa))
         ) {
           throw new Error('Enter one PEM certificate obtained from your trusted server operator.');
         }
@@ -609,7 +609,7 @@ const ElectrumSettings: React.FC = () => {
 
             {sslPort !== undefined && (
               <View>
-                <Text>Trusted CA or server certificate (optional PEM)</Text>
+                <Text style={stylesHook.inputText}>Trusted CA or server certificate (optional PEM)</Text>
                 <TextInput
                   testID="TlsCaInput"
                   value={tlsCa}
@@ -625,10 +625,10 @@ const ElectrumSettings: React.FC = () => {
                   style={[styles.tlsCertificate, stylesHook.inputText]}
                   placeholder="-----BEGIN CERTIFICATE-----"
                 />
-                <Text>
+                <SettingsFootnote>
                   Leave empty for system trust. For a private server, obtain its certificate from the operator through a trusted channel.
                   The server name must match.
-                </Text>
+                </SettingsFootnote>
               </View>
             )}
             <View style={styles.buttonContainer}>
