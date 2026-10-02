@@ -14,7 +14,8 @@ async function visible(id) {
   await waitFor(element(by.id(id)))
     .toBeVisible()
     .whileElement(by.id('ElectrumSettingsScrollView'))
-    .scroll(150, 'down');
+    // Start in the outer margin so the multiline PEM editor cannot consume the gesture.
+    .scroll(150, 'down', 0.95, 0.5);
 }
 
 async function openSettings() {
@@ -69,7 +70,12 @@ describe('native Electrum TLS authentication', () => {
       try {
         await device.clearKeychain();
         await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
+        // Settings polling/reconnect timers must not hold every iOS action at idle.
+        // Every connection outcome is still checked explicitly below.
+        const isIOS = device.getPlatform() === 'ios';
+        if (isIOS) await device.disableSynchronization();
         await openSettings();
+        console.log('[tls-e2e] settings opened:', scenario.name);
         await visible('HostInput');
         await element(by.id('HostInput')).replaceText(device.getPlatform() === 'android' ? '10.0.2.2' : '127.0.0.1');
         await visible('PortInput');
@@ -79,16 +85,16 @@ describe('native Electrum TLS authentication', () => {
         await visible('TlsCaInput');
         await element(by.id('TlsCaInput')).replaceText(scenario.anchor ? fixture(scenario.anchor).toString().trim() : '');
         await element(by.id('TlsCaInput')).tapReturnKey();
-        await visible('Save');
-        const isIOS = device.getPlatform() === 'ios';
-        if (isIOS) await device.disableSynchronization();
-        try {
-          await element(by.id('Save')).tap();
-          await waitForText(scenario.accepted ? saved : failed, 30_000);
-          expect(await dismissAlertByText('OK')).toBe(true);
-        } finally {
-          if (isIOS) await device.enableSynchronization();
-        }
+        console.log('[tls-e2e] certificate entered:', scenario.name);
+        await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
+        await waitFor(element(by.id('Save')))
+          .toBeVisible()
+          .withTimeout(15_000);
+        console.log('[tls-e2e] saving server:', scenario.name);
+        await element(by.id('Save')).tap();
+        await waitForText(scenario.accepted ? saved : failed, 30_000);
+        console.log('[tls-e2e] expected connection result:', scenario.name, 'RPCs:', requests);
+        expect(await dismissAlertByText('OK', 10_000, false)).toBe(true);
         if (scenario.accepted) {
           expect(requests).toBeGreaterThanOrEqual(3);
           const beforeRestart = requests;
@@ -105,6 +111,7 @@ describe('native Electrum TLS authentication', () => {
           expect(requests).toBe(0);
         }
       } finally {
+        if (device.getPlatform() === 'ios') await device.enableSynchronization();
         await device.terminateApp();
         for (const socket of sockets) socket.destroy();
         await new Promise(resolve => server.close(resolve));

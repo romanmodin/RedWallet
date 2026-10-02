@@ -362,7 +362,7 @@ export async function tapIfTextPresent(text) {
  *
  * @returns true if the alert was dismissed, false if no alert was found
  */
-export async function dismissAlertByText(text, timeoutMs = 10000) {
+export async function dismissAlertByText(text, timeoutMs = 10000, restoreSynchronization = true) {
   const isIOS = device.getPlatform() === 'ios';
   if (isIOS) {
     await device.disableSynchronization();
@@ -386,7 +386,7 @@ export async function dismissAlertByText(text, timeoutMs = 10000) {
       await sleep(500);
     }
   } finally {
-    if (isIOS) {
+    if (isIOS && restoreSynchronization) {
       await device.enableSynchronization();
     }
   }
