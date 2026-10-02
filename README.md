@@ -1,30 +1,26 @@
-# RedWallet for iPhone
+# RedWallet for iPhone and Android
 
-RedWallet is an iPhone wallet project based on [BlueWallet 8.0.1](https://github.com/BlueWallet/BlueWallet/releases/tag/8.0.1). The initial goal is an XBT-only wallet. BTC may be considered later as a separate, explicitly selected profile.
+RedWallet is an XBT wallet based on [BlueWallet 8.0.1](https://github.com/BlueWallet/BlueWallet/releases/tag/8.0.1). This is an independent community project, not an official BlueWallet release. The upstream MIT license and attributions are retained.
 
-The iOS app name is now **RedWallet**. This repository is an independent community project and is not an official BlueWallet release. The original BlueWallet source is MIT licensed; its license and upstream attributions are retained.
+## Try the beta
 
-The first XBT release is intentionally narrow: one Native SegWit/P2WPKH account, one keystore, and no BTC fallback. Lightning, multisig, silent payments, and Taproot are outside the first release. See [PROJECT_SCOPE.md](PROJECT_SCOPE.md) for the implementation plan and chain safety requirements.
+The iPhone beta is available through TestFlight to invited testers. The signed Android phone beta is available from [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1790940564). See [ANDROID_INSTALL.md](ANDROID_INSTALL.md) for installation and update instructions. Android 7.0 or newer is required; Google Play distribution is not enabled.
 
-## Project status
+## Scope and verification
 
-This is an early development fork. The XBT profile now covers BIP84 P2WPKH accounts and Unified Sighash signing, while shared upstream code still retains Bitcoin-mainnet assumptions in other address, derivation, fee, and service paths. The remaining verification gates below must pass before anyone should use it with funds.
+The current XBT wallet supports one Native SegWit/P2WPKH BIP84 account, Unified Sighash signing, wallet recovery, Fulcrum balance and transaction history, QR receive/send, configurable servers, and XBT pricing. Hardware signing, Taproot, multisig, silent payments and Lightning are outside this release.
 
-The BIP84 XBT account and Unified Sighash P2WPKH signing path are implemented and checked against published vectors. That does not make sends ready for real funds: full transaction acceptance by Knots, trusted endpoint isolation, fee/history/broadcast handling, seed recovery/import, hardware-signing round trips, and physical-iPhone testing remain open. This is an experimental build; do not use it with real funds. The iOS bundle identifiers are provisional RedWallet identifiers and must be registered under the owner's Apple Developer team before TestFlight signing is enabled. Never commit signing certificates, API keys, or wallet secrets.
+History is fetched for discovered receive and change addresses; it is not limited to transactions created in RedWallet. A tester has reported a restored balance with missing history. That report remains unresolved, and this Android package does not claim to fix it.
 
-## Scope
+PR #1 has been reviewed and merged. Signing checks use published vectors and independent regression fixtures. The Android release package passed emulator installation and launch checks, and its signature, alignment and payload were verified. Each release includes an APK checksum and a receipt identifying its source commit, CI run and signing certificate.
 
-- iPhone app only; changes should target the iOS app and shared wallet code it uses.
-- Support XBT, with BTC retained as an optional chain if the chain profiles can stay clearly separated.
-- Keep chain-specific address parsing, derivation, transaction construction, signing, fee estimates, history, and broadcast behavior explicit.
-- Protect existing BlueWallet wallet data and BTC behavior while adding XBT.
-- Require independent review and test vectors for address derivation, PSBT construction, and signed transaction serialization before release.
+This remains an early beta. Physical iPhone checks covered recovery, persistence, receive/QR, send review and cancellation. A full live send/confirmation flow and physical Android-phone compatibility have not yet been verified. Emulator launch success is not a complete security audit. Preserve recovery backups and start with an empty test wallet.
+
+RedWallet installs separately from BlueWallet and does not automatically migrate its data. Future Android APK updates must use the same RedWallet release certificate. Never commit signing certificates, API keys, seed phrases, private keys or wallet backups.
 
 ## Contributing
 
-Use focused pull requests. Include reproducible tests and public test vectors for any chain or transaction change. Never include seed phrases, private keys, wallet backups, or real transaction secrets in issues, pull requests, screenshots, or test fixtures.
-
-The project welcomes independent review, especially for chain separation and transaction signing. Until XBT support passes the security and compatibility checks above, builds are for development and testing only.
+Independent review and focused pull requests are welcome. Include reproducible tests and public fixtures for transaction, signing or chain changes. Do not include wallet secrets or private transaction details in issues, pull requests or screenshots. See [PROJECT_SCOPE.md](PROJECT_SCOPE.md) for the original implementation plan.
 
 ## License
 
