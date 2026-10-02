@@ -58,6 +58,7 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/RedWallet-unsigned.apk
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" dist/
           cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" dist/
+          cp -R "$ANDROID_HOME/build-tools/36.0.0/lib64" dist/
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging dist/RedWallet-unsigned.apk > dist/package-badging.txt
           python3 - <<'PY'
           import hashlib,json,os,zipfile
