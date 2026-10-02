@@ -1,11 +1,20 @@
-import { dismissAlertByText, enterMnemonicText, getSwitchValue, goBack, scrollUpOnHomeScreen, waitForId, waitForText } from './helperz';
+import {
+  dismissAlertByText,
+  enterMnemonicText,
+  getSwitchValue,
+  goBack,
+  scrollUpOnHomeScreen,
+  waitForId,
+  waitForWalletsList,
+  waitForText,
+} from './helperz';
 const assert = require('assert').strict;
 
 describe('RedWallet XBT watch-only import', () => {
   it('imports a BIP84 public account with external signing disabled', async () => {
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { notifications: 'NO', camera: 'YES' } });
-    await waitForId('WalletsList', 120_000);
+    await waitForWalletsList();
     await element(by.id('SettingsButton')).tap();
     await element(by.id('NetworkSettings')).tap();
     await element(by.id('ElectrumSettings')).tap();

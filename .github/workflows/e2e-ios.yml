@@ -275,7 +275,7 @@ jobs:
             --record-logs failing \
             --take-screenshots failing \
             --headless \
-            --retries 3 \
+            --retries 0 \
             --reuse \
             --artifacts-location ./artifacts
 

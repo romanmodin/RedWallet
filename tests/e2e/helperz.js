@@ -43,6 +43,16 @@ export async function waitForId(id, timeout = 33000) {
   }
 }
 
+export async function waitForWalletsList(timeout = 120_000) {
+  // A populated scroll container can extend beyond the viewport. Check that
+  // it exists and that the home toolbar is visible; wallet rows have their
+  // own visibility/address assertions in each test.
+  await waitFor(element(by.id('WalletsList')))
+    .toExist()
+    .withTimeout(timeout);
+  await waitForId('SettingsButton', timeout);
+}
+
 export async function waitForText(text, timeout = 33000) {
   const callsite = captureCallsite(waitForText);
   try {
@@ -255,18 +265,12 @@ export async function helperCreateWallet(walletName) {
   }
   try {
     await element(by.id('Create')).tap();
-    await sleep(500);
-    try {
-      await waitFor(element(by.id('PleaseBackupScrollView')))
-        .toBeVisible()
-        .withTimeout(15000);
-    } catch (_) {
-      await element(by.id('Create')).tap();
-      await sleep(500);
-      await waitFor(element(by.id('PleaseBackupScrollView')))
-        .toBeVisible()
-        .withTimeout(15000);
-    }
+    // Wait for the backup screen to mount after the asynchronous storage write.
+    // Its scroll content can exceed the viewport; visibility is checked on OK.
+    // Never tap Create again while a wallet may already have been created.
+    await waitFor(element(by.id('PleaseBackupScrollView')))
+      .toExist()
+      .withTimeout(120_000);
 
     await waitFor(element(by.id('PleasebackupOk')))
       .toBeVisible()
@@ -281,7 +285,7 @@ export async function helperCreateWallet(walletName) {
       await device.enableSynchronization();
     }
   }
-  await expect(element(by.id('WalletsList'))).toBeVisible();
+  await expect(element(by.id('WalletsList'))).toExist();
   await element(by.id('WalletsList')).swipe('right', 'fast', 1); // in case emu screen is small and it doesnt fit
   await sleep(200);
   await expect(element(by.id(walletName || 'cr34t3d'))).toBeVisible();

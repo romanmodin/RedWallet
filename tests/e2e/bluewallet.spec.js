@@ -18,6 +18,7 @@ import {
   tapAndTapAgainIfElementIsNotVisible,
   tapIfTextPresent,
   waitForId,
+  waitForWalletsList,
   waitForKeyboardToClose,
   waitForText,
   waitForLabel,
@@ -42,7 +43,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // go to settings, press SelfTest and wait for OK
     await element(by.id('SettingsButton')).tap();
@@ -61,14 +62,12 @@ describe('RedWallet UI Tests - no wallets', () => {
       .whileElement(by.id('AboutScrollView'))
       .scroll(500, 'down'); // in case emu screen is small and it doesnt fit
     await tapAndTapAgainIfElementIsNotVisible('RunSelfTestButton', 'SelfTestLoading');
-    await element(by.id('SelfTestLoading')).tap(); // tapping START button
-
-    // SelfTest runs CPU-heavy crypto loops for 100+ seconds. Detox's
-    // FabricTimersIdlingResource never goes idle during that, so a synchronized
-    // waitFor would throw IdlingResourceTimeoutException long before
-    // SelfTestOk renders. Disable synchronization just for the wait.
+    // Disable synchronization before START: Detox otherwise waits for the
+    // CPU-heavy crypto loops to become idle before returning from the tap.
+    // The explicit completion check still requires the self-test to pass.
     await device.disableSynchronization();
     try {
+      await element(by.id('SelfTestLoading')).tap();
       await waitFor(element(by.id('SelfTestOk')))
         .toBeVisible()
         .withTimeout(300 * 1000);
@@ -88,7 +87,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { notifications: 'YES' } }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // go to settings, press SelfTest and wait for OK
     await element(by.id('SettingsButton')).tap();
@@ -208,7 +207,7 @@ describe('RedWallet UI Tests - no wallets', () => {
       if (notifDialogStuck) {
         // Dialog blocks all interaction; relaunch the app to clear it
         await device.launchApp({ newInstance: true });
-        await waitForId('WalletsList');
+        await waitForWalletsList();
         await element(by.id('SettingsButton')).tap();
       } else {
         await goBack();
@@ -260,12 +259,12 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     await helperCreateWallet();
 
     await device.launchApp({ newInstance: true, permissions: { notifications: 'YES' } });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await expect(element(by.id('cr34t3d'))).toBeVisible();
     await tapAndTapAgainIfElementIsNotVisible('cr34t3d', 'ReceiveButton');
     await element(by.id('ReceiveButton')).tap();
@@ -286,7 +285,7 @@ describe('RedWallet UI Tests - no wallets', () => {
 
     // ManageWallets: relaunch to clear receive modal, then open via long-press, swipe-to-hide, verify persists across restart
     await device.launchApp({ newInstance: true });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await element(by.id('cr34t3d')).longPress();
     await waitForId('NavigationCloseButton');
     await expect(element(by.id('cr34t3d'))).toBeVisible();
@@ -296,11 +295,11 @@ describe('RedWallet UI Tests - no wallets', () => {
     await waitForId('SwipeHideBalance');
     await element(by.id('SwipeHideBalance')).tap();
     await element(by.id('NavigationCloseButton')).tap();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // restart app — hide state must persist; swipe-left now exposes "Show" (hideBalance persisted as true)
     await device.launchApp({ newInstance: true });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await element(by.id('cr34t3d')).longPress();
     await waitForId('NavigationCloseButton');
     await element(by.id('cr34t3d')).swipe('left', 'slow', 0.6);
@@ -309,7 +308,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     // restore visible state so subsequent tests are clean
     await element(by.id('SwipeShowBalance')).tap();
     await element(by.id('NavigationCloseButton')).tap();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     process.env.CI && require('fs').writeFileSync(lockFile, '1');
   });
@@ -321,7 +320,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // lets create a wallet
     await helperCreateWallet();
@@ -374,7 +373,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     // correct password
     await element(by.id('PasswordInput')).typeText('qqq\n');
     await waitForKeyboardToClose();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // previously created wallet should be visible
     await expect(element(by.id('cr34t3d'))).toBeVisible();
@@ -442,7 +441,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     await waitForId('PasswordInput');
     await element(by.id('PasswordInput')).typeText('qqq\n');
     await waitForKeyboardToClose();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // previously created wallet IN MAIN STORAGE should be visible
     await expect(element(by.id('cr34t3d'))).toBeVisible();
@@ -452,7 +451,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     await waitForId('PasswordInput');
     await element(by.id('PasswordInput')).typeText('passwordForFakeStorage\n');
     await waitForKeyboardToClose();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // previously created wallet in FAKE storage should be visible
     await expect(element(by.id('fake_wallet'))).toBeVisible();
@@ -483,7 +482,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await helperCreateWallet();
     await element(by.id('SettingsButton')).tap();
     await element(by.id('SecurityButton')).tap();
@@ -534,7 +533,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     await waitForId('PasswordInput');
     await element(by.id('PasswordInput')).typeText('pass\n');
     await waitForKeyboardToClose();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // previously created wallet IN MAIN STORAGE should be visible
     await expect(element(by.id('cr34t3d'))).toBeVisible();
@@ -575,7 +574,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { camera: 'YES', notifications: 'YES' } }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
       .whileElement(by.id('WalletsList'))
@@ -645,7 +644,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { camera: 'YES', notifications: 'YES' } }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
       .whileElement(by.id('WalletsList'))
@@ -764,7 +763,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
       .whileElement(by.id('WalletsList'))
@@ -835,7 +834,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { notifications: 'YES', camera: 'YES' } }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     await helperCreateWallet();
     // Wait for the home screen's floating actions to mount after wallet creation.
@@ -857,7 +856,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await helperCreateWallet();
     // nop
     await helperDeleteWallet('cr34t3d');
@@ -872,7 +871,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { camera: 'YES', notifications: 'YES' } });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
       .whileElement(by.id('WalletsList'))
@@ -989,7 +988,7 @@ describe('RedWallet UI Tests - no wallets', () => {
       .toBeVisible()
       .withTimeout(33000);
     await element(by.id('VaultCosignersSave')).tap();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // verify receive address remains unchanged after forgetting cosigner 3 seed
     await scrollUpOnHomeScreen();
@@ -1030,7 +1029,7 @@ describe('RedWallet UI Tests - no wallets', () => {
       .toBeVisible()
       .withTimeout(33000);
     await element(by.id('VaultCosignersSave')).tap();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
 
     // verify receive address remains unchanged after restoring cosigner 3 seed
     await scrollUpOnHomeScreen();
@@ -1054,7 +1053,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     }
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { camera: 'YES', notifications: 'YES' } });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
       .whileElement(by.id('WalletsList'))

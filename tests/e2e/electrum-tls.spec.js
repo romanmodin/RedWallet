@@ -1,4 +1,4 @@
-import { dismissAlertByText, getSwitchValue, waitForId, waitForText } from './helperz';
+import { dismissAlertByText, getSwitchValue, waitForId, waitForWalletsList, waitForText } from './helperz';
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
@@ -20,9 +20,15 @@ async function visible(id) {
 }
 
 async function openSettings() {
-  await waitForId('WalletsList', 120_000);
+  await waitForWalletsList();
   await element(by.id('SettingsButton')).tap();
+  await waitForId('SettingsRoot');
+  await waitFor(element(by.id('NetworkSettings')))
+    .toBeVisible()
+    .whileElement(by.id('SettingsRoot'))
+    .scroll(150, 'down');
   await element(by.id('NetworkSettings')).tap();
+  await waitForId('ElectrumSettings');
   await element(by.id('ElectrumSettings')).tap();
   await waitForId('ElectrumConnectionEnabledSwitch');
   if (await getSwitchValue('ElectrumConnectionEnabledSwitch')) await element(by.id('ElectrumConnectionEnabledSwitch')).tap();
@@ -72,7 +78,9 @@ describe('native Electrum TLS authentication', () => {
       await new Promise(resolve => server.listen(0, '0.0.0.0', resolve));
       try {
         await device.clearKeychain();
+        console.log('[tls-e2e] storage cleared:', scenario.name);
         await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
+        console.log('[tls-e2e] app launched:', scenario.name);
         // Settings polling/reconnect timers must not hold every iOS action at idle.
         // Every connection outcome is still checked explicitly below.
         const isIOS = device.getPlatform() === 'ios';
@@ -103,7 +111,7 @@ describe('native Electrum TLS authentication', () => {
           const beforeRestart = requests;
           await device.launchApp({ newInstance: true });
           if (isIOS) await device.disableSynchronization();
-          await waitForId('WalletsList', 120_000);
+          await waitForWalletsList();
           const deadline = Date.now() + 20_000;
           while (Date.now() < deadline) {
             if (requests > beforeRestart) break;
@@ -116,6 +124,12 @@ describe('native Electrum TLS authentication', () => {
           // Even an impostor serving the correct public fork header gets no RPCs.
           assert.equal(requests, 0, 'Rejected TLS must never receive Electrum requests');
         }
+      } catch (error) {
+        // The automatic failure screenshot runs after finally; preserve the
+        // actual failed UI before cleanup terminates the app.
+        console.error('[tls-e2e] failed:', scenario.name, error.stack || error.message);
+        await device.takeScreenshot('tls-failure-before-cleanup').catch(() => {});
+        throw error;
       } finally {
         if (device.getPlatform() === 'ios') await device.enableSynchronization();
         await device.terminateApp();

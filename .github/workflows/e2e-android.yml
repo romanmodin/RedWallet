@@ -144,10 +144,10 @@ jobs:
         # bluewallet2 depends on a funded Bitcoin fixture; unsupported cases in bluewallet.spec are explicit skips.
         script: |
           npx detox test -c android.release.device tests/e2e/electrum-tls.spec.js --runTestsByPath --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location ${{ github.workspace }}/artifacts/tls
-          npx detox test -c android.release.device tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 4 --reuse --artifacts-location ${{ github.workspace }}/artifacts
+          npx detox test -c android.release.device tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location ${{ github.workspace }}/artifacts
 
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      if: failure()
+      if: failure() || cancelled()
       with:
         name: e2e-android-videos
         path: ${{ github.workspace }}/artifacts
