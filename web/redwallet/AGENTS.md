@@ -1,3 +1,17 @@
+# 0.40 LIVE — recovery entry and durable scan resume
+
+Caffeine43/public0.40 published with explicit user authorization. Source f45efbac82
+clean GitHub36975503789 PASS:401frontend/80bridge tests, typechecks/Biome222,
+both builds and production audit0known vulnerabilities. All381reviewed source
+paths exactly match actual export; backend Wasm unchanged. Public release and
+analytics protection verified. New public fixture saved/decrypted, active scan
+survived full reload/reunlock (2observed before reload,3restored), resumed to4,
+retained4across Home/Wallets navigation and explicit reconnect, then advanced
+to9addresses. Scan manually paused; keys locked on navigation. Actual iPhone check remains user test. No funded transaction sent.
+Screenshots show WSS close/timeouts, not ciphertext corruption. Other-vault removal
+fixture passed integrity and decrypt checks; no corruption reproduced. See V040.
+Native app untouched. Supersedes pending/blocked publication records below.
+
 # 0.40 scan resume follow-up — prepared, not yet published
 
 Caffeine sign-in restored; user explicitly authorized publication. Prior automatic

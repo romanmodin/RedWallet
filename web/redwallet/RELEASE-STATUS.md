@@ -1,21 +1,27 @@
 # RedWallet Web release status — 2026-10-01
 
-Public release: 0.39, Caffeine 42. Web branch: `web/caffeine-bridge-deployment`.
+Public release: 0.40, Caffeine 43. Web branch: `web/caffeine-bridge-deployment`.
 This record supersedes earlier watch-only/unmounted statements in foundation
 notes. It describes the current scoped preview, not a version1.0 claim.
 
 Individual wallet removal and persistent demo hide/restore are available on Wallets. Encrypted removal requires a backup acknowledgment and wallet name; public recovery indexes/history remain. Demo and real balances use configured XBT estimates. See V039 for final checks.
 
+Recovery entry survives up to30seconds away in the same resident tab. Incomplete
+public scans checkpoint on this device and resume across reload/reconnect. Resume
+is primary; Restart explicitly rereads addresses. Background pauses and locks keys.
+The original observation time stays visible; cached history does not establish
+current spendability. See V040 for401frontend/80bridge clean CI and live checks.
+
 ## Completed verification
 
 | Area | Evidence |
 | --- | --- |
-| Current frontend |63 files / 388 tests PASS; TypeScript, Biome 220 files and production build PASS |
-| Bridge |80 tests, typecheck and build PASS in0.39 clean GitHub runner |
+| Current frontend |64 files / 401 tests PASS; TypeScript, Biome 222 files and production build PASS |
+| Bridge |80 tests, typecheck and build PASS in0.40 clean GitHub runner |
 | Published backend |25 PocketIC tests against exact Wasm; unchanged digest in0.38 export |
 | Pure Motoko contracts |16 tests PASS with locked dependencies and native compiler |
 | Signer |Eight Knots vectors, accepted fixture parity, synthetic signing and browser-without-Node-globals checks; node acceptance/replay-negative evidence in `test/regtest` |
-| Release import |All 378 reviewed 0.39 source paths exactly match actual Caffeine export |
+| Release import |All 381 reviewed 0.40 source paths exactly match actual Caffeine export |
 | Browser lifecycle |Disposable fixture recovery/unlock/reload/navigation lock, retained scan/draft/history, provider selection and protection checks recorded in0.23–0.37reports |
 | User iPhone checks |Connection changes and background/unlock retain history;0.37Keychain automatic zoom fix confirmed by user |
 | Backup routing |Live mempool.guide protocol/checkpoint/reads and real router with simulated primary outage PASS; production primary stayed online |

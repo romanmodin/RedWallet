@@ -1,3 +1,30 @@
+# Live lifecycle verification
+
+On public0.40, a new explicitly disposable PUBLIC0.40TEST—NEVERFUND fixture
+was saved encrypted and decrypted using only public dummy material. A real
+built-in/home-bridge scan reached2addresses before an active reload; after reload
+and unlocking the same wallet,3saved observations restored (one further response
+completed before pagehide). Resume advanced to4. Home/Wallets navigation retained4
+and locked keys. Explicit Reconnect retained4with a new actor; Resume advanced
+to9addresses. Scan manually paused, keys left locked. Screenshot saved as
+redwallet-040-resume-verified.jpg.
+No real wallet credentials, balances or private storage were accessed; no broadcast.
+This is Chromium verification; actual iPhone background suspension remains user test.
+
+# Published combined 0.40 — 2026-10-01 PDT
+
+Source f45efbac82ae87eed94bf02a54a8c7e6d50210a1 passed clean GitHub run36975503789:
+64frontend files/401tests,80bridge tests, typechecks, Biome222, both builds,
+frozen dependencies and production audit with0known vulnerabilities.
+
+Caffeine Import code compiled revision43. Actual export contained all381reviewed
+source files byte-for-byte. Compiled backend SHA256 remains
+6726b411d9be5eb91b8a7f31ad18c9e415da13dc4b948b49fe027ec005a05001.
+Explicitly authorized Push version update completed: Caffeine reports43live;
+public Settings reload displays RedWallet0.40 and external analytics blocked.
+Live fixture lifecycle verification PASS above; actual iPhone remains user check.
+This supersedes pending/blocked statements below.
+
 # Combined source validation
 
 Local full frontend:64files/401tests PASS, TypeScript PASS, Biome222files PASS,
