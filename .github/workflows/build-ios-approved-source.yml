@@ -16,8 +16,8 @@ permissions:
   contents: read
   actions: read
 env:
-  SOURCE_COMMIT: 5f226041a26a3d43d83f3210b69c38967a79ed75
-  PUBLIC_SOURCE_COMMIT: e096e96edf5660ee76c84957eacb22b550c1eded
+  SOURCE_COMMIT: e6010c5713f7a6419f3d984a178879848a669cf7
+  PUBLIC_SOURCE_COMMIT: 8902d3bddfe2ebb03bf5dc0da3f7e90e6a9bb89c
   PRODUCTION_TREE_SHA256: 64b1fac2f1f6f1f4ea21b203b9a71ba6a08a2b789b4c1efe29688a8f37b78fea
   FASTLANE_OPT_OUT_USAGE: '1'
   FASTLANE_SKIP_UPDATE_CHECK: '1'
@@ -46,7 +46,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         fetch-depth: 0
-        ref: 5f226041a26a3d43d83f3210b69c38967a79ed75
+        ref: e6010c5713f7a6419f3d984a178879848a669cf7
         persist-credentials: false
         repository: romanmodin/RedWallet-native-review
         ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
@@ -239,7 +239,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         repository: romanmodin/RedWallet-native-review
-        ref: 5f226041a26a3d43d83f3210b69c38967a79ed75
+        ref: e6010c5713f7a6419f3d984a178879848a669cf7
         persist-credentials: false
         ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
     - name: Set Up Ruby
