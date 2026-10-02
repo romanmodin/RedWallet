@@ -71,12 +71,18 @@ describe('RedWallet UI Tests - no wallets', () => {
       await waitFor(element(by.id('SelfTestOk')))
         .toBeVisible()
         .withTimeout(300 * 1000);
+      console.log('[wallet-e2e] self-test completed successfully');
+    } catch (error) {
+      await device.takeScreenshot('selftest-failure-before-restart').catch(() => {});
+      throw error;
     } finally {
+      // Detox's AsyncStorage idle callback can deadlock with Espresso when
+      // resources are registered again in the same process. Restart after the
+      // completion assertion, then restore synchronization on the fresh app.
+      await device.launchApp({ newInstance: true });
       await device.enableSynchronization();
     }
-    await goBack();
-    await goBack();
-    await goBack();
+    await waitForWalletsList();
     process.env.CI && require('fs').writeFileSync(lockFile, '1');
   });
 
