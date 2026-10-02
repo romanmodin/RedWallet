@@ -12,6 +12,12 @@ const failed =
 const saved = 'Your changes have been saved successfully. Restarting RedWallet may be required for the changes to take effect.';
 
 async function visible(id) {
+  // Offline mode and SSL reveal fields after React state/async preference
+  // updates. With iOS synchronization disabled, wait for the field to mount
+  // before scrolling; an empty form cannot scroll while that update is pending.
+  await waitFor(element(by.id(id)))
+    .toExist()
+    .withTimeout(30_000);
   await waitFor(element(by.id(id)))
     .toBeVisible()
     .whileElement(by.id('ElectrumSettingsScrollView'))
