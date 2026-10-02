@@ -2,6 +2,7 @@ import { dismissAlertByText, getSwitchValue, waitForId, waitForText } from './he
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
+const assert = require('assert').strict;
 
 // Disposable local certificates and a public header; no seeds, funds, or external backend.
 const fixture = name => fs.readFileSync(path.join(__dirname, '../fixtures/tls', name));
@@ -41,6 +42,8 @@ describe('native Electrum TLS authentication', () => {
       let requests = 0;
       const sockets = new Set();
       const server = tls.createServer({ key: fixture('server.key'), cert: fixture(scenario.cert) }, socket => {
+        // A deliberate app restart can reset a disposable test connection.
+        socket.on('error', () => {});
         let buffer = '';
         socket.on('data', data => {
           buffer += data.toString();
@@ -94,21 +97,24 @@ describe('native Electrum TLS authentication', () => {
         await element(by.id('Save')).tap();
         await waitForText(scenario.accepted ? saved : failed, 30_000);
         console.log('[tls-e2e] expected connection result:', scenario.name, 'RPCs:', requests);
-        expect(await dismissAlertByText('OK', 10_000, false)).toBe(true);
+        assert.equal(await dismissAlertByText('OK', 10_000, false), true, 'Could not dismiss the connection result');
         if (scenario.accepted) {
-          expect(requests).toBeGreaterThanOrEqual(3);
+          assert.ok(requests >= 3, 'Trusted TLS must allow the Electrum handshake and checkpoint requests');
           const beforeRestart = requests;
           await device.launchApp({ newInstance: true });
+          if (isIOS) await device.disableSynchronization();
+          await waitForId('WalletsList', 120_000);
           const deadline = Date.now() + 20_000;
           while (Date.now() < deadline) {
             if (requests > beforeRestart) break;
             await new Promise(resolve => setTimeout(resolve, 200));
           }
           // The saved certificate must also reach the normal connection path.
-          expect(requests).toBeGreaterThan(beforeRestart);
+          console.log('[tls-e2e] normal connection after restart:', scenario.name, 'RPCs:', requests);
+          assert.ok(requests > beforeRestart, 'Saved trust must authenticate the normal connection after restart');
         } else {
           // Even an impostor serving the correct public fork header gets no RPCs.
-          expect(requests).toBe(0);
+          assert.equal(requests, 0, 'Rejected TLS must never receive Electrum requests');
         }
       } finally {
         if (device.getPlatform() === 'ios') await device.enableSynchronization();

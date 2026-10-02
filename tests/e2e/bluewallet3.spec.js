@@ -1,4 +1,5 @@
 import { dismissAlertByText, enterMnemonicText, getSwitchValue, goBack, scrollUpOnHomeScreen, waitForId, waitForText } from './helperz';
+const assert = require('assert').strict;
 
 describe('RedWallet XBT watch-only import', () => {
   it('imports a BIP84 public account with external signing disabled', async () => {
@@ -39,6 +40,6 @@ describe('RedWallet XBT watch-only import', () => {
       .toBeVisible()
       .whileElement(by.id('WalletDetailsScroll'))
       .scroll(150, 'down');
-    expect(await getSwitchValue('XbtExternalSignerSwitch')).toBe(false);
+    assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), false);
   });
 });
