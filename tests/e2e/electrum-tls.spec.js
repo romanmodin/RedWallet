@@ -70,13 +70,13 @@ describe('native Electrum TLS authentication', () => {
         await openSettings();
         await visible('HostInput');
         await element(by.id('HostInput')).replaceText(device.getPlatform() === 'android' ? '10.0.2.2' : '127.0.0.1');
+        await visible('PortInput');
         await element(by.id('PortInput')).replaceText(String(server.address().port));
+        await visible('SSLPortInput');
         if (!(await getSwitchValue('SSLPortInput'))) await element(by.id('SSLPortInput')).tap();
-        if (scenario.trusted) {
-          await visible('TlsCaInput');
-          await element(by.id('TlsCaInput')).replaceText(fixture('ca.pem').toString().trim());
-          await element(by.id('TlsCaInput')).tapReturnKey();
-        }
+        await visible('TlsCaInput');
+        await element(by.id('TlsCaInput')).replaceText(scenario.trusted ? fixture('ca.pem').toString().trim() : '');
+        await element(by.id('TlsCaInput')).tapReturnKey();
         await visible('Save');
         const isIOS = device.getPlatform() === 'ios';
         if (isIOS) await device.disableSynchronization();
