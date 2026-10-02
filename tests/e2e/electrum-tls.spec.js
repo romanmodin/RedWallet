@@ -78,9 +78,15 @@ describe('native Electrum TLS authentication', () => {
           await element(by.id('TlsCaInput')).tapReturnKey();
         }
         await visible('Save');
-        await element(by.id('Save')).tap();
-        await waitForText(scenario.accepted ? saved : failed, 30_000);
-        expect(await dismissAlertByText('OK')).toBe(true);
+        const isIOS = device.getPlatform() === 'ios';
+        if (isIOS) await device.disableSynchronization();
+        try {
+          await element(by.id('Save')).tap();
+          await waitForText(scenario.accepted ? saved : failed, 30_000);
+          expect(await dismissAlertByText('OK')).toBe(true);
+        } finally {
+          if (isIOS) await device.enableSynchronization();
+        }
         if (scenario.accepted) {
           expect(requests).toBeGreaterThanOrEqual(3);
           const beforeRestart = requests;

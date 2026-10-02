@@ -1,4 +1,4 @@
-import { enterMnemonicText, getSwitchValue, goBack, waitForId } from './helperz';
+import { dismissAlertByText, enterMnemonicText, getSwitchValue, goBack, scrollUpOnHomeScreen, waitForId, waitForText } from './helperz';
 
 describe('RedWallet XBT watch-only import', () => {
   it('imports a BIP84 public account with external signing disabled', async () => {
@@ -21,7 +21,16 @@ describe('RedWallet XBT watch-only import', () => {
     await enterMnemonicText(
       'zpub6s2EvLxwvDpaHNVP5vfordTyi8cH1fR8usmEjz7RsSQjfTTGU2qA5VEcEyYYBxpZAyBarJoTraB4VRJKVz97Au9jRNYfLAeeHC5UnRZbz8Y',
     );
-    await element(by.id('DoImport')).tap();
+    const isIOS = device.getPlatform() === 'ios';
+    if (isIOS) await device.disableSynchronization();
+    try {
+      await element(by.id('DoImport')).tap();
+      await waitForText('Your wallet has been successfully imported. WARNING: This is a watch-only wallet, you can NOT spend from it.');
+      if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss watch-only import confirmation');
+    } finally {
+      if (isIOS) await device.enableSynchronization();
+    }
+    await scrollUpOnHomeScreen();
     await waitForId('Imported Watch-only', 60_000);
     await element(by.id('Imported Watch-only')).tap();
     await waitForId('WalletDetails');
