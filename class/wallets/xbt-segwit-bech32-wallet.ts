@@ -1,6 +1,7 @@
 import { ECPairFactory } from 'ecpair';
 
 import ecc from '../../blue_modules/noble_ecc';
+import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { isMatureXbtCoinbase, verifiedCoinbaseConfirmations } from '../xbt/coinbase-maturity';
 import { finalizeUnifiedP2wpkhInput, signUnifiedP2wpkhInput, SIGHASH_ALL_UNIFIED } from '../xbt/unified-psbt';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
@@ -45,6 +46,47 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
 
   allowSilentPaymentSend() {
     return false;
+  }
+
+  /** Refresh coinbase maturity from matching history/UTXO heights at one observed tip. */
+  async fetchUtxo(): Promise<void> {
+    await super.fetchUtxo();
+    const parents = new Map(this.getTransactions().map(transaction => [transaction.txid, transaction]));
+    const coinbases = this._utxo.filter(utxo => {
+      const parent = parents.get(utxo.txid);
+      if (!parent?.rawHex) return false;
+      try {
+        return parseVerifiedParentTransaction(utxo.txid, parent.rawHex).isCoinbase();
+      } catch {
+        return false;
+      }
+    });
+    if (!coinbases.length) return;
+    // A failed refresh cannot leave an old mature count usable with contradictory new data.
+    for (const utxo of coinbases) {
+      parents.get(utxo.txid)!.confirmations = 0;
+      utxo.confirmations = 0;
+    }
+    const histories = await BlueElectrum.multiGetHistoryByAddress([...new Set(coinbases.map(utxo => utxo.address))]);
+    const tip = await BlueElectrum.getReportedBlockTip();
+    const heights = new Map<string, Set<number>>();
+    for (const history of Object.values(histories)) {
+      for (const item of history) {
+        const found = heights.get(item.tx_hash) || new Set<number>();
+        found.add(item.height);
+        heights.set(item.tx_hash, found);
+      }
+    }
+    for (const utxo of coinbases) {
+      const reported = heights.get(utxo.txid);
+      const height = reported?.size === 1 ? [...reported][0] : undefined;
+      if (tip === null || height === undefined || !Number.isSafeInteger(height) || height <= 0 || height > tip || utxo.height !== height)
+        continue;
+      const confirmations = tip - height + 1;
+      if (!Number.isSafeInteger(confirmations)) continue;
+      parents.get(utxo.txid)!.confirmations = confirmations;
+      utxo.confirmations = confirmations;
+    }
   }
 
   getUtxo(respectFrozen = false) {

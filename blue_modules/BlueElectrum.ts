@@ -1548,6 +1548,12 @@ async function fetchBlockTipFromServer(): Promise<number | null> {
   return latestBlock.height ?? null;
 }
 
+/** Last server-reported tip, refreshed when possible; never invents blocks from elapsed time. */
+export async function getReportedBlockTip(): Promise<number | null> {
+  const height = await fetchBlockTipFromServer();
+  return height !== null && Number.isSafeInteger(height) && height > 0 ? height : null;
+}
+
 export async function getCurrentBlockTip(): Promise<number> {
   const now = Math.floor(+new Date() / 1000);
   if (latestBlock.height && now - latestBlock.time < TIP_CACHE_TTL_SEC) {

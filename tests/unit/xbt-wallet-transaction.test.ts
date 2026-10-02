@@ -10,6 +10,10 @@ import knotsAcceptance from '../fixtures/xbt-knots-regtest-acceptance.json';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({
   multiGetTransactionByTxid: jest.fn(),
+  multiGetUtxoByAddress: jest.fn(),
+  multiGetHistoryByAddress: jest.fn(),
+  estimateCurrentBlockheight: jest.fn(),
+  getReportedBlockTip: jest.fn(),
 }));
 
 const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -49,6 +53,27 @@ describe('XBT wallet transaction flow', () => {
     ]);
     return wallet;
   }
+
+  it.each([
+    { tip: 6579, historyHeight: 100, utxoHeight: 100, expected: 6480 },
+    { tip: 6578, historyHeight: 100, utxoHeight: 100, expected: 6479 },
+    { tip: 6579, historyHeight: 100, utxoHeight: 101, expected: 0 },
+    { tip: null, historyHeight: 100, utxoHeight: 100, expected: 0 },
+  ])('refreshes stale coinbase counts conservatively: %j', async ({ tip, historyHeight, utxoHeight, expected }) => {
+    const wallet = createWalletWithParent([{ coinbase: '03e8ab0e' }], 1);
+    const address = wallet._getExternalAddressByIndex(0);
+    wallet._balances_by_external_index[0] = { c: 100_000, u: 0 };
+    const utxo = { txid: fundingTxid, vout: 0, address, value: 100_000, confirmations: 99_999, height: utxoHeight };
+    (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({ [address]: [utxo] });
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
+      [address]: [{ tx_hash: fundingTxid, height: historyHeight }],
+    });
+    (BlueElectrum.getReportedBlockTip as jest.Mock).mockResolvedValue(tip);
+    await wallet.fetchUtxo();
+    expect(wallet.getTransactions()[0].confirmations).toBe(expected);
+    expect(wallet._utxo[0].confirmations).toBe(expected);
+    expect(wallet.getUtxo()).toHaveLength(expected >= 6480 ? 1 : 0);
+  });
 
   it('builds and signs a wallet transaction with Unified Sighash', () => {
     const wallet = createWalletWithParent([{ txid: ordinaryTxid, vout: 0 }], 100);
