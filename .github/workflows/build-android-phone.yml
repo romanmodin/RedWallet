@@ -1,0 +1,110 @@
+name: Build Android phone beta
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-phone-beta
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Free build space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          docker system prune -af
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-phone-${{ runner.os }}-${{ hashFiles('android/**/*.gradle', 'android/**/*.properties') }}
+          restore-keys: |
+            android-phone-${{ runner.os }}-
+            ${{ runner.os }}-gradle-
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699
+      - name: Install SDK
+        run: sdkmanager "platforms;android-36" "platform-tools" "build-tools;36.0.0" "ndk;28.2.13676358"
+      - name: Install dependencies
+        run: npm ci
+      - name: Build unsigned phone package
+        working-directory: android
+        run: |
+          BUILD_NUMBER=$(date +%s)
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          ./gradlew --no-daemon --max-workers=2 assembleRelease -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86_64 -PredwalletVersionCode="$BUILD_NUMBER"
+      - name: Verify and package unsigned output
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_RUN: ${{ github.run_id }}
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/RedWallet-unsigned.apk
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" dist/
+          cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" dist/
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging dist/RedWallet-unsigned.apk > dist/package-badging.txt
+          python3 - <<'PY'
+          import hashlib,json,os,zipfile
+          from pathlib import Path
+          p=Path('dist/RedWallet-unsigned.apk')
+          with zipfile.ZipFile(p) as z:
+              abis=sorted({n.split('/')[1] for n in z.namelist() if n.startswith('lib/') and n.endswith('.so')})
+              assert abis == ['arm64-v8a','armeabi-v7a','x86_64'], abis
+              assert 'assets/index.android.bundle' in z.namelist()
+          badging=Path('dist/package-badging.txt').read_text()
+          assert "name='com.romanmodin.redwallet'" in badging
+          assert "versionCode='"+os.environ['BUILD_NUMBER']+"'" in badging
+          assert "versionName='8.0.1'" in badging
+          assert "sdkVersion:'24'" in badging
+          assert 'application-debuggable' not in badging
+          Path('dist/build-receipt.json').write_text(json.dumps(dict(sourceCommit=os.environ['SOURCE_SHA'],runId=os.environ['SOURCE_RUN'],version='8.0.1',versionCode=int(os.environ['BUILD_NUMBER']),abis=abis,unsignedSha256=hashlib.sha256(p.read_bytes()).hexdigest()),indent=2)+'\n')
+          PY
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Sign disposable smoke-test copy
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/smoke.p12" -storetype PKCS12 -storepass smoke-only-password -keypass smoke-only-password -alias smoke -keyalg RSA -keysize 3072 -validity 1 -dname "CN=Disposable CI smoke key"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -P 16 -f 4 dist/RedWallet-unsigned.apk "$RUNNER_TEMP/smoke-aligned.apk"
+          java -jar dist/apksigner.jar sign --ks "$RUNNER_TEMP/smoke.p12" --ks-pass pass:smoke-only-password --out "$RUNNER_TEMP/smoke.apk" "$RUNNER_TEMP/smoke-aligned.apk"
+      - name: Install and launch release package
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: pixel
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: |
+            adb install "$RUNNER_TEMP/smoke.apk"
+            adb logcat -c
+            adb shell am start -W -n com.romanmodin.redwallet/io.bluewallet.bluewallet.MainActivity
+            sleep 20
+            adb shell pidof com.romanmodin.redwallet
+            adb shell uiautomator dump /sdcard/redwallet.xml
+            adb pull /sdcard/redwallet.xml dist/launch-ui.xml
+            adb logcat -d -b crash > dist/launch-crash-log.txt
+            test "$(wc -l < dist/launch-crash-log.txt)" -le 1
+      - name: Upload verified package and signing tools
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: redwallet-android-phone-unsigned
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

@@ -86,7 +86,7 @@ android {
         applicationId "com.romanmodin.redwallet"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode (findProperty("redwalletVersionCode") ?: "1").toInteger()
         versionName "8.0.1"
         testBuildType System.getProperty('testBuildType', 'debug')
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
