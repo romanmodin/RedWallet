@@ -615,6 +615,7 @@ const ElectrumSettings: React.FC = () => {
                   value={tlsCa}
                   onChangeText={setTlsCa}
                   multiline
+                  scrollEnabled
                   blurOnSubmit
                   returnKeyType="done"
                   onSubmitEditing={Keyboard.dismiss}
@@ -632,7 +633,7 @@ const ElectrumSettings: React.FC = () => {
               </View>
             )}
             <View style={styles.buttonContainer}>
-              <Button disabled={saveDisabled} testID="Save" onPress={save} title={loc.settings.save} />
+              <Button disabled={saveDisabled} testID="Save" onPress={() => save()} title={loc.settings.save} />
             </View>
           </View>
         </SettingsSection>
@@ -697,7 +698,8 @@ const ElectrumSettings: React.FC = () => {
 
 const styles = StyleSheet.create({
   tlsCertificate: {
-    minHeight: 72,
+    height: 120,
+    textAlignVertical: 'top',
     marginTop: 8,
     marginBottom: 8,
   },

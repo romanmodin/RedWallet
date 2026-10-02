@@ -28,11 +28,13 @@ async function openSettings() {
 
 describe('native Electrum TLS authentication', () => {
   for (const scenario of [
-    { name: 'configured private CA and matching name', cert: 'native.pem', trusted: true, accepted: true },
-    { name: 'untrusted certificate', cert: 'native.pem', trusted: false },
-    { name: 'trusted certificate with wrong name', cert: 'server.pem', trusted: true },
-    { name: 'expired certificate', cert: 'native-expired.pem', trusted: true },
-    { name: 'replaced certificate', cert: 'replacement.pem', trusted: true },
+    { name: 'configured private CA and matching name', cert: 'native.pem', anchor: 'ca.pem', accepted: true },
+    { name: 'configured server certificate and matching name', cert: 'replacement.pem', anchor: 'replacement.pem', accepted: true },
+    { name: 'expired explicitly trusted server certificate', cert: 'native-expired.pem', anchor: 'native-expired.pem' },
+    { name: 'untrusted certificate', cert: 'native.pem' },
+    { name: 'trusted certificate with wrong name', cert: 'server.pem', anchor: 'ca.pem' },
+    { name: 'expired certificate', cert: 'native-expired.pem', anchor: 'ca.pem' },
+    { name: 'replaced certificate', cert: 'replacement.pem', anchor: 'ca.pem' },
   ]) {
     it(scenario.name, async () => {
       let requests = 0;
@@ -75,7 +77,7 @@ describe('native Electrum TLS authentication', () => {
         await visible('SSLPortInput');
         if (!(await getSwitchValue('SSLPortInput'))) await element(by.id('SSLPortInput')).tap();
         await visible('TlsCaInput');
-        await element(by.id('TlsCaInput')).replaceText(scenario.trusted ? fixture('ca.pem').toString().trim() : '');
+        await element(by.id('TlsCaInput')).replaceText(scenario.anchor ? fixture(scenario.anchor).toString().trim() : '');
         await element(by.id('TlsCaInput')).tapReturnKey();
         await visible('Save');
         const isIOS = device.getPlatform() === 'ios';
