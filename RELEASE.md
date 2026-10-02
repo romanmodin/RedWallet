@@ -132,10 +132,10 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 ### Security follow-up source and pending tester packages (2026-10-02)
 
 - The security changes are pushed on PR #3. Public reviewed source:
-  `5272ec775189f206fef3076ebc70dfb09c15263e`. All 74 GitHub unit suites passed:
+  `9ecd6d60157504ec0525fe11f7ca12328d448bd4`. All 74 GitHub unit suites passed:
   686 tests passed, one skipped; lint passed. Native device checks are pending.
 - Approved private signing source:
-  `dc4726e7d5f178b60f4067e149f07edcea27db9e`. All 937 production entries
+  `068d96851b79809840dd74222bf4a0217a827f96`. All 937 production entries
   (Git file mode, blob ID and path) match the public source. Production tree
   SHA-256: `64b1fac2f1f6f1f4ea21b203b9a71ba6a08a2b789b4c1efe29688a8f37b78fea`.
   The mapping excludes workflows, tests, Markdown and store metadata. It is
