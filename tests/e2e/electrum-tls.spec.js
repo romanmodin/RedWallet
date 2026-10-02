@@ -15,9 +15,24 @@ async function visible(id) {
   // Offline mode and SSL reveal fields after React state/async preference
   // updates. With iOS synchronization disabled, wait for the field to mount
   // before scrolling; an empty form cannot scroll while that update is pending.
-  await waitFor(element(by.id(id)))
-    .toExist()
-    .withTimeout(30_000);
+  if (device.getPlatform() === 'ios') {
+    // Poll from the runner between checks while synchronization is disabled.
+    // Preserve native identifiers in the failure diagnostic below.
+    const deadline = Date.now() + 30_000;
+    while (true) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      try {
+        await expect(element(by.id(id))).toExist();
+        break;
+      } catch (error) {
+        if (Date.now() >= deadline) throw error;
+      }
+    }
+  } else {
+    await waitFor(element(by.id(id)))
+      .toExist()
+      .withTimeout(30_000);
+  }
   await waitFor(element(by.id(id)))
     .toBeVisible()
     .whileElement(by.id('ElectrumSettingsScrollView'))
@@ -135,6 +150,16 @@ describe('native Electrum TLS authentication', () => {
         // actual failed UI before cleanup terminates the app.
         console.error('[tls-e2e] failed:', scenario.name, error.stack || error.message);
         await device.takeScreenshot('tls-failure-before-cleanup').catch(() => {});
+        // Only disposable, empty-wallet TLS fixtures run here. Retain native
+        // identifiers/frames for diagnosing a failed field lookup.
+        await device
+          .generateViewHierarchyXml(false)
+          .then(xml => {
+            const directory = path.join(process.cwd(), 'artifacts/tls/diagnostics');
+            fs.mkdirSync(directory, { recursive: true });
+            fs.writeFileSync(path.join(directory, scenario.name.replace(/[^a-z0-9]+/g, '-') + '.xml'), xml);
+          })
+          .catch(() => {});
         throw error;
       } finally {
         if (device.getPlatform() === 'ios') await device.enableSynchronization();
