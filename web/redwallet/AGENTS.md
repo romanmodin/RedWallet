@@ -1,3 +1,11 @@
+# 0.42 route identity follow-up prepared
+
+Live0.41/Caffeine44 import matched385files/backend unchanged; self-test PASS.
+Navigation revealed fresh ProviderRouter proxy per resolve hid the running scan
+on remount. Stable guarded proxy for same connection+generation fixes ownership;
+all freshness checks/reconnect invalidation remain. New regression covers it.
+0.42 CI/exact import/export/publication/live verification pending. See V041.
+
 # 0.41 prepared — public scan jobs and coinbase maturity
 
 User authorized both changes. Public-only jobs survive route unmount/key lock

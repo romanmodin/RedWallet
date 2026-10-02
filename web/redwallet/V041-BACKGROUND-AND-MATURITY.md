@@ -60,3 +60,14 @@ Clean CI final full suite and bridge lane recorded in subsequent status entry.
 No funded transaction was sent. No new live-node coinbase acceptance claimed;
 existing signer node/replay fixtures remain unchanged. Native app, bridge and
 backend source untouched. Actual compiled backend hash must remain unchanged.
+
+## Live verification follow-up: 0.42
+
+0.41/Caffeine44 published: all385source paths match actual export, unchanged
+backend hash. Live crypto self-test passed. Returning from Home exposed a fresh
+ProviderRouter proxy identity: the old public scan keeps running but the newly
+mounted view observes only its saved checkpoint.0.42 retains the guarded proxy
+identity only for the same provider connection+generation, after existing
+resolution checks. Reconnect still replaces identity and rejects old reads.
+Regression covers repeated resolve and reconnect. No freshness check bypassed.
+0.42 publication and live navigation verification pending.

@@ -601,3 +601,18 @@ describe("actual provider routes", () => {
     ).toThrow();
   });
 });
+
+it("retains actor identity across route resolutions, replacing it after reconnect", async () => {
+  const f = fixture();
+  const first = await f.router.resolve();
+  expect(await f.router.resolve()).toBe(first);
+  await first.getAddressBalance("public");
+  expect(await f.router.resolve()).toBe(first);
+  f.router.reconnect();
+  const next = await f.router.resolve();
+  expect(next).not.toBe(first);
+  await expect(first.getAddressBalance("public")).rejects.toThrow(
+    /Provider changed/,
+  );
+  expect(await f.router.resolve()).toBe(next);
+});

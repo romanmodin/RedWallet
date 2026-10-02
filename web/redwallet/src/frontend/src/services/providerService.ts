@@ -305,6 +305,11 @@ function timeout<T>(promise: Promise<T>): Promise<T> {
 /** Injectable router tests real dispatch identities, failure isolation, and provider generation barriers. */
 export class ProviderRouter {
   private active: ProviderConnection | null = null;
+  private boundActor: {
+    connection: ProviderConnection;
+    generation: number;
+    actor: ProviderActor;
+  } | null = null;
   private metadata: ProviderInfo | null = null;
   private checkedAt = 0;
   private fingerprint = "";
@@ -526,8 +531,16 @@ export class ProviderRouter {
         if (gen !== providerGeneration())
           throw Error("Provider changed; refresh.");
         const connection = this.active!;
+        // Stable identity lets public account jobs survive route remounts.
+        // Reuse only after normal resolution/checks, for the same connection
+        // and generation; every call retains its existing freshness barriers.
+        if (
+          this.boundActor?.connection === connection &&
+          this.boundActor.generation === gen
+        )
+          return this.boundActor.actor;
         const router = this;
-        return new Proxy(connection.actor, {
+        const actor = new Proxy(connection.actor, {
           get(target, method) {
             const value = Reflect.get(target, method);
             if (typeof value !== "function") return value;
@@ -610,6 +623,8 @@ export class ProviderRouter {
             };
           },
         });
+        this.boundActor = { connection, generation: gen, actor };
+        return actor;
       })();
       this.pending = pending;
       void pending
