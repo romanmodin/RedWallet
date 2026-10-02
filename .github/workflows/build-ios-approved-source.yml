@@ -50,16 +50,25 @@ jobs:
         persist-credentials: false
         repository: romanmodin/RedWallet-native-review
         ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
+    - name: Checkout trusted verification tools
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        repository: ${{ github.repository }}
+        ref: ${{ github.sha }}
+        path: .reviewed-orchestration
+        sparse-checkout: .github/scripts
+        sparse-checkout-cone-mode: false
+        persist-credentials: false
     - name: Verify approved source
       run: |-
-        python3 .github/scripts/verify-production-source.py --source-commit "$SOURCE_COMMIT" --public-commit "$PUBLIC_SOURCE_COMMIT" --expected-hash "$PRODUCTION_TREE_SHA256"
+        python3 -I .reviewed-orchestration/.github/scripts/verify-production-source.py --source-commit "$SOURCE_COMMIT" --public-commit "$PUBLIC_SOURCE_COMMIT" --expected-hash "$PRODUCTION_TREE_SHA256"
         printf 'LATEST_COMMIT_MESSAGE=Approved iOS tester build\nCURRENT_BRANCH=main\n' >> "$GITHUB_ENV"
         printf 'branch_name=main\ncommit_message=Approved iOS tester build\n' >> "$GITHUB_OUTPUT"
       id: get_latest_commit_details
     - name: Validate certificate verification commands
       env:
         TEAM_ID: ${{ secrets.TEAM_ID }}
-      run: python3 .github/scripts/verify-ios-ipa.py --check-requirement
+      run: python3 -I .reviewed-orchestration/.github/scripts/verify-ios-ipa.py --check-requirement
     - name: Validate signing configuration
       env:
         APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -89,8 +98,6 @@ jobs:
     - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90
       with:
         xcode-version: latest
-    - name: Verify reviewed upload source
-      run: python3 .github/scripts/verify-production-source.py --source-commit "$SOURCE_COMMIT" --public-commit "$PUBLIC_SOURCE_COMMIT" --expected-hash "$PRODUCTION_TREE_SHA256"
     - name: Set Up Ruby
       uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
       with:
@@ -242,6 +249,17 @@ jobs:
         ref: e6010c5713f7a6419f3d984a178879848a669cf7
         persist-credentials: false
         ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
+    - name: Checkout trusted verification tools
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        repository: ${{ github.repository }}
+        ref: ${{ github.sha }}
+        path: .reviewed-orchestration
+        sparse-checkout: .github/scripts
+        sparse-checkout-cone-mode: false
+        persist-credentials: false
+    - name: Verify reviewed upload source
+      run: python3 -I .reviewed-orchestration/.github/scripts/verify-production-source.py --source-commit "$SOURCE_COMMIT" --public-commit "$PUBLIC_SOURCE_COMMIT" --expected-hash "$PRODUCTION_TREE_SHA256"
     - name: Set Up Ruby
       uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
       with:
