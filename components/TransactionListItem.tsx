@@ -14,6 +14,7 @@ import TransactionOutgoingIcon from '../components/icons/TransactionOutgoingIcon
 import TransactionPendingIcon from '../components/icons/TransactionPendingIcon';
 import loc, { formatBalanceWithoutSuffix, formatTransactionListDate, transactionTimeToReadable } from '../loc';
 import { BitcoinUnit } from '../models/bitcoinUnits';
+import { getTransactionExplorerUrl } from '../models/blockExplorer';
 import { useSettings } from '../hooks/context/useSettings';
 import { useTheme } from './themes';
 import { Action } from './types';
@@ -128,7 +129,8 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   const { colors } = useTheme();
   const { navigate } = useExtendedNavigation<NavigationProps>();
   const { txMetadata, counterpartyMetadata, wallets } = useStorage();
-  const { language, selectedBlockExplorer } = useSettings();
+  const { language } = useSettings();
+  const explorerUrl = getTransactionExplorerUrl(item.hash);
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   const containerStyle = useMemo(
@@ -345,7 +347,10 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   const { label: transactionTypeLabel, icon: avatar } = determineTransactionTypeAndAvatar();
 
   const amountWithUnit = useMemo(() => {
-    const unitSuffix = itemPriceUnit === BitcoinUnit.BTC || itemPriceUnit === BitcoinUnit.SATS ? ` ${itemPriceUnit}` : ' ';
+    const unitSuffix =
+      itemPriceUnit === BitcoinUnit.BTC || itemPriceUnit === BitcoinUnit.SATS
+        ? ` ${itemPriceUnit === BitcoinUnit.BTC ? loc.units.BTC : itemPriceUnit}`
+        : ' ';
     return `${formattedAmount}${unitSuffix}`;
   }, [formattedAmount, itemPriceUnit]);
 
@@ -435,16 +440,16 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   const handleOnCopyTransactionID = useCallback(() => Clipboard.setString(item.hash), [item.hash]);
   const handleOnCopyNote = useCallback(() => Clipboard.setString(noteForCopy ?? ''), [noteForCopy]);
   const handleOnViewOnBlockExplorer = useCallback(() => {
-    const url = `${selectedBlockExplorer.url}/tx/${item.hash}`;
-    Linking.canOpenURL(url).then(supported => {
+    if (!explorerUrl) return;
+    Linking.canOpenURL(explorerUrl).then(supported => {
       if (supported) {
-        Linking.openURL(url);
+        Linking.openURL(explorerUrl);
       }
     });
-  }, [item.hash, selectedBlockExplorer]);
+  }, [explorerUrl]);
   const handleCopyOpenInBlockExplorerPress = useCallback(() => {
-    Clipboard.setString(`${selectedBlockExplorer.url}/tx/${item.hash}`);
-  }, [item.hash, selectedBlockExplorer]);
+    if (explorerUrl) Clipboard.setString(explorerUrl);
+  }, [explorerUrl]);
 
   const onToolTipPress = useCallback(
     (id: any) => {
@@ -487,13 +492,13 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
       },
       {
         ...CommonToolTipActions.CopyBlockExplorerLink,
-        hidden: !item.hash,
+        hidden: !explorerUrl,
       },
-      [{ ...CommonToolTipActions.OpenInBlockExplorer, hidden: !item.hash }, CommonToolTipActions.Details],
+      [{ ...CommonToolTipActions.OpenInBlockExplorer, hidden: !explorerUrl }, CommonToolTipActions.Details],
     ];
 
     return actions as Action[];
-  }, [rowTitle, noteForCopy, item.hash]);
+  }, [rowTitle, noteForCopy, item.hash, explorerUrl]);
 
   const title = listTitle;
   const subtitle = dateLine;

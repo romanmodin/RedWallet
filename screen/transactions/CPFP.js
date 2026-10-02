@@ -1,3 +1,4 @@
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import React, { Component } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -120,7 +121,7 @@ export default class CPFP extends Component {
   }
 
   async checkPossibilityOfCPFP() {
-    if (this.state.wallet.type !== HDSegwitBech32Wallet.type) {
+    if (this.state.wallet.type !== HDSegwitBech32Wallet.type && this.state.wallet.type !== XbtSegwitBech32Wallet.type) {
       return this.setState({ nonReplaceable: true, isLoading: false });
     }
     const tx = new HDSegwitBech32Transaction(null, this.state.txid, this.state.wallet);

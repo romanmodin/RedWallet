@@ -1,4 +1,8 @@
 module.exports = {
+  // Keep the regex in config: Detox forwards CLI values through a shell.
+  ...(process.env.IMPORT_DIAGNOSTICS === 'true'
+    ? { testNamePattern: 'restores the published BIP84 recovery phrase|rejects a watch-only zpub' }
+    : {}),
   maxWorkers: 1,
   testTimeout: 600_000, // 10 minutes. iOS multisig and plausible deniability tests take a long time to run
   verbose: true,

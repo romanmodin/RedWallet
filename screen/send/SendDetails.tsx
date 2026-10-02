@@ -1,3 +1,7 @@
+import { getPayjoinUrl, supportsPayjoin } from '../../class/payjoin-policy';
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
+import { XBT_PROFILE } from '../../class/xbt/profile';
+import { normalizeXbtUnit } from '../../class/xbt/units';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RouteProp, useFocusEffect, useRoute, useLocale } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -83,12 +87,11 @@ const SendDetails = () => {
   const selectedDataProcessor = useRef<ToolTipAction | undefined>(undefined);
   const setParams = navigation.setParams;
   const route = useRoute<RouteProps>();
-  const feeUnit = route.params?.feeUnit ?? BitcoinUnit.BTC;
-  const amountUnit = route.params?.amountUnit ?? BitcoinUnit.BTC;
+  const feeUnit = normalizeXbtUnit(route.params?.feeUnit);
+  const amountUnit = normalizeXbtUnit(route.params?.amountUnit);
   const frozenBalance = route.params?.frozenBalance ?? 0;
   const transactionMemo = route.params?.transactionMemo;
   const utxos = route.params?.utxos;
-  const payjoinUrl = route.params?.payjoinUrl;
   const isTransactionReplaceable = route.params?.isTransactionReplaceable;
   const routeParams = route.params;
   const scrollView = useRef<FlatList<IPaymentDestinations>>(null);
@@ -101,6 +104,8 @@ const SendDetails = () => {
   const [dimensions, setDimensions] = useState({ width: Dimensions.get('window').width, height: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [wallet, setWallet] = useState<TWallet | null>(null);
+  const payjoinAllowed = supportsPayjoin(wallet);
+  const payjoinUrl = getPayjoinUrl(wallet, route.params?.payjoinUrl);
   const { isVisible } = useKeyboard();
   const [addresses, setAddresses] = useState<IPaymentDestinations[]>([{ address: '', key: String(Math.random()), unit: amountUnit }]);
   const [networkTransactionFees, setNetworkTransactionFees] = useState(new NetworkTransactionFee(3, 2, 1));
@@ -186,7 +191,7 @@ const SendDetails = () => {
         if (memo?.trim().length > 0) {
           setParams({ transactionMemo: memo });
         }
-        setParams({ payjoinUrl: pjUrl, amountUnit: BitcoinUnit.BTC });
+        setParams({ payjoinUrl: getPayjoinUrl(wallet, pjUrl), amountUnit: BitcoinUnit.BTC });
       } catch (error) {
         console.log(error);
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
@@ -226,7 +231,7 @@ const SendDetails = () => {
     }
     // this effect only to run once when screen is mounted or params change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeParams.uri, routeParams.address, routeParams.addRecipientParams]);
+  }, [routeParams.uri, routeParams.address, routeParams.addRecipientParams, payjoinAllowed]);
 
   useEffect(() => {
     // check if we have a suitable wallet
@@ -281,7 +286,8 @@ const SendDetails = () => {
     setParams({
       ...(walletActuallyChanged ? { utxos: null } : {}),
       isTransactionReplaceable:
-        (wallet.type === HDSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) && !routeParams.isTransactionReplaceable
+        (wallet.type === HDSegwitBech32Wallet.type || wallet.type === XbtSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) &&
+        !routeParams.isTransactionReplaceable
           ? true
           : undefined,
     });
@@ -494,7 +500,7 @@ const SendDetails = () => {
           addrs[scrollIndex.current].unit = BitcoinUnit.BTC;
           return [...addrs];
         });
-        setParams({ transactionMemo: options.label || '', amountUnit: BitcoinUnit.BTC, payjoinUrl: options.pj || '' }); // there used to be `options.message` here as well. bug?
+        setParams({ transactionMemo: options.label || '', amountUnit: BitcoinUnit.BTC, payjoinUrl: getPayjoinUrl(wallet, options.pj) }); // there used to be `options.message` here as well. bug?
         // RN Bug: contentOffset gets reset to 0 when state changes. Remove code once this bug is resolved.
         setTimeout(() => scrollView.current?.scrollToIndex({ index: currentIndex, animated: false }), 50);
       }
@@ -1164,7 +1170,10 @@ const SendDetails = () => {
       {
         ...CommonToolTipActions.AllowRBF,
         menuState: isTransactionReplaceable,
-        hidden: !((wallet.type === HDSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) && isTransactionReplaceable !== undefined),
+        hidden: !(
+          (wallet.type === HDSegwitBech32Wallet.type || wallet.type === XbtSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) &&
+          isTransactionReplaceable !== undefined
+        ),
       },
     ];
     walletActions.push(rbfAction);
@@ -1392,12 +1401,17 @@ const SendDetails = () => {
 
                 switch (unit) {
                   case BitcoinUnit.SATS:
-                    addr.amountSats = parseInt(String(addr.amount), 10);
+                    addr.amountSats = parseInt(String(addr.amount || 0), 10);
                     break;
                   case BitcoinUnit.BTC:
-                    addr.amountSats = btcToSatoshi(String(addr.amount));
+                    addr.amountSats = btcToSatoshi(String(addr.amount || 0));
                     break;
                   case BitcoinUnit.LOCAL_CURRENCY:
+                    if (!XBT_PROFILE.fiatEnabled) {
+                      addr.amount = '';
+                      addr.amountSats = 0;
+                      break;
+                    }
                     // also accounting for cached fiat->sat conversion to avoid rounding error
                     addr.amountSats = AmountInput.getCachedSatoshis(String(addr.amount)) || btcToSatoshi(fiatToBTC(Number(addr.amount)));
                     break;
@@ -1407,7 +1421,7 @@ const SendDetails = () => {
                 return [...addrs];
               });
               setAddresses(addrs => {
-                addrs[index].unit = unit;
+                addrs[index].unit = normalizeXbtUnit(unit);
                 return [...addrs];
               });
             }}
@@ -1419,6 +1433,11 @@ const SendDetails = () => {
                     item.amountSats = btcToSatoshi(item.amount);
                     break;
                   case BitcoinUnit.LOCAL_CURRENCY:
+                    if (!XBT_PROFILE.fiatEnabled) {
+                      item.amount = '';
+                      item.amountSats = 0;
+                      break;
+                    }
                     item.amountSats = btcToSatoshi(fiatToBTC(Number(item.amount)));
                     break;
                   case BitcoinUnit.SATS:
@@ -1475,7 +1494,11 @@ const SendDetails = () => {
                 setParams({ transactionMemo: memo });
               }
               setIsLoading(false);
-              setParams(hasPositiveAmount ? { payjoinUrl: pjUrl, amountUnit: BitcoinUnit.BTC } : { payjoinUrl: pjUrl });
+              setParams(
+                hasPositiveAmount
+                  ? { payjoinUrl: getPayjoinUrl(wallet, pjUrl), amountUnit: BitcoinUnit.BTC }
+                  : { payjoinUrl: getPayjoinUrl(wallet, pjUrl) },
+              );
             }}
             address={item.address}
             isLoading={isLoading}

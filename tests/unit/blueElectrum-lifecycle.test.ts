@@ -8,9 +8,24 @@
  */
 
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import { XBT_MAINNET_CHECKPOINT_HEADER } from '../../class/xbt/electrum-checkpoint';
+import fixture from '../fixtures/xbt-knots-regtest-acceptance.json';
 
 // Jest hoists these above the import above. The factories close over `globalThis`
 // so the test body can swap implementations per-test without re-mocking.
+jest.mock('react-native-default-preference', () => ({
+  __esModule: true,
+  default: {
+    setName: jest.fn(),
+    get: jest.fn(async (key: string) => {
+      const values: Record<string, string> = { electrum_host: 'xbt.fulcrum.test', electrum_tcp_port: '', electrum_ssl_port: '50002' };
+      return values[key];
+    }),
+    set: jest.fn(),
+    clear: jest.fn(),
+  },
+}));
+
 jest.mock('electrum-client', () => {
   return jest.fn().mockImplementation(() => (globalThis as any).__createNextFakeClient());
 });
@@ -30,9 +45,11 @@ type FakeClient = {
   host: string;
   port: number;
   initElectrum: jest.Mock;
+  blockchainBlock_header: jest.Mock;
   blockchainHeaders_subscribe: jest.Mock;
   blockchainScripthash_getHistory: jest.Mock;
   blockchainTransaction_get: jest.Mock;
+  blockchainTransaction_broadcast: jest.Mock;
   server_ping: jest.Mock;
   close: jest.Mock;
 };
@@ -65,8 +82,10 @@ function makeFakeClient(host = 'fake.host', port = 50002): FakeClient {
   };
   fc.initElectrum = jest.fn(() => fc.initElectrumDeferred!.promise);
   fc.blockchainHeaders_subscribe = jest.fn(() => fc.headersDeferred!.promise);
+  fc.blockchainBlock_header = jest.fn(async () => XBT_MAINNET_CHECKPOINT_HEADER);
   fc.blockchainScripthash_getHistory = jest.fn();
   fc.blockchainTransaction_get = jest.fn();
+  fc.blockchainTransaction_broadcast = jest.fn(async () => 'a'.repeat(64));
   fc.server_ping = jest.fn(() => {
     fc.pingDeferred = deferred<unknown>();
     if (fc.pingShouldReject) {
@@ -126,6 +145,32 @@ describe('BlueElectrum lifecycle', () => {
       expect(r2).toBe(true);
       expect(BlueElectrum.getConnectionState()).toBe('connected');
       expect(created.length).toBe(1);
+    });
+  });
+
+  describe('Unified broadcast boundary', () => {
+    it('rejects a non-Unified witness in both broadcast APIs before opening a connection', async () => {
+      for (const broadcast of [BlueElectrum.broadcast, BlueElectrum.broadcastV2]) {
+        await expect(broadcast(fixture.signed.negativeControls.removedUnifiedBitHex)).rejects.toThrow('without SIGHASH_ALL');
+      }
+      expect(created).toHaveLength(0);
+    });
+
+    it('never submits a non-Unified witness to a connected client, but allows a valid payment', async () => {
+      const connected = BlueElectrum.ensureConnected();
+      await flush();
+      resolveLastConnect();
+      await connected;
+      const client = created[0];
+      for (const broadcast of [BlueElectrum.broadcast, BlueElectrum.broadcastV2]) {
+        await expect(broadcast(fixture.signed.negativeControls.removedUnifiedBitHex)).rejects.toThrow('without SIGHASH_ALL');
+        expect(client.blockchainTransaction_broadcast).not.toHaveBeenCalled();
+      }
+      for (const broadcast of [BlueElectrum.broadcast, BlueElectrum.broadcastV2]) {
+        await expect(broadcast(fixture.signed.goodHex)).resolves.toBe('a'.repeat(64));
+      }
+      expect(client.blockchainTransaction_broadcast).toHaveBeenCalledTimes(2);
+      expect(client.blockchainTransaction_broadcast).toHaveBeenLastCalledWith(fixture.signed.goodHex);
     });
   });
 

@@ -31,6 +31,8 @@ import { SuccessView } from '../send/success';
 import { BlueSpacing40 } from '../../components/BlueSpacing';
 import { BlueLoading } from '../../components/BlueLoading';
 import SafeAreaScrollView from '../../components/SafeAreaScrollView';
+import { XBT_PROFILE } from '../../class/xbt/profile';
+import { normalizeXbtUnit } from '../../class/xbt/units';
 
 const segmentControlValues = [loc.wallets.details_address, loc.bip47.payment_code];
 
@@ -372,7 +374,11 @@ const ReceiveDetails = () => {
 
           setDisplayBalance(
             loc.formatString(loc.transactions.pending_with_amount, {
-              amt1: formatBalance(balance.unconfirmed, BitcoinUnit.LOCAL_CURRENCY, true).toString(),
+              amt1: formatBalance(
+                balance.unconfirmed,
+                XBT_PROFILE.fiatEnabled ? BitcoinUnit.LOCAL_CURRENCY : BitcoinUnit.SATS,
+                true,
+              ).toString(),
               amt2: formatBalance(balance.unconfirmed, BitcoinUnit.BTC, true).toString(),
             }),
           );
@@ -390,7 +396,11 @@ const ReceiveDetails = () => {
             setShowAddress(false);
             setDisplayBalance(
               loc.formatString(loc.transactions.received_with_amount, {
-                amt1: formatBalance(balanceToShow, BitcoinUnit.LOCAL_CURRENCY, true).toString(),
+                amt1: formatBalance(
+                  balanceToShow,
+                  XBT_PROFILE.fiatEnabled ? BitcoinUnit.LOCAL_CURRENCY : BitcoinUnit.SATS,
+                  true,
+                ).toString(),
                 amt2: formatBalance(balanceToShow, BitcoinUnit.BTC, true).toString(),
               }),
             );
@@ -643,7 +653,7 @@ const ReceiveDetails = () => {
       currentLabel: customLabel,
       currentAmount: customAmount,
       currentUnit: customUnit,
-      preferredUnit: wallet?.getPreferredBalanceUnit() || BitcoinUnit.BTC,
+      preferredUnit: normalizeXbtUnit(wallet?.getPreferredBalanceUnit() || BitcoinUnit.BTC),
     });
   }, [address, customAmount, customLabel, customUnit, navigate, wallet]);
 
@@ -668,16 +678,27 @@ const ReceiveDetails = () => {
     if (incomingIsCustom) {
       setIsCustom(true);
       setCustomLabel(incomingLabel ?? '');
-      setCustomAmount(incomingAmount ?? '');
-      setCustomUnit(incomingUnit ?? BitcoinUnit.BTC);
-      if (incomingBip21) {
+      const hasUnsupportedFiatAmount = !XBT_PROFILE.fiatEnabled && incomingUnit === BitcoinUnit.LOCAL_CURRENCY;
+      setCustomAmount(hasUnsupportedFiatAmount ? '' : (incomingAmount ?? ''));
+      setCustomUnit(normalizeXbtUnit(incomingUnit ?? BitcoinUnit.BTC));
+      if (hasUnsupportedFiatAmount) {
+        // Discard the old converted URI as well as its fiat input; preserve only the label.
+        try {
+          const receiveAddress = address || (incomingBip21 ? DeeplinkSchemaMatch.bip21decode(incomingBip21).address : '');
+          setBip21encoded(
+            receiveAddress ? DeeplinkSchemaMatch.bip21encode(receiveAddress, incomingLabel ? { label: incomingLabel } : {}) : '',
+          );
+        } catch {
+          setBip21encoded('');
+        }
+      } else if (incomingBip21) {
         setBip21encoded(incomingBip21);
       }
       setShowAddress(true);
       setShowPendingBalance(false);
       setShowConfirmedBalance(false);
     } else {
-      const fallbackUnit = wallet?.getPreferredBalanceUnit() || BitcoinUnit.BTC;
+      const fallbackUnit = normalizeXbtUnit(wallet?.getPreferredBalanceUnit() || BitcoinUnit.BTC);
       setIsCustom(false);
       setCustomLabel('');
       setCustomAmount('');
@@ -691,7 +712,7 @@ const ReceiveDetails = () => {
     }
 
     setParams({ customLabel: undefined, customAmount: undefined, customUnit: undefined, bip21encoded: undefined, isCustom: undefined });
-  }, [route.params, setParams, wallet]);
+  }, [address, route.params, setParams, wallet]);
 
   /**
    * @returns {string} BTC amount, accounting for current `customUnit` and `customUnit`
@@ -701,11 +722,12 @@ const ReceiveDetails = () => {
     if (number > 0) {
       switch (customUnit) {
         case BitcoinUnit.BTC:
-          return customAmount + ' BTC';
+          return customAmount + ' ' + loc.units.BTC;
         case BitcoinUnit.SATS:
-          return satoshiToBTC(number) + ' BTC';
+          return satoshiToBTC(number) + ' ' + loc.units.BTC;
         case BitcoinUnit.LOCAL_CURRENCY:
-          return fiatToBTC(number) + ' BTC';
+          if (!XBT_PROFILE.fiatEnabled) return null;
+          return fiatToBTC(number) + ' ' + loc.units.BTC;
       }
       return customAmount + ' ' + customUnit;
     } else {

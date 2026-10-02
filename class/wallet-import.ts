@@ -7,6 +7,7 @@ import { HDLegacyBreadwalletWallet } from './wallets/hd-legacy-breadwallet-walle
 import { HDLegacyElectrumSeedP2PKHWallet } from './wallets/hd-legacy-electrum-seed-p2pkh-wallet';
 import { HDLegacyP2PKHWallet } from './wallets/hd-legacy-p2pkh-wallet';
 import { HDSegwitBech32Wallet } from './wallets/hd-segwit-bech32-wallet';
+import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
 import { HDSegwitElectrumSeedP2WPKHWallet } from './wallets/hd-segwit-electrum-seed-p2wpkh-wallet';
 import { HDSegwitP2SHWallet } from './wallets/hd-segwit-p2sh-wallet';
 import { HDTaprootWallet } from './wallets/hd-taproot-wallet';
@@ -54,6 +55,7 @@ export type TImport = {
  * @param onProgress {function} Callback to report scanning progress
  * @param onWallet {function} Callback to report wallet found
  * @param onPassword {function} Callback to ask for password if needed
+ * @param xbtOnly {boolean} Restrict imports to the supported XBT BIP84 recovery profile
  * @returns {{promise: Promise, stop: function}}
  */
 const startImport = (
@@ -64,6 +66,7 @@ const startImport = (
   onProgress: (name: string) => void,
   onWallet: (wallet: TWallet) => void,
   onPassword: (title: string, text: string) => Promise<string>,
+  xbtOnly: boolean = false,
 ): TImport => {
   // state
   let promiseResolve: (arg: TStatus) => void;
@@ -124,6 +127,21 @@ const startImport = (
     // 8. check if its a json array from BC-UR with multiple accounts
     let text = importTextOrig.trim();
     let password;
+
+    if (xbtOnly) {
+      const xbtWallet = new XbtSegwitBech32Wallet();
+      xbtWallet.setSecret(text);
+      if (!xbtWallet.validateMnemonic()) {
+        throw new Error('RedWallet currently imports a BIP39 recovery phrase for its XBT BIP84 wallet.');
+      }
+      if (askPassphrase) {
+        password = await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message);
+        xbtWallet.setPassphrase(password);
+      }
+      yield { progress: 'XBT BIP84 recovery' };
+      yield { wallet: xbtWallet };
+      return;
+    }
 
     // BIP38 password required
     if (text.startsWith('6P')) {
@@ -251,7 +269,8 @@ const startImport = (
 
     // check bip39 wallets
     yield { progress: 'bip39' };
-    const hd2 = new HDSegwitBech32Wallet();
+    // When discovery finds no used account, default a valid BIP39 seed to RedWallet XBT.
+    const hd2 = new XbtSegwitBech32Wallet();
     hd2.setSecret(text);
     if (password) {
       hd2.setPassphrase(password);
@@ -282,11 +301,14 @@ const startImport = (
             WalletClass = HDTaprootWallet;
             break;
           default:
-            // p2wpkh
+            // p2wpkh; the exact XBT account path selects its custom signer below.
             WalletClass = HDSegwitBech32Wallet;
         }
         for (const path of paths) {
-          const wallet = new WalletClass();
+          // RedWallet's BIP84 account uses the XBT Unified Sighash signer.
+          const WalletForPath =
+            i.script_type === 'p2wpkh' && path === XbtSegwitBech32Wallet.derivationPath ? XbtSegwitBech32Wallet : WalletClass;
+          const wallet = new WalletForPath();
           wallet.setSecret(text);
           if (password) {
             wallet.setPassphrase(password);

@@ -1,3 +1,4 @@
+import { XBT_PROFILE } from '../class/xbt/profile';
 import { useCallback, useEffect, useRef } from 'react';
 import {
   transferCurrentComplicationUserInfo,
@@ -50,7 +51,7 @@ export function useWatchConnectivity() {
   });
 
   useEffect(() => {
-    if (!isInstalled || !isPaired || !walletsInitialized || !isReachable) return;
+    if (!XBT_PROFILE.companionsEnabled || !isInstalled || !isPaired || !walletsInitialized || !isReachable) return;
 
     const contextPayload = createContextPayload();
     try {
@@ -62,7 +63,8 @@ export function useWatchConnectivity() {
   }, [isReachable, walletsInitialized, isInstalled, isPaired]);
 
   useEffect(() => {
-    if (!isInstalled || !isPaired || !walletsInitialized || !isReachable || !preferredFiatCurrency) return;
+    if (!XBT_PROFILE.companionsEnabled || !isInstalled || !isPaired || !walletsInitialized || !isReachable || !preferredFiatCurrency)
+      return;
 
     if (lastPreferredCurrency.current !== preferredFiatCurrency.endPointKey) {
       try {
@@ -102,7 +104,7 @@ export function useWatchConnectivity() {
   );
 
   const constructWalletsToSendToWatch = useCallback(async () => {
-    if (!Array.isArray(wallets) || !walletsInitialized) return;
+    if (!XBT_PROFILE.companionsEnabled || !Array.isArray(wallets) || !walletsInitialized) return;
 
     const walletsToProcess = await Promise.allSettled(
       wallets.map(async wallet => {
@@ -200,6 +202,7 @@ export function useWatchConnectivity() {
 
   const handleMessages = useCallback(
     async (message: Message, reply: Reply) => {
+      if (!XBT_PROFILE.companionsEnabled) return;
       console.debug('Received message from Apple Watch:', message);
       try {
         if (message.request === 'createInvoice' && typeof message.walletIndex === 'number' && typeof message.amount === 'number') {
@@ -239,7 +242,7 @@ export function useWatchConnectivity() {
   );
 
   useEffect(() => {
-    if (!isInstalled || !isPaired || !walletsInitialized) return;
+    if (!XBT_PROFILE.companionsEnabled || !isInstalled || !isPaired || !walletsInitialized) return;
 
     const sendWalletData = async () => {
       try {
@@ -256,7 +259,7 @@ export function useWatchConnectivity() {
   }, [walletsInitialized, isInstalled, isPaired, constructWalletsToSendToWatch]);
 
   useEffect(() => {
-    if (!isInstalled) return;
+    if (!XBT_PROFILE.companionsEnabled || !isInstalled) return;
 
     const unsubscribe = watchEvents.addListener('message', (message: any) => {
       if (message.request === 'wakeUpApp') {

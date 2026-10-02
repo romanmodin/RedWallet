@@ -13,6 +13,9 @@ import { BitcoinUnit } from '../../models/bitcoinUnits';
 import DeeplinkSchemaMatch from '../../class/deeplink-schema-match';
 import { satoshiToBTC, fiatToBTC } from '../../blue_modules/currency';
 import { ReceiveDetailsStackParamList } from '../../navigation/ReceiveDetailsStackParamList';
+import { XBT_PROFILE } from '../../class/xbt/profile';
+import { normalizeXbtUnit } from '../../class/xbt/units';
+import presentAlert from '../../components/Alert';
 
 const ReceiveCustomAmountSheet = () => {
   const navigation = useNavigation<NativeStackNavigationProp<ReceiveDetailsStackParamList, 'ReceiveCustomAmount'>>();
@@ -22,8 +25,9 @@ const ReceiveCustomAmountSheet = () => {
   const { address, currentLabel = '', currentAmount = '', currentUnit = BitcoinUnit.BTC, preferredUnit = BitcoinUnit.BTC } = route.params;
 
   const [label, setLabel] = useState(currentLabel);
-  const [amount, setAmount] = useState(currentAmount);
-  const [unit, setUnit] = useState<BitcoinUnit>(currentUnit);
+  // Old fiat input has no verified XBT exchange rate. Require the amount to be entered again.
+  const [amount, setAmount] = useState(!XBT_PROFILE.fiatEnabled && currentUnit === BitcoinUnit.LOCAL_CURRENCY ? '' : currentAmount);
+  const [unit, setUnit] = useState<BitcoinUnit>(normalizeXbtUnit(currentUnit));
   const latestLabel = useRef(currentLabel);
 
   const stylesHook = useMemo(
@@ -57,6 +61,7 @@ const ReceiveCustomAmountSheet = () => {
           normalizedAmount = satoshiToBTC(numericAmount);
           break;
         case BitcoinUnit.LOCAL_CURRENCY:
+          if (!XBT_PROFILE.fiatEnabled) throw new Error('Fiat amounts are unavailable for XBT. Enter an amount in XBT or sats.');
           if (AmountInput.conversionCache[trimmedAmount + BitcoinUnit.LOCAL_CURRENCY]) {
             normalizedAmount = satoshiToBTC(Number(AmountInput.conversionCache[trimmedAmount + BitcoinUnit.LOCAL_CURRENCY]));
           } else {
@@ -91,22 +96,26 @@ const ReceiveCustomAmountSheet = () => {
 
   const handleSave = useCallback(() => {
     const resolvedLabel = latestLabel.current ?? label;
-    const encoded = computeBip21(amount, unit, resolvedLabel);
-    navigation.popTo(
-      'ReceiveDetails',
-      {
-        customLabel: resolvedLabel,
-        customAmount: amount,
-        customUnit: unit,
-        bip21encoded: encoded,
-        isCustom: true,
-      },
-      { merge: true },
-    );
+    try {
+      const encoded = computeBip21(amount, unit, resolvedLabel);
+      navigation.popTo(
+        'ReceiveDetails',
+        {
+          customLabel: resolvedLabel,
+          customAmount: amount,
+          customUnit: unit,
+          bip21encoded: encoded,
+          isCustom: true,
+        },
+        { merge: true },
+      );
+    } catch (error: unknown) {
+      presentAlert({ message: error instanceof Error ? error.message : String(error) });
+    }
   }, [amount, unit, label, computeBip21, navigation]);
 
   const handleReset = useCallback(() => {
-    const fallbackUnit = preferredUnit || BitcoinUnit.BTC;
+    const fallbackUnit = normalizeXbtUnit(preferredUnit || BitcoinUnit.BTC);
     const encoded = DeeplinkSchemaMatch.bip21encode(address);
     navigation.popTo(
       'ReceiveDetails',

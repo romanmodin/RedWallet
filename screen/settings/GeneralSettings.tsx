@@ -7,6 +7,7 @@ import { useStorage } from '../../hooks/context/useStorage';
 import { useSettings } from '../../hooks/context/useSettings';
 import { isDesktop } from '../../blue_modules/environment';
 import { SettingsSection, SettingsListItem, SettingsScrollView } from '../../components/SettingsSection';
+import { XBT_PROFILE } from '../../class/xbt/profile';
 
 enum SettingsPrivacySection {
   None,
@@ -80,6 +81,7 @@ const GeneralSettings: React.FC = () => {
 
   const onWidgetsTotalBalanceValueChange = useCallback(
     async (value: boolean) => {
+      if (!XBT_PROFILE.companionsEnabled) return;
       setIsLoading(SettingsPrivacySection.Widget);
       try {
         setIsWidgetBalanceDisplayAllowedStorage(value);
@@ -184,18 +186,20 @@ const GeneralSettings: React.FC = () => {
 
       {Platform.OS === 'ios' && (
         <>
-          <SettingsSection title={loc.settings.widgets}>
-            <SettingsListItem
-              title={loc.settings.total_balance}
-              subtitle={`${loc.settings.total_balance_explanation}${encryptedDisabledNote}`}
-              switch={{
-                value: storageIsEncrypted ? false : isWidgetBalanceDisplayAllowed,
-                onValueChange: onWidgetsTotalBalanceValueChange,
-                disabled: isLoading === SettingsPrivacySection.All || storageIsEncrypted,
-              }}
-              bottomDivider={false}
-            />
-          </SettingsSection>
+          {XBT_PROFILE.companionsEnabled && (
+            <SettingsSection title={loc.settings.widgets}>
+              <SettingsListItem
+                title={loc.settings.total_balance}
+                subtitle={`${loc.settings.total_balance_explanation}${encryptedDisabledNote}`}
+                switch={{
+                  value: storageIsEncrypted ? false : isWidgetBalanceDisplayAllowed,
+                  onValueChange: onWidgetsTotalBalanceValueChange,
+                  disabled: isLoading === SettingsPrivacySection.All || storageIsEncrypted,
+                }}
+                bottomDivider={false}
+              />
+            </SettingsSection>
+          )}
 
           <SettingsSection title={loc.settings.general_continuity}>
             <SettingsListItem

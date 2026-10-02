@@ -199,7 +199,9 @@ const ElectrumSettings: React.FC = () => {
           const testConnect = await BlueElectrum.testConnection(serverHost, Number(serverPort), Number(serverSslPort));
           if (!testConnect) {
             return presentAlert({
-              message: serverHost.endsWith('.onion') ? loc.settings.electrum_error_connect_tor : loc.settings.electrum_error_connect,
+              message: serverHost.endsWith('.onion')
+                ? loc.settings.electrum_error_connect_tor
+                : `${loc.settings.electrum_error_connect}. XBT servers must match the verified mainnet checkpoint.`,
             });
           }
           await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
@@ -377,6 +379,7 @@ const ElectrumSettings: React.FC = () => {
       displayInline: true,
       subtitle: loc.settings.electrum_suggested_description,
       subactions: mapServers(suggestedServers, true),
+      hidden: suggestedServers.length === 0,
     };
 
     const actions: Action[] = [];
@@ -505,7 +508,11 @@ const ElectrumSettings: React.FC = () => {
 
         <SettingsSection title={loc.settings.electrum_preferred_server}>
           <View style={settingsCardContent}>
-            <SettingsFootnote>{loc.settings.electrum_preferred_server_description}</SettingsFootnote>
+            <SettingsFootnote>
+              {loc.settings.electrum_preferred_server_description}
+              RedWallet compares a known XBT BLAKE2b fork header and never switches networks. This checks compatibility, not server trust or
+              the current chain. Use a server you trust.
+            </SettingsFootnote>
 
             <View style={styles.inputGroupSpacing}>
               <AddressInput

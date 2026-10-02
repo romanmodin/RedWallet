@@ -1,5 +1,6 @@
 // blockExplorer.ts
 import DefaultPreference from 'react-native-default-preference';
+import { XBT_PROFILE } from '../class/xbt/profile';
 
 export interface BlockExplorer {
   key: string;
@@ -7,15 +8,13 @@ export interface BlockExplorer {
   url: string;
 }
 
+// No explorer has been verified for this XBT profile. Never inherit BTC defaults.
 export const BLOCK_EXPLORERS: { [key: string]: BlockExplorer } = {
-  default: { key: 'default', name: 'Mempool.space', url: 'https://mempool.space' },
-  blockchair: { key: 'blockchair', name: 'Blockchair', url: 'https://blockchair.com/bitcoin' },
-  blockstream: { key: 'blockstream', name: 'Blockstream.info', url: 'https://blockstream.info' },
-  custom: { key: 'custom', name: 'Custom', url: '' }, // Custom URL will be handled separately
+  default: { key: 'default', name: 'Unavailable', url: '' },
 };
 
 export const getBlockExplorersList = (): BlockExplorer[] => {
-  return Object.values(BLOCK_EXPLORERS);
+  return XBT_PROFILE.explorerEnabled ? Object.values(BLOCK_EXPLORERS) : [];
 };
 
 export const normalizeUrl = (url: string): string => {
@@ -27,8 +26,16 @@ export const isValidUrl = (url: string): boolean => {
   return pattern.test(url);
 };
 
+/** A single guard for open, copy, and Handoff links. Missing support yields no URL. */
+export const getTransactionExplorerUrl = (txid?: string): string | undefined => {
+  if (!XBT_PROFILE.explorerEnabled || !txid) return undefined;
+  const url = BLOCK_EXPLORERS.default.url;
+  return isValidUrl(url) ? `${normalizeUrl(url)}/tx/${txid}` : undefined;
+};
+
 export const findMatchingExplorerByDomain = (url: string): BlockExplorer | null => {
   const domain = getDomain(url);
+  if (!XBT_PROFILE.explorerEnabled || !domain) return null;
   for (const explorer of Object.values(BLOCK_EXPLORERS)) {
     if (getDomain(explorer.url) === domain) {
       return explorer;
@@ -49,6 +56,8 @@ export const getDomain = (url: string): string => {
 const BLOCK_EXPLORER_STORAGE_KEY = 'blockExplorer';
 
 export const saveBlockExplorer = async (url: string): Promise<boolean> => {
+  // Arbitrary custom URLs cannot establish which chain an explorer indexes.
+  if (!XBT_PROFILE.explorerEnabled && url) return false;
   try {
     await DefaultPreference.set(BLOCK_EXPLORER_STORAGE_KEY, url);
     return true;
@@ -69,11 +78,6 @@ export const removeBlockExplorer = async (): Promise<boolean> => {
 };
 
 export const getBlockExplorerUrl = async (): Promise<string> => {
-  try {
-    const url = (await DefaultPreference.get(BLOCK_EXPLORER_STORAGE_KEY)) as string | null;
-    return url ?? BLOCK_EXPLORERS.default.url;
-  } catch (error) {
-    console.error('Error getting block explorer:', error);
-    return BLOCK_EXPLORERS.default.url;
-  }
+  // Ignore saved upstream/custom URLs until an XBT explorer is independently verified.
+  return BLOCK_EXPLORERS.default.url;
 };

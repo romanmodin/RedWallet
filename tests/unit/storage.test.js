@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import assert from 'assert';
 
 import { BlueApp } from '../../class/blue-app';
-import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { SegwitP2SHWallet } from '../../class/wallets/segwit-p2sh-wallet';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 
@@ -15,7 +15,7 @@ jest.mock('../../blue_modules/BlueElectrum', () => {
 it('Appstorage - loadFromDisk works', async () => {
   /** @type {BlueApp} */
   const Storage = new BlueApp();
-  const w = new SegwitP2SHWallet();
+  const w = new XbtSegwitBech32Wallet();
   w.setLabel('testlabel');
   await w.generate();
   Storage.wallets.push(w);
@@ -105,7 +105,7 @@ it('Appstorage - loadFromDisk works with ambiguous descriptor in watch-only wall
 
 it('AppStorage - getTransactions() work', async () => {
   const Storage = new BlueApp();
-  const w = new HDSegwitBech32Wallet();
+  const w = new XbtSegwitBech32Wallet();
   w.setLabel('testlabel');
   await w.generate();
   w._txs_by_internal_index = {
@@ -160,7 +160,7 @@ it('AppStorage - getTransactions() work', async () => {
     ],
   };
 
-  const w2 = new HDSegwitBech32Wallet();
+  const w2 = new XbtSegwitBech32Wallet();
   w2.setLabel('testlabel');
   await w2.generate();
   w2._txs_by_internal_index = {
@@ -256,7 +256,7 @@ it('AppStorage - getTransactions() work', async () => {
 it('Appstorage - encryptStorage & load encrypted storage works', async () => {
   /** @type {BlueApp} */
   const Storage = new BlueApp();
-  let w = new SegwitP2SHWallet();
+  let w = new XbtSegwitBech32Wallet();
   w.setLabel('testlabel');
   await w.generate();
   Storage.wallets.push(w);
@@ -297,7 +297,7 @@ it('Appstorage - encryptStorage & load encrypted storage works', async () => {
   assert.ok(loadResult);
   assert.strictEqual(Storage2.wallets.length, 1);
   assert.strictEqual(Storage2.wallets[0].getLabel(), 'testlabel');
-  w = new SegwitP2SHWallet();
+  w = new XbtSegwitBech32Wallet();
   w.setLabel('testlabel2');
   await w.generate();
   Storage2.wallets.push(w);
@@ -319,7 +319,7 @@ it('Appstorage - encryptStorage & load encrypted storage works', async () => {
   assert.ok(createFakeStorageResult);
   assert.strictEqual(Storage2.wallets.length, 0);
   assert.strictEqual(Storage2.cachedPassword, 'fakePassword');
-  w = new SegwitP2SHWallet();
+  w = new XbtSegwitBech32Wallet();
   w.setLabel('fakewallet');
   await w.generate();
   Storage2.wallets.push(w);
@@ -342,7 +342,7 @@ it('Appstorage - encryptStorage & load encrypted storage works', async () => {
 it('Appstorage - encryptStorage & load encrypted, then decryptStorage and load storage works', async () => {
   /** @type {BlueApp} */
   const Storage = new BlueApp();
-  let w = new SegwitP2SHWallet();
+  let w = new XbtSegwitBech32Wallet();
   w.setLabel('testlabel');
   await w.generate();
   Storage.wallets.push(w);
@@ -383,7 +383,7 @@ it('Appstorage - encryptStorage & load encrypted, then decryptStorage and load s
   assert.ok(loadResult);
   assert.strictEqual(Storage2.wallets.length, 1);
   assert.strictEqual(Storage2.wallets[0].getLabel(), 'testlabel');
-  w = new SegwitP2SHWallet();
+  w = new XbtSegwitBech32Wallet();
   w.setLabel('testlabel2');
   await w.generate();
   Storage2.wallets.push(w);
@@ -405,7 +405,7 @@ it('Appstorage - encryptStorage & load encrypted, then decryptStorage and load s
   assert.ok(createFakeStorageResult);
   assert.strictEqual(Storage2.wallets.length, 0);
   assert.strictEqual(Storage2.cachedPassword, 'fakePassword');
-  w = new SegwitP2SHWallet();
+  w = new XbtSegwitBech32Wallet();
   w.setLabel('fakewallet');
   await w.generate();
   Storage2.wallets.push(w);
@@ -447,7 +447,7 @@ it('Appstorage - encryptStorage & load encrypted, then decryptStorage and load s
 it('can decrypt storage that is second in a list of buckets; and isPasswordInUse() works', async () => {
   /** @type {BlueApp} */
   const Storage = new BlueApp();
-  let w = new SegwitP2SHWallet();
+  let w = new XbtSegwitBech32Wallet();
   w.setLabel('testlabel');
   await w.generate();
   Storage.wallets.push(w);
@@ -464,7 +464,7 @@ it('can decrypt storage that is second in a list of buckets; and isPasswordInUse
   assert.ok(createFakeStorageResult);
   assert.strictEqual(Storage.wallets.length, 0);
   assert.strictEqual(Storage.cachedPassword, 'fakePassword');
-  w = new SegwitP2SHWallet();
+  w = new XbtSegwitBech32Wallet();
   w.setLabel('fakewallet');
   await w.generate();
   Storage.wallets.push(w);
@@ -524,4 +524,33 @@ it('can decrypt storage that is second in a list of buckets; and isPasswordInUse
 it('Appstorage - hashIt() works', async () => {
   const storage = new BlueApp();
   assert.strictEqual(storage.hashIt('hello'), '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824');
+});
+
+it('rejects a mixed bucket before loading any wallet and preserves the stored data', async () => {
+  const xbt = new XbtSegwitBech32Wallet();
+  await xbt.generate();
+  const btc = new SegwitP2SHWallet();
+  await btc.generate();
+  const storage = new BlueApp();
+  storage.wallets.push(xbt, btc);
+  await storage.saveToDisk();
+  const before = await AsyncStorage.getItem('data');
+  const reopened = new BlueApp();
+  await expect(reopened.loadFromDisk()).rejects.toThrow('cannot load non-XBT signing wallets');
+  expect(reopened.wallets).toHaveLength(0);
+  await expect(reopened.saveToDisk()).rejects.toThrow('Original wallet data has been preserved');
+  expect(await AsyncStorage.getItem('data')).toBe(before);
+});
+
+it('rejects a BTC signer in encrypted storage without rewriting the ciphertext', async () => {
+  const btc = new SegwitP2SHWallet();
+  await btc.generate();
+  const storage = new BlueApp();
+  storage.wallets.push(btc);
+  await storage.encryptStorage('test-password');
+  const before = await AsyncStorage.getItem('data');
+  const reopened = new BlueApp();
+  await expect(reopened.loadFromDisk('test-password')).rejects.toThrow('cannot load non-XBT signing wallets');
+  await expect(reopened.saveToDisk()).rejects.toThrow('Original wallet data has been preserved');
+  expect(await AsyncStorage.getItem('data')).toBe(before);
 });

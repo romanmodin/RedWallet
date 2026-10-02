@@ -13,7 +13,7 @@ import io.bluewallet.bluewallet.NativeSettingsModuleSpec
 class SettingsModule(reactContext: ReactApplicationContext) : NativeSettingsModuleSpec(reactContext) {
 
     private val sharedPref: SharedPreferences = reactContext.getSharedPreferences(
-        "group.io.bluewallet.bluewallet",
+        "group.com.romanmodin.redwallet",
         Context.MODE_PRIVATE
     )
     

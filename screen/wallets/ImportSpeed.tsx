@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import BlueFormLabel from '../../components/BlueFormLabel';
 import BlueFormMultiInput from '../../components/BlueFormMultiInput';
 import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import presentAlert from '../../components/Alert';
 import Button from '../../components/Button';
@@ -59,6 +60,9 @@ const ImportSpeed = () => {
       switch (walletType) {
         case HDSegwitBech32Wallet.type:
           WalletClass = HDSegwitBech32Wallet;
+          break;
+        case XbtSegwitBech32Wallet.type:
+          WalletClass = XbtSegwitBech32Wallet;
           break;
         case WatchOnlyWallet.type:
           WalletClass = WatchOnlyWallet;

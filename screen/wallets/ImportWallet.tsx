@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { Keyboard, Platform, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
+import { Keyboard, Platform, StyleSheet, View } from 'react-native';
 import BlueFormLabel from '../../components/BlueFormLabel';
+import BlueText from '../../components/BlueText';
+import { XBT_REPLAY_NOTICE } from '../../class/xbt/replay-notice';
 import BlueFormMultiInput from '../../components/BlueFormMultiInput';
 import Button from '../../components/Button';
 import {
@@ -32,9 +34,7 @@ const ImportWallet = () => {
   const triggerImport = route?.params?.triggerImport ?? false;
   const [importText, setImportText] = useState<string>(label);
   const [isToolbarVisibleForAndroid, setIsToolbarVisibleForAndroid] = useState<boolean>(false);
-  const speedBackdoorTapCountRef = useRef(0);
   const askPassphraseMenuState = route.params?.askPassphraseMenuState ?? false;
-  const searchAccountsMenuState = route.params?.searchAccountsMenuState ?? false;
   const clearClipboardMenuState = route.params?.clearClipboardMenuState ?? true;
   const { isPrivacyBlurEnabled } = useSettings();
   const { enableScreenProtect, disableScreenProtect } = useScreenProtect();
@@ -83,11 +83,11 @@ const ImportWallet = () => {
       navigation.navigate('ImportWalletDiscovery', {
         importText: text,
         askPassphrase: askPassphraseMenuState,
-        searchAccounts: searchAccountsMenuState,
+        searchAccounts: false,
       });
     },
 
-    [askPassphraseMenuState, clearClipboardMenuState, navigation, searchAccountsMenuState],
+    [askPassphraseMenuState, clearClipboardMenuState, navigation],
   );
 
   const handleImport = useCallback(() => {
@@ -115,14 +115,6 @@ const ImportWallet = () => {
       navigation.setParams({ onBarScanned: undefined });
     }
   }, [route.name, onBarScanned, route.params?.onBarScanned, navigation]);
-
-  const speedBackdoorTap = () => {
-    speedBackdoorTapCountRef.current += 1;
-    if (speedBackdoorTapCountRef.current >= 5) {
-      speedBackdoorTapCountRef.current = 0;
-      navigation.navigate('ImportSpeed');
-    }
-  };
 
   useEffect(() => {
     if (isPrivacyBlurEnabled) {
@@ -153,9 +145,9 @@ const ImportWallet = () => {
   return (
     <SafeAreaScrollView contentContainerStyle={styles.root} keyboardShouldPersistTaps="always" automaticallyAdjustKeyboardInsets>
       <BlueSpacing20 />
-      <TouchableWithoutFeedback accessibilityRole="button" onPress={speedBackdoorTap} testID="SpeedBackdoor">
-        <BlueFormLabel>{loc.wallets.import_explanation}</BlueFormLabel>
-      </TouchableWithoutFeedback>
+      <BlueFormLabel>{loc.wallets.import_explanation}</BlueFormLabel>
+      <BlueSpacing20 />
+      <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
       <BlueSpacing20 />
       <BlueFormMultiInput
         value={importText}

@@ -1,3 +1,4 @@
+// Preserve tests of the inherited BTC adapter; the XBT safety suite verifies the production disabled gate.
 import DefaultPreference from 'react-native-default-preference';
 import assert from 'assert';
 
@@ -11,6 +12,8 @@ import {
   GROUP_IO_BLUEWALLET,
 } from '../../blue_modules/currency';
 import { FiatUnit } from '../../models/fiatUnit';
+
+jest.mock('../../class/xbt/profile', () => ({ XBT_PROFILE: { fiatEnabled: true } }));
 
 jest.setTimeout(90 * 1000);
 

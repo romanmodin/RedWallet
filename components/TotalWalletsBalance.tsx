@@ -8,6 +8,9 @@ import { CommonToolTipActions } from '../typings/CommonToolTipActions';
 import { useSettings } from '../hooks/context/useSettings';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from './themes';
+import { XBT_PROFILE } from '../class/xbt/profile';
+import { normalizeXbtUnit, nextXbtUnit } from '../class/xbt/units';
+import XbtFiatEstimate from './XbtFiatEstimate';
 
 export const TotalWalletsBalancePreferredUnit = 'TotalWalletsBalancePreferredUnit';
 export const TotalWalletsBalanceKey = 'TotalWalletsBalance';
@@ -21,16 +24,18 @@ const TotalWalletsBalance: React.FC = React.memo(() => {
     totalBalancePreferredUnit,
     setTotalBalancePreferredUnitStorage,
   } = useSettings();
+  const displayUnit = normalizeXbtUnit(totalBalancePreferredUnit);
   const { colors } = useTheme();
   const { fontScale } = useWindowDimensions();
 
+  const totalBalance = useMemo(
+    () => wallets.reduce((prev, curr) => (curr.hideBalance ? prev : prev + (curr.getBalance() || 0)), 0),
+    [wallets],
+  );
   const totalBalanceFormatted = useMemo(() => {
-    const totalBalance = wallets.reduce((prev, curr) => {
-      return curr.hideBalance ? prev : prev + (curr.getBalance() || 0);
-    }, 0);
     return formatBalanceWithoutSuffix(totalBalance, totalBalancePreferredUnit, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallets, totalBalancePreferredUnit, preferredFiatCurrency]);
+  }, [totalBalance, totalBalancePreferredUnit, preferredFiatCurrency]);
 
   const scaledStyles = useMemo(
     () => ({
@@ -58,23 +63,23 @@ const TotalWalletsBalance: React.FC = React.memo(() => {
           {
             ...CommonToolTipActions.ViewInFiat,
             text: loc.formatString(loc.total_balance_view.display_in_fiat, { currency: preferredFiatCurrency.endPointKey }),
-            hidden: totalBalancePreferredUnit === BitcoinUnit.LOCAL_CURRENCY,
+            hidden: !XBT_PROFILE.fiatEnabled || displayUnit === BitcoinUnit.LOCAL_CURRENCY,
           },
-          { ...CommonToolTipActions.ViewInSats, hidden: totalBalancePreferredUnit === BitcoinUnit.SATS },
-          { ...CommonToolTipActions.ViewInBitcoin, hidden: totalBalancePreferredUnit === BitcoinUnit.BTC },
+          { ...CommonToolTipActions.ViewInSats, hidden: displayUnit === BitcoinUnit.SATS },
+          { ...CommonToolTipActions.ViewInBitcoin, text: loc.units.BTC, hidden: displayUnit === BitcoinUnit.BTC },
         ],
       },
       CommonToolTipActions.CopyAmount,
       CommonToolTipActions.Hide,
     ],
-    [preferredFiatCurrency, totalBalancePreferredUnit],
+    [preferredFiatCurrency, displayUnit],
   );
 
   const onPressMenuItem = useCallback(
     async (id: string) => {
       switch (id) {
         case CommonToolTipActions.ViewInFiat.id:
-          await setTotalBalancePreferredUnitStorage(BitcoinUnit.LOCAL_CURRENCY);
+          if (XBT_PROFILE.fiatEnabled) await setTotalBalancePreferredUnitStorage(BitcoinUnit.LOCAL_CURRENCY);
           break;
         case CommonToolTipActions.ViewInSats.id:
           await setTotalBalancePreferredUnitStorage(BitcoinUnit.SATS);
@@ -96,12 +101,7 @@ const TotalWalletsBalance: React.FC = React.memo(() => {
   );
 
   const handleBalanceOnPress = useCallback(async () => {
-    const nextUnit =
-      totalBalancePreferredUnit === BitcoinUnit.BTC
-        ? BitcoinUnit.SATS
-        : totalBalancePreferredUnit === BitcoinUnit.SATS
-          ? BitcoinUnit.LOCAL_CURRENCY
-          : BitcoinUnit.BTC;
+    const nextUnit = nextXbtUnit(totalBalancePreferredUnit);
     await setTotalBalancePreferredUnitStorage(nextUnit);
   }, [totalBalancePreferredUnit, setTotalBalancePreferredUnitStorage]);
 
@@ -121,11 +121,14 @@ const TotalWalletsBalance: React.FC = React.memo(() => {
             minimumFontScale={0.55}
           >
             {totalBalanceFormatted}
-            {totalBalancePreferredUnit !== BitcoinUnit.LOCAL_CURRENCY && (
-              <Text style={[styles.currency, { color: colors.foregroundColor }]}>{` ${totalBalancePreferredUnit}`}</Text>
+            {displayUnit !== BitcoinUnit.LOCAL_CURRENCY && (
+              <Text
+                style={[styles.currency, { color: colors.foregroundColor }]}
+              >{` ${displayUnit === BitcoinUnit.BTC ? loc.units.BTC : displayUnit}`}</Text>
             )}
           </Text>
         </TouchableOpacity>
+        <XbtFiatEstimate satoshis={totalBalance} style={[styles.estimate, { color: colors.alternativeTextColor }]} />
       </View>
     </ToolTipMenu>
   );
@@ -141,6 +144,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     width: '100%',
+  },
+  estimate: {
+    marginTop: 4,
+    fontSize: 13,
   },
   balanceTouchable: {
     alignSelf: 'stretch',

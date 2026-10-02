@@ -1,3 +1,4 @@
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import React from 'react';
 import PropTypes from 'prop-types';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
@@ -41,7 +42,7 @@ export default class RBFBumpFee extends CPFP {
         this.state.wallet._hdWalletInstance,
         this.state.wallet.getMasterFingerprint(),
       );
-    } else if (this.state.wallet?.type === HDSegwitBech32Wallet.type) {
+    } else if (this.state.wallet?.type === HDSegwitBech32Wallet.type || this.state.wallet?.type === XbtSegwitBech32Wallet.type) {
       tx = new HDSegwitBech32Transaction(null, this.state.txid, this.state.wallet);
     } else {
       return this.setState({ nonReplaceable: true, isLoading: false });

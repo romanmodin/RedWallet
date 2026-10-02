@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
-import { BlueApp as BlueAppClass } from '../class/blue-app';
+import { BlueApp as BlueAppClass, UnsupportedWalletStorageError } from '../class/blue-app';
+import presentAlert from '../components/Alert';
 import prompt from '../helpers/prompt';
 import { showKeychainWipeAlert } from '../hooks/useBiometrics';
 import loc from '../loc';
@@ -32,6 +33,10 @@ export const startAndDecrypt = async (retry?: boolean, passwordPrompt?: Password
   try {
     success = await BlueApp.loadFromDisk(password);
   } catch (error) {
+    if (error instanceof UnsupportedWalletStorageError) {
+      presentAlert({ message: error.message });
+      return false;
+    }
     // in case of exception reading from keystore, lets retry instead of assuming there is no storage and
     // proceeding with no wallets
     console.warn('exception loading from disk:', error);
@@ -44,6 +49,10 @@ export const startAndDecrypt = async (retry?: boolean, passwordPrompt?: Password
       await new Promise(resolve => setTimeout(resolve, 3000)); // sleep
       success = await BlueApp.loadFromDisk(password);
     } catch (error) {
+      if (error instanceof UnsupportedWalletStorageError) {
+        presentAlert({ message: error.message });
+        return false;
+      }
       console.warn('second exception loading from disk:', error);
     }
   }

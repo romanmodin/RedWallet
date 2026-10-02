@@ -1,3 +1,4 @@
+import { getPayjoinUrl } from '../../class/payjoin-policy';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { PayjoinClient } from 'payjoin-client';
@@ -27,6 +28,7 @@ import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-walle
 import { useSettings } from '../../hooks/context/useSettings';
 import { majorTomToGroundControl } from '../../blue_modules/notifications';
 import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
+import { XBT_PROFILE } from '../../class/xbt/profile';
 
 enum ActionType {
   SET_LOADING = 'SET_LOADING',
@@ -73,11 +75,12 @@ const Confirm: React.FC = () => {
   const { isBiometricUseCapableAndEnabled } = useBiometrics();
   const navigation = useExtendedNavigation<ConfirmNavigationProp>();
   const route = useRoute<ConfirmRouteProp>(); // Get the route and its params
-  const { recipients, targets, walletID, fee, memo, tx, satoshiPerByte, psbt, payjoinUrl } = route.params; // Destructure params
+  const { recipients, targets, walletID, fee, memo, tx, satoshiPerByte, psbt, payjoinUrl: requestedPayjoinUrl } = route.params; // Destructure params
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const { navigate, setOptions, goBack } = navigation;
   const wallet = wallets.find((w: TWallet) => w.getID() === walletID) as TWallet;
+  const payjoinUrl = getPayjoinUrl(wallet, requestedPayjoinUrl);
   const feeSatoshi = new BigNumber(fee).multipliedBy(100000000).toNumber();
   const { colors } = useTheme();
 
@@ -188,6 +191,7 @@ const Confirm: React.FC = () => {
     dispatch({ type: ActionType.SET_BUTTON_DISABLED, payload: true });
     dispatch({ type: ActionType.SET_LOADING, payload: true });
     try {
+      if (state.isPayjoinEnabled && !payjoinUrl) throw new Error('Payjoin is not supported by this wallet');
       // Perform biometric authentication first
       if (await isBiometricUseCapableAndEnabled()) {
         if (!(await unlockWithBiometrics())) {
@@ -299,9 +303,11 @@ const Confirm: React.FC = () => {
           </Text>
           <Text style={[styles.valueUnit, stylesHook.valueValue]}>{' ' + loc.units[BitcoinUnit.BTC]}</Text>
         </View>
-        <Text style={[styles.transactionAmountFiat, stylesHook.transactionAmountFiat]}>
-          {item.value && satoshiToLocalCurrency(item.value)}
-        </Text>
+        {XBT_PROFILE.fiatEnabled && (
+          <Text style={[styles.transactionAmountFiat, stylesHook.transactionAmountFiat]}>
+            {item.value && satoshiToLocalCurrency(item.value)}
+          </Text>
+        )}
         <BlueCard>
           <Text style={[styles.transactionDetailsTitle, stylesHook.transactionDetailsTitle]}>{loc.send.create_to}</Text>
           <Text testID="TransactionAddress" style={[styles.transactionDetailsSubtitle, stylesHook.transactionDetailsSubtitle]}>
@@ -351,7 +357,8 @@ const Confirm: React.FC = () => {
       <View style={styles.cardBottom}>
         <BlueCard>
           <Text style={styles.cardText} testID="TransactionFee">
-            {loc.send.create_fee}: {formatBalance(feeSatoshi, BitcoinUnit.BTC)} ({satoshiToLocalCurrency(feeSatoshi)})
+            {loc.send.create_fee}: {formatBalance(feeSatoshi, BitcoinUnit.BTC)}
+            {XBT_PROFILE.fiatEnabled ? ` (${satoshiToLocalCurrency(feeSatoshi)})` : ''}
           </Text>
           {state.isLoading ? (
             <ActivityIndicator />

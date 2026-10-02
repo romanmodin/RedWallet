@@ -11,6 +11,8 @@ import type { SegwitP2SHWallet as SegwitP2SHWalletT } from '../class/wallets/seg
 import type { TaprootWallet as TaprootWalletT } from '../class/wallets/taproot-wallet';
 import presentAlert from '../components/Alert';
 import loc from '../loc';
+import { isXbtMainnetCheckpointHeader, XBT_MAINNET_CHECKPOINT_HEIGHT } from '../class/xbt/electrum-checkpoint';
+import { assertXbtUnifiedTransaction } from '../class/xbt/broadcast-validation';
 import { GROUP_IO_BLUEWALLET } from './currency';
 import { ElectrumServerItem } from '../screen/settings/ElectrumSettings';
 import { triggerWarningHapticFeedback } from './hapticFeedback';
@@ -86,25 +88,14 @@ export const ELECTRUM_TCP_PORT = 'electrum_tcp_port';
 export const ELECTRUM_SSL_PORT = 'electrum_ssl_port';
 export const ELECTRUM_SERVER_HISTORY = 'electrum_server_history';
 const ELECTRUM_CONNECTION_DISABLED = 'electrum_disabled';
-const storageKey = 'ELECTRUM_PEERS';
-const defaultPeer = { host: 'electrum1.bluewallet.io', ssl: 443 };
-export const hardcodedPeers: Peer[] = [
-  { host: 'mainnet.foundationdevices.com', ssl: 50002 },
-  { host: 'bitcoin.lu.ke', ssl: 50002 },
-  // { host: 'electrum.jochen-hoenicke.de', ssl: '50006' },
-  { host: 'electrum1.bluewallet.io', ssl: 443 },
-  { host: 'electrum.acinq.co', ssl: 50002 },
-];
-
-export const suggestedServers: Peer[] = hardcodedPeers.map(peer => ({
-  ...peer,
-}));
+// RedWallet must be configured with an XBT-compatible Electrum server.
+// Do not ship Bitcoin public peers or silently fall back to a different chain.
+export const hardcodedPeers: Peer[] = [];
+export const suggestedServers: Peer[] = [];
 
 let mainClient: typeof ElectrumClient | undefined;
 let serverName: string | false = false;
 let disableBatching: boolean = false;
-let currentPeerIndex = hardcodedPeers.findIndex(peer => peer.host === defaultPeer.host && peer.ssl === defaultPeer.ssl);
-if (currentPeerIndex < 0) currentPeerIndex = 0;
 let latestBlock: { height: number; time: number } | { height: undefined; time: undefined } = { height: undefined, time: undefined };
 
 // --- Single source of truth for connection liveness -----------------------------
@@ -293,20 +284,6 @@ export async function setDisabled(disabled = true) {
   return result;
 }
 
-function getCurrentPeer() {
-  return hardcodedPeers[currentPeerIndex];
-}
-
-/**
- * Returns NEXT hardcoded electrum server (increments index after use)
- */
-function getNextPeer() {
-  const peer = getCurrentPeer();
-  currentPeerIndex++;
-  if (currentPeerIndex >= hardcodedPeers.length) currentPeerIndex = 0;
-  return peer;
-}
-
 async function getSavedPeer(): Promise<Peer | null> {
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
@@ -335,14 +312,11 @@ async function getSavedPeer(): Promise<Peer | null> {
   }
 }
 
-/** Resolve to the peer this attempt should target (preferred saved peer, or rotate hardcoded list). */
-async function pickPeer(): Promise<Peer> {
-  let usingPeer = getNextPeer();
+/** Resolve only a user-configured peer; never select a Bitcoin fallback. */
+async function pickPeer(): Promise<Peer | undefined> {
   const savedPeer = await getSavedPeer();
-  if (savedPeer && savedPeer.host && (savedPeer.tcp || savedPeer.ssl)) {
-    usingPeer = savedPeer;
-  }
-  return usingPeer;
+  if (savedPeer && savedPeer.host && (savedPeer.tcp || savedPeer.ssl)) return savedPeer;
+  return undefined;
 }
 
 function scheduleReconnectFromClient(client: typeof ElectrumClient, usingPeer: Peer, reason: string): void {
@@ -372,8 +346,9 @@ function scheduleReconnectFromClient(client: typeof ElectrumClient, usingPeer: P
  * subscribe to headers. No retries, no UI side effects. Returns the peer used
  * (for caller-side telemetry/alerts) and whether the attempt succeeded.
  */
-async function attemptConnectOnce(): Promise<{ ok: boolean; peer: Peer }> {
+async function attemptConnectOnce(): Promise<{ ok: boolean; peer?: Peer; missingPeer?: boolean }> {
   const usingPeer = await pickPeer();
+  if (!usingPeer) return { ok: false, missingPeer: true };
   console.log('[electrum] Using peer:', JSON.stringify(usingPeer));
 
   // Drop any prior client before allocating a new one. Closing also neutralises
@@ -420,6 +395,10 @@ async function attemptConnectOnce(): Promise<{ ok: boolean; peer: Peer }> {
     if (ver && ver[0]) {
       console.log('[electrum] connected to ', ver);
       serverName = ver[0];
+      const checkpointHeader = await client.blockchainBlock_header(XBT_MAINNET_CHECKPOINT_HEIGHT);
+      if (!isXbtMainnetCheckpointHeader(checkpointHeader)) {
+        throw new Error('Electrum server is not on the verified XBT mainnet checkpoint');
+      }
       if (ver[0].startsWith('ElectrumPersonalServer') || ver[0].startsWith('electrs') || ver[0].startsWith('Fulcrum')) {
         disableBatching = true;
         const [electrumImplementation, electrumVersion] = ver[0].split(' ');
@@ -552,8 +531,9 @@ export async function ensureConnected(opts: EnsureConnectedOptions = {}): Promis
         // back to 'disconnected' here.
         if (aborted(`attempt ${i} start`)) return false;
 
-        const { ok, peer } = await attemptConnectOnce();
+        const { ok, peer, missingPeer } = await attemptConnectOnce();
         lastPeer = peer;
+        if (missingPeer) break;
 
         if (aborted(`attempt ${i} end`)) {
           if (mainClient) {
@@ -574,7 +554,11 @@ export async function ensureConnected(opts: EnsureConnectedOptions = {}): Promis
       }
 
       setConnectionState('disconnected');
-      if (ensureInFlightShowAlert) {
+      // A missing preferred server is a normal first-run state for RedWallet:
+      // users must configure an XBT-compatible endpoint before the wallet can sync.
+      // Keep the wallet screen usable and let the disconnected-state help action
+      // explain setup instead of blocking every launch with an alert.
+      if (ensureInFlightShowAlert && lastPeer) {
         // eslint-disable-next-line @typescript-eslint/no-use-before-define -- defined later in file
         presentNetworkErrorAlert(lastPeer);
       }
@@ -660,10 +644,9 @@ async function presentNetworkErrorAlert(usingPeer?: Peer, allowRepeat = false) {
   presentAlert({
     allowRepeat,
     title: loc.errors.network,
-    message: loc.formatString(
-      usingPeer ? loc.settings.electrum_unable_to_connect : loc.settings.electrum_error_connect,
-      usingPeer ? { server: `${usingPeer.host}:${usingPeer.ssl ?? usingPeer.tcp}` } : {},
-    ),
+    message: usingPeer
+      ? loc.formatString(loc.settings.electrum_unable_to_connect, { server: `${usingPeer.host}:${usingPeer.ssl ?? usingPeer.tcp}` })
+      : 'Add an XBT-compatible Electrum server in Settings. Bitcoin-only servers are rejected, and RedWallet does not fall back to Bitcoin.',
     buttons: [
       {
         text: loc.wallets.list_tryagain,
@@ -706,41 +689,6 @@ async function presentNetworkErrorAlert(usingPeer?: Peer, allowRepeat = false) {
  */
 export async function presentElectrumDisconnectedHelpAlert(): Promise<void> {
   await presentNetworkErrorAlert(undefined, true);
-}
-
-/**
- * Returns random electrum server out of list of servers
- * previous electrum server told us. Nearly half of them is
- * usually offline.
- * Not used for now.
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getRandomDynamicPeer(): Promise<Peer> {
-  try {
-    let peers = JSON.parse((await DefaultPreference.get(storageKey)) as string);
-    peers = peers.sort(() => Math.random() - 0.5); // shuffle
-    for (const peer of peers) {
-      const ret: Peer = { host: peer[0], ssl: peer[1] };
-      ret.host = peer[1];
-
-      if (peer[1] === 's') {
-        ret.ssl = peer[2];
-      } else {
-        ret.tcp = peer[2];
-      }
-
-      for (const item of peer[2]) {
-        if (item.startsWith('t')) {
-          ret.tcp = item.replace('t', '');
-        }
-      }
-      if (ret.host && ret.tcp) return ret;
-    }
-
-    return defaultPeer; // failed to find random client, using default
-  } catch (_) {
-    return defaultPeer; // smth went wrong, using default
-  }
 }
 
 export const getBalanceByAddress = async function (address: string): Promise<{ confirmed: number; unconfirmed: number }> {
@@ -1401,6 +1349,7 @@ export const serverFeatures = async function () {
 };
 
 export const broadcast = async function (hex: string) {
+  assertXbtUnifiedTransaction(hex);
   if (!mainClient) throw new Error('Electrum client is not connected');
   try {
     const res = await mainClient.blockchainTransaction_broadcast(hex);
@@ -1411,6 +1360,7 @@ export const broadcast = async function (hex: string) {
 };
 
 export const broadcastV2 = async function (hex: string): Promise<string> {
+  assertXbtUnifiedTransaction(hex);
   if (!mainClient) throw new Error('Electrum client is not connected');
   return mainClient.blockchainTransaction_broadcast(hex);
 };
@@ -1457,7 +1407,8 @@ export const testConnection = async function (host: string, tcpPort?: number, ss
 
     await client.server_version('2.7.11', '1.4');
     await client.server_ping();
-    return true;
+    const checkpointHeader: string = await client.blockchainBlock_header(XBT_MAINNET_CHECKPOINT_HEIGHT);
+    return isXbtMainnetCheckpointHeader(checkpointHeader);
   } catch (_) {
   } finally {
     if (timeoutId) clearTimeout(timeoutId);

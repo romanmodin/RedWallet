@@ -51,11 +51,6 @@
 	<key>WKApplication</key>
 	<true/>
 	<key>WKCompanionAppBundleIdentifier</key>
-	<string>io.bluewallet.bluewallet</string>
-	<key>bugsnag</key>
-	<dict>
-		<key>apiKey</key>
-		<string>17ba9059f676f1cc4f45d98182388b01</string>
-	</dict>
+	<string>com.romanmodin.redwallet</string>
 </dict>
 </plist>

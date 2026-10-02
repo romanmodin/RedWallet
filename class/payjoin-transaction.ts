@@ -7,6 +7,7 @@ import presentAlert from '../components/Alert';
 import { HDSegwitBech32Wallet } from './wallets/hd-segwit-bech32-wallet';
 import assert from 'assert';
 import { uint8ArrayToHex } from '../blue_modules/uint8array-extras';
+import { assertPayjoinSupported } from './payjoin-policy';
 const ECPair = ECPairFactory(ecc);
 
 const delay = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -16,10 +17,15 @@ const delay = (milliseconds: number) => new Promise(resolve => setTimeout(resolv
 export default class PayjoinTransaction {
   private _psbt: bitcoin.Psbt;
   private _broadcast: (txhex: string) => Promise<true | undefined>;
-  private _wallet: HDSegwitBech32Wallet;
+  private _wallet: Pick<HDSegwitBech32Wallet, '_getWifForAddress' | 'allowPayJoin'> & { type: string };
   private _payjoinPsbt: any;
 
-  constructor(psbt: bitcoin.Psbt, broadcast: (txhex: string) => Promise<true | undefined>, wallet: HDSegwitBech32Wallet) {
+  constructor(
+    psbt: bitcoin.Psbt,
+    broadcast: (txhex: string) => Promise<true | undefined>,
+    wallet: Pick<HDSegwitBech32Wallet, '_getWifForAddress' | 'allowPayJoin'> & { type: string },
+  ) {
+    assertPayjoinSupported(wallet);
     this._psbt = psbt;
     this._broadcast = broadcast;
     this._wallet = wallet;
@@ -27,6 +33,7 @@ export default class PayjoinTransaction {
   }
 
   async getPsbt() {
+    assertPayjoinSupported(this._wallet);
     // Nasty hack to get this working for now
     const unfinalized = this._psbt.clone();
     for (const [index, input] of unfinalized.data.inputs.entries()) {
@@ -73,6 +80,7 @@ export default class PayjoinTransaction {
   }
 
   async signPsbt(payjoinPsbt: bitcoin.Psbt) {
+    assertPayjoinSupported(this._wallet);
     // Do this without relying on private methods
 
     for (const [index, input] of payjoinPsbt.data.inputs.entries()) {
@@ -89,6 +97,7 @@ export default class PayjoinTransaction {
   }
 
   async broadcastTx(txHex: string) {
+    assertPayjoinSupported(this._wallet);
     try {
       const result = await this._broadcast(txHex);
       if (!result) {
@@ -101,6 +110,7 @@ export default class PayjoinTransaction {
   }
 
   async scheduleBroadcastTx(txHex: string, milliseconds: number) {
+    assertPayjoinSupported(this._wallet);
     delay(milliseconds).then(async () => {
       const result = await this.broadcastTx(txHex);
       if (result === '') {

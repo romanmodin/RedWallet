@@ -7,20 +7,17 @@ git_url(ENV["GIT_URL"])
 # Default to "appstore" but can be overridden
 type(ENV["MATCH_TYPE"] || "appstore")
 
-# App identifiers for all BlueWallet apps
+# App identifiers for the RedWallet app and extensions
 app_identifier([
-  "io.bluewallet.bluewallet", 
-  "io.bluewallet.bluewallet.watch", 
-  "io.bluewallet.bluewallet.watch.extension", 
-  "io.bluewallet.bluewallet.Stickers", 
-  "io.bluewallet.bluewallet.MarketWidget"
+  "com.romanmodin.redwallet",
+  "com.romanmodin.redwallet.Stickers"
 ])
 
 # Your Apple Developer account email address
 username(ENV["APPLE_ID"])
 
 # The ID of your Apple Developer team
-team_id(ENV["ITC_TEAM_ID"])
+team_id(ENV["TEAM_ID"])
 
 # Set readonly based on environment (default to true for safety)
 # Set to false explicitly when new profiles need to be created
@@ -29,13 +26,11 @@ readonly(ENV["MATCH_READONLY"] == "false" ? false : true)
 # Define the platform to use
 platform("ios")
 
-# Git basic authentication through access token
-# This is useful for CI/CD environments where SSH keys aren't available
-git_basic_authorization(ENV["GIT_ACCESS_TOKEN"])
+# Repository-scoped deploy key; never use the account-wide GitHub credential.
+git_private_key(ENV["MATCH_GIT_PRIVATE_KEY"])
 
 # Storage mode (git by default)
 storage_mode("git")
 
-# Optional: The Git branch that is used for match
-# Default is 'master'
-# branch("main")
+# The initialized private signing repository uses main.
+git_branch("main")

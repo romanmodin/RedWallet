@@ -1,6 +1,19 @@
 name: Tests e2e iOS
 
-on: [pull_request]
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Existing simulator artifact run (blank builds fresh)
+        required: false
+        default: ''
+        type: string
+      import_diagnostics:
+        description: Run the two import checks with verbose diagnostics
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -11,6 +24,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ !inputs.source_run_id }}
     runs-on: macos-26
     env:
       BUILD_CONFIGURATION: Release
@@ -160,6 +174,7 @@ jobs:
           if-no-files-found: error
 
   test:
+    if: ${{ always() && !cancelled() && (needs.build.result == 'success' || inputs.source_run_id != '') }}
     runs-on: macos-26
     needs: build
     env:
@@ -185,10 +200,32 @@ jobs:
           brew trust wix/brew
           brew install applesimutils
 
+      - name: Validate reused simulator source
+        if: inputs.source_run_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/verify-ios-source-run.py simulator "$SOURCE_RUN"
+          # Reuse is safe only for test/workflow/docs changes, never app changes.
+          git fetch --depth=1 origin "$(cat simulator-source.txt)"
+          git diff --name-only "$(cat simulator-source.txt)" HEAD > source-diff.txt
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          allowed = ('tests/', '.github/', 'RELEASE.md', 'PROJECT_SCOPE.md', 'XBT_VALIDATION.md', 'fastlane/Fastfile', 'fastlane/Matchfile')
+          changed = Path('source-diff.txt').read_text().splitlines()
+          if any(not path.startswith(allowed) for path in changed):
+              raise SystemExit('App source differs: build a fresh simulator artifact')
+          PYCODE
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN/jobs" --jq '.jobs[] | select(.name == "build") | .conclusion' | grep -qx success
+
       - name: Download simulator app
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: bluewallet-ios-app
+          run-id: ${{ inputs.source_run_id || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore simulator app
         run: |
@@ -216,9 +253,22 @@ jobs:
           xcrun simctl spawn booted notifyutil -p com.apple.Accessibility.ReduceMotionStatusDidChange
 
       - name: Run detox tests
-        timeout-minutes: 360
+        timeout-minutes: 90
+        env:
+          IMPORT_DIAGNOSTICS: ${{ inputs.import_diagnostics }}
         run: |
+          if [ "$IMPORT_DIAGNOSTICS" = "true" ]; then
+            npm run e2e:test:ios-release -- \
+              tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js \
+              --runTestsByPath \
+              --record-videos all --record-logs all --take-screenshots all \
+              --loglevel verbose --headless --retries 0 --reuse \
+              --artifacts-location ./artifacts
+            exit $?
+          fi
+          # Retain supported inherited coverage; bluewallet2 requires a funded Bitcoin fixture.
           npm run e2e:test:ios-release -- \
+            tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js \
             --record-videos failing \
             --record-logs failing \
             --take-screenshots failing \
@@ -228,7 +278,7 @@ jobs:
             --artifacts-location ./artifacts
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: always()
         with:
           name: e2e-ios-videos
           path: ./artifacts/

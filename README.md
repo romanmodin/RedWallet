@@ -8,9 +8,9 @@ The first XBT release is intentionally narrow: one Native SegWit/P2WPKH account,
 
 ## Project status
 
-This is an early development fork. The upstream wallet currently assumes Bitcoin mainnet in several address, signing, derivation, fee, and service paths. XBT support must be implemented and tested as a separate chain profile before anyone should use it with funds.
+This is an early development fork. The XBT profile now covers BIP84 P2WPKH accounts and Unified Sighash signing, while shared upstream code still retains Bitcoin-mainnet assumptions in other address, derivation, fee, and service paths. The remaining verification gates below must pass before anyone should use it with funds.
 
-We need authoritative XBT network details before wiring transactions: address and extended-key versions, derivation coin type, genesis/network identity, trusted Electrum endpoints, fee and broadcast services, and explorer/rate sources. Until those are confirmed and reviewed, RedWallet must not imply that an XBT transaction is ready to sign or broadcast. Do not add signing or App Store Connect secrets to this repository while the inherited BlueWallet app identifiers and release workflows remain under review.
+The BIP84 XBT account and Unified Sighash P2WPKH signing path are implemented and checked against published vectors. That does not make sends ready for real funds: full transaction acceptance by Knots, trusted endpoint isolation, fee/history/broadcast handling, seed recovery/import, hardware-signing round trips, and physical-iPhone testing remain open. This is an experimental build; do not use it with real funds. The iOS bundle identifiers are provisional RedWallet identifiers and must be registered under the owner's Apple Developer team before TestFlight signing is enabled. Never commit signing certificates, API keys, or wallet secrets.
 
 ## Scope
 

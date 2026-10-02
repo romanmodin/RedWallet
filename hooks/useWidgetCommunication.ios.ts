@@ -1,3 +1,4 @@
+import { XBT_PROFILE } from '../class/xbt/profile';
 import { useEffect, useRef } from 'react';
 import DefaultPreference from 'react-native-default-preference';
 import { Transaction, TWallet } from '../class/wallets/types';
@@ -22,6 +23,7 @@ const secondsToMilliseconds = (seconds: number): number => seconds * 1000;
 DefaultPreference.setName(GROUP_IO_BLUEWALLET);
 
 export const isBalanceDisplayAllowed = async (): Promise<boolean> => {
+  if (!XBT_PROFILE.companionsEnabled) return false;
   try {
     const displayBalance = await DefaultPreference.get(WidgetCommunicationKeys.DisplayBalanceAllowed);
     if (displayBalance === WIDGET_ENABLED) {
@@ -40,6 +42,7 @@ export const isBalanceDisplayAllowed = async (): Promise<boolean> => {
 };
 
 export const setBalanceDisplayAllowed = async (allowed: boolean): Promise<void> => {
+  if (!XBT_PROFILE.companionsEnabled) allowed = false;
   try {
     if (allowed) {
       await DefaultPreference.set(WidgetCommunicationKeys.DisplayBalanceAllowed, WIDGET_ENABLED);
@@ -64,7 +67,7 @@ export const calculateBalanceAndTransactionTime = async (
   allWalletsBalance: number;
   latestTransactionTime: number | string;
 }> => {
-  if (!walletsInitialized || !(await isBalanceDisplayAllowed())) {
+  if (!XBT_PROFILE.companionsEnabled || !walletsInitialized || !(await isBalanceDisplayAllowed())) {
     return { allWalletsBalance: 0, latestTransactionTime: 0 };
   }
 
@@ -102,6 +105,10 @@ export const syncWidgetBalanceWithWallets = async (
   cachedBalance: { current: number },
   cachedLatestTransactionTime: { current: number | string },
 ): Promise<void> => {
+  if (!XBT_PROFILE.companionsEnabled) {
+    await setBalanceDisplayAllowed(false);
+    return;
+  }
   try {
     const { allWalletsBalance, latestTransactionTime } = await calculateBalanceAndTransactionTime(wallets, walletsInitialized);
 
@@ -140,7 +147,7 @@ const useWidgetCommunication = (): void => {
   // Handle widget data clearing when the setting is disabled
   useEffect(() => {
     const clearWidgetData = async () => {
-      if (walletsInitialized && !isWidgetBalanceDisplayAllowed) {
+      if (walletsInitialized && (!XBT_PROFILE.companionsEnabled || !isWidgetBalanceDisplayAllowed)) {
         try {
           await Promise.all([
             DefaultPreference.set(WidgetCommunicationKeys.AllWalletsSatoshiBalance, WIDGET_CLEARED_VALUE),
@@ -160,7 +167,7 @@ const useWidgetCommunication = (): void => {
 
   // Sync widget data when wallets change or setting is enabled
   useEffect(() => {
-    if (walletsInitialized) {
+    if (XBT_PROFILE.companionsEnabled && walletsInitialized) {
       debouncedSyncWidgetBalanceWithWallets(wallets, walletsInitialized, cachedBalance, cachedLatestTransactionTime);
     }
   }, [wallets, walletsInitialized, isWidgetBalanceDisplayAllowed]);

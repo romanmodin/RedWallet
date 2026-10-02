@@ -1,7 +1,7 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import React, { useCallback } from 'react';
-import { Alert, Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getApplicationName, getBuildNumber, getBundleId, getUniqueIdSync, getVersion, hasGmsSync } from 'react-native-device-info';
+import { Alert, Image, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getApplicationName, getBuildNumber, getBundleId, getUniqueIdSync, getVersion } from 'react-native-device-info';
 import Icon from '@react-native-vector-icons/fontawesome6';
 
 import A from '../../blue_modules/analytics';
@@ -9,7 +9,6 @@ import BlueTextCentered from '../../components/BlueTextCentered';
 import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
 import presentAlert from '../../components/Alert';
 import { BlueSpacing20 } from '../../components/BlueSpacing';
-import Button from '../../components/Button';
 import SafeAreaScrollView from '../../components/SafeAreaScrollView';
 import { SettingsSection, SettingsListItem } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
@@ -40,28 +39,8 @@ const About: React.FC = () => {
     navigate('Licensing');
   }, [navigate]);
 
-  const handleOnXPress = useCallback(() => {
-    Linking.openURL('https://x.com/bluewalletio');
-  }, []);
-
-  const handleOnTelegramPress = useCallback(() => {
-    Linking.openURL('https://t.me/bluewallethat');
-  }, []);
-
   const handleOnGithubPress = useCallback(() => {
-    Linking.openURL('https://github.com/BlueWallet/BlueWallet');
-  }, []);
-
-  const handleOnRatePress = useCallback(async () => {
-    try {
-      if (Platform.OS === 'ios') {
-        await Linking.openURL('https://itunes.apple.com/app/bluewallet-bitcoin-wallet/id1376878040');
-      } else {
-        await Linking.openURL('https://play.google.com/store/apps/details?id=io.bluewallet.bluewallet');
-      }
-    } catch (error: any) {
-      console.error('Rate app failed:', error.message);
-    }
+    Linking.openURL('https://github.com/romanmodin/RedWallet');
   }, []);
 
   const handlePerformanceTest = useCallback(async () => {
@@ -89,24 +68,9 @@ const About: React.FC = () => {
         <Text style={[styles.textBackup, { color: colors.alternativeTextColor }]}>
           {formatStringAddTwoWhiteSpaces(loc.settings.about_backup)}
         </Text>
-        {((Platform.OS === 'android' && hasGmsSync()) || Platform.OS !== 'android') && (
-          <View style={styles.headerButton}>
-            <Button onPress={handleOnRatePress} title={loc.settings.about_review + ' ⭐🙏'} />
-          </View>
-        )}
       </View>
 
       <SettingsSection>
-        <SettingsListItem
-          title="@bluewalletio"
-          leftAvatar={<Text style={[styles.xIcon, { color: colors.foregroundColor }]}>𝕏</Text>}
-          onPress={handleOnXPress}
-        />
-        <SettingsListItem
-          title={loc.settings.about_sm_telegram}
-          leftAvatar={<Icon name="telegram" size={24} color={colors.foregroundColor} iconStyle="brand" />}
-          onPress={handleOnTelegramPress}
-        />
         <SettingsListItem
           title={loc.settings.about_sm_github}
           leftAvatar={<Icon name="github" size={24} color={colors.foregroundColor} iconStyle="brand" />}
@@ -174,10 +138,6 @@ const About: React.FC = () => {
 export default About;
 
 const styles = StyleSheet.create({
-  xIcon: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
   center: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -199,9 +159,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     textAlign: 'center',
-  },
-  headerButton: {
-    marginTop: 16,
   },
   builtWithContent: {
     paddingVertical: 16,

@@ -4,7 +4,7 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>io.bluewallet.bluewallet.fetchTxsForWallet</string>
+		<string>com.romanmodin.redwallet.fetchTxsForWallet</string>
 		<string>com.transistorsoft.fetch</string>
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
@@ -108,11 +108,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>bitcoin</string>
-				<string>lightning</string>
-				<string>bluewallet</string>
-				<string>lapp</string>
-				<string>blue</string>
+				<string>redwallet</string>
 			</array>
 		</dict>
 	</array>
@@ -193,8 +189,8 @@
 	<string>In order to import an image for scanning, we need your permission to access your photo library.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
-		<string>io.bluewallet.bluewallet.receiveonchain</string>
-		<string>io.bluewallet.bluewallet.xpub</string>
+		<string>com.romanmodin.redwallet.receiveonchain</string>
+		<string>com.romanmodin.redwallet.xpub</string>
 	</array>
 	<key>RCTNewArchEnabled</key>
 	<true/>
@@ -339,11 +335,6 @@
 		</dict>
 	</array>
 	<key>WKCompanionAppBundleIdentifier</key>
-	<string>io.bluewallet.bluewallet</string>
-	<key>bugsnag</key>
-	<dict>
-		<key>apiKey</key>
-		<string>17ba9059f676f1cc4f45d98182388b01</string>
-	</dict>
+	<string>com.romanmodin.redwallet</string>
 </dict>
 </plist>

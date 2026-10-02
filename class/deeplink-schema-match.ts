@@ -19,10 +19,22 @@ type TContext = {
 type TBothBitcoinAndLightning = { bitcoin: string; lndInvoice: string } | undefined;
 
 class DeeplinkSchemaMatch {
+  /** OS links cannot select an XBT payment using an ambiguous BTC URI. */
+  static navigationRouteForExternal(
+    event: { url: string },
+    completionHandler: (args: TCompletionHandlerParams) => void,
+    context?: TContext,
+  ) {
+    if (typeof event.url !== 'string') return;
+    if (!/^redwallet:(\/\/)?setelectrumserver\?/i.test(event.url) && !/^(file|content):/i.test(event.url)) return;
+    return this.navigationRouteFor(event, completionHandler, context);
+  }
+
   static hasSchema(schemaString: string): boolean {
     if (typeof schemaString !== 'string' || schemaString.length <= 0) return false;
     const lowercaseString = schemaString.trim().toLowerCase();
     return (
+      lowercaseString.startsWith('redwallet:') ||
       lowercaseString.startsWith('bitcoin:') ||
       lowercaseString.startsWith('lightning:') ||
       lowercaseString.startsWith('blue:') ||
@@ -211,7 +223,12 @@ class DeeplinkSchemaMatch {
     } else {
       const urlObject = URL.parse(event.url, true); // eslint-disable-line n/no-deprecated-api
       (async () => {
-        if (urlObject.protocol === 'bluewallet:' || urlObject.protocol === 'lapp:' || urlObject.protocol === 'blue:') {
+        if (
+          urlObject.protocol === 'redwallet:' ||
+          urlObject.protocol === 'bluewallet:' ||
+          urlObject.protocol === 'lapp:' ||
+          urlObject.protocol === 'blue:'
+        ) {
           switch (urlObject.host) {
             case 'setelectrumserver':
               completionHandler([
@@ -243,7 +260,12 @@ class DeeplinkSchemaMatch {
    * @return {string|boolean}
    */
   static getServerFromSetElectrumServerAction(url: string): string | false {
-    if (!url.startsWith('bluewallet:setelectrumserver') && !url.startsWith('setelectrumserver')) return false;
+    if (
+      !/^redwallet:(\/\/)?setelectrumserver\?/i.test(url) &&
+      !url.startsWith('bluewallet:setelectrumserver') &&
+      !url.startsWith('setelectrumserver')
+    )
+      return false;
     const splt = url.split('server=');
     if (splt[1]) return decodeURIComponent(splt[1]);
     return false;

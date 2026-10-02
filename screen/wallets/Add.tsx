@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Linking, StyleSheet, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useReducer } from 'react';
+import { ActivityIndicator, Keyboard, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { Layout } from 'react-native-reanimated';
 import assert from 'assert';
 
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import BlueButtonLink from '../../components/BlueButtonLink';
 import BlueFormLabel from '../../components/BlueFormLabel';
-import BlueText from '../../components/BlueText';
 import { HDLegacyP2PKHWallet } from '../../class/wallets/hd-legacy-p2pkh-wallet';
 import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { HDTaprootWallet } from '../../class/wallets/hd-taproot-wallet';
 import { LightningCustodianWallet } from '../../class/wallets/lightning-custodian-wallet';
 import presentAlert from '../../components/Alert';
@@ -61,15 +61,7 @@ interface TAction {
 }
 
 const index2walletType: Record<number, { text: string; subtitle: string; walletType: string }> = {
-  0: { subtitle: 'p2wpkh/HD', text: `${loc.multisig.native_segwit_title}`, walletType: HDSegwitBech32Wallet.type },
-  1: { subtitle: 'p2pkh/HD', text: `${loc.multisig.legacy_title}`, walletType: HDLegacyP2PKHWallet.type },
-  2: { subtitle: 'p2tr/HD', text: 'Taproot', walletType: HDTaprootWallet.type },
-  3: {
-    // lightning
-    subtitle: LightningCustodianWallet.subtitleReadable,
-    text: LightningCustodianWallet.typeReadable,
-    walletType: LightningCustodianWallet.type,
-  },
+  0: { subtitle: 'XBT P2WPKH', text: 'RedWallet XBT', walletType: XbtSegwitBech32Wallet.type },
 };
 
 const initialState: State = {
@@ -107,27 +99,17 @@ const WalletsAdd: React.FC = () => {
 
   // State
   const [state, dispatch] = useReducer(walletReducer, initialState);
-  const [backdoorPressed, setBackdoorPressed] = useState(0);
   const isLoading = state.isLoading;
   const walletBaseURI = state.walletBaseURI;
   const label = state.label;
   //
   const { addWallet, saveToDisk } = useStorage();
   const route = useRoute<RouteProps>();
-  const { entropy: entropyHex, words, selectedIndex: routeSelectedIndex, selectedWalletType: routeSelectedWalletType } = route.params || {};
-  const selectedIndex = typeof routeSelectedIndex === 'number' ? routeSelectedIndex : state.selectedIndex;
-  const selectedWalletType: ButtonSelected =
-    routeSelectedWalletType === Chain.OFFCHAIN
-      ? ButtonSelected.OFFCHAIN
-      : routeSelectedWalletType === Chain.ONCHAIN
-        ? ButtonSelected.ONCHAIN
-        : routeSelectedWalletType === ButtonSelected.VAULT
-          ? ButtonSelected.VAULT
-          : routeSelectedWalletType === ButtonSelected.ARK
-            ? ButtonSelected.ARK
-            : state.selectedWalletType;
+  const { entropy: entropyHex } = route.params || {};
+  const selectedIndex = 0;
+  const selectedWalletType = state.selectedWalletType;
   const entropy = entropyHex ? hexToUint8Array(entropyHex) : undefined;
-  const { navigate, goBack, setParams } = useExtendedNavigation<NavigationProps>();
+  const { navigate, goBack } = useExtendedNavigation<NavigationProps>();
   const stylesHook = {
     advancedText: {
       color: colors.feeText,
@@ -149,57 +131,6 @@ const WalletsAdd: React.FC = () => {
       backgroundColor: colors.inputBackgroundColor,
     },
   };
-
-  const hasStoredLndHub = (walletBaseURI ?? '').trim().length > 0;
-
-  const setSelectedWalletType = useCallback(
-    (value: ButtonSelected) => {
-      const paramWalletType: Chain | 'VAULT' | 'ARK' =
-        value === ButtonSelected.ONCHAIN ? Chain.ONCHAIN : value === ButtonSelected.OFFCHAIN ? Chain.OFFCHAIN : value;
-      setParams({
-        selectedWalletType: paramWalletType,
-        selectedIndex,
-      });
-    },
-    [selectedIndex, setParams],
-  );
-
-  const confirmResetEntropy = useCallback(
-    (newWalletType: ButtonSelected) => {
-      if (entropy || words) {
-        Alert.alert(
-          loc.wallets.add_entropy_reset_title,
-          loc.wallets.add_entropy_reset_message,
-          [
-            {
-              text: loc._.cancel,
-              style: 'cancel',
-            },
-            {
-              text: loc._.ok,
-              style: 'destructive',
-              onPress: () => {
-                setParams({ entropy: undefined, words: undefined });
-                setSelectedWalletType(newWalletType);
-              },
-            },
-          ],
-          { cancelable: true },
-        );
-      } else {
-        setSelectedWalletType(newWalletType);
-      }
-    },
-    [entropy, setParams, setSelectedWalletType, words],
-  );
-
-  const handleOnLightningArkButtonPressed = useCallback(() => {
-    confirmResetEntropy(ButtonSelected.ARK);
-  }, [confirmResetEntropy]);
-
-  const handleOnLightningButtonPressed = useCallback(() => {
-    confirmResetEntropy(ButtonSelected.OFFCHAIN);
-  }, [confirmResetEntropy]);
 
   useEffect(() => {
     // resetting format of last camera qr scan, in case user will use camera to
@@ -232,7 +163,7 @@ const WalletsAdd: React.FC = () => {
     } else if (selectedWalletType === ButtonSelected.ARK) {
       createLightningArkWallet();
     } else if (selectedWalletType === ButtonSelected.ONCHAIN) {
-      let w: HDSegwitBech32Wallet | HDLegacyP2PKHWallet | HDTaprootWallet;
+      let w: HDSegwitBech32Wallet | XbtSegwitBech32Wallet | HDLegacyP2PKHWallet | HDTaprootWallet;
 
       for (let c = 0; c < Object.values(index2walletType).length; c++) {
         if (c === selectedIndex) {
@@ -245,8 +176,8 @@ const WalletsAdd: React.FC = () => {
               w = new HDLegacyP2PKHWallet();
               w.setLabel(label || loc.wallets.details_title);
               break;
-            case HDSegwitBech32Wallet.type:
-              w = new HDSegwitBech32Wallet();
+            case XbtSegwitBech32Wallet.type:
+              w = new XbtSegwitBech32Wallet();
               w.setLabel(label || loc.wallets.details_title);
               break;
           }
@@ -271,7 +202,12 @@ const WalletsAdd: React.FC = () => {
         await saveToDisk();
 
         triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
-        if (w.type === HDLegacyP2PKHWallet.type || w.type === HDSegwitBech32Wallet.type || w.type === HDTaprootWallet.type) {
+        if (
+          w.type === HDLegacyP2PKHWallet.type ||
+          w.type === HDSegwitBech32Wallet.type ||
+          w.type === XbtSegwitBech32Wallet.type ||
+          w.type === HDTaprootWallet.type
+        ) {
           navigate('PleaseBackup', {
             walletID: w.getID(),
           });
@@ -347,33 +283,9 @@ const WalletsAdd: React.FC = () => {
     navigate('ImportWallet');
   };
 
-  const handleOnVaultButtonPressed = () => {
-    Keyboard.dismiss();
-    confirmResetEntropy(ButtonSelected.VAULT);
-  };
-
   const handleOnBitcoinButtonPressed = () => {
-    setBackdoorPressed(prevState => prevState + 1);
     Keyboard.dismiss();
-    setSelectedWalletType(ButtonSelected.ONCHAIN);
   };
-
-  const onLearnMorePressed = () => {
-    Linking.openURL('https://bluewallet.io/lightning/');
-  };
-
-  const LightningButtonMemo = useMemo(
-    () => (
-      <WalletButton
-        buttonType="Lightning"
-        testID="ActivateLightningButton"
-        active={selectedWalletType === ButtonSelected.OFFCHAIN}
-        onPress={handleOnLightningButtonPressed}
-        size={styles.button}
-      />
-    ),
-    [selectedWalletType, handleOnLightningButtonPressed],
-  );
 
   return (
     <Animated.View layout={layoutTransition} style={styles.flex1}>
@@ -402,58 +314,14 @@ const WalletsAdd: React.FC = () => {
         <BlueFormLabel>{loc.wallets.add_wallet_type}</BlueFormLabel>
         <View style={styles.buttons}>
           <WalletButton
-            buttonType="Bitcoin"
+            buttonType="XBT"
             testID="ActivateBitcoinButton"
             active={selectedWalletType === ButtonSelected.ONCHAIN}
             onPress={handleOnBitcoinButtonPressed}
             size={styles.button}
           />
-          <WalletButton
-            buttonType="Vault"
-            testID="ActivateVaultButton"
-            active={selectedWalletType === ButtonSelected.VAULT}
-            onPress={handleOnVaultButtonPressed}
-            size={styles.button}
-          />
-          {backdoorPressed >= 20 ? (
-            <WalletButton
-              buttonType="LightningArk"
-              testID="ActivateLightningArkButton"
-              active={selectedWalletType === ButtonSelected.ARK}
-              onPress={handleOnLightningArkButtonPressed}
-              size={styles.button}
-            />
-          ) : null}
-          {(selectedWalletType === ButtonSelected.OFFCHAIN || hasStoredLndHub) && LightningButtonMemo}
         </View>
         <View style={styles.advanced}>
-          {selectedWalletType === ButtonSelected.OFFCHAIN && (
-            <>
-              <BlueSpacing20 />
-              <View style={styles.lndhubTitle}>
-                <BlueText>{loc.wallets.add_lndhub}</BlueText>
-                <BlueButtonLink title={loc.wallets.learn_more} onPress={onLearnMorePressed} />
-              </View>
-
-              <View style={[styles.lndUri, stylesHook.lndUri]}>
-                <TextInput
-                  value={walletBaseURI}
-                  onChangeText={setWalletBaseURI}
-                  onSubmitEditing={Keyboard.dismiss}
-                  placeholder={loc.wallets.add_lndhub_placeholder}
-                  clearButtonMode="while-editing"
-                  autoCapitalize="none"
-                  textContentType="URL"
-                  autoCorrect={false}
-                  placeholderTextColor="#81868e"
-                  style={styles.textInputCommon}
-                  editable={!isLoading}
-                  underlineColorAndroid="transparent"
-                />
-              </View>
-            </>
-          )}
-
           <BlueSpacing20 />
           {!isLoading ? (
             <>
@@ -517,23 +385,8 @@ const styles = StyleSheet.create({
   advanced: {
     marginHorizontal: 20,
   },
-  lndUri: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderBottomWidth: 0.5,
-    minHeight: 44,
-    height: 44,
-    alignItems: 'center',
-    marginVertical: 16,
-    borderRadius: 4,
-  },
   import: {
     marginVertical: 24,
-  },
-  lndhubTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
 });
 

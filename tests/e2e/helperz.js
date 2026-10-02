@@ -123,6 +123,37 @@ export async function waitForSwitchValue(switchId, expectedValue, timeoutMs = 80
   rethrowWithCallsite(lastErr || new Error(`Timed out waiting for ${switchId} == ${expectedValue}`), callsite);
 }
 
+// iOS keeps the multiline import field focused after replaceText. Dismiss
+// its keyboard through the same Done accessory used on a phone before tapping
+// Import; do not bypass Detox visibility checks or alter the recovery assertions.
+export async function dismissMnemonicKeyboard() {
+  if (device.getPlatform() !== 'ios') return;
+  await element(by.id('MnemonicInput')).tap();
+  await waitFor(element(by.text('Done')))
+    .toBeVisible()
+    .withTimeout(10000);
+  await element(by.text('Done')).tap();
+  // Rounded button corners are clipped by the wrapper. Use Detox's normal
+  // visibility threshold before exercising its real tap action.
+  await waitFor(element(by.id('DoImport')))
+    .toBeVisible()
+    .withTimeout(10000);
+}
+
+// iOS replaceText can skip input callbacks, leaving the controlled field empty
+// after blur. Exercise keyboard input and verify the value before and after Done.
+export async function enterMnemonicText(text) {
+  const input = element(by.id('MnemonicInput'));
+  if (device.getPlatform() === 'ios') {
+    await input.typeText(text);
+  } else {
+    await input.replaceText(text);
+  }
+  await expect(input).toHaveText(text);
+  await dismissMnemonicKeyboard();
+  await expect(input).toHaveText(text.replace(/^\s+|\s+$|\s+(?=\s)/g, ''));
+}
+
 export async function helperImportWallet(importText, walletType, expectedWalletLabel, expectedBalance, passphrase) {
   await waitForId('WalletsList');
   await waitFor(element(by.id('CreateAWallet')))
@@ -132,32 +163,16 @@ export async function helperImportWallet(importText, walletType, expectedWalletL
   // going to Import Wallet screen and importing mnemonic
   await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'ImportWallet');
   await element(by.id('ImportWallet')).tap();
-  await waitForId('SpeedBackdoor');
-  // tapping 5 times invisible button is a backdoor:
-  for (let c = 0; c < 5; c++) {
-    await element(by.id('SpeedBackdoor')).tap();
-  }
-  await waitForId('SpeedMnemonicInput');
-  await element(by.id('SpeedMnemonicInput')).replaceText(importText);
-  await element(by.id('SpeedWalletTypeInput')).replaceText(walletType);
-  if (device.getPlatform() === 'ios') {
-    await element(by.id('SpeedWalletTypeInput')).tapReturnKey();
-  }
+  if (walletType === 'watchOnly') throw new Error('Watch-only import is not supported in the XBT-only prototype.');
+  await waitForId('MnemonicInput');
+  await element(by.id('MnemonicInput')).replaceText(importText);
+  await dismissMnemonicKeyboard();
   if (passphrase) {
-    await element(by.id('SpeedPassphraseInput')).replaceText(passphrase);
-    await element(by.id('SpeedPassphraseInput')).tapReturnKey();
-    await waitForKeyboardToClose();
+    await element(by.id('HeaderMenuButton')).tap();
+    await element(by.text('Passphrase')).tap();
   }
-  await element(by.id('SpeedDoImport')).tap();
-
-  try {
-    await sleep(1_000);
-    await element(by.id('SpeedDoImport')).tap(); // sometimes doesnt work the 1st time
-  } catch (_) {}
-
-  // waiting for import result
-  await waitForText('OK', 3 * 61000);
-  await element(by.text('OK')).tap();
+  await element(by.id('DoImport')).tap();
+  await waitForText(expectedWalletLabel, 3 * 61000);
   await scrollUpOnHomeScreen();
 
   // lets go inside wallet

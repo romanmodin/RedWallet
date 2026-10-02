@@ -11,7 +11,7 @@ Reference glossary for translating BlueWallet's UI strings. Use this file as gro
 
 Conventions:
 - Brand/protocol names (Bitcoin, Lightning, Electrum, LNDhub, LNURL, Tor, PSBT) generally stay **untranslated** — capitalise as in English.
-- Unit `sats` is lowercase; `BTC` is uppercase.
+- Unit `sats` is lowercase; `XBT` is uppercase.
 - Where the existing locale file already commits to a rendering, the table reflects what the app ships today. Discrepancies = TODO.
 
 Sources: `loc/en.json` (canonical) + each locale file. Strings quoted verbatim where extracted.
@@ -118,7 +118,7 @@ These rules apply to every per-language file. The English glossary below uses th
 
 | Term | POS | Meaning |
 |------|-----|---------|
-| **Bitcoin** | brand | The network/protocol. Capitalised. As the unit, lowercase "bitcoin" or `BTC`. |
+| **Bitcoin** | brand | The underlying network/protocol. Capitalised. The XBT chain uses `XBT` as its ticker. |
 | **Lightning / Lightning Network** | brand | Layer-2 payment network on top of Bitcoin. Usually left in English. |
 | **Electrum (server)** | brand | Electrum protocol server BlueWallet uses for on-chain data. |
 | **LNDhub** | brand | Custodial Lightning backend service. |
@@ -132,8 +132,8 @@ These rules apply to every per-language file. The English glossary below uses th
 
 | Term | POS | Meaning |
 |------|-----|---------|
-| **bitcoin / BTC** | noun | Unit of currency. 1 BTC = 100,000,000 sats. `BTC` is the ticker; `bitcoin` is the unit name. |
-| **sats / satoshis** | noun | Smallest Bitcoin unit (1 sat = 0.00000001 BTC). Lowercase. |
+| **XBT** | ticker | RedWallet amount label for the XBT chain. 1 XBT = 100,000,000 sats. |
+| **sats / satoshis** | noun | Smallest XBT unit (1 sat = 0.00000001 XBT). Lowercase. |
 | **sat/vByte** | noun | Fee rate unit: satoshis per virtual byte. Casing matters: lowercase `sat`, capital `B` in `vByte`. |
 | **vByte** | noun | Virtual byte — SegWit-discounted size unit. |
 

@@ -3,7 +3,6 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import UserNotifications
-import Bugsnag
 
 
 @main
@@ -33,15 +32,8 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
             NSLog("[AppDelegate] Do Not Track enabled: set deviceUIDCopy to 'Disabled'")
           
         } else {
-      #if targetEnvironment(macCatalyst)
-      let config = BugsnagConfiguration.loadConfig()
-      config.appType = "macOS"
-      Bugsnag.start(with: config)
-      copyDeviceUID()
-      #else
-      Bugsnag.start()
-      copyDeviceUID()
-      #endif
+            // Remote crash reporting is disabled for RedWallet.
+            copyDeviceUID()
         }
 
         self.moduleName = "BlueWallet"
@@ -50,8 +42,7 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
 
         RCTI18nUtil.sharedInstance().allowRTL(true)
 
-        RNNotifications.startMonitorNotifications()
-        RNNotifications.addNativeDelegate(self)
+        // Push monitoring stays disabled until an XBT notification service is verified.
 
         setupUserDefaultsListener()
         registerNotificationCategories()
@@ -78,26 +69,8 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
     }
 
     private func registerNotificationCategories() {
-        let viewAddressTransactionsAction = UNNotificationAction(
-            identifier: "VIEW_ADDRESS_TRANSACTIONS",
-            title: NSLocalizedString("VIEW_ADDRESS_TRANSACTIONS_TITLE", comment: ""),
-            options: .foreground
-        )
-
-        let viewTransactionDetailsAction = UNNotificationAction(
-            identifier: "VIEW_TRANSACTION_DETAILS",
-            title: NSLocalizedString("VIEW_TRANSACTION_DETAILS_TITLE", comment: ""),
-            options: .foreground
-        )
-
-        let transactionCategory = UNNotificationCategory(
-            identifier: "TRANSACTION_CATEGORY",
-            actions: [viewAddressTransactionsAction, viewTransactionDetailsAction],
-            intentIdentifiers: [],
-            options: .customDismissAction
-        )
-
-        UNUserNotificationCenter.current().setNotificationCategories([transactionCategory])
+        // Explorer actions stay unavailable until an XBT explorer is verified.
+        UNUserNotificationCenter.current().setNotificationCategories([])
     }
 
     private func setupUserDefaultsListener() {
@@ -306,7 +279,7 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
 
         userDefaultsGroup?.setValue(userActivityData, forKey: "onUserActivityOpen")
 
-        if ["io.bluewallet.bluewallet.receiveonchain", "io.bluewallet.bluewallet.xpub", "io.bluewallet.bluewallet.blockexplorer"].contains(activityType) {
+        if ["com.romanmodin.redwallet.receiveonchain", "com.romanmodin.redwallet.xpub", "com.romanmodin.redwallet.blockexplorer"].contains(activityType) {
           EventEmitter.shared().sendUserActivity(userActivityData)
             return true
         }
@@ -324,11 +297,11 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
     }
 
     override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        RNNotifications.didRegisterForRemoteNotifications(withDeviceToken: deviceToken)
+        // Ignore stale registration callbacks; this release has no XBT push service.
     }
 
     override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        RNNotifications.didFailToRegisterForRemoteNotificationsWithError(error)
+        // Push registration is disabled for this release.
     }
 
     override func application(
@@ -336,13 +309,12 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        RNNotifications.didReceiveBackgroundNotification(userInfo, withCompletionHandler: completionHandler)
+        completionHandler(.noData)
     }
 
     override func applicationWillTerminate(_ application: UIApplication) {
         userDefaultsGroup?.removeObject(forKey: "onUserActivityOpen")
 
-        RNNotifications.removeNativeDelegate(self)
         UserDefaults.standard.removeObserver(self, forKeyPath: "deviceUID")
     }
 
@@ -351,25 +323,12 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.sound, .list, .banner, .badge])
+        completionHandler([])
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        let userInfo = response.notification.request.content.userInfo
-        let blockExplorer = userDefaultsGroup?.string(forKey: "blockExplorer") ?? "https://www.mempool.space"
-
-        if let data = userInfo["data"] as? [String: Any] {
-            if response.actionIdentifier == "VIEW_ADDRESS_TRANSACTIONS", let address = data["address"] as? String {
-                if let url = URL(string: "\(blockExplorer)/address/\(address)") {
-                    UIApplication.shared.open(url)
-                }
-            } else if response.actionIdentifier == "VIEW_TRANSACTION_DETAILS", let txid = data["txid"] as? String {
-                if let url = URL(string: "\(blockExplorer)/tx/\(txid)") {
-                    UIApplication.shared.open(url)
-                }
-            }
-        }
-
+        // Ignore explorer actions from notifications created by earlier builds.
+        // Stored URLs and Bitcoin defaults cannot identify the XBT chain.
         completionHandler()
     }
     

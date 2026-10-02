@@ -35,6 +35,7 @@ import WalletTransactions from '../screen/wallets/WalletTransactions';
 import AddWalletButton from '../components/AddWalletButton';
 import Settings from '../screen/settings/Settings';
 import Currency from '../screen/settings/Currency';
+import XbtPrice from '../screen/settings/XbtPrice';
 import GeneralSettings from '../screen/settings/GeneralSettings';
 import PlausibleDeniability from '../screen/PlausibleDeniability';
 import Licensing from '../screen/settings/Licensing';
@@ -515,6 +516,7 @@ const DetailViewStackScreensStack = () => {
           }
         />
         <DetailViewStack.Screen name="Currency" component={Currency} options={settingsScreenOptions(loc.settings.currency)} />
+        <DetailViewStack.Screen name="XbtPrice" component={XbtPrice} options={settingsScreenOptions('XBT price')} />
         <DetailViewStack.Screen name="GeneralSettings" component={GeneralSettings} options={settingsScreenOptions(loc.settings.general)} />
         <DetailViewStack.Screen
           name="PlausibleDeniability"

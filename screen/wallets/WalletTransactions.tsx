@@ -311,6 +311,11 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
 
       let smthChanged = false;
       try {
+        if (!isManualRefresh) {
+          const server = await BlueElectrum.getPreferredServer();
+          // Missing configuration is normal on first launch; keep offline receive usable.
+          if (!server?.host || (!server.tcp && !server.ssl)) return;
+        }
         if (!(await BlueElectrum.ensureConnected())) {
           throw new Error(loc.errors.network);
         }
@@ -339,12 +344,11 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
         setFetchFailures(prev => {
           const newFailures = prev + 1;
           // Only show error on final attempt for automatic refresh
-          if ((isManualRefresh || newFailures === MAX_FAILURES) && newFailures >= MAX_FAILURES) {
+          if (isManualRefresh || newFailures === MAX_FAILURES) {
             if (errorMessage) {
               presentAlert({ message: errorMessage, type: AlertType.Toast });
             }
           }
-          setIsLoading(true);
           return newFailures;
         });
       } finally {

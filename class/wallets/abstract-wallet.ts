@@ -1,3 +1,4 @@
+import { normalizeXbtUnit } from '../xbt/units';
 import b58 from 'bs58check';
 import { sha256 } from '@noble/hashes/sha256';
 import wif from 'wif';
@@ -130,7 +131,7 @@ export class AbstractWallet {
   getPreferredBalanceUnit(): BitcoinUnit {
     for (const value of Object.values(BitcoinUnit)) {
       if (value === this.preferredBalanceUnit) {
-        return this.preferredBalanceUnit;
+        return normalizeXbtUnit(this.preferredBalanceUnit);
       }
     }
     return BitcoinUnit.BTC;
@@ -138,7 +139,7 @@ export class AbstractWallet {
 
   setPreferredBalanceUnit(unit: BitcoinUnit): void {
     if (Object.values(BitcoinUnit).includes(unit)) {
-      this.preferredBalanceUnit = unit;
+      this.preferredBalanceUnit = normalizeXbtUnit(unit);
       return;
     }
     this.preferredBalanceUnit = BitcoinUnit.BTC;

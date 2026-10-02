@@ -539,3 +539,24 @@ describe.each(['', '//'])('unit - DeepLinkSchemaMatch', function (suffix) {
     assert.ok(navigateWasCalled2);
   });
 });
+
+describe('RedWallet external link boundary', () => {
+  it.each([
+    'bitcoin:bc1qexample',
+    'BITCOIN://bc1qexample',
+    'lightning:lnbc1example',
+    'bluewallet:bitcoin:bc1qexample',
+    'redwallet:bitcoin:bc1qexample',
+    'https://example.org',
+  ])('does not route an external %s link into an XBT send', url => {
+    const callback = jest.fn();
+    DeeplinkSchemaMatch.navigationRouteForExternal({ url }, callback);
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it.each(['redwallet:', 'redwallet://'])('accepts the %s Electrum settings link', prefix => {
+    const callback = jest.fn();
+    DeeplinkSchemaMatch.navigationRouteForExternal({ url: `${prefix}setelectrumserver?server=example.org%3A50002%3As` }, callback);
+    expect(callback).toHaveBeenCalledWith(['ElectrumSettings', { server: 'example.org:50002:s' }]);
+  });
+});

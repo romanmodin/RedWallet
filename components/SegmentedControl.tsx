@@ -1,3 +1,4 @@
+import { useTheme } from './themes';
 import React, { useCallback } from 'react';
 import { View, StyleSheet, NativeSyntheticEvent } from 'react-native';
 import NativeSegmentedControl from '../codegen/SegmentedControlNativeComponent';
@@ -14,6 +15,7 @@ interface SegmentedControlEvent {
 }
 
 const SegmentedControl: React.FC<SegmentedControlProps> = ({ values, selectedIndex, onChange, testID }) => {
+  const { colors } = useTheme();
   const handleChange = useCallback(
     (event: NativeSyntheticEvent<SegmentedControlEvent>) => {
       if (event?.nativeEvent?.selectedIndex !== undefined) {
@@ -34,8 +36,8 @@ const SegmentedControl: React.FC<SegmentedControlProps> = ({ values, selectedInd
         selectedIndex={selectedIndex}
         enabled
         backgroundColor="transparent"
-        tintColor="#007AFF"
-        textColor="#007AFF"
+        tintColor={colors.primary}
+        textColor={colors.primary}
         momentary={false}
         style={styles.segmentedControl}
         onChange={handleChange}
