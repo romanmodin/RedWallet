@@ -261,8 +261,8 @@ export class BlueApp {
   };
 
   /**
-   * Transaction-cache key is random and stored in the keychain. The password-derived
-   * name preserves separation between real and decoy buckets; old caches migrate once.
+   * Transaction-cache key and filename are random, with their mapping in Keychain.
+   * The password-derived legacy path is used only to migrate each bucket once.
    */
   async getRealmForTransactions() {
     const cacheFolderPath = RNFS.CachesDirectoryPath; // Path to cache folder
