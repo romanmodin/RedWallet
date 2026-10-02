@@ -1,3 +1,12 @@
+# 0.40 additional lifecycle testing PASS — 2026-10-02
+
+Several-hours-paused public fixture resumed from9to41addresses and completed at
+block975151. Full reload/reunlock restores completed result with exact original
+observation timestamp and no new scan. Live crypto self-test, wrong/correct password,
+recovery cancel-clear and draft-only direct home WSS connection PASS. Targeted19
+recovery/catalog regressions PASS. Fixture locked; no broadcast. Source unchanged;
+actual iPhone suspension remains device check. See V040-ADDITIONAL-TESTING.
+
 # 0.40 LIVE — recovery entry and durable scan resume
 
 Caffeine43/public0.40 published with explicit user authorization. Source f45efbac82
