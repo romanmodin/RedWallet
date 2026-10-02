@@ -77,3 +77,23 @@ describe('XBT mnemonic wallet restoration', () => {
     expect(result.wallets[0]).toBeInstanceOf(XbtSegwitBech32Wallet);
   });
 });
+
+it('imports a BIP84 public account read-only until an XBT signer is explicitly enabled', async () => {
+  const hot = new XbtSegwitBech32Wallet();
+  hot.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+  const { promise } = startImport(
+    hot.getXpub(),
+    false,
+    false,
+    true,
+    () => {},
+    () => {},
+    async () => '',
+    true,
+  );
+  const { wallets } = await promise;
+  expect(wallets).toHaveLength(1);
+  expect(wallets[0].type).toBe('watchOnly');
+  expect(wallets[0].allowSend()).toBe(false);
+  expect(wallets[0].getSecret()).toBe(hot.getXpub());
+});

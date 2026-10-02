@@ -3,6 +3,9 @@ import * as bitcoin from 'bitcoinjs-lib';
 import DefaultPreference from 'react-native-default-preference';
 import RNFS from 'react-native-fs';
 import Realm from 'realm';
+import { openSecureRealm } from './secure-realm';
+import { capSuggestedFeeRate } from '../class/xbt/fee-policy';
+import { parseVerifiedParentTransaction } from '../class/xbt/verified-transaction';
 import { sha256 as _sha256 } from '@noble/hashes/sha256';
 
 import type { LegacyWallet as LegacyWalletT } from '../class/wallets/legacy-wallet';
@@ -33,6 +36,7 @@ type Utxo = {
 };
 
 export type ElectrumTransaction = {
+  rawHex?: string;
   txid: string;
   hash: string;
   version: number;
@@ -96,7 +100,10 @@ export const suggestedServers: Peer[] = [];
 let mainClient: typeof ElectrumClient | undefined;
 let serverName: string | false = false;
 let disableBatching: boolean = false;
-let latestBlock: { height: number; time: number } | { height: undefined; time: undefined } = { height: undefined, time: undefined };
+let latestBlock: { height: number; time: number } | { height: undefined; time: undefined } = {
+  height: undefined,
+  time: undefined,
+};
 
 // --- Single source of truth for connection liveness -----------------------------
 // We previously tracked `mainConnected` (boolean) separately from the client's own
@@ -198,7 +205,8 @@ async function _getRealm() {
   ];
 
   // @ts-ignore schema doesn't match Realm's schema type
-  _realm = await Realm.open({
+  _realm = await openSecureRealm({
+    // @ts-ignore schema string literals are widened by the legacy declaration
     schema,
     path,
     encryptionKey,
@@ -215,7 +223,11 @@ export const getPreferredServer = async (): Promise<ElectrumServerItem | undefin
     const tcpPort = await DefaultPreference.get(ELECTRUM_TCP_PORT);
     const sslPort = await DefaultPreference.get(ELECTRUM_SSL_PORT);
 
-    console.log('[electrum] Getting preferred server:', { host, tcpPort, sslPort });
+    console.log('[electrum] Getting preferred server:', {
+      host,
+      tcpPort,
+      sslPort,
+    });
 
     if (!host) {
       console.warn('[electrum] Preferred server host is undefined');
@@ -346,7 +358,11 @@ function scheduleReconnectFromClient(client: typeof ElectrumClient, usingPeer: P
  * subscribe to headers. No retries, no UI side effects. Returns the peer used
  * (for caller-side telemetry/alerts) and whether the attempt succeeded.
  */
-async function attemptConnectOnce(): Promise<{ ok: boolean; peer?: Peer; missingPeer?: boolean }> {
+async function attemptConnectOnce(): Promise<{
+  ok: boolean;
+  peer?: Peer;
+  missingPeer?: boolean;
+}> {
   const usingPeer = await pickPeer();
   if (!usingPeer) return { ok: false, missingPeer: true };
   console.log('[electrum] Using peer:', JSON.stringify(usingPeer));
@@ -645,7 +661,9 @@ async function presentNetworkErrorAlert(usingPeer?: Peer, allowRepeat = false) {
     allowRepeat,
     title: loc.errors.network,
     message: usingPeer
-      ? loc.formatString(loc.settings.electrum_unable_to_connect, { server: `${usingPeer.host}:${usingPeer.ssl ?? usingPeer.tcp}` })
+      ? loc.formatString(loc.settings.electrum_unable_to_connect, {
+          server: `${usingPeer.host}:${usingPeer.ssl ?? usingPeer.tcp}`,
+        })
       : 'Add an XBT-compatible Electrum server in Settings. Bitcoin-only servers are rejected, and RedWallet does not fall back to Bitcoin.',
     buttons: [
       {
@@ -973,7 +991,10 @@ export const multiGetBalanceByAddress = async (addresses: string[], batchsize: n
       }
       const promiseResults = await Promise.all(promises);
       for (let resultIndex = 0; resultIndex < promiseResults.length; resultIndex++) {
-        balances.push({ result: promiseResults[resultIndex], param: index2scripthash[resultIndex] });
+        balances.push({
+          result: promiseResults[resultIndex],
+          param: index2scripthash[resultIndex],
+        });
       }
     } else {
       balances = await mainClient.blockchainScripthash_getBalanceBatch(scripthashes);
@@ -1067,7 +1088,10 @@ export const multiGetHistoryByAddress = async function (
       }
       const histories = await Promise.all(promises);
       for (let historyIndex = 0; historyIndex < histories.length; historyIndex++) {
-        results.push({ result: histories[historyIndex], param: index2scripthash[historyIndex] });
+        results.push({
+          result: histories[historyIndex],
+          param: index2scripthash[historyIndex],
+        });
       }
     } else {
       results = await mainClient.blockchainScripthash_getHistoryBatch(scripthashes);
@@ -1097,6 +1121,7 @@ export async function multiGetTransactionByTxid<T extends boolean>(
   txids: string[],
   verbose: T,
   batchsize: number = 45,
+  verifyRaw: boolean = false,
 ): Promise<MultiGetTransactionByTxidResult<T>> {
   txids = txids.filter(txid => !!txid); // failsafe: removing 'undefined' or other falsy stuff from txids array
   // this value is fine-tuned so althrough wallets in test suite will occasionally
@@ -1123,6 +1148,8 @@ export async function multiGetTransactionByTxid<T extends boolean>(
   }
 
   if (keysCacheMiss.length === 0) {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    if (verifyRaw && verbose) await verifyRawTransactionResults(ret, batchsize);
     return ret;
   }
 
@@ -1214,6 +1241,9 @@ export async function multiGetTransactionByTxid<T extends boolean>(
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  if (verifyRaw && verbose) await verifyRawTransactionResults(ret, batchsize);
+
   // saving cache:
   try {
     realm.write(() => {
@@ -1240,6 +1270,28 @@ export async function multiGetTransactionByTxid<T extends boolean>(
   }
 
   return ret;
+}
+
+async function verifyRawTransactionResults<T extends boolean>(
+  results: MultiGetTransactionByTxidResult<T>,
+  batchsize: number,
+): Promise<void> {
+  const raw = await multiGetTransactionByTxid(Object.keys(results), false, batchsize);
+  for (const txid of Object.keys(results)) {
+    if (typeof raw[txid] !== 'string') throw new Error('Electrum did not return the raw parent transaction');
+    parseVerifiedParentTransaction(txid, raw[txid]);
+    const metadata = results[txid] as ElectrumTransaction;
+    const decoded = txhexToElectrumTransaction(raw[txid]);
+    // The server still supplies confirmation metadata; raw verification is not SPV.
+    if (Number.isInteger(metadata?.confirmations) && metadata.confirmations! >= 0) decoded.confirmations = metadata.confirmations;
+    if (Number.isFinite(metadata?.blocktime) && metadata.blocktime! > 0) decoded.blocktime = metadata.blocktime;
+    if (Number.isFinite(metadata?.time) && metadata.time! > 0) decoded.time = metadata.time;
+    delete (decoded as Partial<ElectrumTransactionWithHex>).hex;
+    results[txid] = {
+      ...decoded,
+      rawHex: raw[txid],
+    } as unknown as MultiGetTransactionByTxidResult<T>[string];
+  }
 }
 
 // Returns the value at a given percentile in a sorted numeric array.
@@ -1296,7 +1348,11 @@ export const calcEstimateFeeFromFeeHistorgam = function (numberOfBlocks: number,
   return Math.round(percentile(histogramFlat, 0.5) || 1);
 };
 
-export const estimateFees = async function (): Promise<{ fast: number; medium: number; slow: number }> {
+export const estimateFees = async function (): Promise<{
+  fast: number;
+  medium: number;
+  slow: number;
+}> {
   let histogram;
   let timeoutId;
   try {
@@ -1321,11 +1377,11 @@ export const estimateFees = async function (): Promise<{ fast: number; medium: n
   if (!histogram || histogram?.[0]?.[0] > 1000) return { fast: _fast, medium: _medium, slow: _slow };
 
   // calculating fast fees from mempool:
-  const fast = Math.max(2, calcEstimateFeeFromFeeHistorgam(1, histogram));
+  const fast = capSuggestedFeeRate(Math.max(2, calcEstimateFeeFromFeeHistorgam(1, histogram)));
   // recalculating medium and slow fees using bitcoincore estimations only like relative weights:
   // (minimum 1 sat, just for any case)
-  const medium = Math.max(1, Math.round((fast * _medium) / _fast));
-  const slow = Math.max(1, Math.round((fast * _slow) / _fast));
+  const medium = capSuggestedFeeRate(Math.round((fast * _medium) / _fast));
+  const slow = capSuggestedFeeRate(Math.round((fast * _slow) / _fast));
   return { fast, medium, slow };
 };
 
@@ -1340,7 +1396,7 @@ export const estimateFee = async function (numberOfBlocks: number): Promise<numb
   numberOfBlocks = numberOfBlocks || 1;
   const coinUnitsPerKilobyte = await mainClient.blockchainEstimatefee(numberOfBlocks);
   if (coinUnitsPerKilobyte === -1) return 1;
-  return Math.ceil(new BigNumber(coinUnitsPerKilobyte).dividedBy(1024).multipliedBy(100000000).toNumber());
+  return capSuggestedFeeRate(Math.ceil(new BigNumber(coinUnitsPerKilobyte).dividedBy(1024).multipliedBy(100000000).toNumber()));
 };
 
 export const serverFeatures = async function () {

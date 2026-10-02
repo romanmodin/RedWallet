@@ -23,6 +23,7 @@ import { SettingsSection, SettingsListItem } from '../../components/SettingsSect
 import { SecondButton } from '../../components/SecondButton';
 import { useTheme } from '../../components/themes';
 import prompt from '../../helpers/prompt';
+import confirm from '../../helpers/confirm';
 import { unlockWithBiometrics, useBiometrics } from '../../hooks/useBiometrics';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import loc, { formatBalanceWithoutSuffix } from '../../loc';
@@ -41,7 +42,10 @@ import Icon from '../../components/Icon';
 
 type RouteProps = RouteProp<DetailViewStackParamList, 'WalletDetails'>;
 
-function getCoinControlStats(w: TWallet): { hasCoinControl: boolean; utxoCount: number | null } {
+function getCoinControlStats(w: TWallet): {
+  hasCoinControl: boolean;
+  utxoCount: number | null;
+} {
   if (typeof w.getUtxo !== 'function') return { hasCoinControl: false, utxoCount: null };
   try {
     return { hasCoinControl: true, utxoCount: w.getUtxo().length };
@@ -59,8 +63,8 @@ const WalletDetails: React.FC = () => {
   const [backdoorPressed, setBackdoorPressed] = useState<number>(0);
   const walletRef = useRef<TWallet | undefined>(wallets.find(w => w.getID() === walletID));
   const wallet = walletRef.current as TWallet;
-  const [walletUseWithHardwareWallet, setWalletUseWithHardwareWallet] = useState<boolean>(
-    wallet.useWithHardwareWalletEnabled ? wallet.useWithHardwareWalletEnabled() : false,
+  const [externalSignerEnabled, setExternalSignerEnabled] = useState(
+    wallet instanceof WatchOnlyWallet && wallet.useWithHardwareWalletEnabled(),
   );
   const [isBIP47Enabled, setIsBIP47Enabled] = useState<boolean>(wallet.isBIP47Enabled ? wallet.isBIP47Enabled() : false);
 
@@ -175,7 +179,11 @@ const WalletDetails: React.FC = () => {
       const walletBalanceConfirmation = await prompt(
         loc.wallets.details_delete_wallet,
         loc.formatString(loc.wallets.details_del_wb_q, { balance }),
-        { type: 'numeric', destructive: true, continueButtonText: loc.wallets.details_delete },
+        {
+          type: 'numeric',
+          destructive: true,
+          continueButtonText: loc.wallets.details_delete,
+        },
       );
       // Remove any non-numeric characters before comparison
       const cleanedConfirmation = (walletBalanceConfirmation || '').replace(/[^0-9]/g, '');
@@ -471,7 +479,10 @@ const WalletDetails: React.FC = () => {
   const handleEditWalletName = useCallback(async () => {
     let newName: string;
     try {
-      newName = await prompt(loc.wallets.add_wallet_name, '', { type: 'plain-text', defaultValue: wallet.getLabel() });
+      newName = await prompt(loc.wallets.add_wallet_name, '', {
+        type: 'plain-text',
+        defaultValue: wallet.getLabel(),
+      });
     } catch (_) {
       // User cancelled
       return;
@@ -488,7 +499,9 @@ const WalletDetails: React.FC = () => {
       wallet.setLabel(previousLabel);
       setWalletName(previousLabel);
       triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
-      presentAlert({ message: error instanceof Error ? error.message : String(error) });
+      presentAlert({
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [wallet, saveToDisk]);
 
@@ -588,7 +601,12 @@ const WalletDetails: React.FC = () => {
                 {hasCoinControl && utxoCount !== null && utxoCount > 0 ? (
                   <Pressable
                     style={({ pressed }) => [styles.statsBox, stylesHook.statsBox, pressed && styles.pressablePressed]}
-                    onPress={() => navigate('SendDetailsRoot', { screen: 'CoinControl', params: { walletID } })}
+                    onPress={() =>
+                      navigate('SendDetailsRoot', {
+                        screen: 'CoinControl',
+                        params: { walletID },
+                      })
+                    }
                     testID="CoinsStatsBox"
                   >
                     <View style={styles.statsBoxTitleRow}>
@@ -646,30 +664,31 @@ const WalletDetails: React.FC = () => {
 
             {/* Options container — header full width (single row so section background spans the card) */}
             <SettingsSection title={loc.wallets.details_options}>
-              {wallet.type === WatchOnlyWallet.type && wallet.isHd && wallet.isHd() && (
-                <>
-                  <Text style={[styles.textLabel2, stylesHook.textLabel2, styles.optionsSubheader]}>{loc.wallets.details_advanced}</Text>
-                  <SettingsListItem
-                    title={loc.wallets.details_use_with_hardware_wallet}
-                    switch={{
-                      value: walletUseWithHardwareWallet,
-                      onValueChange: async (value: boolean) => {
-                        setWalletUseWithHardwareWallet(value);
-                        if (wallet.setUseWithHardwareWalletEnabled) {
-                          wallet.setUseWithHardwareWalletEnabled(value);
-                          triggerHapticFeedback(HapticFeedbackTypes.ImpactLight);
-                        }
-                        try {
-                          await saveToDisk();
-                        } catch (error: unknown) {
-                          triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
-                          console.error((error as Error).message);
-                        }
-                      },
-                    }}
-                    bottomDivider
-                  />
-                </>
+              {wallet instanceof WatchOnlyWallet && wallet.isXbtSigningCompatible() && (
+                <SettingsListItem
+                  title={`${loc.wallets.details_use_with_hardware_wallet} (XBT Unified)`}
+                  switch={{
+                    value: externalSignerEnabled,
+                    onValueChange: async (enabled: boolean) => {
+                      if (
+                        enabled &&
+                        !(await confirm(
+                          'Enable XBT external signing',
+                          'Your signing device must support Native SegWit PSBTs with Unified Sighash 0x21. Ordinary BTC signatures will be rejected. Confirm that your device has compatible XBT firmware.',
+                        ))
+                      )
+                        return;
+                      try {
+                        wallet.setUseWithHardwareWalletEnabled(enabled);
+                        await saveToDisk();
+                        setExternalSignerEnabled(enabled);
+                      } catch (error: any) {
+                        presentAlert({ message: error.message });
+                      }
+                    },
+                  }}
+                  bottomDivider
+                />
               )}
               <Text onPress={exportInternals} style={[styles.textLabel2, stylesHook.textLabel2, styles.optionsSubheader]}>
                 {loc.transactions.list_title}

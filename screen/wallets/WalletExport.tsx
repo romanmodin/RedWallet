@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Clipboard from '@react-native-clipboard/clipboard';
+import { copySensitiveClipboard, clearSensitiveClipboard } from '../../blue_modules/sensitive-clipboard';
+import { useSecretExport } from '../../hooks/useSecretExport';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import Icon from '../../components/Icon';
-import { LayoutChangeEvent, ScrollView, StyleSheet, Pressable, View } from 'react-native';
+import { ActivityIndicator, LayoutChangeEvent, ScrollView, StyleSheet, Pressable, View } from 'react-native';
 import { useScreenProtect } from '../../hooks/useScreenProtect';
 import { validateMnemonic } from '../../blue_modules/bip39';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
@@ -63,6 +64,8 @@ const WalletExport: React.FC = () => {
   const { isPrivacyBlurEnabled } = useSettings();
   const { colors } = useTheme();
   const wallet = wallets.find(w => w.getID() === walletID)!;
+  const authorizeSecretExport = useSecretExport();
+  const [authorized, setAuthorized] = useState(wallet instanceof WatchOnlyWallet);
   const [qrCodeSize, setQRCodeSize] = useState(90);
   const { enableScreenProtect, disableScreenProtect } = useScreenProtect();
   const { currentAppState, previousAppState } = useAppState();
@@ -71,6 +74,7 @@ const WalletExport: React.FC = () => {
   });
 
   const secrets: string[] = useMemo(() => {
+    if (!authorized) return [];
     try {
       let secret = wallet.getSecret();
       if (wallet instanceof WatchOnlyWallet) {
@@ -90,14 +94,30 @@ const WalletExport: React.FC = () => {
       console.error('Failed to get wallet secret:', error);
       return [];
     }
-  }, [wallet]);
+  }, [wallet, authorized]);
+
+  useEffect(() => {
+    let active = true;
+    if (!(wallet instanceof WatchOnlyWallet)) {
+      authorizeSecretExport().then(ok => {
+        if (!active) return;
+        if (ok) setAuthorized(true);
+        else navigation.goBack();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [authorizeSecretExport, navigation, wallet]);
 
   const secretIsMnemonic: boolean = useMemo(() => {
     return validateMnemonic(wallet.getSecret());
   }, [wallet]);
 
   useEffect(() => {
-    if (previousAppState === 'active' && currentAppState !== 'active') {
+    if (authorized && previousAppState === 'active' && currentAppState !== 'active') {
+      setAuthorized(false);
+      clearSensitiveClipboard().catch(() => {});
       disableScreenProtect();
       const timer = setTimeout(() => {
         navigation.goBack();
@@ -135,9 +155,11 @@ const WalletExport: React.FC = () => {
   }, []);
 
   const handleCopy = useCallback(() => {
-    Clipboard.setString(secrets[0]);
+    // The displayed secret has already been authenticated for this foreground session.
+    if (!authorized || !secrets[0]) return;
+    copySensitiveClipboard(secrets[0]);
     triggerHapticFeedback(HapticFeedbackTypes.Selection);
-  }, [secrets]);
+  }, [secrets, authorized]);
 
   const Scroll = useCallback(
     // eslint-disable-next-line react/no-unused-prop-types
@@ -156,6 +178,8 @@ const WalletExport: React.FC = () => {
     [onLayout, stylesHook.root],
   );
 
+  if (!authorized) return <ActivityIndicator accessibilityLabel="Authenticating wallet export" />;
+
   // for SLIP39
   if (secrets.length !== 1) {
     return (
@@ -169,12 +193,20 @@ const WalletExport: React.FC = () => {
 
         {secrets.map((secret, index) => (
           <React.Fragment key={secret}>
-            <BlueText style={styles.scanText}>{loc.formatString(loc.wallets.share_number, { number: index + 1 })}</BlueText>
+            <BlueText style={styles.scanText}>
+              {loc.formatString(loc.wallets.share_number, {
+                number: index + 1,
+              })}
+            </BlueText>
             <SeedWords seed={secret} />
           </React.Fragment>
         ))}
 
-        <BlueText style={styles.typeText}>{loc.formatString(loc.wallets.wallet_type_this, { type: wallet.typeReadable })}</BlueText>
+        <BlueText style={styles.typeText}>
+          {loc.formatString(loc.wallets.wallet_type_this, {
+            type: wallet.typeReadable,
+          })}
+        </BlueText>
       </Scroll>
     );
   }
@@ -220,7 +252,11 @@ const WalletExport: React.FC = () => {
         <HandOffComponent title={loc.wallets.xpub_title} type={HandOffActivityType.Xpub} userInfo={{ xpub: secret }} />
       )}
 
-      <BlueText style={styles.typeText}>{loc.formatString(loc.wallets.wallet_type_this, { type: wallet.typeReadable })}</BlueText>
+      <BlueText style={styles.typeText}>
+        {loc.formatString(loc.wallets.wallet_type_this, {
+          type: wallet.typeReadable,
+        })}
+      </BlueText>
     </ScrollView>
   );
 };

@@ -124,6 +124,7 @@ export type LightningTransaction = {
 };
 
 export type Transaction = {
+  rawHex?: string;
   txid: string;
   hash: string;
   version: number;
@@ -178,4 +179,9 @@ export type TWallet =
   | TaprootWallet
   | WatchOnlyWallet;
 
-export type THDWalletForWatchOnly = HDSegwitBech32Wallet | HDSegwitP2SHWallet | HDLegacyP2PKHWallet | HDTaprootWallet;
+export type THDWalletForWatchOnly =
+  | HDSegwitBech32Wallet
+  | XbtSegwitBech32Wallet
+  | HDSegwitP2SHWallet
+  | HDLegacyP2PKHWallet
+  | HDTaprootWallet;

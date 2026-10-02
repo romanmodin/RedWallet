@@ -86,7 +86,10 @@ function getInputSignature(psbt: Psbt, inputIndex: number, publicKey: Uint8Array
   // body using SIGHASH_ALL, then pass the resulting compact signature onward.
   const standardEncodedSignature = Buffer.from(encodedSignature);
   standardEncodedSignature[standardEncodedSignature.length - 1] = STANDARD_SIGHASH_ALL;
-  return { encodedSignature, compactSignature: script.signature.decode(standardEncodedSignature).signature };
+  return {
+    encodedSignature,
+    compactSignature: script.signature.decode(standardEncodedSignature).signature,
+  };
 }
 
 function serializeP2wpkhWitness(signature: Uint8Array, publicKey: Uint8Array): Buffer {
@@ -172,4 +175,33 @@ export function finalizeUnifiedP2wpkhInput(
   });
   psbt.data.clearFinalizedInput(inputIndex);
   return psbt;
+}
+
+/** Verify an external signer's result against the exact reviewed PSBT and its prevouts. */
+export function assertSignedUnifiedTransactionMatchesPsbt(hex: string, expected: Psbt, verifier: UnifiedSignatureVerifier): void {
+  const signed = Transaction.fromHex(hex);
+  const stripped = signed.clone();
+  for (const input of stripped.ins) input.witness = [];
+  if (stripped.toHex() !== buildUnsignedTransaction(expected).toHex()) {
+    throw new Error('External signer changed the reviewed transaction');
+  }
+  const spentOutputs = getSpentOutputs(expected);
+  signed.ins.forEach((input, index) => {
+    if (input.script.length || input.witness.length !== 2) throw new Error('External signer must return native P2WPKH signatures');
+    const [encodedSignature, publicKey] = input.witness;
+    if (
+      publicKey.length !== 33 ||
+      Buffer.compare(Buffer.from(crypto.hash160(publicKey)), Buffer.from(spentOutputs[index].script).subarray(2)) !== 0
+    ) {
+      throw new Error('External signing key does not match the reviewed input');
+    }
+    if (!encodedSignature.length || encodedSignature[encodedSignature.length - 1] !== SIGHASH_ALL_UNIFIED) {
+      throw new Error('External signer did not use XBT Unified Sighash 0x21');
+    }
+    const standardEncoded = Uint8Array.from(encodedSignature);
+    standardEncoded[standardEncoded.length - 1] = STANDARD_SIGHASH_ALL;
+    const compact = script.signature.decode(standardEncoded).signature;
+    const digest = unifiedSegwitV0SighashAll(signed, index, spentOutputs, getScriptCode(spentOutputs[index].script));
+    if (!verifier(publicKey, digest, compact)) throw new Error('External Unified signature is invalid');
+  });
 }

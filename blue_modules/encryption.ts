@@ -1,4 +1,5 @@
-import { cbc } from '@noble/ciphers/aes';
+import { cbc, gcm } from '@noble/ciphers/aes';
+import { scryptAsync } from '@noble/hashes/scrypt';
 import { md5 } from '@noble/hashes/legacy';
 import { randomBytes } from '@noble/hashes/utils';
 
@@ -15,10 +16,8 @@ import { areUint8ArraysEqual, base64ToUint8Array, concatUint8Arrays, stringToUin
  *   Di = MD5( D(i-1) || password || salt )   for i ≥ 2
  *   key||iv = D1 || D2 || ...                (take first `byteLength` bytes)
  *
- * MD5 is intentional: it matches the legacy OpenSSL format. The
- * cryptographic weakness of MD5 is not relevant here — the function is
- * only used as a deterministic byte-stretcher; the password's entropy is
- * what protects the wallet, not MD5.
+ * Legacy read compatibility only. This fast derivation is unsuitable for
+ * new password-protected storage; all new writes use scrypt and AES-GCM.
  */
 export function evpBytesToKeyMd5(password: Uint8Array, salt: Uint8Array, byteLength: number): Uint8Array {
   if (!Number.isInteger(byteLength) || byteLength < 0) {
@@ -44,23 +43,43 @@ const KEY_LEN = 32;
 const IV_LEN = 16;
 const BLOCK_LEN = 16;
 
-/**
- * AES-256-CBC encrypt with the OpenSSL "Salted__" envelope, EVP_BytesToKey-MD5
- * key derivation and PKCS7 padding. Output is base64-encoded.
- *
- * Wire format is bit-identical to CryptoJS@4.x's default
- * `AES.encrypt(data, password).toString()` — we kept the swap-the-library
- * change a drop-in replacement so existing encrypted wallets on user
- * devices remain readable, with no migration step.
- */
-export function encrypt(data: string, password: string): string {
+/** Versioned format with fixed KDF costs: attacker-controlled data cannot increase allocation. */
+const V2_PREFIX = 'RWV2:';
+const V2_SALT_LEN = 16;
+const V2_NONCE_LEN = 12;
+const V2_TAG_LEN = 16;
+const V2_AAD = stringToUint8Array('RedWallet vault v2: scrypt N32768 r8 p3 AES256GCM');
+
+async function deriveVaultKey(password: string, salt: Uint8Array): Promise<Uint8Array> {
+  const bytes = stringToUint8Array(password);
+  try {
+    return await scryptAsync(bytes, salt, {
+      N: 32768,
+      r: 8,
+      p: 3,
+      dkLen: KEY_LEN,
+      maxmem: 40 * 1024 * 1024,
+      asyncTick: 10,
+    });
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+/** New writes are authenticated. Legacy OpenSSL envelopes remain readable. */
+export async function encrypt(data: string, password: string): Promise<string> {
   if (data.length < 10) throw new Error('data length cant be < 10');
-  const salt = randomBytes(SALT_LEN);
-  const kdf = evpBytesToKeyMd5(stringToUint8Array(password), salt, KEY_LEN + IV_LEN);
-  const key = kdf.subarray(0, KEY_LEN);
-  const iv = kdf.subarray(KEY_LEN);
-  const ciphertext = cbc(key, iv).encrypt(stringToUint8Array(data));
-  return uint8ArrayToBase64(concatUint8Arrays([SALT_MAGIC, salt, ciphertext]));
+  const salt = randomBytes(V2_SALT_LEN);
+  const nonce = randomBytes(V2_NONCE_LEN);
+  const key = await deriveVaultKey(password, salt);
+  const plain = stringToUint8Array(data);
+  try {
+    const ciphertext = gcm(key, nonce, concatUint8Arrays([V2_AAD, salt, nonce])).encrypt(plain);
+    return V2_PREFIX + uint8ArrayToBase64(concatUint8Arrays([salt, nonce, ciphertext]));
+  } finally {
+    key.fill(0);
+    plain.fill(0);
+  }
 }
 
 /**
@@ -68,8 +87,24 @@ export function encrypt(data: string, password: string): string {
  * the original UTF-8 plaintext. Any error (bad base64, missing magic, wrong
  * password, bad padding) collapses to `false`.
  */
-export function decrypt(data: string, password: string): string | false {
+export async function decrypt(data: string, password: string): Promise<string | false> {
   try {
+    if (data.startsWith(V2_PREFIX)) {
+      const envelope = base64ToUint8Array(data.slice(V2_PREFIX.length));
+      if (envelope.length < V2_SALT_LEN + V2_NONCE_LEN + V2_TAG_LEN + 10) return false;
+      const salt = envelope.subarray(0, V2_SALT_LEN);
+      const nonce = envelope.subarray(V2_SALT_LEN, V2_SALT_LEN + V2_NONCE_LEN);
+      const ciphertext = envelope.subarray(V2_SALT_LEN + V2_NONCE_LEN);
+      const key = await deriveVaultKey(password, salt);
+      let plain: Uint8Array | undefined;
+      try {
+        plain = gcm(key, nonce, concatUint8Arrays([V2_AAD, salt, nonce])).decrypt(ciphertext);
+        return new TextDecoder('utf-8', { fatal: true }).decode(plain);
+      } finally {
+        key.fill(0);
+        plain?.fill(0);
+      }
+    }
     // crypto-js's base64 decoder ignored whitespace. Some old encrypted-backup
     // export/import flows (manual file paste, clipboard transit, email-based
     // wallet transfer) introduced stray newlines or padding spaces. Strip them

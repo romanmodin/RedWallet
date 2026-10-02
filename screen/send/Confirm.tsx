@@ -29,6 +29,8 @@ import { useSettings } from '../../hooks/context/useSettings';
 import { majorTomToGroundControl } from '../../blue_modules/notifications';
 import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
 import { XBT_PROFILE } from '../../class/xbt/profile';
+import confirm from '../../helpers/confirm';
+import { requiresHighFeeApproval } from '../../class/xbt/fee-policy';
 
 enum ActionType {
   SET_LOADING = 'SET_LOADING',
@@ -192,6 +194,24 @@ const Confirm: React.FC = () => {
     dispatch({ type: ActionType.SET_LOADING, payload: true });
     try {
       if (state.isPayjoinEnabled && !payjoinUrl) throw new Error('Payjoin is not supported by this wallet');
+      const amountSats = recipients.reduce((sum, recipient) => sum + Number(recipient.value ?? 0), 0);
+      if (
+        requiresHighFeeApproval({
+          feeSats: feeSatoshi,
+          feeRate: Number(satoshiPerByte),
+          amountSats,
+        })
+      ) {
+        const approved = await confirm(
+          'High transaction fee',
+          `The fee is ${feeSatoshi} sats (${satoshiPerByte} sats/vB), ${((100 * feeSatoshi) / amountSats).toFixed(2)}% of the payment. Confirm this fee before sending.`,
+        );
+        if (!approved) {
+          dispatch({ type: ActionType.SET_LOADING, payload: false });
+          dispatch({ type: ActionType.SET_BUTTON_DISABLED, payload: false });
+          return;
+        }
+      }
       // Perform biometric authentication first
       if (await isBiometricUseCapableAndEnabled()) {
         if (!(await unlockWithBiometrics())) {
@@ -318,7 +338,12 @@ const Confirm: React.FC = () => {
           {contact ? <Text style={[styles.transactionDetailsSubtitle, stylesHook.transactionDetailsSubtitle]}>[{contact}]</Text> : null}
         </BlueCard>
         {recipients.length > 1 && (
-          <BlueText style={styles.valueOf}>{loc.formatString(loc._.of, { number: index + 1, total: recipients.length })}</BlueText>
+          <BlueText style={styles.valueOf}>
+            {loc.formatString(loc._.of, {
+              number: index + 1,
+              total: recipients.length,
+            })}
+          </BlueText>
         )}
       </>
     );
@@ -347,7 +372,12 @@ const Confirm: React.FC = () => {
                 <Switch
                   testID="PayjoinSwitch"
                   value={state.isPayjoinEnabled}
-                  onValueChange={value => dispatch({ type: ActionType.SET_PAYJOIN_ENABLED, payload: value })}
+                  onValueChange={value =>
+                    dispatch({
+                      type: ActionType.SET_PAYJOIN_ENABLED,
+                      payload: value,
+                    })
+                  }
                 />
               </View>
             </BlueCard>

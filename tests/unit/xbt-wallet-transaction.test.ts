@@ -14,8 +14,8 @@ jest.mock('../../blue_modules/BlueElectrum', () => ({
 
 const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const coinbaseTxid = '0'.repeat(64);
-const ordinaryTxid = '11'.repeat(64);
-const fundingTxid = '0123456789abcdef'.repeat(4);
+const ordinaryTxid = '11'.repeat(32);
+let fundingTxid = '0123456789abcdef'.repeat(4);
 
 function derSignatureToCompact(signature: Buffer): Buffer {
   const rLength = signature[3];
@@ -34,7 +34,19 @@ describe('XBT wallet transaction flow', () => {
   function createWalletWithParent(inputs: TransactionInputReference[], confirmations: number) {
     const wallet = new XbtSegwitBech32Wallet();
     wallet.setSecret(mnemonic);
-    jest.spyOn(wallet, 'getTransactions').mockReturnValue([{ txid: fundingTxid, inputs, confirmations } as any]);
+    const raw = new bitcoin.Transaction();
+    const coinbase = inputs.some(input => 'coinbase' in input || input.txid === coinbaseTxid);
+    raw.addInput(Buffer.from(coinbase ? coinbaseTxid : ordinaryTxid, 'hex'), coinbase ? 0xffffffff : 0);
+    for (let n = 0; n < 2; n++) raw.addOutput(bitcoin.address.toOutputScript(wallet._getExternalAddressByIndex(0)), 100_000n);
+    fundingTxid = raw.getId();
+    jest.spyOn(wallet, 'getTransactions').mockReturnValue([
+      {
+        txid: fundingTxid,
+        rawHex: raw.toHex(),
+        inputs,
+        confirmations,
+      } as any,
+    ]);
     return wallet;
   }
 
@@ -45,7 +57,15 @@ describe('XBT wallet transaction flow', () => {
     const changeAddress = wallet._getInternalAddressByIndex(0);
 
     const { tx, psbt } = wallet.createTransaction(
-      [{ txid: fundingTxid, vout: 0, address: sourceAddress, value: 100_000, confirmations: 100 }],
+      [
+        {
+          txid: fundingTxid,
+          vout: 0,
+          address: sourceAddress,
+          value: 100_000,
+          confirmations: 100,
+        },
+      ],
       [{ address: destinationAddress, value: 50_000 }],
       1,
       changeAddress,
@@ -87,10 +107,15 @@ describe('XBT wallet transaction flow', () => {
       const output = parent.transaction.outs[input.vout];
       expect(output.value).toBe(BigInt(input.value));
       expect(Buffer.from(output.script)).toEqual(Buffer.from(bitcoin.address.toOutputScript(input.address)));
-      return { ...input, value: Number(output.value), confirmations: parent.confirmations };
+      return {
+        ...input,
+        value: Number(output.value),
+        confirmations: parent.confirmations,
+      };
     });
     const parentSpy = jest.spyOn(wallet, 'getTransactions').mockReturnValue(
       parents.map(({ transaction, confirmations }) => ({
+        rawHex: transaction.toHex(),
         txid: transaction.getId(),
         confirmations,
         inputs: transaction.ins.map(input => ({
@@ -102,7 +127,12 @@ describe('XBT wallet transaction flow', () => {
     try {
       const { tx, fee } = wallet.createTransaction(
         utxos,
-        [{ address: wallet._getExternalAddressByIndex(2), value: knotsAcceptance.signed.destination.value }],
+        [
+          {
+            address: wallet._getExternalAddressByIndex(2),
+            value: knotsAcceptance.signed.destination.value,
+          },
+        ],
         knotsAcceptance.signed.feeRateSatPerVbyte,
         wallet._getInternalAddressByIndex(0),
       );
@@ -137,7 +167,9 @@ describe('XBT wallet transaction flow', () => {
       const [signature, publicKey] = input.witness;
       expect(signature[signature.length - 1]).toBe(0x21);
       const compact = derSignatureToCompact(Buffer.from(signature.subarray(0, -1)));
-      const scriptCode = bitcoin.payments.p2pkh({ hash: bitcoin.crypto.hash160(publicKey) }).output!;
+      const scriptCode = bitcoin.payments.p2pkh({
+        hash: bitcoin.crypto.hash160(publicKey),
+      }).output!;
       const unifiedDigest = unifiedSegwitV0SighashAll(tx, index, spentOutputs, scriptCode);
       expect(ecc.verify(unifiedDigest, publicKey, compact)).toBe(true);
       // bitcoinjs-lib's independent BIP143 digest, not the custom Unified implementation.
@@ -156,7 +188,15 @@ describe('XBT wallet transaction flow', () => {
 
     expect(() =>
       wallet.createTransaction(
-        [{ txid: fundingTxid, vout: 0, address: wallet._getExternalAddressByIndex(0), value: 100_000, confirmations: 100 }],
+        [
+          {
+            txid: fundingTxid,
+            vout: 0,
+            address: wallet._getExternalAddressByIndex(0),
+            value: 100_000,
+            confirmations: 100,
+          },
+        ],
         [{ address: wallet._getExternalAddressByIndex(1), value: 50_000 }],
         1,
         wallet._getInternalAddressByIndex(0),
@@ -171,7 +211,7 @@ describe('XBT wallet transaction flow', () => {
         txid: fundingTxid,
         vout,
         address: wallet._getExternalAddressByIndex(0),
-        value: 60_000,
+        value: 100_000,
         confirmations: 100,
       })),
       [{ address: wallet._getExternalAddressByIndex(1), value: 100_000 }],
@@ -244,13 +284,20 @@ describe('XBT wallet transaction flow', () => {
     };
     const original = wallet.createTransaction([utxo], [{ address: destination, value: 50_000 }], 1, change, 0xfffffffd).tx!;
     const parent = {
+      rawHex: wallet.getTransactions()[0].rawHex,
       txid: fundingTxid,
       inputs: [{ txid: ordinaryTxid, vout: 0 }],
       confirmations: 100,
     };
-    jest
-      .spyOn(wallet, 'getTransactions')
-      .mockReturnValue([parent, { txid: original.getId(), inputs: parent.inputs, confirmations: 0 }] as any);
+    jest.spyOn(wallet, 'getTransactions').mockReturnValue([
+      parent,
+      {
+        txid: original.getId(),
+        rawHex: original.toHex(),
+        inputs: parent.inputs,
+        confirmations: 0,
+      },
+    ] as any);
     const remote = {
       confirmations: 0,
       vout: original.outs.map((output, n) => ({
@@ -284,14 +331,20 @@ describe('XBT wallet transaction flow', () => {
     expect(replacement.tx!.getId()).not.toBe(original.getId());
     const spentOutputs = replacement.tx!.ins.map(input => {
       const txid = Buffer.from(input.hash).reverse().toString('hex');
-      if (txid === fundingTxid) return { value: 100_000n, script: bitcoin.address.toOutputScript(source) };
+      if (txid === fundingTxid)
+        return {
+          value: 100_000n,
+          script: bitcoin.address.toOutputScript(source),
+        };
       expect(txid).toBe(original.getId());
       return original.outs[input.index];
     });
     replacement.tx!.ins.forEach((input, index) => {
       const [signature, publicKey] = input.witness;
       expect(signature.at(-1)).toBe(0x21);
-      const scriptCode = bitcoin.payments.p2pkh({ hash: bitcoin.crypto.hash160(publicKey) }).output!;
+      const scriptCode = bitcoin.payments.p2pkh({
+        hash: bitcoin.crypto.hash160(publicKey),
+      }).output!;
       const digest = unifiedSegwitV0SighashAll(replacement.tx!, index, spentOutputs, scriptCode);
       expect(ecc.verify(digest, publicKey, derSignatureToCompact(Buffer.from(signature.subarray(0, -1))))).toBe(true);
     });
@@ -311,11 +364,51 @@ describe('XBT wallet transaction flow', () => {
 
     expect(() =>
       wallet.createTransaction(
-        [{ txid: fundingTxid, vout: 0, address: wallet._getExternalAddressByIndex(0), value: 100_000, confirmations: 6479 }],
+        [
+          {
+            txid: fundingTxid,
+            vout: 0,
+            address: wallet._getExternalAddressByIndex(0),
+            value: 100_000,
+            confirmations: 6479,
+          },
+        ],
         [{ address: wallet._getExternalAddressByIndex(1), value: 50_000 }],
         1,
         wallet._getInternalAddressByIndex(0),
       ),
     ).toThrow('XBT coinbase outputs require 6480 confirmations before spending');
   });
+});
+
+it('rejects forged parent bytes, inflated prevout amounts and an unrelated change address', () => {
+  const wallet = new XbtSegwitBech32Wallet();
+  wallet.setSecret(mnemonic);
+  const address = wallet._getExternalAddressByIndex(0);
+  const parent = new bitcoin.Transaction();
+  parent.addInput(Buffer.alloc(32, 1), 0);
+  parent.addOutput(bitcoin.address.toOutputScript(address), 100_000n);
+  const record = {
+    txid: parent.getId(),
+    rawHex: parent.toHex(),
+    confirmations: 100,
+  };
+  jest.spyOn(wallet, 'getTransactions').mockReturnValue([record] as any);
+  const utxo = {
+    txid: parent.getId(),
+    vout: 0,
+    value: 100_000,
+    address,
+    confirmations: 100,
+  };
+  const targets = [{ address: wallet._getExternalAddressByIndex(1), value: 50_000 }];
+  const change = wallet._getInternalAddressByIndex(0);
+  expect(() => wallet.createTransaction([{ ...utxo, value: 100_001 }], targets, 1, change)).toThrow('raw parent');
+  record.rawHex = knotsAcceptance.fixture.fundingTransactions[0].rawTx;
+  expect(() => wallet.createTransaction([utxo], targets, 1, change)).toThrow('requested txid');
+  record.rawHex = parent.toHex();
+  const other = new XbtSegwitBech32Wallet();
+  other.setSecret(mnemonic);
+  other.setPassphrase('other');
+  expect(() => wallet.createTransaction([utxo], targets, 1, other._getInternalAddressByIndex(0))).toThrow('change address');
 });

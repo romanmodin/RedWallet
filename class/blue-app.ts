@@ -5,6 +5,7 @@ import RNFS from 'react-native-fs';
 import Keychain from 'react-native-keychain';
 import RNSecureKeyStore, { ACCESSIBLE } from 'react-native-secure-key-store';
 import Realm from 'realm';
+import { openSecureRealm } from '../blue_modules/secure-realm';
 
 import * as encryption from '../blue_modules/encryption';
 import presentAlert from '../components/Alert';
@@ -117,7 +118,9 @@ export class BlueApp {
    */
   setItem = (key: string, value: any): Promise<any> => {
     if (isReactNative) {
-      return RNSecureKeyStore.set(key, value, { accessible: ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
+      return RNSecureKeyStore.set(key, value, {
+        accessible: ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+      });
     } else {
       return AsyncStorage.setItem(key, value);
     }
@@ -143,7 +146,10 @@ export class BlueApp {
       console.warn('error reading', key, error.message);
       console.warn('fallback to realm');
       const realmKeyValue = await this.openRealmKeyValue();
-      const obj = realmKeyValue.objectForPrimaryKey<{ key: string; value: string }>('KeyValue', key);
+      const obj = realmKeyValue.objectForPrimaryKey<{
+        key: string;
+        value: string;
+      }>('KeyValue', key);
       value = obj?.value;
       realmKeyValue.close();
       if (value) {
@@ -169,7 +175,7 @@ export class BlueApp {
   isPasswordInUse = async (password: string) => {
     try {
       let data = await this.getItem('data');
-      data = this.decryptData(data, password);
+      data = await this.decryptData(data, password);
       return Boolean(data);
     } catch (_e) {
       return false;
@@ -180,12 +186,12 @@ export class BlueApp {
    * Iterates through all values of `data` trying to
    * decrypt each one, and returns first one successfully decrypted
    */
-  decryptData(data: string, password: string): boolean | string {
+  async decryptData(data: string, password: string): Promise<boolean | string> {
     data = JSON.parse(data);
     let decrypted;
     let num = 0;
     for (const value of data) {
-      decrypted = encryption.decrypt(value, password);
+      decrypted = await encryption.decrypt(value, password);
 
       if (decrypted) {
         usedBucketNum = num;
@@ -216,7 +222,7 @@ export class BlueApp {
     let data = await this.getItem('data');
     // TODO: refactor ^^^ (should not save & load to fetch data)
 
-    const encrypted = encryption.encrypt(data, password);
+    const encrypted = await encryption.encrypt(data, password);
     data = [];
     data.push(encrypted); // putting in array as we might have many buckets with storages
     data = JSON.stringify(data);
@@ -243,7 +249,7 @@ export class BlueApp {
 
     let buckets = await this.getItem('data');
     buckets = JSON.parse(buckets);
-    buckets.push(encryption.encrypt(JSON.stringify(data), fakePassword));
+    buckets.push(await encryption.encrypt(JSON.stringify(data), fakePassword));
     this.cachedPassword = fakePassword;
     const bucketsString = JSON.stringify(buckets);
     await this.setItem('data', bucketsString);
@@ -255,8 +261,8 @@ export class BlueApp {
   };
 
   /**
-   * Returns instace of the Realm database, which is encrypted either by cached user's password OR default password.
-   * Database file is deterministically derived from encryption key.
+   * Transaction-cache key is random and stored in the keychain. The password-derived
+   * name preserves separation between real and decoy buckets; old caches migrate once.
    */
   async getRealmForTransactions() {
     const cacheFolderPath = RNFS.CachesDirectoryPath; // Path to cache folder
@@ -278,7 +284,7 @@ export class BlueApp {
       },
     ];
     // @ts-ignore schema doesn't match Realm's schema type
-    return Realm.open({
+    return openSecureRealm({
       // @ts-ignore schema doesn't match Realm's schema type
       schema,
       path,
@@ -359,7 +365,7 @@ export class BlueApp {
     }
     let dataRaw = await this.getItemWithFallbackToRealm('data');
     if (password) {
-      dataRaw = this.decryptData(dataRaw, password);
+      dataRaw = await this.decryptData(dataRaw, password);
       if (dataRaw) {
         // password is good, cache it
         this.cachedPassword = password;
@@ -527,7 +533,10 @@ export class BlueApp {
     if (this.storageLoadBlocked) throw new UnsupportedWalletStorageError();
     if (savingInProgress) {
       console.warn('saveToDisk is in progress');
-      if (++savingInProgress > 10) presentAlert({ message: 'Critical error. Last actions were not saved' }); // should never happen
+      if (++savingInProgress > 10)
+        presentAlert({
+          message: 'Critical error. Last actions were not saved',
+        }); // should never happen
       await new Promise(resolve => setTimeout(resolve, 1000 * savingInProgress)); // sleep
       return this.saveToDisk();
     }
@@ -592,7 +601,7 @@ export class BlueApp {
           } else {
             // we dont have `usedBucketNum` for whatever reason, so lets try to decrypt each bucket after bucket
             // till we find the right one
-            decrypted = encryption.decrypt(bucket, this.cachedPassword);
+            decrypted = await encryption.decrypt(bucket, this.cachedPassword);
           }
 
           if (!decrypted) {
@@ -601,7 +610,7 @@ export class BlueApp {
           } else {
             // decrypted ok, this is our bucket
             // we serialize our object's data, encrypt it, and add it to buckets
-            newData.push(encryption.encrypt(JSON.stringify(data), this.cachedPassword));
+            newData.push(await encryption.encrypt(JSON.stringify(data), this.cachedPassword));
           }
         }
 

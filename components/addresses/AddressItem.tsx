@@ -4,7 +4,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import Share from 'react-native-share';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import confirm from '../../helpers/confirm';
-import { unlockWithBiometrics, useBiometrics } from '../../hooks/useBiometrics';
+import { useSecretExport } from '../../hooks/useSecretExport';
+import { copySensitiveClipboard } from '../../blue_modules/sensitive-clipboard';
 import loc, { formatBalance } from '../../loc';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
 import presentAlert from '../Alert';
@@ -42,7 +43,7 @@ const AddressItem = ({
 }: AddressItemProps) => {
   const { wallets } = useStorage();
   const { colors, dark } = useTheme();
-  const { isBiometricUseCapableAndEnabled } = useBiometrics();
+  const authorizeSecretExport = useSecretExport();
   const balanceOpacity = useSharedValue(1);
   const balanceTranslateY = useSharedValue(0);
   const previousBalance = useRef<string | undefined>(undefined);
@@ -137,11 +138,13 @@ const AddressItem = ({
     try {
       const wif = wallet._getWIFbyAddress(item.address);
       if (!wif) {
-        presentAlert({ message: 'Internal error: cant get WIF from the wallet' });
+        presentAlert({
+          message: 'Internal error: cant get WIF from the wallet',
+        });
         return;
       }
       triggerHapticFeedback(HapticFeedbackTypes.Selection);
-      Clipboard.setString(wif);
+      copySensitiveClipboard(wif);
     } catch (error: any) {
       presentAlert({ message: error.message });
     }
@@ -157,16 +160,12 @@ const AddressItem = ({
         navigateToSignVerify();
       } else if (id === CommonToolTipActions.ExportPrivateKey.id) {
         if (await confirm(loc.addresses.sensitive_private_key)) {
-          if (await isBiometricUseCapableAndEnabled()) {
-            if (!(await unlockWithBiometrics())) {
-              return;
-            }
-          }
+          if (!(await authorizeSecretExport())) return;
           handleCopyPrivkeyPress();
         }
       }
     },
-    [handleCopyPress, handleSharePress, navigateToSignVerify, handleCopyPrivkeyPress, isBiometricUseCapableAndEnabled],
+    [handleCopyPress, handleSharePress, navigateToSignVerify, handleCopyPrivkeyPress, authorizeSecretExport],
   );
 
   // Render address with highlighting if a search query is provided

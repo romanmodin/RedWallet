@@ -3,10 +3,10 @@ import assert from 'assert';
 import * as c from '../../blue_modules/encryption';
 
 describe('unit - encryption', function () {
-  it('encrypts and decrypts', function () {
+  it('encrypts and decrypts', async function () {
     const data2encrypt = 'really long data string bla bla really long data string bla bla really long data string bla bla';
-    const crypted = c.encrypt(data2encrypt, 'password');
-    const decrypted = c.decrypt(crypted, 'password');
+    const crypted = await c.encrypt(data2encrypt, 'password');
+    const decrypted = await c.decrypt(crypted, 'password');
 
     assert.ok(crypted);
     assert.ok(decrypted);
@@ -15,36 +15,36 @@ describe('unit - encryption', function () {
 
     let decryptedWithBadPassword;
     try {
-      decryptedWithBadPassword = c.decrypt(crypted, 'passwordBad');
+      decryptedWithBadPassword = await c.decrypt(crypted, 'passwordBad');
     } catch (e) {}
     assert.ok(!decryptedWithBadPassword);
 
     let exceptionRaised = false;
     try {
-      c.encrypt('yolo', 'password');
+      await c.encrypt('yolo', 'password');
     } catch (_) {
       exceptionRaised = true;
     }
     assert.ok(exceptionRaised);
   });
 
-  it('handles ok malformed data', function () {
-    const decrypted = c.decrypt(
+  it('handles ok malformed data', async function () {
+    const decrypted = await c.decrypt(
       'U2FsdGVkX1/OSNdi0JrLANn9qdNEiXgP20MJgT13CMKC7xKe+sb7x0An6r8lzrYeL2vjoPm2Xi5I3UdBcsgjgh0TR4PypNdDaW1tW8LhFH1wVCh1hacrFsJjoKMBmdCn4IVMwtIffGPptqBrGZl+6kjOc3BBbgq4uaAavFIwTS86WdaRt9qAboBcoPJZxsj37othbZfZfl2GBTCWnR1tOYAbElKWv4lBwNQpX7HqX3wTQkAbamBslsH5FfZRY1c38lOHrZMwNSyxhgspydksTxKkhPqWQu3XWT4GpRoRuVvYlBNvJOCUu2JbiVSp4NiOMSfnA8ahvpCGRNy+qPWsXqmJtz9BwyzedzDkgg6QOqxXz4oOeEJa/XLKiuv3ItsLrZb+sSA6wjB1Cx6/Oh2vW7eiHjCITeC7KUK1fAxVwufLcprNkvG8qFzkOcHxDyzG+sNL0cMipAxhpMX7qIcYcZFoLYkQRQHpOZKZCIAdNTfPGJ7M4cxGM0V+Uuirjyn+KAPJwNElwmPpX8sTQyEqlIlEwVjFXBpz28N5RAGN2zzCzEjD8NVYQJ2QyHj0gfWe',
       'fakePassword',
     );
     assert.ok(!decrypted);
   });
 
-  it('can decrypt cipher created by CryptoJS@3.1.9-1', () => {
+  it('can decrypt cipher created by CryptoJS@3.1.9-1', async () => {
     const data2decrypt = 'really long data string bla bla really long data string bla bla really long data string bla bla';
     const crypted =
       'U2FsdGVkX19fJ4PcLum+tmBpEVNgGGsGKOhRS21cEcYAox+Df8VqmnnG9t2PvpM05eWImCRArorVUUegtcfSq314WMFzxKmiPIl9eqV1aOY+VFGuIBx0VIVsCWix2Q7sRZZwnOVpG5bdveZI0+Azyw==';
-    const decrypted = c.decrypt(crypted, 'password');
+    const decrypted = await c.decrypt(crypted, 'password');
     assert.deepEqual(data2decrypt, decrypted);
   });
 
-  it('can decrypt a ciphertext produced by the OpenSSL CLI (wire-format check)', () => {
+  it('can decrypt a ciphertext produced by the OpenSSL CLI (wire-format check)', async () => {
     // Regenerate this fixture with (copy-pasteable, verified to reproduce the byte string below):
     //
     //   { printf 'Salted__\x01\x02\x03\x04\x05\x06\x07\x08'; \
@@ -56,6 +56,35 @@ describe('unit - encryption', function () {
     // passing `-S <hex>` suppresses the header, so we prepend it manually. Pins the
     // on-disk format against an independent reference beyond crypto-js.
     const crypted = 'U2FsdGVkX18BAgMEBQYHCMqtJuZaneiHrVN/oMPPLvFplovZbI1K+lulGJn7NAvn';
-    assert.strictEqual(c.decrypt(crypted, 'mypassword'), 'hello world this is plaintext');
+    assert.strictEqual(await c.decrypt(crypted, 'mypassword'), 'hello world this is plaintext');
+  });
+});
+
+describe('authenticated vault v2', () => {
+  it('interoperates with Node scrypt and AES-GCM independently of noble', async () => {
+    const { scryptSync, createDecipheriv } = require('crypto');
+    const plain = 'independent vault compatibility';
+    const encrypted = await c.encrypt(plain, 'test password');
+    expect(encrypted.startsWith('RWV2:')).toBe(true);
+    const envelope = Buffer.from(encrypted.slice(5), 'base64');
+    const salt = envelope.subarray(0, 16),
+      nonce = envelope.subarray(16, 28);
+    const key = scryptSync('test password', salt, 32, {
+      N: 32768,
+      r: 8,
+      p: 3,
+      maxmem: 40 * 1024 * 1024,
+    });
+    const decipher = createDecipheriv('aes-256-gcm', key, nonce);
+    decipher.setAAD(Buffer.concat([Buffer.from('RedWallet vault v2: scrypt N32768 r8 p3 AES256GCM'), salt, nonce]));
+    decipher.setAuthTag(envelope.subarray(-16));
+    expect(Buffer.concat([decipher.update(envelope.subarray(28, -16)), decipher.final()]).toString()).toBe(plain);
+    for (const offset of [0, 16, 28, envelope.length - 1]) {
+      const changed = Buffer.from(envelope);
+      changed[offset] ^= 1;
+      expect(await c.decrypt('RWV2:' + changed.toString('base64'), 'test password')).toBe(false);
+    }
+    expect(await c.decrypt(encrypted.replace('RWV2:', 'RWV3:'), 'test password')).toBe(false);
+    expect(await c.decrypt('RWV2:AA==', 'test password')).toBe(false);
   });
 });
