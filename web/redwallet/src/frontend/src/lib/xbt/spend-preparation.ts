@@ -1,6 +1,7 @@
 /** Public data only: exact-parent verification before an immutable local review. */
 import type { BridgeActor } from "@/services/bridgeService";
 import type { AccountSnapshot } from "./account-reader";
+import { ImmatureCoinbaseError } from "./coinbase-maturity";
 import type { IssuedAddresses } from "./issued-addresses";
 import { publicAddress } from "./key-material";
 import { validateSnapshot } from "./public-wallet-storage";
@@ -143,6 +144,7 @@ export class SpendPreparation {
         Math.ceil(Number(fee.satoshisPerKb) / 1000),
       );
       const coins: CandidateCoin[] = [];
+      let immatureRewards = 0;
       const outpoints = new Set<string>();
       const parents = new Map<string, string>();
       for (const branch of candidates)
@@ -178,7 +180,7 @@ export class SpendPreparation {
             if (outpoints.has(key)) throw Error("Duplicate unspent output");
             outpoints.add(key);
             if (u.height === 0n) continue;
-            if (coins.length >= 100)
+            if (coins.length + immatureRewards >= 100)
               throw Error(
                 "Use the native wallet for more than 100 confirmed outputs",
               );
@@ -201,12 +203,23 @@ export class SpendPreparation {
               index: entry.index,
               parentHex: parent,
             };
-            verifyCoin(coin, this.accountXpub, tip);
-            coins.push(coin);
+            try {
+              verifyCoin(coin, this.accountXpub, tip);
+              coins.push(coin);
+            } catch (error) {
+              if (!(error instanceof ImmatureCoinbaseError)) throw error;
+              // Invalid parents still fail closed; only verified immature
+              // mining rewards are excluded from spendable coin selection.
+              immatureRewards++;
+            }
           }
         }
       // Reserve first, then check live history: old hints must not reuse an
       // address already used by another copy of this recovered wallet.
+      if (coins.length === 0 && immatureRewards > 0)
+        throw Error(
+          "Only immature mining rewards were found. Coinbase spending requires 6,480 confirmations under the XBT relay policy.",
+        );
       let change: { address: string; index: number } | null = null;
       for (let attempt = 0; attempt < 20; attempt++) {
         const candidate = await this.book.reserve(

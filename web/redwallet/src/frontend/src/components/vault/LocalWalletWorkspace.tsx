@@ -130,6 +130,7 @@ function ProtectedLocalWorkspace({
       <LocalVaultPanel
         catalog={catalog}
         onUnlocked={(id, account) => {
+          if (selected && selected.id !== id) clearAccountViewSessions(true);
           const name =
             catalog.list().find((vault) => vault.id === id)?.name ??
             `Encrypted wallet ${id.slice(0, 8)}`;
@@ -145,6 +146,7 @@ function ProtectedLocalWorkspace({
         }}
         onLocked={() => setLocked(true)}
         onRemoved={(id) => {
+          clearAccountViewSessions(true);
           if (selected?.id === id) {
             setSelected(null);
             setSnapshot(null);

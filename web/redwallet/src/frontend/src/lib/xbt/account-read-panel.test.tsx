@@ -1,6 +1,12 @@
 import { AccountReadPanel } from "@/components/vault/AccountReadPanel";
 import type { BridgeActor } from "@/services/bridgeService";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearAccountViewSessions } from "./account-view-session";
 import { type AddressMutex, IssuedAddresses } from "./issued-addresses";
@@ -179,7 +185,7 @@ it("preserves partial progress across unmount and resumes without restarting; ac
   expect(screen.getByText("0 addresses checked")).toBeInTheDocument();
 });
 
-it("restores a durable checkpoint after memory reset, pauses on pagehide and only restarts explicitly", async () => {
+it("restores a durable checkpoint after memory reset, continues on pagehide, pauses explicitly and only restarts explicitly", async () => {
   const keys = new XbtKeySession(
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
   );
@@ -224,6 +230,8 @@ it("restores a durable checkpoint after memory reset, pauses on pagehide and onl
     checkpoint,
   );
   fireEvent(window, new Event("pagehide"));
+  expect(fixture.scan.mock.calls.at(-1)?.[0].aborted).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Pause" }));
   await screen.findByText("Account read cancelled");
   expect(loadScanCheckpoint(account.accountXpub)).toEqual(checkpoint);
   fixture.scan.mockRejectedValueOnce(Error("Restart reached fresh reader"));
@@ -232,4 +240,189 @@ it("restores a durable checkpoint after memory reset, pauses on pagehide and onl
   expect(fixture.construct.mock.calls.at(-1)?.[5].checkpoint).toBeNull();
   expect(loadScanCheckpoint(account.accountXpub)).toBeNull();
   view.unmount();
+});
+
+it("keeps a public scan alive across page unmount and stops on provider changes", async () => {
+  const keys = new XbtKeySession(
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  );
+  const account = keys.account;
+  keys.destroy();
+  const actor = {} as BridgeActor;
+  const book = new IssuedAddresses(
+    account.accountXpub,
+    { getItem: () => null, setItem: () => {} },
+    async (_name, action) => action(),
+  );
+  fixture.scan.mockImplementationOnce(
+    (signal: AbortSignal, progress) =>
+      new Promise((_resolve, reject) => {
+        progress({ checked: 7, reused: 0 });
+        signal.addEventListener(
+          "abort",
+          () => reject(Error("Account read cancelled")),
+          { once: true },
+        );
+      }),
+  );
+  const view = render(
+    <AccountReadPanel account={account} actor={actor} addressBook={book} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Scan account" }));
+  await screen.findByText("Reading account… 7 addresses checked");
+  const signal = fixture.scan.mock.calls.at(-1)?.[0];
+  view.unmount();
+  expect(signal.aborted).toBe(false);
+  render(
+    <AccountReadPanel account={account} actor={actor} addressBook={book} />,
+  );
+  expect(
+    screen.getByText("Reading account… 7 addresses checked"),
+  ).toBeInTheDocument();
+  const { PROVIDER_EVENT } = await import("@/services/networkGeneration");
+  fireEvent(window, new Event(PROVIDER_EVENT));
+  await screen.findByText("Account read cancelled");
+  expect(signal.aborted).toBe(true);
+  fireEvent(window, new Event("pageshow"));
+  expect(fixture.scan).toHaveBeenCalledTimes(1);
+});
+
+it("retries a suspended public read once on return and never loops", async () => {
+  const keys = new XbtKeySession(
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  );
+  const account = keys.account;
+  keys.destroy();
+  const book = new IssuedAddresses(
+    account.accountXpub,
+    { getItem: () => null, setItem: () => {} },
+    async (_name, action) => action(),
+  );
+  let fail: (error: Error) => void = () => {};
+  fixture.scan.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  fixture.scan.mockRejectedValueOnce(
+    Error("Account read timed out; no empty result was assumed"),
+  );
+  render(
+    <AccountReadPanel
+      account={account}
+      actor={{} as BridgeActor}
+      addressBook={book}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Scan account" }));
+  fireEvent(window, new Event("pagehide"));
+  fail(Error("Direct Fulcrum connection closed"));
+  await screen.findByText("Direct Fulcrum connection closed");
+  fireEvent(window, new Event("pageshow"));
+  await screen.findByText(
+    "Account read timed out; no empty result was assumed",
+  );
+  fireEvent(window, new Event("pageshow"));
+  expect(fixture.scan).toHaveBeenCalledTimes(2);
+});
+
+it("saves completion after navigation without retaining an unlocked key session", async () => {
+  const { loadPublicSnapshot } = await import("./public-wallet-storage");
+  const keys = new XbtKeySession(
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  );
+  const account = keys.account;
+  keys.destroy();
+  const actor = {} as BridgeActor;
+  const book = new IssuedAddresses(
+    account.accountXpub,
+    { getItem: () => null, setItem: () => {} },
+    async (_name, action) => action(),
+  );
+  let finish: (value: unknown) => void = () => {};
+  fixture.scan.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const view = render(
+    <AccountReadPanel account={account} actor={actor} addressBook={book} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Scan account" }));
+  view.unmount();
+  const result = {
+    confirmed: 0n,
+    unconfirmed: 0n,
+    height: 975151,
+    observedAt: Date.now(),
+    history: [],
+    branches: [0, 1].map((branch) => ({
+      used: [],
+      scanned: 20,
+      next: {
+        branch,
+        index: 0,
+        address: publicAddress(account.accountXpub, branch as 0 | 1, 0),
+      },
+    })),
+  };
+  await act(async () => finish(result));
+  expect(loadPublicSnapshot(account.accountXpub)).toEqual(result);
+  render(
+    <AccountReadPanel account={account} actor={actor} addressBook={book} />,
+  );
+  expect(screen.getByRole("button", { name: "Refresh account" })).toBeEnabled();
+  expect(fixture.scan).toHaveBeenCalledTimes(1);
+});
+
+it("saves new checkpoints after an explicit pause and resume", async () => {
+  const keys = new XbtKeySession(
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  );
+  const account = keys.account;
+  keys.destroy();
+  const book = new IssuedAddresses(
+    account.accountXpub,
+    { getItem: () => null, setItem: () => {} },
+    async (_name, action) => action(),
+  );
+  fixture.scan.mockImplementation(
+    (signal: AbortSignal) =>
+      new Promise((_resolve, reject) => {
+        signal.addEventListener(
+          "abort",
+          () => reject(Error("Account read cancelled")),
+          { once: true },
+        );
+      }),
+  );
+  render(
+    <AccountReadPanel
+      account={account}
+      actor={{} as BridgeActor}
+      addressBook={book}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Scan account" }));
+  const first = {
+    startedAt: Date.now(),
+    gap: 20,
+    cap: 1000,
+    history: [[account.firstAddress, []]],
+  };
+  fixture.construct.mock.calls.at(-1)?.[5].onCheckpoint(first);
+  fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+  await screen.findByText("Account read cancelled");
+  fireEvent.click(screen.getByRole("button", { name: "Resume scan" }));
+  expect(fixture.construct.mock.calls.at(-1)?.[5].checkpoint).toEqual(first);
+  const second = {
+    ...first,
+    history: [...first.history, [publicAddress(account.accountXpub, 0, 1), []]],
+  };
+  fixture.construct.mock.calls.at(-1)?.[5].onCheckpoint(second);
+  expect(loadScanCheckpoint(account.accountXpub)).toEqual(second);
+  fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+  await screen.findByText("Account read cancelled");
 });

@@ -339,13 +339,14 @@ export function SettingsPage() {
           <SupportSetting />
           <SettingsSection
             id="about"
-            title="RedWallet 0.40"
+            title="RedWallet 0.41"
             description="Preview release · XBT (BLAKE2b)"
           >
             <p className="text-sm text-muted-foreground">
               Version 1.0 is reserved for the first working, full-featured
-              release. This preview supports native SegWit account 0; Taproot,
-              legacy spending and coinbase inputs are not supported.
+              release. This preview supports native SegWit account 0; Taproot
+              and legacy spending are not supported. Mature native SegWit mining
+              rewards are supported under the 6,480-block relay rule.
             </p>
           </SettingsSection>
         </div>

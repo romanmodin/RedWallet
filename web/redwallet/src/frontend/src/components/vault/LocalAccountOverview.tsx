@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ACCOUNT_SCAN_EVENT } from "@/lib/xbt/account-view-session";
 import {
   type PendingPayment,
   PendingPayments,
@@ -51,7 +52,11 @@ export function LocalAccountOverview({
     setView(read());
     const update = () => setView(read());
     window.addEventListener("storage", update);
-    return () => window.removeEventListener("storage", update);
+    window.addEventListener(ACCOUNT_SCAN_EVENT, update);
+    return () => {
+      window.removeEventListener("storage", update);
+      window.removeEventListener(ACCOUNT_SCAN_EVENT, update);
+    };
   }, [read]);
   const { snapshot, receipts, pending, damaged } = view;
   const sentIds = new Set(receipts.map((payment) => payment.txid));

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { BridgeActor } from "@/services/bridgeService";
+import { Transaction, address, script } from "bitcoinjs-lib";
 import { describe, expect, it, vi } from "vitest";
 import type { AccountSnapshot } from "./account-reader";
 import { IssuedAddresses } from "./issued-addresses";
@@ -211,4 +212,63 @@ describe("live public spend preparation", () => {
     ).rejects.toThrow();
     expect(f.book.read()[1]).toBe(-1);
   });
+});
+
+it("skips verified immature rewards while ordinary coins remain spendable, and rejects forged age", async () => {
+  const f = setup();
+  const input = fixture.plan.inputs[0];
+  const reward = new Transaction();
+  reward.version = 2;
+  reward.addInput(
+    new Uint8Array(32),
+    0xffffffff,
+    undefined,
+    script.compile([script.number.encode(974700)]),
+  );
+  reward.addOutput(
+    address.toOutputScript(
+      publicAddress(fixture.plan.accountXpub, input.branch, input.index),
+    ),
+    200000n,
+  );
+  const ordinaryRead = f.actor.getAddressUtxos.getMockImplementation()!;
+  const ordinaryRaw = f.actor.getRawTransaction.getMockImplementation()!;
+  let fakeHeight = 974700n;
+  let onlyReward = false;
+  f.actor.getAddressUtxos.mockImplementation(async (addr: string) => {
+    const result = await ordinaryRead(addr);
+    if (
+      addr ===
+      publicAddress(fixture.plan.accountXpub, input.branch, input.index)
+    )
+      result.ok.utxos = [
+        ...(onlyReward ? [] : result.ok.utxos),
+        { txid: reward.getId(), vout: 0, value: 200000n, height: fakeHeight },
+      ];
+    else if (onlyReward) result.ok.utxos = [];
+    return result;
+  });
+  f.actor.getRawTransaction.mockImplementation(async (...args: unknown[]) =>
+    args[0] === reward.getId()
+      ? { __kind__: "ok", ok: { hex: reward.toHex() } }
+      : ordinaryRaw(),
+  );
+  const result = await f.reader.prepare(
+    f.snapshot,
+    fixture.plan.destination,
+    "0.00090000",
+    1,
+  );
+  expect(
+    result.review.plan.inputs.some((coin) => coin.txid === reward.getId()),
+  ).toBe(false);
+  fakeHeight = 960000n;
+  await expect(
+    f.reader.prepare(f.snapshot, fixture.plan.destination, "0.00090000", 1),
+  ).rejects.toThrow(/height does not match/);
+  fakeHeight = 974700n;
+  onlyReward = true;
+  await expect(
+    f.reader.prepare(f.snapshot, fixture.plan.destination, "0.00090000", 1),
+  ).rejects.toThrow(/Only immature mining rewards/);
 });

@@ -338,9 +338,11 @@ export function SendPaymentPanel({
         your explicit confirmation.
       </p>
       <p className="text-sm text-muted-foreground">
-        XBT only. Native SegWit recipients and confirmed, non-coinbase inputs
-        are supported. This is not a Bitcoin BTC payment. Keys sign locally;
-        only signed transaction bytes reach the bridge.
+        XBT only. Native SegWit recipients and confirmed inputs are supported.
+        Mining rewards must satisfy the 6,480-block relay maturity rule;
+        immature rewards are excluded when preparing a payment. This is not a
+        Bitcoin BTC payment. Keys sign locally; only signed transaction bytes
+        reach the bridge.
       </p>
       {error && (
         <p role="alert" className="break-words text-sm text-red-400">

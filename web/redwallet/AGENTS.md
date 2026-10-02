@@ -1,3 +1,15 @@
+# 0.41 prepared — public scan jobs and coinbase maturity
+
+User authorized both changes. Public-only jobs survive route unmount/key lock
+and hidden windows while the browser executes. One read-only return retry;
+explicit Pause/provider/vault invalidation stop jobs. iPhone suspension is not
+guaranteed. Mature P2WPKH coinbase supported with6,480-block relay policy,
+raw-parent BIP34 height verification and immature exclusion. Consensus window
+is separate from permanent relay policy.35focused/typecheck/Biome224/build/audit
+PASS. Initial full417run had one comment-URL CSP static check failure, fixed by
+moving citation into report without relaxing CSP. Final CI/import/export/live
+publication pending; public still0.40. See V041-BACKGROUND-AND-MATURITY.md.
+
 # 0.40 additional lifecycle testing PASS — 2026-10-02
 
 Several-hours-paused public fixture resumed from9to41addresses and completed at

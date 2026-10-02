@@ -1,7 +1,7 @@
 import { Buffer } from "buffer";
 /** Offline, P2WPKH-only transaction review/signing. No network or broadcast. */
 import { sha256 } from "@noble/hashes/sha2";
-import { Psbt, Transaction, address, networks } from "bitcoinjs-lib";
+import { Psbt, Transaction, address, networks, script } from "bitcoinjs-lib";
 import {
   type XbtKeySession,
   publicAddress,
@@ -12,6 +12,8 @@ import {
   finalizeUnifiedP2wpkhInput,
   signUnifiedP2wpkhInput,
 } from "./unified-psbt";
+
+import { ImmatureCoinbaseError, coinbaseMaturity } from "./coinbase-maturity";
 
 const MAX_MONEY = 2_100_000_000_000_000n;
 const DUST = 294n;
@@ -102,12 +104,6 @@ export function verifyCoin(
   const parent = Transaction.fromHex(coin.parentHex);
   if (parent.getId() !== coin.txid)
     throw Error("Parent transaction ID mismatch");
-  if (
-    parent.ins.length === 1 &&
-    parent.ins[0].index === 0xffffffff &&
-    parent.ins[0].hash.every((v) => v === 0)
-  )
-    throw Error("Coinbase spending is not enabled");
   const output = parent.outs[coin.vout];
   const expected = p2wpkh(publicAddress(accountXpub, coin.branch, coin.index));
   const value = satoshis(coin.value);
@@ -118,6 +114,19 @@ export function verifyCoin(
     !equal(output.script, expected)
   )
     throw Error("Parent output or wallet ownership mismatch");
+  if (parent.isCoinbase()) {
+    // Every native SegWit coinbase on this chain is post-BIP34. Authenticate
+    // the claimed creation height from the txid-bound coinbase script too.
+    // This prevents a provider from aging a reward by supplying a false height.
+    if (coin.height < 227931 || parent.version < 2)
+      throw Error("Unsupported coinbase height encoding");
+    const prefix = script.compile([script.number.encode(coin.height)]);
+    if (!equal(parent.ins[0].script.slice(0, prefix.length), prefix))
+      throw Error("Coinbase height does not match raw parent");
+    const maturity = coinbaseMaturity(coin.height, tipHeight);
+    if (maturity.remaining > 0)
+      throw new ImmatureCoinbaseError(maturity.remaining);
+  }
   return value;
 }
 function estimatedFee(inputs: number, outputs: number, rate: number): bigint {

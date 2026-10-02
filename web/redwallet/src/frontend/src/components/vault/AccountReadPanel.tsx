@@ -1,17 +1,23 @@
 import { Button } from "@/components/ui/button";
-import { AccountReader, type AccountSnapshot } from "@/lib/xbt/account-reader";
-import { accountViewSession } from "@/lib/xbt/account-view-session";
+import type { AccountSnapshot } from "@/lib/xbt/account-reader";
+import {
+  accountViewSession,
+  notifyAccountSession,
+  startAccountScan,
+} from "@/lib/xbt/account-view-session";
 import type { IssuedAddresses } from "@/lib/xbt/issued-addresses";
 import type { PublicXbtAccount } from "@/lib/xbt/key-material";
-import { savePublicSnapshot } from "@/lib/xbt/public-wallet-storage";
-import {
-  clearScanCheckpoint,
-  saveScanCheckpoint,
-} from "@/lib/xbt/scan-checkpoint";
+import { clearScanCheckpoint } from "@/lib/xbt/scan-checkpoint";
 import type { BridgeActor } from "@/services/bridgeService";
 import { QRCodeSVG } from "qrcode.react";
 /** Public account view for the local vault workspace; no key material enters this component. */
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { ManualFiatEstimate } from "../settings/ManualFiatEstimate";
 import { AccountHistory } from "./AccountHistory";
 
@@ -32,13 +38,23 @@ export function AccountReadPanel({
     () => accountViewSession(actor, account.accountXpub),
     [actor, account.accountXpub],
   );
-  const [snapshot, setSnapshot] = useState<AccountSnapshot | null>(
-    session.snapshot,
+  useSyncExternalStore(
+    (listener) => {
+      session.listeners.add(listener);
+      return () => {
+        session.listeners.delete(listener);
+      };
+    },
+    () => session.revision,
   );
-  const [checked, setChecked] = useState(session.checked);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [storageWarning, setStorageWarning] = useState("");
+  const snapshot = session.snapshot;
+  const checked = session.checked;
+  const [reserving, setBusy] = useState(false);
+  const busy = session.busy || reserving;
+  const [localError, setError] = useState("");
+  const error = localError || session.error;
+  const [localWarning, setStorageWarning] = useState("");
+  const storageWarning = localWarning || session.warning;
   const [receive, setReceive] = useState<{
     address: string;
     index: number;
@@ -53,126 +69,35 @@ export function AccountReadPanel({
     // SpendPreparation always verifies current coins, parents, fees and the pin.
     notify.current?.(busy ? null : snapshot);
   }, [snapshot, busy]);
-  const reader = useRef<AccountReader | null>(session.reader);
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);
 
-  // Restore the actor-scoped reader or durable public checkpoint. Keep its original timestamp.
   useEffect(() => {
-    reader.current = session.reader;
-    setSnapshot(session.snapshot);
     setReceive(session.receive);
-    setChecked(session.checked);
     setGap(session.gap);
     setCap(session.cap);
-    setBusy(false);
     return () => {
       generation.current++;
       request.current?.abort();
     };
   }, [session]);
-  useEffect(() => {
-    const pause = () => request.current?.abort();
-    const visibility = () => {
-      if (document.visibilityState !== "visible") pause();
-    };
-    window.addEventListener("pagehide", pause);
-    document.addEventListener("visibilitychange", visibility);
-    return () => {
-      window.removeEventListener("pagehide", pause);
-      document.removeEventListener("visibilitychange", visibility);
-    };
-  }, []);
   function discardCheckpoint() {
     session.checkpoint = null;
     try {
       clearScanCheckpoint(account.accountXpub);
+      notifyAccountSession(session);
     } catch {
       setStorageWarning(
         "This browser could not clear the saved scan. Keep this tab open.",
       );
     }
   }
-  async function scan(fresh: boolean) {
+  function scan(fresh: boolean) {
     if (busy) return;
-    const operation = ++generation.current;
-    const abort = new AbortController();
-    request.current = abort;
-    setBusy(true);
     setError("");
-    // Keep the last completed view visible while refreshing, but invalidate spending.
-    notify.current?.(null);
-    setCopied(false);
-    try {
-      if (fresh || !reader.current) {
-        if (fresh) discardCheckpoint();
-        reader.current = new AccountReader(
-          account.accountXpub,
-          actor,
-          {
-            gapLimit: gap,
-            maxAddressesPerBranch: cap,
-            issuedThrough: addressBook.read(),
-          },
-          undefined,
-          undefined,
-          {
-            checkpoint: session.checkpoint,
-            onCheckpoint: (checkpoint) => {
-              session.checkpoint = checkpoint;
-              try {
-                saveScanCheckpoint(account.accountXpub, checkpoint);
-              } catch {
-                setStorageWarning(
-                  "Scan progress could not be saved on this device. Keep this tab open to resume.",
-                );
-              }
-            },
-          },
-        );
-        session.reader = reader.current;
-        session.gap = gap;
-        session.cap = cap;
-        session.checked = session.checkpoint?.history.length ?? 0;
-        setChecked(session.checked);
-      }
-      const result = await reader.current.scan(abort.signal, (value) => {
-        if (generation.current === operation) {
-          session.checked = value.checked;
-          setChecked(value.checked);
-        }
-      });
-      if (generation.current === operation && !abort.signal.aborted) {
-        session.reader = null;
-        reader.current = null;
-        session.snapshot = result;
-        setSnapshot(result);
-        try {
-          savePublicSnapshot(account.accountXpub, result);
-          discardCheckpoint();
-        } catch {
-          setError(
-            "Scan completed, but this browser could not save it. Keep this tab open; another scan may be needed after closing it.",
-          );
-        }
-      }
-    } catch (e) {
-      if (generation.current === operation)
-        setError(
-          e instanceof Error
-            ? /Provider changed|connection closed|timed out|still finishing/.test(
-                e.message,
-              )
-              ? "The connection was interrupted. Use Reconnect selected connection above, then Resume scan. Your saved progress and completed results are retained."
-              : e.message
-            : "Account discovery failed. No empty wallet was assumed.",
-        );
-    } finally {
-      if (generation.current === operation) {
-        setBusy(false);
-        request.current = null;
-      }
-    }
+    session.gap = gap;
+    session.cap = cap;
+    startAccountScan(session, actor, account.accountXpub, addressBook, fresh);
   }
   async function reserveReceive() {
     if (!snapshot || busy) return;
@@ -249,8 +174,8 @@ export function AccountReadPanel({
             disabled={busy}
             value={gap}
             onChange={(e) => {
+              session.stop?.();
               setGap(Number(e.target.value));
-              reader.current = null;
               session.reader = null;
               discardCheckpoint();
             }}
@@ -267,8 +192,8 @@ export function AccountReadPanel({
             disabled={busy}
             value={cap}
             onChange={(e) => {
+              session.stop?.();
               setCap(Number(e.target.value));
-              reader.current = null;
               session.reader = null;
               discardCheckpoint();
             }}
@@ -287,15 +212,15 @@ export function AccountReadPanel({
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={busy}
-          onClick={() => void scan(!reader.current && !session.checkpoint)}
+          onClick={() => void scan(!session.reader && !session.checkpoint)}
         >
-          {reader.current || session.checkpoint
+          {session.reader || session.checkpoint
             ? "Resume scan"
             : snapshot
               ? "Refresh account"
               : "Scan account"}
         </Button>
-        {(reader.current || session.checkpoint) && (
+        {(session.reader || session.checkpoint) && (
           <Button
             variant="outline"
             disabled={busy}
@@ -304,8 +229,14 @@ export function AccountReadPanel({
             Restart scan
           </Button>
         )}
-        {busy && (
-          <Button variant="outline" onClick={() => request.current?.abort()}>
+        {(busy || session.stop) && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              session.stop?.();
+              request.current?.abort();
+            }}
+          >
             Pause
           </Button>
         )}
@@ -327,8 +258,11 @@ export function AccountReadPanel({
       {!snapshot && (
         <p className="text-sm text-muted-foreground">
           The new receive-address button becomes available when the scan
-          finishes. Switching away pauses the scan. Resume continues from saved
-          public observations; Restart scan checks every address again.
+          finishes. Public scanning continues with keys locked and when you
+          leave this page, while the browser allows it. Your phone may suspend a
+          minimized app; interrupted reads retry once when you return. Saved
+          progress remains available through Resume scan. Restart scan checks
+          every address again.
         </p>
       )}
       {snapshot && (

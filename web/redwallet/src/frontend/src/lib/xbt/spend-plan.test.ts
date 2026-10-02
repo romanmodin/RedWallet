@@ -1,4 +1,4 @@
-import { Transaction, address } from "bitcoinjs-lib";
+import { Transaction, address, script } from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 import { XbtKeySession, publicAddress } from "./key-material";
 import {
@@ -68,17 +68,35 @@ describe("offline verified transaction planning", () => {
       expect(() => verifyCoin(bad, args.accountXpub, args.tipHeight)).toThrow();
     keys.destroy();
   });
-  it("rejects coinbase outputs until the maturity integration is implemented", () => {
+  it("accepts mature coinbase, rejects the one-block boundary and verifies its encoded height", () => {
     const { keys, parent, coin, args } = fixture();
+    parent.version = 2;
     parent.ins[0].hash.fill(0);
     parent.ins[0].index = 0xffffffff;
+    parent.ins[0].script = script.compile([script.number.encode(973440)]);
+    const reward = {
+      ...coin,
+      height: 973440,
+      parentHex: parent.toHex(),
+      txid: parent.getId(),
+    };
+    expect(() => verifyCoin(reward, args.accountXpub, 979918)).toThrow(
+      /1 more blocks/,
+    );
+    expect(verifyCoin(reward, args.accountXpub, 979919)).toBe(100000n);
     expect(() =>
-      verifyCoin(
-        { ...coin, parentHex: parent.toHex(), txid: parent.getId() },
-        args.accountXpub,
-        args.tipHeight,
-      ),
-    ).toThrow("Coinbase");
+      verifyCoin({ ...reward, height: 960000 }, args.accountXpub, 979919),
+    ).toThrow(/height does not match/);
+    const plan = planSpend({ ...args, coins: [reward], tipHeight: 979919 });
+    expect(
+      Transaction.fromHex(
+        signReviewedPlan(plan, reviewDigest(plan), keys).hex,
+      ).ins[0].witness[0].at(-1),
+    ).toBe(0x21);
+    const youngerTip = { ...plan, tipHeight: 979918 };
+    expect(() =>
+      signReviewedPlan(youngerTip, reviewDigest(youngerTip), keys),
+    ).toThrow(/immature/);
     keys.destroy();
   });
   it("rejects duplicate inputs, dust, insufficient funds and unbounded fees", () => {

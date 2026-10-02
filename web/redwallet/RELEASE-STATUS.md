@@ -1,4 +1,4 @@
-# RedWallet Web release status — 2026-10-01
+# RedWallet Web release status — 2026-10-02
 
 Public release: 0.40, Caffeine 43. Web branch: `web/caffeine-bridge-deployment`.
 This record supersedes earlier watch-only/unmounted statements in foundation
@@ -11,6 +11,13 @@ public scans checkpoint on this device and resume across reload/reconnect. Resum
 is primary; Restart explicitly rereads addresses. Background pauses and locks keys.
 The original observation time stays visible; cached history does not establish
 current spendability. See V040 for401frontend/80bridge clean CI and live checks.
+
+## Prepared update (not yet public)
+
+0.41 adds page-independent public scans while keys remain locked, bounded
+resume-on-return, and mature native SegWit mining rewards under the6,480-block
+relay rule. Exact rules, tests and limits: [V041](V041-BACKGROUND-AND-MATURITY.md).
+Publication still requires the actual Caffeine export/hash and live checks.
 
 ## Completed verification
 
@@ -38,7 +45,7 @@ See V033, V034, V037, V037-FINAL and V038 reports for exact evidence and scope.
 - Native SegWit account 0 only. Taproot, legacy-input spending, unconfirmed and
   coinbase inputs, RBF UI and multi-account recovery remain future features.
 - Recovery is bounded by the selected unused-address gap and per-branch limit.
-- Completed scans are saved; unfinished progress can resume only in the same tab.
+- Completed and unfinished public scans are saved and can resume after reload.
 - Backup verification used simulated primary failure. No real production outage
   or funded backup send was induced. Public backup availability is controlled
   by its operator, not guaranteed by RedWallet.
