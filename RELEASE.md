@@ -129,13 +129,39 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   unit tests. Physical iPhone QA and the complete phone/Fulcrum send flow remain
   open; this tester release does not close those gates.
 
+### Security follow-up source and pending tester packages (2026-10-02)
+
+- The security changes are pushed on PR #3. Public reviewed source:
+  `25f3ca9199cc2e9322b8017e9c05e816fae1c6f0`. All 74 GitHub unit suites passed:
+  686 tests passed, one skipped; lint passed. Native device checks are pending.
+- Approved private signing source:
+  `a56396b1ede35b19df32118a05b40fa9dd5da735`. All 937 production entries
+  (Git file mode, blob ID and path) match the public source. Production tree
+  SHA-256: `64b1fac2f1f6f1f4ea21b203b9a71ba6a08a2b789b4c1efe29688a8f37b78fea`.
+  The mapping excludes workflows, tests, Markdown and store metadata. It is
+  source equivalence, not a claim of reproducible binary equivalence.
+- Both signing and upload jobs verify the pinned production tree before
+  installing dependencies. Source and IPA verification use isolated Python
+  and the public orchestration scripts, never scripts from the private source.
+  Package receipts include the source mapping and the IPA hash.
+- These changes are not yet in the existing Android APK or TestFlight build.
+  New package version numbers, run IDs and hashes will be recorded after the
+  builds and upload finish; an upload alone is not tester availability.
+- Follow-up device checks include authenticated TLS after restart, rejecting
+  an impostor even with the correct public checkpoint, password/decoy storage,
+  native cache migration, restored history, and an XBT cold-wallet PSBT round
+  trip. Physical signing compatibility and the reported missing-history case
+  remain open. Use disposable wallets for exploratory testing.
+- Password storage upgrades to scrypt/AES-GCM. Earlier app versions cannot
+  read upgraded storage: retain an offline recovery backup and do not downgrade.
+
 ## Build and upload
 
 1. Review the pinned private source revision and the exact public `main`
    workflow revision, then dispatch **Build approved private iOS source** with
    `upload_to_testflight=false`. Approve the signing environment after checking
-   both revisions. An early macOS check parses the certificate requirement
-   before dependency installation and compilation.
+   both revisions. Early checks verify the pinned production source and parse the certificate
+   requirement before dependency installation and compilation.
 2. The macOS verifier requires an Apple certificate from the configured team,
    verifies each app/extension identifier and profile-authorized leaf
    certificate, and checks entitlements and arm64 architecture. It emits an IPA
