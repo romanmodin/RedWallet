@@ -669,6 +669,7 @@ const WalletDetails: React.FC = () => {
                   title={`${loc.wallets.details_use_with_hardware_wallet} (XBT Unified)`}
                   switch={{
                     value: externalSignerEnabled,
+                    testID: 'XbtExternalSignerSwitch',
                     onValueChange: async (enabled: boolean) => {
                       if (
                         enabled &&

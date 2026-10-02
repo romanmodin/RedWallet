@@ -84,12 +84,14 @@ type MempoolTransaction = {
 type Peer = {
   host: string;
   ssl?: number;
+  tlsCa?: string;
   tcp?: number;
 };
 
 export const ELECTRUM_HOST = 'electrum_host';
 export const ELECTRUM_TCP_PORT = 'electrum_tcp_port';
 export const ELECTRUM_SSL_PORT = 'electrum_ssl_port';
+export const ELECTRUM_TLS_CA = 'electrum_tls_ca';
 export const ELECTRUM_SERVER_HISTORY = 'electrum_server_history';
 const ELECTRUM_CONNECTION_DISABLED = 'electrum_disabled';
 // RedWallet must be configured with an XBT-compatible Electrum server.
@@ -222,6 +224,7 @@ export const getPreferredServer = async (): Promise<ElectrumServerItem | undefin
     const host = (await DefaultPreference.get(ELECTRUM_HOST)) as string;
     const tcpPort = await DefaultPreference.get(ELECTRUM_TCP_PORT);
     const sslPort = await DefaultPreference.get(ELECTRUM_SSL_PORT);
+    const tlsCa = (await DefaultPreference.get(ELECTRUM_TLS_CA)) as string | undefined;
 
     console.log('[electrum] Getting preferred server:', {
       host,
@@ -238,6 +241,7 @@ export const getPreferredServer = async (): Promise<ElectrumServerItem | undefin
       host,
       tcp: tcpPort ? Number(tcpPort) : undefined,
       ssl: sslPort ? Number(sslPort) : undefined,
+      tlsCa: sslPort ? tlsCa : undefined,
     };
   } catch (error) {
     console.error('[electrum] Error in getPreferredServer:', error);
@@ -252,6 +256,7 @@ export const removePreferredServer = async () => {
     await DefaultPreference.clear(ELECTRUM_HOST);
     await DefaultPreference.clear(ELECTRUM_TCP_PORT);
     await DefaultPreference.clear(ELECTRUM_SSL_PORT);
+    await DefaultPreference.clear(ELECTRUM_TLS_CA);
   } catch (error) {
     console.error('[electrum] Error in removePreferredServer:', error);
   }
@@ -302,6 +307,7 @@ async function getSavedPeer(): Promise<Peer | null> {
     const host = (await DefaultPreference.get(ELECTRUM_HOST)) as string;
     const tcpPort = await DefaultPreference.get(ELECTRUM_TCP_PORT);
     const sslPort = await DefaultPreference.get(ELECTRUM_SSL_PORT);
+    const tlsCa = (await DefaultPreference.get(ELECTRUM_TLS_CA)) as string | undefined;
 
     console.log('[electrum] Getting saved peer:', { host, tcpPort, sslPort });
 
@@ -310,7 +316,7 @@ async function getSavedPeer(): Promise<Peer | null> {
     }
 
     if (sslPort) {
-      return { host, ssl: Number(sslPort) };
+      return { host, ssl: Number(sslPort), tlsCa };
     }
 
     if (tcpPort) {
@@ -378,7 +384,14 @@ async function attemptConnectOnce(): Promise<{
 
   try {
     console.log('[electrum] begin connection:', JSON.stringify(usingPeer));
-    const client = new ElectrumClient(net, tls, usingPeer.ssl || usingPeer.tcp, usingPeer.host, usingPeer.ssl ? 'tls' : 'tcp');
+    const client = new ElectrumClient(
+      net,
+      tls,
+      usingPeer.ssl || usingPeer.tcp,
+      usingPeer.host,
+      usingPeer.ssl ? 'tls' : 'tcp',
+      usingPeer.ssl && usingPeer.tlsCa ? { ca: usingPeer.tlsCa } : undefined,
+    );
     mainClient = client;
 
     // Live-socket errors after a successful handshake: schedule a single
@@ -605,6 +618,7 @@ export async function presentResetToDefaultsAlert(): Promise<boolean> {
             await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
             await DefaultPreference.clear(ELECTRUM_HOST);
             await DefaultPreference.clear(ELECTRUM_SSL_PORT);
+            await DefaultPreference.clear(ELECTRUM_TLS_CA);
             await DefaultPreference.clear(ELECTRUM_TCP_PORT);
           } catch (e) {
             console.log('[electrum]', e); // Must be running on Android
@@ -624,6 +638,7 @@ export async function presentResetToDefaultsAlert(): Promise<boolean> {
             await DefaultPreference.clear(ELECTRUM_SERVER_HISTORY);
             await DefaultPreference.clear(ELECTRUM_HOST);
             await DefaultPreference.clear(ELECTRUM_SSL_PORT);
+            await DefaultPreference.clear(ELECTRUM_TLS_CA);
             await DefaultPreference.clear(ELECTRUM_TCP_PORT);
           } catch (e) {
             console.log('[electrum]', e); // Must be running on Android
@@ -1446,8 +1461,15 @@ export const calculateBlockTime = function (height: number): number {
 /**
  * @returns {Promise<boolean>} Whether provided host:port is a valid electrum server
  */
-export const testConnection = async function (host: string, tcpPort?: number, sslPort?: number): Promise<boolean> {
-  const client = new ElectrumClient(net, tls, sslPort || tcpPort, host, sslPort ? 'tls' : 'tcp');
+export const testConnection = async function (host: string, tcpPort?: number, sslPort?: number, tlsCa?: string): Promise<boolean> {
+  const client = new ElectrumClient(
+    net,
+    tls,
+    sslPort || tcpPort,
+    host,
+    sslPort ? 'tls' : 'tcp',
+    sslPort && tlsCa ? { ca: tlsCa } : undefined,
+  );
 
   client.onError = () => {}; // mute
   let timeoutId: NodeJS.Timeout | undefined;

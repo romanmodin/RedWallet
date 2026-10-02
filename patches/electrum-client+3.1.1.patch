@@ -1,0 +1,87 @@
+diff --git a/node_modules/electrum-client/lib/client.js b/node_modules/electrum-client/lib/client.js
+--- a/node_modules/electrum-client/lib/client.js
++++ b/node_modules/electrum-client/lib/client.js
+@@ -41,18 +41,24 @@
+         if (!this.tls) {
+           throw new Error('tls package could not be loaded');
+         }
+-        this.connUnsecure = new this.net.Socket();
+-        this.conn = new this.tls.TLSSocket(this.connUnsecure, { rejectUnauthorized: false });
+-        break;
++        if (options && options.rejectUnauthorized === false) throw new Error('Unverified Electrum TLS is forbidden');
++        this.status = 0;
++        this.conn = undefined;
++        return;
+       default:
+         throw new Error('unknown protocol');
+     }
+ 
++    this.configureSocket();
++    this.status = 0;
++  }
++
++  configureSocket() {
+     this.conn.setTimeout(TIMEOUT);
+     this.conn.setEncoding('utf8');
+     this.conn.setKeepAlive(true, 0);
+     this.conn.setNoDelay(true);
+-    this.conn.on('connect', () => {
++    this.conn.on(this._protocol === 'tcp' ? 'connect' : 'secureConnect', () => {
+       this.conn.setTimeout(0);
+       this.onConnect();
+     });
+@@ -70,11 +76,38 @@
+   }
+ 
+   connect() {
+-    if (this.status === 1) {
+-      return Promise.resolve();
+-    }
+-    this.status = 1;
+-    return this.connectSocket(this.connUnsecure || this.conn, this.port, this.host);
++    if (this.status === 1) return Promise.resolve();
++    if (this._connectPromise) return this._connectPromise;
++    if (this._protocol === 'tcp') {
++      this.status = 1;
++      return this.connectSocket(this.conn, this.port, this.host);
++    }
++    const factory = this.tls.connectTLS || this.tls.connect;
++    if (typeof factory !== 'function') return Promise.reject(new Error('Secure TLS factory is unavailable'));
++    const pending = new Promise((resolve, reject) => {
++      this.conn = factory.call(this.tls, {
++        ...this._options, port: +this.port, host: this.host,
++        servername: this.host, rejectUnauthorized: true,
++      });
++      this.configureSocket();
++      const socket = this.conn;
++      const cleanup = () => {
++        socket.removeListener('error', fail);
++        socket.removeListener('close', closed);
++        socket.removeListener('secureConnect', ready);
++        socket.removeListener('timeout', timedOut);
++      };
++      const fail = error => { cleanup(); this.status = 0; socket.destroy(); reject(error); };
++      const closed = () => fail(new Error('TLS closed before authentication'));
++      const timedOut = () => fail(new Error('TLS authentication timed out'));
++      const ready = () => { cleanup(); this.status = 1; resolve(); };
++      socket.once('error', fail);
++      socket.once('close', closed);
++      socket.once('timeout', timedOut);
++      socket.once('secureConnect', ready);
++    });
++    this._connectPromise = pending.finally(() => { this._connectPromise = undefined; });
++    return this._connectPromise;
+   }
+ 
+   connectSocket(conn, port, host) {
+@@ -90,9 +123,7 @@
+   }
+ 
+   close() {
+-    if (this.status === 0) {
+-      return;
+-    }
++    if (!this.conn) return;
+     this.conn.end();
+     this.conn.destroy();
+     this.status = 0;

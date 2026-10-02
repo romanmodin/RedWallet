@@ -4,6 +4,9 @@ This change responds to the independent source review of PR #1. It is a source u
 
 ## Changes
 
+- Electrum TLS waits for authenticated TLS completion before allowing RPCs. Both normal connections and settings tests use certificate-chain and hostname verification with no insecure fallback. The pinned client and native socket dependencies are patched: Android retains the original hostname, enables endpoint identification, and checks leaf expiry; iOS evaluates SSL trust with the expected hostname, including explicitly configured private anchors. Settings can store one PEM CA/server certificate obtained through a trusted channel; leaving it blank uses platform system trust. Intentional TCP configuration remains available for an authenticated private network.
+- Coinbase UTXOs with contradictory parent confirmation counts are filtered and refused at signing. Missing parent confirmation metadata cannot establish coinbase maturity. These checks still do not replace proof of chain inclusion.
+
 - BIP84 Native SegWit public accounts can be imported as XBT watch-only accounts. Spending requires explicitly enabling an XBT-compatible external signer. Legacy BTC hardware settings do not enable it. The phone stores public keys only; the cold wallet retains the spending keys.
 - Every exported signing input declares `SIGHASH_ALL | SIGHASH_UNIFIED` (`0x21`). Returned PSBTs must match the current request created in the app. Both partial and finalized signatures are cryptographically verified against the reviewed transaction and prevout amounts before broadcast. BTC signatures, relabeled BTC signatures, changed outputs, and pasted raw transactions without a verified signing request are rejected. Existing hardware QR/file transport remains available. A device must support Native SegWit PSBTs and return a signed PSBT; claiming Unified support alone does not establish transport compatibility. Restarting the app requires creating a fresh signing request.
 - XBT history refreshes fetch and hash raw transactions locally. Coinbase classification, prevout amounts and scripts come from those bytes rather than verbose server JSON. Missing or mismatched raw parents cannot be selected or signed. Change must belong to the wallet. Existing cached history is refreshed when raw bytes are absent.
@@ -18,7 +21,7 @@ This change responds to the independent source review of PR #1. It is a source u
 
 Native wallet data already uses the platform secure key store; the separate transaction cache's former deterministic key did not encrypt seeds. Private-key export already checked biometrics when app biometrics were enabled; this update makes authentication unconditional at the secret boundary and adds it to seed export.
 
-A historical checkpoint is a chain-selection check, not server authentication or SPV. Raw transaction hashing does not prove that an output is unspent or confirmed. Confirmations and timestamps remain supplied by the configured Fulcrum server. Full header-chain and merkle-proof validation requires a separate implementation; use a trusted server, preferably TLS. The app does not claim independent confirmation verification.
+A historical checkpoint is a chain-selection check, not server authentication or SPV. Raw transaction hashing does not prove that an output is unspent or confirmed. Confirmations and timestamps remain supplied by the configured Fulcrum server. Full header-chain and merkle-proof validation requires a separate implementation; use a trusted server with authenticated TLS or a private authenticated network. The app does not claim independent confirmation verification.
 
 The 6480-confirmation coinbase filter remains conservative for the reviewed Knots policy. Consensus maturity and the temporary long-maturity window are distinct from mempool policy; this change does not relax the filter or implement a proposed future consensus rule.
 
@@ -30,4 +33,6 @@ Physical XBT cold-wallet QR signing, native cache migration on iOS/Android, and 
 
 Regression coverage includes real Knots acceptance vectors, partial/finalized Unified external signatures, rejected BTC/relabelled signatures and altered requests, raw-parent mismatch and amount/change ownership checks, vault interoperability against Node's scrypt/AES-GCM, tampering and legacy/decoy migration, cache migration failures, export authentication, clipboard expiry/background races, and high-fee cancellation before network access.
 
-Final check results and any remaining limitations are recorded in the pull request.
+Local checks for the TLS follow-up: 74 unit suites passed (675 passed, 1 skipped), including a real local Node TLS server that accepts the configured CA and rejects untrusted, wrong-hostname and expired certificates before any RPC. Native TLS device tests also exercise a replaced certificate and the saved-certificate normal connection path; their CI results must be checked before shipping. Password device tests now wait for completion of the asynchronous KDF/save before relaunching; the import test checks the supported watch-only account stays read-only.
+
+Final native build/device check results and any remaining limitations are recorded in the pull request.

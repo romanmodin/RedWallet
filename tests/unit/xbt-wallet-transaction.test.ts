@@ -247,6 +247,21 @@ describe('XBT wallet transaction flow', () => {
     ).toThrow('XBT coinbase outputs require 6480 confirmations');
   });
 
+  it('filters and rejects a UTXO that exaggerates its coinbase parent confirmations', () => {
+    const wallet = createWalletWithParent([{ coinbase: '03e8ab0e' }], 1);
+    const utxo = { txid: fundingTxid, vout: 0, address: wallet._getExternalAddressByIndex(0), value: 100_000, confirmations: 6480 };
+    wallet._utxo = [utxo];
+    expect(wallet.getUtxo()).toEqual([]);
+    expect(() =>
+      wallet.createTransaction(
+        [utxo],
+        [{ address: wallet._getExternalAddressByIndex(1), value: 50_000 }],
+        1,
+        wallet._getInternalAddressByIndex(0),
+      ),
+    ).toThrow('Conflicting XBT coinbase confirmations');
+  });
+
   it('signs a mature verbose coinbase reward with Unified Sighash', () => {
     const wallet = createWalletWithParent([{ coinbase: '03e8ab0e' }], 6480);
     const { tx } = wallet.createTransaction(

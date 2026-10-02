@@ -508,7 +508,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
     if (wallet.type === WatchOnlyWallet.type && wallet.isHd() && !wallet.useWithHardwareWalletEnabled()) {
       return Alert.alert(
         loc.wallets.details_title,
-        loc.transactions.enable_offline_signing,
+        'Your signing device must support XBT Native SegWit PSBTs with Unified Sighash 0x21. Enable external signing only if your device has compatible XBT firmware. Ordinary BTC signatures will be rejected.',
         [
           {
             text: loc._.ok,

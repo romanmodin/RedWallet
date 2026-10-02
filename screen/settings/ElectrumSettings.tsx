@@ -38,6 +38,7 @@ export interface ElectrumServerItem {
   host: string;
   tcp?: number;
   ssl?: number;
+  tlsCa?: string;
 }
 
 const SET_PREFERRED_PREFIX = 'set_preferred_';
@@ -49,18 +50,29 @@ const ElectrumSettings: React.FC = () => {
   const navigation = useExtendedNavigation();
   const [isLoading, setIsLoading] = useState(true);
   const [serverHistory, setServerHistory] = useState<Set<ElectrumServerItem>>(new Set());
-  const [config, setConfig] = useState<{ connected?: number; host?: string; port?: string }>({});
+  const [config, setConfig] = useState<{
+    connected?: number;
+    host?: string;
+    port?: string;
+  }>({});
   const [host, setHost] = useState<string>('');
   const [port, setPort] = useState<number | undefined>();
   const [sslPort, setSslPort] = useState<number | undefined>(undefined);
+  const [tlsCa, setTlsCa] = useState('');
   const [serverBanner, setServerBanner] = useState<string>('');
   const [isAndroidNumericKeyboardFocused, setIsAndroidNumericKeyboardFocused] = useState(false);
   const [isAndroidAddressKeyboardVisible, setIsAndroidAddressKeyboardVisible] = useState(false);
   const { setIsElectrumDisabled, isElectrumDisabled } = useSettings();
-  const [savedServer, setSavedServer] = useState<{ host: string; tcp: string; ssl: string }>({
+  const [savedServer, setSavedServer] = useState<{
+    host: string;
+    tcp: string;
+    ssl: string;
+    tlsCa: string;
+  }>({
     host: '',
     tcp: '',
     ssl: '',
+    tlsCa: '',
   });
 
   const stylesHook = StyleSheet.create({
@@ -107,7 +119,9 @@ const ElectrumSettings: React.FC = () => {
 
     const newServerHistoryArray: ElectrumServerItem[] = [];
     for (const item of parsedServerHistory) {
-      const existing = newServerHistoryArray.find(s => s.host === item.host && s.tcp === item.tcp && s.ssl === item.ssl);
+      const existing = newServerHistoryArray.find(
+        s => s.host === item.host && s.tcp === item.tcp && s.ssl === item.ssl && (s.tlsCa || '') === (item.tlsCa || ''),
+      );
       if (!existing) {
         newServerHistoryArray.push(item);
       }
@@ -126,6 +140,7 @@ const ElectrumSettings: React.FC = () => {
     setHost(savedHost || '');
     setPort(savedPort);
     setSslPort(savedSslPort);
+    setTlsCa(preferredServer?.tlsCa || '');
     setServerHistory(filteredServerHistory);
 
     setConfig(await BlueElectrum.getConfig());
@@ -137,6 +152,7 @@ const ElectrumSettings: React.FC = () => {
       host: savedHost || '',
       tcp: savedPort ? savedPort.toString() : '',
       ssl: savedSslPort ? savedSslPort.toString() : '',
+      tlsCa: preferredServer?.tlsCa || '',
     });
 
     setIsLoading(false);
@@ -168,7 +184,9 @@ const ElectrumSettings: React.FC = () => {
     if (server) {
       triggerHapticFeedback(HapticFeedbackTypes.ImpactHeavy);
       Alert.alert(
-        loc.formatString(loc.settings.set_electrum_server_as_default, { server: (server as ElectrumServerItem).host }),
+        loc.formatString(loc.settings.set_electrum_server_as_default, {
+          server: (server as ElectrumServerItem).host,
+        }),
         '',
         [
           {
@@ -192,16 +210,23 @@ const ElectrumSettings: React.FC = () => {
 
       try {
         const serverHost = v?.host || host;
-        const serverPort = v?.tcp ? v.tcp.toString() : port?.toString() || '';
-        const serverSslPort = v?.ssl ? v.ssl.toString() : sslPort?.toString() || '';
+        const serverPort = v ? v.tcp?.toString() || '' : port?.toString() || '';
+        const serverSslPort = v ? v.ssl?.toString() || '' : sslPort?.toString() || '';
+        const serverTlsCa = serverSslPort ? (v ? v.tlsCa || '' : tlsCa).trim() : '';
+        if (
+          serverTlsCa &&
+          (serverTlsCa.length > 16384 || !/^-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----$/.test(serverTlsCa))
+        ) {
+          throw new Error('Enter one PEM certificate obtained from your trusted server operator.');
+        }
 
         if (serverHost && (serverPort || serverSslPort)) {
-          const testConnect = await BlueElectrum.testConnection(serverHost, Number(serverPort), Number(serverSslPort));
+          const testConnect = await BlueElectrum.testConnection(serverHost, Number(serverPort), Number(serverSslPort), serverTlsCa);
           if (!testConnect) {
             return presentAlert({
               message: serverHost.endsWith('.onion')
                 ? loc.settings.electrum_error_connect_tor
-                : `${loc.settings.electrum_error_connect}. XBT servers must match the verified mainnet checkpoint.`,
+                : `${loc.settings.electrum_error_connect}. TLS requires a trusted certificate matching the server name. XBT servers must also match the mainnet checkpoint.`,
             });
           }
           await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
@@ -209,18 +234,26 @@ const ElectrumSettings: React.FC = () => {
           await DefaultPreference.clear(BlueElectrum.ELECTRUM_HOST);
           await DefaultPreference.clear(BlueElectrum.ELECTRUM_TCP_PORT);
           await DefaultPreference.clear(BlueElectrum.ELECTRUM_SSL_PORT);
+          await DefaultPreference.clear(BlueElectrum.ELECTRUM_TLS_CA);
 
           await DefaultPreference.set(BlueElectrum.ELECTRUM_HOST, serverHost);
           await DefaultPreference.set(BlueElectrum.ELECTRUM_TCP_PORT, serverPort);
           await DefaultPreference.set(BlueElectrum.ELECTRUM_SSL_PORT, serverSslPort);
+          if (serverTlsCa) await DefaultPreference.set(BlueElectrum.ELECTRUM_TLS_CA, serverTlsCa);
 
           const serverExistsInHistory = Array.from(serverHistory).some(
-            s => s.host === serverHost && s.tcp === Number(serverPort) && s.ssl === Number(serverSslPort),
+            s =>
+              s.host === serverHost && s.tcp === Number(serverPort) && s.ssl === Number(serverSslPort) && (s.tlsCa || '') === serverTlsCa,
           );
 
           if (!serverExistsInHistory && (serverPort || serverSslPort) && !hardcodedPeers.some(peer => peer.host === serverHost)) {
             const newServerHistory = new Set(serverHistory);
-            newServerHistory.add({ host: serverHost, tcp: Number(serverPort), ssl: Number(serverSslPort) });
+            newServerHistory.add({
+              host: serverHost,
+              tcp: Number(serverPort),
+              ssl: Number(serverSslPort),
+              tlsCa: serverTlsCa || undefined,
+            });
             await DefaultPreference.set(BlueElectrum.ELECTRUM_SERVER_HISTORY, JSON.stringify(Array.from(newServerHistory)));
             setServerHistory(newServerHistory);
           }
@@ -239,7 +272,7 @@ const ElectrumSettings: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [host, port, sslPort, fetchData, serverHistory],
+    [host, port, sslPort, tlsCa, fetchData, serverHistory],
   );
 
   const selectServer = useCallback(
@@ -248,6 +281,7 @@ const ElectrumSettings: React.FC = () => {
       setHost(parsedServer.host);
       setPort(parsedServer.tcp);
       setSslPort(parsedServer.ssl);
+      setTlsCa(parsedServer.tlsCa || '');
       save(parsedServer);
     },
     [save],
@@ -258,7 +292,10 @@ const ElectrumSettings: React.FC = () => {
       triggerHapticFeedback(HapticFeedbackTypes.ImpactHeavy);
       Alert.alert(
         loc.settings.electrum_preferred_server,
-        loc.formatString(loc.settings.set_as_preferred_electrum, { host: value.host, port: String(value.ssl ?? value.tcp) }),
+        loc.formatString(loc.settings.set_as_preferred_electrum, {
+          host: value.host,
+          port: String(value.ssl ?? value.tcp),
+        }),
         [
           {
             text: loc._.ok,
@@ -481,6 +518,7 @@ const ElectrumSettings: React.FC = () => {
   const saveDisabled: boolean =
     preferredServerIsEmpty ||
     (host === savedServer.host &&
+      tlsCa.trim() === savedServer.tlsCa &&
       ((savedServer.tcp !== '' && port?.toString() === savedServer.tcp) ||
         (savedServer.ssl !== '' && sslPort?.toString() === savedServer.ssl)));
 
@@ -517,7 +555,9 @@ const ElectrumSettings: React.FC = () => {
             <View style={styles.inputGroupSpacing}>
               <AddressInput
                 testID="HostInput"
-                placeholder={loc.formatString(loc.settings.electrum_host, { example: '10.20.30.40' })}
+                placeholder={loc.formatString(loc.settings.electrum_host, {
+                  example: '10.20.30.40',
+                })}
                 address={host}
                 onChangeText={text => setHost(text.trim())}
                 editable={!isLoading}
@@ -532,7 +572,9 @@ const ElectrumSettings: React.FC = () => {
             <View style={styles.portWrap}>
               <View style={[styles.inputWrap, stylesHook.inputWrap]}>
                 <TextInput
-                  placeholder={loc.formatString(loc.settings.electrum_port, { example: '50001' })}
+                  placeholder={loc.formatString(loc.settings.electrum_port, {
+                    example: '50001',
+                  })}
                   value={sslPort?.toString() === '' || sslPort === undefined ? port?.toString() || '' : sslPort?.toString() || ''}
                   onChangeText={text => {
                     const parsed = Number(text.trim());
@@ -565,6 +607,30 @@ const ElectrumSettings: React.FC = () => {
               />
             </View>
 
+            {sslPort !== undefined && (
+              <View>
+                <Text>Trusted CA or server certificate (optional PEM)</Text>
+                <TextInput
+                  testID="TlsCaInput"
+                  value={tlsCa}
+                  onChangeText={setTlsCa}
+                  multiline
+                  blurOnSubmit
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  inputAccessoryViewID={DoneAndDismissKeyboardInputAccessoryViewID}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                  style={[styles.tlsCertificate, stylesHook.inputText]}
+                  placeholder="-----BEGIN CERTIFICATE-----"
+                />
+                <Text>
+                  Leave empty for system trust. For a private server, obtain its certificate from the operator through a trusted channel.
+                  The server name must match.
+                </Text>
+              </View>
+            )}
             <View style={styles.buttonContainer}>
               <Button disabled={saveDisabled} testID="Save" onPress={save} title={loc.settings.save} />
             </View>
@@ -630,6 +696,11 @@ const ElectrumSettings: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  tlsCertificate: {
+    minHeight: 72,
+    marginTop: 8,
+    marginBottom: 8,
+  },
   connectWrap: {
     width: 'auto',
     height: 34,

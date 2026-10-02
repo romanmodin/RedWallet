@@ -1,7 +1,7 @@
 import { ECPairFactory } from 'ecpair';
 
 import ecc from '../../blue_modules/noble_ecc';
-import { isMatureXbtCoinbase } from '../xbt/coinbase-maturity';
+import { isMatureXbtCoinbase, verifiedCoinbaseConfirmations } from '../xbt/coinbase-maturity';
 import { finalizeUnifiedP2wpkhInput, signUnifiedP2wpkhInput, SIGHASH_ALL_UNIFIED } from '../xbt/unified-psbt';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
 import { HDSegwitBech32Wallet } from './hd-segwit-bech32-wallet';
@@ -66,7 +66,14 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
       )
         return [];
       const coinbase = raw.isCoinbase();
-      const confirmations = utxo.confirmations ?? parent.confirmations;
+      let confirmations;
+      try {
+        confirmations = coinbase
+          ? verifiedCoinbaseConfirmations(utxo.confirmations, parent.confirmations)
+          : (utxo.confirmations ?? parent.confirmations);
+      } catch {
+        return [];
+      }
       if (coinbase && !isMatureXbtCoinbase(confirmations)) return [];
       return [{ ...utxo, coinbase, confirmations }];
     });
@@ -91,7 +98,9 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
         throw new Error('XBT input amount or address does not match its raw parent transaction');
       }
       const coinbase = raw.isCoinbase();
-      const confirmations = utxo.confirmations ?? parent.confirmations ?? 0;
+      const confirmations = coinbase
+        ? verifiedCoinbaseConfirmations(utxo.confirmations, parent.confirmations)
+        : (utxo.confirmations ?? parent.confirmations ?? 0);
       if (coinbase && !isMatureXbtCoinbase(confirmations)) {
         throw new Error('XBT coinbase outputs require 6480 confirmations before spending');
       }

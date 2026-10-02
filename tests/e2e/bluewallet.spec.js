@@ -145,7 +145,9 @@ describe('RedWallet UI Tests - no wallets', () => {
         .whileElement(by.id('ElectrumSettingsScrollView'))
         .scroll(500, 'down'); // in case emu screen is small and it doesnt fit
       await element(by.id('Save')).tap();
-      await waitForText('Cannot connect to the provided Electrum server. XBT servers must match the verified mainnet checkpoint.');
+      await waitForText(
+        'Cannot connect to the provided Electrum server. TLS requires a trusted certificate matching the server name. XBT servers must also match the mainnet checkpoint.',
+      );
       await element(by.text('OK')).tap();
 
       // Bitcoin-only servers must not be accepted for the XBT profile.
@@ -357,7 +359,8 @@ describe('RedWallet UI Tests - no wallets', () => {
     await element(by.id('ConfirmPasswordInput')).tapReturnKey();
     await waitForKeyboardToClose();
     await confirmPasswordDialog(); // might not always work the first time
-    await sleep(1000); // propagate
+    // The memory-hard KDF is asynchronous; do not terminate an unfinished save.
+    await waitForId('PlausibleDeniabilityButton', 120_000);
 
     // relaunch app
     await device.launchApp({ newInstance: true });
@@ -497,7 +500,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     await element(by.id('ConfirmPasswordInput')).tapReturnKey();
     await waitForKeyboardToClose();
     await confirmPasswordDialog();
-    await sleep(1000); // propagate
+    await waitForId('PlausibleDeniabilityButton', 120_000);
     await element(by.id('PlausibleDeniabilityButton')).tap();
 
     // trying to enable plausible denability
