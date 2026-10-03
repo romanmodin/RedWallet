@@ -1,6 +1,6 @@
 # RedWallet Android beta
 
-The Android beta is distributed as an APK through [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1790940564). It is not listed on Google Play.
+The Android beta is distributed as an APK through [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791019127). It is not listed on Google Play.
 
 ## Install on a phone
 
@@ -25,3 +25,21 @@ Each release includes `SHA256SUMS.txt`, `android-release-receipt.json` and the p
 The build workflow contains no release signing secrets. A disposable key is used only for CI installation checks; the published APK is signed separately with the persistent RedWallet release key.
 
 An emulator installation/launch check does not establish physical-phone compatibility, full send/confirmation behavior, or absence of security vulnerabilities. This remains an early beta.
+
+## Check an installed Android release
+
+Settings → About shows the app version, build number and package ID. Compare these with the intended release receipt. For an independent package check, Android platform tools can locate and pull the installed APK:
+
+```sh
+adb shell pm path com.romanmodin.redwallet
+# Substitute the returned base.apk path, without the package: prefix.
+adb pull /returned/path/base.apk RedWallet-installed.apk
+sha256sum RedWallet-installed.apk
+apksigner verify --verbose --print-certs RedWallet-installed.apk
+```
+
+For the direct APK distribution, compare the SHA-256 to that release's `SHA256SUMS.txt`, and the signer SHA-256 to the persistent release certificate:
+
+`7843791c3cf340458fbf400a204361a0a97ac9c2902ae36c4511396f1f55884f`
+
+Android also checks signatures when installing updates. A matching package hash verifies the package against the published artifact; it does not prove that the artifact is safe, that its source was independently reproduced, or that the phone and wallet data are uncompromised. The app's self-test is a functional check, not a security attestation. Keep recovery material offline and never provide it for verification.
