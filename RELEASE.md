@@ -132,12 +132,13 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 ### Security follow-up source and pending tester packages (2026-10-02)
 
 - The security changes are pushed on PR #3. Public reviewed source:
-  `9ecd6d60157504ec0525fe11f7ca12328d448bd4`. All 74 GitHub unit suites passed:
-  686 tests passed, one skipped; lint passed. Native device checks are pending.
+  `8b9d07eae1188c10522d99bf1aab09d5c662a70b`. GitHub run 37102407150 passed all 75 unit suites:
+  688 tests passed, one skipped; lint passed. Fresh native device checks
+  remain pending.
 - Approved private signing source:
-  `068d96851b79809840dd74222bf4a0217a827f96`. All 937 production entries
+  `84c8140eb1490ea1f92953198a96964884b63789`. All 938 production entries
   (Git file mode, blob ID and path) match the public source. Production tree
-  SHA-256: `64b1fac2f1f6f1f4ea21b203b9a71ba6a08a2b789b4c1efe29688a8f37b78fea`.
+  SHA-256: `26c1e4f83586778db31b668f3bedf4a66e8bd70306c8ad2127aeeab221b5b934`.
   The mapping excludes workflows, tests, Markdown and store metadata. It is
   source equivalence, not a claim of reproducible binary equivalence.
 - Both signing and upload jobs verify the pinned production tree before
@@ -150,8 +151,10 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 - Follow-up device checks include authenticated TLS after restart, rejecting
   an impostor even with the correct public checkpoint, password/decoy storage,
   native cache migration, restored history, and an XBT cold-wallet PSBT round
-  trip. Physical signing compatibility and the reported missing-history case
-  remain open. Use disposable wallets for exploratory testing.
+  trip. Physical signing compatibility and broader recovery validation
+  remain open. The earlier missing-history case was resolved by the tester
+  correcting their server; no app fix is claimed for it. Use disposable wallets
+  for exploratory testing.
 - Password storage upgrades to scrypt/AES-GCM. Earlier app versions cannot
   read upgraded storage: retain an offline recovery backup and do not downgrade.
 

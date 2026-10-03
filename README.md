@@ -22,7 +22,7 @@ RedWallet installs separately from BlueWallet and does not automatically migrate
 
 The source on the security follow-up branches adds authenticated Electrum TLS, verified raw inputs and coinbase refresh, stronger password/cache encryption, authenticated secret exports with clipboard expiry, and BIP84 XBT watch-only import with Unified external-signature verification. Updated tester packages are not yet published; the installation links above still identify the preceding beta.
 
-A watch-only phone stores public keys. Use an XBT Unified-capable cold wallet that supports the Native SegWit PSBT QR/file workflow; physical device compatibility still needs validation. Do not import a cold-wallet seed to use this workflow. Fulcrum confirmations still rely on the configured server, and the reported missing-history case remains open. Keep an offline recovery backup and do not downgrade after the RWV2 password-storage migration. See [SECURITY_FOLLOWUP.md](SECURITY_FOLLOWUP.md).
+A watch-only phone stores public keys. Use an XBT Unified-capable cold wallet that supports the Native SegWit PSBT QR/file workflow; physical device compatibility still needs validation. Do not import a cold-wallet seed to use this workflow. Fulcrum confirmations still rely on the configured server, and the original missing-history report was resolved on the tester’s server. Keep an offline recovery backup and do not downgrade after the RWV2 password-storage migration. See [SECURITY_FOLLOWUP.md](SECURITY_FOLLOWUP.md).
 
 ## Contributing
 
