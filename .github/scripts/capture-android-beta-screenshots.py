@@ -50,11 +50,19 @@ back();tap('ActivateBitcoinButton');tap('Create')
 # A generated disposable seed is displayed here. Do not print, save or capture it.
 find('PleaseBackupScrollView',timeout=120);tap('PleasebackupOk',scroll=True,timeout=120)
 find('SettingsButton');tap('SettingsButton');tap('GeneralSettings')
-tap('Allow Screen Capture',scroll=True)
+title=find('Allow Screen Capture',scroll=True)
+ty=center(title)[1]
+switches=[n for n in nodes() if n.get('class')=='android.widget.Switch' and center(n)]
+assert switches
+switch=min(switches,key=lambda n:abs(center(n)[1]-ty))
+assert abs(center(switch)[1]-ty)<160
+if switch.get('checked')!='true':
+ x,y=center(switch);adb('shell','input','tap',x,y);time.sleep(1)
+
 # Temporary capture permission is enabled only inside this fresh empty CI wallet.
 # It automatically resets when the app closes; production defaults are untouched.
 back();tap('XbtPriceSettings');write('XbtPriceInput','3.12');back();tap('SaveXbtPrice',scroll=True)
-find('XbtPriceSavedQuote')
+find('XbtPriceSavedQuote',scroll=True)
 back();back();tap('Empty demo - do not fund')
 snap('01-wallet-overview','ReceiveButton')
 tap('ReceiveButton')
