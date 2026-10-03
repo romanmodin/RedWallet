@@ -1473,7 +1473,9 @@ export const testConnection = async function (host: string, tcpPort?: number, ss
 
   client.onError = () => {}; // mute
   let timeoutId: NodeJS.Timeout | undefined;
-  const timeoutMs = host.endsWith('.onion') ? 21_000 : 5_000;
+  // Certificate evaluation is part of TLS connection establishment; a short
+  // TCP-only deadline can close a valid connection before trust completes.
+  const timeoutMs = host.endsWith('.onion') ? 21_000 : sslPort ? 15_000 : 5_000;
   try {
     const rez = await Promise.race([
       new Promise(resolve => {

@@ -130,7 +130,7 @@ describe('native Electrum TLS authentication', () => {
           .withTimeout(15_000);
         console.log('[tls-e2e] saving server:', scenario.name);
         await element(by.id('Save')).tap();
-        await waitForText(scenario.accepted ? saved : failed, 30_000);
+        await waitForText(scenario.accepted ? saved : failed, 60_000);
         console.log('[tls-e2e] expected connection result:', scenario.name, 'RPCs:', requests);
         assert.equal(await dismissAlertByText('OK', 10_000, false), true, 'Could not dismiss the connection result');
         if (scenario.accepted) {
@@ -154,7 +154,7 @@ describe('native Electrum TLS authentication', () => {
       } catch (error) {
         // The automatic failure screenshot runs after finally; preserve the
         // actual failed UI before cleanup terminates the app.
-        console.error('[tls-e2e] failed:', scenario.name, error.stack || error.message);
+        console.error('[tls-e2e] failed:', scenario.name, 'RPCs:', requests, error.stack || error.message);
         await device.takeScreenshot('tls-failure-before-cleanup').catch(() => {});
         // Only disposable, empty-wallet TLS fixtures run here. Retain native
         // identifiers/frames for diagnosing a failed field lookup.
