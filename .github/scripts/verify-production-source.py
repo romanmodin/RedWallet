@@ -19,7 +19,7 @@ def production_rows():
     rows = []
     for line in git('ls-tree', '-r', 'HEAD').splitlines():
         path = line.split('\t', 1)[1]
-        if path.startswith(('.github/', 'tests/', 'fastlane/metadata/')) or path.endswith('.md'):
+        if path == 'zapstore.yaml' or path.startswith(('.github/', 'tests/', 'fastlane/metadata/')) or path.endswith('.md'):
             continue
         rows.append(line)
     return rows
@@ -51,7 +51,7 @@ def main():
         'productionTreeSha256': digest,
         'productionPathCount': len(rows),
         'sourceMappingVerification': 'passed',
-        'treeDefinition': 'git ls-tree -r COMMIT, excluding .github/, tests/, fastlane/metadata/ and *.md; includes mode, object ID, path and trailing newline',
+        'treeDefinition': 'git ls-tree -r COMMIT, excluding .github/, tests/, fastlane/metadata/, zapstore.yaml and *.md; includes mode, object ID, path and trailing newline',
         'binaryReproducibilityVerified': False,
     }
     Path(args.receipt).write_text(json.dumps(receipt, indent=2) + '\n')
