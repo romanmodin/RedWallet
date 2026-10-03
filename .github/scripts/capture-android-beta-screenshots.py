@@ -25,7 +25,7 @@ def find(key,scroll=False,timeout=90):
   if scroll and swipes<8:
    adb('shell','input','swipe',540,1850,540,650,400);swipes+=1
   time.sleep(1)
- raise RuntimeError('Public control unavailable: '+key)
+ raise RuntimeError('Public control unavailable: '+key+'; visible IDs: '+str(sorted({n.get('resource-id') for n in ns if n.get('resource-id')})))
 def tap(key,scroll=False,timeout=90):
  x,y=center(find(key,scroll,timeout));adb('shell','input','tap',x,y);time.sleep(1)
 def write(key,value):
@@ -68,9 +68,9 @@ snap('01-wallet-overview','ReceiveButton')
 tap('ReceiveButton')
 try:tap('Yes, I have.',timeout=8)
 except RuntimeError:pass
-find('BitcoinAddressQRCode');tap('SetCustomAmountButton');write('BitcoinAmountInput','0.001')
+find('CopyTextToClipboard');tap('SetCustomAmountButton');write('BitcoinAmountInput','0.001')
 write('CustomAmountDescription','Demo only - do not fund');back();tap('CustomAmountSaveButton',scroll=True)
-snap('02-receive-qr','BitcoinAddressQRCode')
+snap('02-receive-qr','CopyTextToClipboard')
 back();back();find('SettingsButton');tap('SettingsButton');tap('XbtPriceSettings')
 find('XbtPriceSavedQuote',scroll=True)
 snap('03-xbt-price-options','XbtPriceSavedQuote')
