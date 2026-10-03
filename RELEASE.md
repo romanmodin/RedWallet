@@ -129,14 +129,15 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   unit tests. Physical iPhone QA and the complete phone/Fulcrum send flow remain
   open; this tester release does not close those gates.
 
-### Security follow-up source and pending tester packages (2026-10-02)
+### Security follow-up source and tester packages (2026-10-02–03)
 
 - Security and pre-send quote changes from PRs #3–#7 were merged atomically
   through PR #7 at `fdb9b0e94984937647e30c5cacb11fcfd3b91368`.
-  The subsequent TLS deadline follow-up in PR #9 brings reviewed production
-  source to `e34407a3c98db41dec4ebd38927d08badb45dcfa`.
-  Final unit/lint run `37109292569` passed 77 suites, 703 tests and one skipped;
-  TypeScript passed. Fresh final-source native checks remain in progress.
+  Subsequent PRs #8–#12 bring reviewed production source to
+  `ead773ee0269d7dfc9ff16822fd3e760aaa33b75`. Final CI runs
+  `37112045207` and `37112225121` passed; the complete unit result is
+  77 suites, 708 tests passed and one skipped. TypeScript and lint passed.
+  Native checks and published package receipts are recorded below.
 - Approved private signing source for the inner-timeout follow-up:
   `91bc88b6e1f70f6050f55130d4a66b140c3021b8`. All 941 production entries
   (Git file mode, blob ID and path) match the public source. Production tree
@@ -147,9 +148,9 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   installing dependencies. Source and IPA verification use isolated Python
   and the public orchestration scripts, never scripts from the private source.
   Package receipts include the source mapping and the IPA hash.
-- These changes are not yet in the existing Android APK or TestFlight build.
-  New package version numbers, run IDs and hashes will be recorded after the
-  builds and upload finish; an upload alone is not tester availability.
+- These changes are included in Android beta `1791019127` and TestFlight
+  `1791019257`. Signed package receipts and Apple tester availability were
+  verified on October 3, 2026; see the package status below.
 - Follow-up device checks include authenticated TLS after restart, rejecting
   an impostor even with the correct public checkpoint, password/decoy storage,
   native cache migration, restored history, and an XBT cold-wallet PSBT round
@@ -183,7 +184,7 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 - Simulator/emulator checks do not establish physical-device cache migration,
   funded spending or a particular cold signer's interoperability.
 
-### Final TLS connection deadline follow-up (2026-10-03)
+### Outer TLS connection deadline follow-up (historical, 2026-10-03)
 
 - Source `e34407a3c98db41dec4ebd38927d08badb45dcfa` gives authenticated
   TLS connections 15 seconds for certificate evaluation; intentional TCP stays
@@ -219,9 +220,13 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   was insufficient. This follow-up also aligns the patched client's inner TLS
   timer to 15 seconds (onion 21, TCP 5). Authentication still gates all RPCs,
   fails closed and never falls back. Five real-patched-client regressions passed.
-- Local full unit checks: 77 suites, 708 tests passed, one skipped; targeted lint
-  passed. Fresh focused iOS run `37112094288` and Android native run
-  `37112045214` are in progress. No successful iOS wallet-flow result is claimed.
+- Final full unit checks: 77 suites, 708 tests passed, one skipped; TypeScript
+  and lint passed. Android native run `37112045214` succeeded: all seven TLS
+  and twelve supported wallet/UI checks passed, with five inherited unsupported
+  cases skipped. Focused iOS run `37112205747` succeeded: the trusted-leaf
+  recheck and all twelve supported wallet/UI checks passed. The other six TLS
+  cases were intentionally skipped in this focused run; all seven had passed
+  at source292. These are simulator/emulator results, not physical-device tests.
 - Preceding source `e34407a3c98db41dec4ebd38927d08badb45dcfa` passed
   final Android run `37109292589`: seven TLS and twelve supported wallet checks,
   including the full-cost native storage vector. Package build `37109789321`
@@ -232,9 +237,43 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 - Preceding iOS package run `37109790915` successfully signed and verified
   build `1791016465`, IPA SHA-256
   `5d1e2929026bf86d3510ee47228da7476071146bfa834e18f3037ca5ed60ac49`.
-  It was not uploaded and is superseded by this final timer source. TestFlight
-  remains on the older tester build until fresh native checks, package build
-  and upload pass. No public App Store submission is authorized or performed.
+  It was not uploaded and is superseded by the final timer source and packages
+  below. No public App Store submission was performed.
+
+### Published security follow-up packages (2026-10-03)
+
+- Android **8.0.1 beta 1791019127** is available from the
+  [release page](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791019127).
+  Build run `37112448688` succeeded at orchestration
+  `ffc995fc9cf1d66092a827fef7097b6ffa5e2f57`.
+  APK SHA-256: `e966c2f9594f9e1894c48bf6857fe4df07f51dc04cb83bc53c9db77ed11f438c`
+  (66,325,487 bytes).
+  Retained signing certificate SHA-256:
+  `7843791c3cf340458fbf400a204361a0a97ac9c2902ae36c4511396f1f55884f`.
+  V1/V2/V3 signature and 16 KB alignment checks passed; signed APK payload
+  entries match the unsigned build. Launch was checked in an Android emulator.
+  Release assets include checksums, source/build receipt and launch verification.
+- iOS **8.0.1 (1791019257)** signed build `37112450847` and upload
+  `37115320902` succeeded at the same orchestration revision. The upload
+  independently verified the same source mapping, signatures and IPA:
+  `ffa18c72450506c7d32f0f90d515754c2c9fba1a25b9b8e4809e2293f9753c5f`.
+  Apple processing is `VALID`; internal and external states are both
+  `IN_BETA_TESTING`. Membership of the existing Roman iPhone Testing and
+  RedWallet Early Testers groups was verified. This is TestFlight availability,
+  not a public App Store submission or approval.
+- Both receipts identify reviewed public `ead773ee0269d7dfc9ff16822fd3e760aaa33b75`,
+  private `91bc88b6e1f70f6050f55130d4a66b140c3021b8`, and the
+  941-entry production hash above. This source mapping is not an independently
+  reproducible binary proof.
+- Four public Android screenshots were captured from the exact signed APK in
+  run `37115128237`, using a newly generated empty disposable wallet and a
+  manual demo quote. No recovery phrase or private-key screen was captured.
+  Temporary screenshot-validation PR #13 was closed without merging.
+- Physical phone/cold-wallet interoperability, native cache migration on real
+  devices, and an isolated funded receive/send/confirmation/recovery flow still
+  require tester validation. Independent header-chain/merkle verification,
+  Taproot and multisig support remain separate work. Keep an offline backup;
+  do not downgrade after upgrading encrypted storage.
 
 ## Build and upload
 
