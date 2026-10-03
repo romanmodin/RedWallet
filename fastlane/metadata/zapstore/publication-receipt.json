@@ -1,0 +1,28 @@
+{
+  "publishedAt": "2026-10-03",
+  "publisher": "npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0",
+  "pubkey": "3b9fa6a5102a753504245e3209b7d727a10d7b0dccf6e9f3e693361028208829",
+  "applicationId": "com.romanmodin.redwallet",
+  "storeUrl": "https://zapstore.dev/apps/com.romanmodin.redwallet",
+  "channel": "beta",
+  "version": "8.0.1",
+  "versionCode": 1791019127,
+  "apkSha256": "e966c2f9594f9e1894c48bf6857fe4df07f51dc04cb83bc53c9db77ed11f438c",
+  "apkSigningCertificateSha256": "7843791c3cf340458fbf400a204361a0a97ac9c2902ae36c4511396f1f55884f",
+  "apkBytes": 66325487,
+  "appEvent": "2231e09a11fe8c30c1850a42d0d0d64bf121a7f76cbbdb1d98382aafd19d3883",
+  "releaseEvent": "6fe442faed9a4324499b30f8b0b7cee7280f1da1664eb21e2c2f0385632c7eb7",
+  "assetEvent": "cd4e8461de6be621c0ce9dae7c9bb7585e7528fdb1df5e1ce88a0721dac7f5cd",
+  "certificateIdentityProof": "c2885c4f48d695d1c38698b8e0a766a455fa286ed17249ce80db3ddab1b14574",
+  "relay": "wss://relay.zapstore.dev",
+  "relayReadbackSignaturesVerified": true,
+  "cdnApkMatchesSignedGithubApk": true,
+  "screenshotsDecodedPixelsIdentical": 4,
+  "zspVersion": "0.4.17",
+  "zspPublishExitCode": 0,
+  "page": {
+    "url": "https://zapstore.dev/apps/com.romanmodin.redwallet",
+    "httpStatus": 200
+  },
+  "physicalAndroidPhoneTestedByMaintainer": false
+}
