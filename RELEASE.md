@@ -168,6 +168,22 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   Earlier app versions cannot
   read upgraded storage: retain an offline recovery backup and do not downgrade.
 
+### Native Android verification (2026-10-03)
+
+- At public source `29211e8f6663c2fa25ad53ca3381adf9e1b15cd5`,
+  [run 37104706218](https://github.com/romanmodin/RedWallet/actions/runs/37104706218)
+  completed successfully: seven native TLS cases and twelve supported wallet/UI
+  cases passed. Five inherited unsupported multisig/account cases were skipped.
+- The run checked the full-cost UTF-8 native storage vector, password/decoy
+  recovery, wallet/recovery persistence, receive QR, scanning, deletion,
+  watch-only import with external signing disabled, and saved-price persistence.
+- Later source `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd` removes two web
+  verification buttons/imports. Its unit/lint run `37105957233` passed with
+  697 tests and one skipped. Its native Android build passed; subsequent native
+  tests and iOS verification are pending at this checkpoint.
+- Simulator/emulator checks do not establish physical-device cache migration,
+  funded spending or a particular cold signer's interoperability.
+
 ## Build and upload
 
 1. Review the pinned private source revision and the exact public `main`
