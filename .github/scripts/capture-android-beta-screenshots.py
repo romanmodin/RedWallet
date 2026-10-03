@@ -61,7 +61,7 @@ if switch.get('checked')!='true':
 
 # Temporary capture permission is enabled only inside this fresh empty CI wallet.
 # It automatically resets when the app closes; production defaults are untouched.
-back();tap('XbtPriceSettings');write('XbtPriceInput','3.12');back();tap('SaveXbtPrice',scroll=True)
+back();tap('XbtPriceSettings');write('XbtPriceInput','3.12');write('XbtQuoteCurrencyInput','USDC');back();tap('SaveXbtPrice',scroll=True)
 find('XbtPriceSavedQuote',scroll=True)
 back();back();tap('Empty demo - do not fund')
 snap('01-wallet-overview','ReceiveButton')
