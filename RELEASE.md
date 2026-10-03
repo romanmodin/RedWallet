@@ -275,6 +275,32 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   Taproot and multisig support remain separate work. Keep an offline backup;
   do not downgrade after upgrading encrypted storage.
 
+
+### Zapstore Android beta publication (2026-10-03)
+
+- The same signed Android beta **8.0.1 (1791019127)** is published on the
+  `beta` channel at [Zapstore](https://zapstore.dev/apps/com.romanmodin.redwallet).
+  No APK rebuild, re-signing or Android signing-key replacement was performed.
+- Dedicated RedWallet publisher:
+  `npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0`.
+  The public key is pinned in root zapstore.yaml for repository verification.
+  The private publisher key and Android keystore are not in this repository.
+- The certificate-to-publisher proof was accepted by Zapstore, Primal and Damus.
+  App, release, asset and proof events were read back from Zapstore's relay and
+  their Nostr signatures verified. Release metadata matches the exact package
+  ID, version code, beta channel, APK checksum and retained certificate above.
+- The CDN APK was downloaded and its full SHA-256/size matched the signed
+  GitHub APK. All four CDN screenshots have identical decoded pixels to the
+  original signed-APK captures; CDN PNG serialization changes file bytes.
+  See fastlane/metadata/zapstore/publication-receipt.json for public event IDs.
+- zsp 0.4.17 was downloaded from its official GitHub release with asset digest
+  verification. Check mode passed and publish exited successfully. PR #15
+  added public metadata and an exact root zapstore.yaml exclusion from the
+  production-source mapping. The 941 reviewed production entries/hash remain
+  unchanged; a similarly named executable remains covered by the verifier.
+- This is an early tester beta. Physical handset/cold-wallet interoperability,
+  full SPV, Taproot and multisig limits remain as described above.
+
 ## Build and upload
 
 1. Review the pinned private source revision and the exact public `main`
