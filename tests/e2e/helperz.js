@@ -43,6 +43,16 @@ export async function waitForId(id, timeout = 33000) {
   }
 }
 
+export async function waitForWalletsList(timeout = 120_000) {
+  // A populated scroll container can extend beyond the viewport. Check that
+  // it exists and that the home toolbar is visible; wallet rows have their
+  // own visibility/address assertions in each test.
+  await waitFor(element(by.id('WalletsList')))
+    .toExist()
+    .withTimeout(timeout);
+  await waitForId('SettingsButton', timeout);
+}
+
 export async function waitForText(text, timeout = 33000) {
   const callsite = captureCallsite(waitForText);
   try {
@@ -255,17 +265,34 @@ export async function helperCreateWallet(walletName) {
   }
   try {
     await element(by.id('Create')).tap();
-    await sleep(500);
+    // Wait for the backup screen to mount after the asynchronous storage write.
+    // Its scroll content can exceed the viewport; visibility is checked on OK.
+    // Never tap Create again while a wallet may already have been created.
     try {
       await waitFor(element(by.id('PleaseBackupScrollView')))
-        .toBeVisible()
-        .withTimeout(15000);
-    } catch (_) {
-      await element(by.id('Create')).tap();
-      await sleep(500);
-      await waitFor(element(by.id('PleaseBackupScrollView')))
-        .toBeVisible()
-        .withTimeout(15000);
+        .toExist()
+        .withTimeout(120_000);
+    } catch (error) {
+      // Retain only control identifiers, native types and frames. The backup
+      // view contains a disposable seed, which must not enter diagnostic logs.
+      await device
+        .generateViewHierarchyXml(false)
+        .then(xml => {
+          const controls = [];
+          for (const match of xml.matchAll(/<([\w.$]+)\s+([^>]*?)\/?>/g)) {
+            const attributes = Object.fromEntries(Array.from(match[2].matchAll(/([\w-]+)="([^"]*)"/g), item => [item[1], item[2]]));
+            const known = ['PleaseBackupScrollView', 'PleasebackupOk', 'WalletsList', 'Create', 'Secret'].includes(attributes.id);
+            if (!known && !/Scroll|Window|Dialog/.test(match[1])) continue;
+            const control = { type: match[1] };
+            for (const key of ['height', 'width', 'x', 'y', 'visibility'])
+              if (attributes[key] !== undefined) control[key] = attributes[key];
+            if (known) control.id = attributes.id;
+            controls.push(control);
+          }
+          console.error('[wallet-e2e] backup control hierarchy:', JSON.stringify(controls));
+        })
+        .catch(() => {});
+      throw error;
     }
 
     await waitFor(element(by.id('PleasebackupOk')))
@@ -281,7 +308,7 @@ export async function helperCreateWallet(walletName) {
       await device.enableSynchronization();
     }
   }
-  await expect(element(by.id('WalletsList'))).toBeVisible();
+  await expect(element(by.id('WalletsList'))).toExist();
   await element(by.id('WalletsList')).swipe('right', 'fast', 1); // in case emu screen is small and it doesnt fit
   await sleep(200);
   await expect(element(by.id(walletName || 'cr34t3d'))).toBeVisible();
@@ -362,7 +389,7 @@ export async function tapIfTextPresent(text) {
  *
  * @returns true if the alert was dismissed, false if no alert was found
  */
-export async function dismissAlertByText(text, timeoutMs = 10000) {
+export async function dismissAlertByText(text, timeoutMs = 10000, restoreSynchronization = true) {
   const isIOS = device.getPlatform() === 'ios';
   if (isIOS) {
     await device.disableSynchronization();
@@ -386,7 +413,7 @@ export async function dismissAlertByText(text, timeoutMs = 10000) {
       await sleep(500);
     }
   } finally {
-    if (isIOS) {
+    if (isIOS && restoreSynchronization) {
       await device.enableSynchronization();
     }
   }

@@ -9,6 +9,7 @@ import {
   helperCreateWallet,
   scrollUpOnHomeScreen,
   waitForId,
+  waitForWalletsList,
   waitForKeyboardToClose,
   waitForLabel,
   waitForText,
@@ -47,7 +48,7 @@ describe('RedWallet XBT-only release UI', () => {
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
     // A fresh hosted simulator can take longer to leave the native splash screen.
-    await waitForId('WalletsList', 120_000);
+    await waitForWalletsList();
     // These deterministic no-funds tests cover offline creation and recovery.
     // Network acceptance is exercised by the separate Fulcrum and Knots gates.
     await element(by.id('SettingsButton')).tap();
@@ -61,7 +62,7 @@ describe('RedWallet XBT-only release UI', () => {
     await goBack();
     await goBack();
     await goBack();
-    await waitForId('WalletsList');
+    await waitForWalletsList();
   });
 
   it('offers only the supported XBT wallet profile', async () => {
@@ -80,7 +81,7 @@ describe('RedWallet XBT-only release UI', () => {
   it('creates an XBT wallet and displays an XBT receive amount', async () => {
     await helperCreateWallet('xbt-created');
     await device.launchApp({ newInstance: true });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await openReceive('xbt-created', true);
     await waitForId('CopyTextToClipboard');
     await element(by.id('SetCustomAmountButton')).tap();
@@ -111,14 +112,14 @@ describe('RedWallet XBT-only release UI', () => {
       await waitForText('Your wallet has been successfully imported.');
       if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss successful recovery confirmation');
     });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await scrollUpOnHomeScreen();
     await waitForId(walletLabel);
     await openReceive(walletLabel);
     await waitForLabel(expectedAddress);
 
     await device.launchApp({ newInstance: true });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await waitForId(walletLabel);
     await openReceive(walletLabel);
     await waitForLabel(expectedAddress);
@@ -145,7 +146,7 @@ describe('RedWallet XBT-only release UI', () => {
     await expect(element(by.id('XbtPriceStatus'))).toHaveText('Saved');
 
     await device.launchApp({ newInstance: true });
-    await waitForId('WalletsList');
+    await waitForWalletsList();
     await element(by.id('SettingsButton')).tap();
     await element(by.id('XbtPriceSettings')).tap();
     await waitForId('XbtPriceScreen');

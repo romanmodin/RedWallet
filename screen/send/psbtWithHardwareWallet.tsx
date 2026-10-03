@@ -2,7 +2,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { RouteProp, StackActions, useIsFocused, useRoute } from '@react-navigation/native';
 import * as bitcoin from 'bitcoinjs-lib';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import BlueCard from '../../components/BlueCard';
@@ -22,6 +22,8 @@ import { majorTomToGroundControl } from '../../blue_modules/notifications';
 import { openSignedTransactionRaw } from '../../blue_modules/fs';
 import { BlueSpacing20 } from '../../components/BlueSpacing';
 import { SendDetailsStackParamList } from '../../navigation/SendDetailsStackParamList';
+import confirm from '../../helpers/confirm';
+import { requiresHighFeeApproval } from '../../class/xbt/fee-policy';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 
 const PsbtWithHardwareWallet = () => {
@@ -78,7 +80,9 @@ const PsbtWithHardwareWallet = () => {
     (ret: string | { data: string }) => {
       const data = typeof ret === 'string' ? ret : ret.data;
       if (data.toUpperCase().startsWith('UR')) {
-        presentAlert({ message: 'BC-UR not decoded. This should never happen' });
+        presentAlert({
+          message: 'BC-UR not decoded. This should never happen',
+        });
       }
       if (data.indexOf('+') === -1 && data.indexOf('=') === -1 && data.indexOf('=') === -1) {
         // this looks like NOT base64, so maybe its transaction's hex
@@ -147,6 +151,36 @@ const PsbtWithHardwareWallet = () => {
       }
     }
     try {
+      if (!txHex || !routeParamsPSBT.current) throw new Error('No reviewed signing request available');
+      const reviewed =
+        typeof routeParamsPSBT.current === 'string' ? bitcoin.Psbt.fromBase64(routeParamsPSBT.current) : routeParamsPSBT.current;
+      const transaction = bitcoin.Transaction.fromHex(txHex);
+      const inputValue = reviewed.data.inputs.reduce((sum, input) => {
+        if (!input.witnessUtxo) throw new Error('Cannot verify transaction fee');
+        return sum + input.witnessUtxo.value;
+      }, 0n);
+      const feeSats = Number(inputValue - transaction.outs.reduce((sum, output) => sum + output.value, 0n));
+      const recipientValue = transaction.outs
+        .filter(output => {
+          try {
+            return !wallet.weOwnAddress(bitcoin.address.fromOutputScript(output.script));
+          } catch {
+            return true;
+          }
+        })
+        .reduce((sum, output) => sum + output.value, 0n);
+      const amountSats = Number(recipientValue || transaction.outs.reduce((sum, output) => sum + output.value, 0n));
+      const feeRate = feeSats / transaction.virtualSize();
+      if (
+        requiresHighFeeApproval({ feeSats, feeRate, amountSats }) &&
+        !(await confirm(
+          'High transaction fee',
+          `The fee is ${feeSats} sats (${feeRate.toFixed(2)} sats/vB). Confirm this fee before sending.`,
+        ))
+      ) {
+        setIsLoading(false);
+        return;
+      }
       if (!(await BlueElectrum.ensureConnected())) {
         throw new Error(loc.errors.network);
       }
@@ -184,7 +218,9 @@ const PsbtWithHardwareWallet = () => {
   };
 
   const handleOnVerifyPressed = () => {
-    Linking.openURL('https://coinb.in/?verify=' + txHex);
+    presentAlert({
+      message: 'External transaction verification is disabled for XBT. This transaction will not be sent to a third-party website.',
+    });
   };
 
   const copyHexToClipboard = () => {

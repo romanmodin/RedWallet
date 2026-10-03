@@ -177,9 +177,6 @@ jobs:
     if: ${{ always() && !cancelled() && (needs.build.result == 'success' || inputs.source_run_id != '') }}
     runs-on: macos-26
     needs: build
-    env:
-      HD_MNEMONIC: ${{ secrets.HD_MNEMONIC }}
-      HD_MNEMONIC_BIP84: ${{ secrets.HD_MNEMONIC_BIP84 }}
 
     steps:
       - name: Checkout
@@ -266,6 +263,11 @@ jobs:
               --artifacts-location ./artifacts
             exit $?
           fi
+          # Authenticate the native TLS transport before the longer wallet flows.
+          npm run e2e:test:ios-release -- \
+            tests/e2e/electrum-tls.spec.js --runTestsByPath \
+            --record-videos failing --record-logs failing --take-screenshots failing \
+            --headless --retries 0 --reuse --artifacts-location ./artifacts/tls
           # Retain supported inherited coverage; bluewallet2 requires a funded Bitcoin fixture.
           npm run e2e:test:ios-release -- \
             tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js \
@@ -273,7 +275,7 @@ jobs:
             --record-logs failing \
             --take-screenshots failing \
             --headless \
-            --retries 3 \
+            --retries 0 \
             --reuse \
             --artifacts-location ./artifacts
 

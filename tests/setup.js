@@ -256,7 +256,11 @@ jest.mock('react-native-fs', () => {
     TemporaryDirectoryPath: '/mock/Temporary',
     LibraryDirectoryPath: '/mock/Library',
     PicturesDirectoryPath: '/mock/Pictures',
-    __mockFsHelpers: { setExists, clearExists, reset: () => mockFsExisting.clear() },
+    __mockFsHelpers: {
+      setExists,
+      clearExists,
+      reset: () => mockFsExisting.clear(),
+    },
   };
 });
 
@@ -285,6 +289,7 @@ jest.mock('realm', () => {
   // live (memory-cached, possibly-closed) instance map so deleteArkadeRealm
   // can realistically test the file-cleanup path.
   const mockRealmFiles = new Set();
+  const mockRealmData = new Map();
 
   // Primary-key field per Realm object type. Used by create() to key the
   // in-memory store and by delete() to remove individual objects.
@@ -391,7 +396,8 @@ jest.mock('realm', () => {
   const makeRealmInstance = path => {
     let isClosed = false;
     // type → Map<primaryKey, object>
-    const typeStore = new Map();
+    if (!mockRealmData.has(path)) mockRealmData.set(path, new Map());
+    const typeStore = mockRealmData.get(path);
 
     const getStore = type => {
       if (!typeStore.has(type)) typeStore.set(type, new Map());
@@ -448,6 +454,12 @@ jest.mock('realm', () => {
         return makeCollection(type, getStore(type).values());
       },
 
+      writeCopyTo(config) {
+        const copy = new Map();
+        for (const [type, records] of typeStore) copy.set(type, new Map([...records].map(([pk, record]) => [pk, { ...record }])));
+        mockRealmData.set(config.path, copy);
+        mockRealmFiles.add(config.path);
+      },
       close() {
         isClosed = true;
       },
@@ -480,6 +492,7 @@ jest.mock('realm', () => {
       const path = (config && config.path) || '__default__';
       mockRealmStore.delete(path);
       mockRealmFiles.delete(path);
+      mockRealmData.delete(path);
     }),
     __mockRealmHelpers: {
       reset: () => {
@@ -490,6 +503,7 @@ jest.mock('realm', () => {
         }
         mockRealmStore.clear();
         mockRealmFiles.clear();
+        mockRealmData.clear();
       },
       store: mockRealmStore,
       files: mockRealmFiles,
@@ -575,7 +589,10 @@ jest.mock('react-native-keychain', () => {
     // SECURE_HARDWARE in the happy path. Tests override per-case via
     // mockResolvedValueOnce when they need a downgrade scenario.
     getSecurityLevel: jest.fn(async () => 'SECURE_HARDWARE'),
-    __mockKeychainHelpers: { reset: () => mockKeychainCreds.clear(), store: mockKeychainCreds },
+    __mockKeychainHelpers: {
+      reset: () => mockKeychainCreds.clear(),
+      store: mockKeychainCreds,
+    },
   };
 });
 

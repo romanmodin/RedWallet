@@ -1,0 +1,97 @@
+diff --git a/node_modules/react-native-blue-crypto/ios/BlueCrypto.m b/node_modules/react-native-blue-crypto/ios/BlueCrypto.m
+--- a/node_modules/react-native-blue-crypto/ios/BlueCrypto.m
++++ b/node_modules/react-native-blue-crypto/ios/BlueCrypto.m
+@@ -57,6 +57,54 @@
+     NSString *result = [NSString stringWithString: hexResult];
+     resolve(result);
+     free(buffer);
++}
++
++
++// Fixed-cost storage derivation. Never resolve uninitialized bytes after failure.
++RCT_REMAP_METHOD(scryptSecure, scryptSecure:(NSArray *)pw
++                 salt:(NSArray *)salt
++                 resolver:(RCTPromiseResolveBlock)resolve
++                 rejecter:(RCTPromiseRejectBlock)reject)
++{
++    const size_t passLen = [pw count];
++    if (passLen == 0 || passLen > 65536 || [salt count] != 16) {
++        reject(@"SCRYPT_INPUT", @"Invalid storage key input", nil);
++        return;
++    }
++    uint8_t *password = malloc(passLen);
++    uint8_t *saltBytes = malloc(16);
++    uint8_t key[32] = {0};
++    @try {
++        if (!password || !saltBytes) {
++            reject(@"SCRYPT_FAILED", @"Storage key derivation failed", nil);
++            return;
++        }
++        for (size_t i = 0; i < passLen; i++) password[i] = [[pw objectAtIndex:i] unsignedCharValue];
++        for (size_t i = 0; i < 16; i++) saltBytes[i] = [[salt objectAtIndex:i] unsignedCharValue];
++        if (libscrypt_scrypt(password, passLen, saltBytes, 16, 32768, 8, 3, key, 32) != 0) {
++            reject(@"SCRYPT_FAILED", @"Storage key derivation failed", nil);
++            return;
++        }
++        NSMutableString *result = [NSMutableString stringWithCapacity:64];
++        for (size_t i = 0; i < 32; i++) [result appendFormat:@"%02x", key[i]];
++        resolve(result);
++    } @catch (NSException *ignored) {
++        reject(@"SCRYPT_FAILED", @"Storage key derivation failed", nil);
++    } @finally {
++        // Volatile stores prevent the compiler from removing the wipe.
++        volatile uint8_t *wipeKey = key;
++        for (size_t i = 0; i < 32; i++) wipeKey[i] = 0;
++        if (password) {
++            volatile uint8_t *wipePassword = password;
++            for (size_t i = 0; i < passLen; i++) wipePassword[i] = 0;
++            free(password);
++        }
++        if (saltBytes) {
++            volatile uint8_t *wipeSalt = saltBytes;
++            for (size_t i = 0; i < 16; i++) wipeSalt[i] = 0;
++            free(saltBytes);
++        }
++    }
+ }
+ 
+ @end
+diff --git a/node_modules/react-native-blue-crypto/android/src/main/java/com/reactlibrary/BlueCryptoModule.kt b/node_modules/react-native-blue-crypto/android/src/main/java/com/reactlibrary/BlueCryptoModule.kt
+--- a/node_modules/react-native-blue-crypto/android/src/main/java/com/reactlibrary/BlueCryptoModule.kt
++++ b/node_modules/react-native-blue-crypto/android/src/main/java/com/reactlibrary/BlueCryptoModule.kt
+@@ -4,6 +4,7 @@
+ import com.facebook.react.bridge.ReactContextBaseJavaModule
+ import com.facebook.react.bridge.ReactMethod
+ import com.facebook.react.bridge.Callback
++import com.facebook.react.bridge.Promise
+ 
+ class BlueCryptoModule(private val reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+ 
+@@ -22,4 +23,27 @@
+         val hashed = SCrypt.scrypt(passphraseBytes, saltBytes, N, r, p, dkLen);
+         callback.invoke(hashed.toHexString());
+     }
++
++    // Fixed storage costs match RWV2 and cache v3; errors reject the promise.
++    @ReactMethod
++    fun scryptSecure(passphrase: String, salt: String, promise: Promise) {
++        var passwordBytes: ByteArray? = null
++        var saltBytes: ByteArray? = null
++        var key: ByteArray? = null
++        try {
++            require(passphrase.isNotEmpty() && passphrase.length <= 131072 && passphrase.length % 2 == 0)
++            require(passphrase.matches(Regex("[0-9a-fA-F]+")) && salt.matches(Regex("[0-9a-fA-F]{32}")))
++            passwordBytes = passphrase.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
++            saltBytes = salt.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
++            key = SCrypt.scrypt(passwordBytes, saltBytes, 32768, 8, 3, 32)
++            promise.resolve(key.joinToString("") { String.format("%02x", it.toInt() and 0xff) })
++        } catch (ignored: Exception) {
++            promise.reject("SCRYPT_FAILED", "Storage key derivation failed")
++        } finally {
++            passwordBytes?.fill(0)
++            saltBytes?.fill(0)
++            key?.fill(0)
++        }
++    }
++
+ }

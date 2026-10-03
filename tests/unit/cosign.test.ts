@@ -246,11 +246,14 @@ describe('AbstractHDElectrumWallet.cosign', () => {
     ];
 
     // creating a tx on watch-only wallet:
-    const { psbt } = watchOnlyWallet.createTransaction(
+    // Bitcoin cosign compatibility belongs to the underlying Bitcoin wallet, not RedWallet signing.
+    const { psbt } = watchOnlyWallet._hdWalletInstance!.createTransaction(
       utxos,
       [{ address: '13HaCAB4jf7FYSZexJxoczyDDnutzZigjS', value: 1000 }],
       1,
       watchOnlyWallet._getInternalAddressByIndex(0),
+      undefined,
+      true,
     );
     assert.strictEqual(psbt.data.outputs.length, 2);
     assert.strictEqual(psbt.data.inputs.length, 1);

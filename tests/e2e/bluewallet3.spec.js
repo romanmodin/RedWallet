@@ -1,17 +1,28 @@
-import { dismissAlertByText, enterMnemonicText, waitForId, waitForText } from './helperz';
+import {
+  dismissAlertByText,
+  enterMnemonicText,
+  getSwitchValue,
+  goBack,
+  scrollUpOnHomeScreen,
+  waitForId,
+  waitForWalletsList,
+  waitForText,
+} from './helperz';
+const assert = require('assert').strict;
 
-// if loglevel is set to `error`, this kind of logging will still get through
-console.warn = console.log = (...args) => {
-  let output = '';
-  args.map(arg => (output += String(arg)));
-
-  process.stdout.write('\n\t\t' + output + '\n');
-};
-
-describe('RedWallet XBT-only import', () => {
-  it('rejects a watch-only zpub until its XBT chain identity is verified', async () => {
+describe('RedWallet XBT watch-only import', () => {
+  it('imports a BIP84 public account with external signing disabled', async () => {
     await device.clearKeychain();
-    await device.launchApp({ delete: true, permissions: { notifications: 'YES', camera: 'YES' } });
+    await device.launchApp({ delete: true, permissions: { notifications: 'NO', camera: 'YES' } });
+    await waitForWalletsList();
+    await element(by.id('SettingsButton')).tap();
+    await element(by.id('NetworkSettings')).tap();
+    await element(by.id('ElectrumSettings')).tap();
+    await waitForId('ElectrumConnectionEnabledSwitch');
+    if (!(await getSwitchValue('ElectrumConnectionEnabledSwitch'))) await element(by.id('ElectrumConnectionEnabledSwitch')).tap();
+    await goBack();
+    await goBack();
+    await goBack();
     await waitForId('CreateAWallet');
     await element(by.id('CreateAWallet')).tap();
     await waitForId('ImportWallet');
@@ -20,9 +31,24 @@ describe('RedWallet XBT-only import', () => {
     await enterMnemonicText(
       'zpub6s2EvLxwvDpaHNVP5vfordTyi8cH1fR8usmEjz7RsSQjfTTGU2qA5VEcEyYYBxpZAyBarJoTraB4VRJKVz97Au9jRNYfLAeeHC5UnRZbz8Y',
     );
-    await element(by.id('DoImport')).tap();
-    await waitForText('RedWallet currently imports a BIP39 recovery phrase for its XBT BIP84 wallet.', 30_000);
-    if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss unsupported import error');
-    await expect(element(by.text('Imported XBT SegWit (BIP84)'))).not.toExist();
+    const isIOS = device.getPlatform() === 'ios';
+    if (isIOS) await device.disableSynchronization();
+    try {
+      await element(by.id('DoImport')).tap();
+      await waitForText('Your wallet has been successfully imported. WARNING: This is a watch-only wallet, you can NOT spend from it.');
+      if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss watch-only import confirmation');
+    } finally {
+      if (isIOS) await device.enableSynchronization();
+    }
+    await scrollUpOnHomeScreen();
+    await waitForId('Imported Watch-only', 60_000);
+    await element(by.id('Imported Watch-only')).tap();
+    await waitForId('WalletDetails');
+    await element(by.id('WalletDetails')).tap();
+    await waitFor(element(by.id('XbtExternalSignerSwitch')))
+      .toBeVisible()
+      .whileElement(by.id('WalletDetailsScroll'))
+      .scroll(150, 'down');
+    assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), false);
   });
 });

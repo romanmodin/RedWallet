@@ -1,3 +1,4 @@
+import { confirmXbtPayment } from '../../class/xbt/payment-warning';
 import { getPayjoinUrl, supportsPayjoin } from '../../class/payjoin-policy';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { XBT_PROFILE } from '../../class/xbt/profile';
@@ -101,7 +102,10 @@ const SendDetails = () => {
   const { colors } = useTheme();
 
   // state
-  const [dimensions, setDimensions] = useState({ width: Dimensions.get('window').width, height: 0 });
+  const [dimensions, setDimensions] = useState({
+    width: Dimensions.get('window').width,
+    height: 0,
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [wallet, setWallet] = useState<TWallet | null>(null);
   const payjoinAllowed = supportsPayjoin(wallet);
@@ -112,7 +116,12 @@ const SendDetails = () => {
   const [networkTransactionFeesIsLoading, setNetworkTransactionFeesIsLoading] = useState(false);
   const [customFee, setCustomFee] = useState<string | null>(null);
   const [selectedPresetFeeRate, setSelectedPresetFeeRate] = useState<string | null>(null);
-  const [feePrecalc, setFeePrecalc] = useState<IFee>({ current: null, slowFee: null, mediumFee: null, fastestFee: null });
+  const [feePrecalc, setFeePrecalc] = useState<IFee>({
+    current: null,
+    slowFee: null,
+    mediumFee: null,
+    fastestFee: null,
+  });
   const [changeAddress, setChangeAddress] = useState<string | null>(null);
   const [dumb, setDumb] = useState(false);
   const { isEditable } = routeParams;
@@ -184,18 +193,33 @@ const SendDetails = () => {
             addrs[scrollIndex.current] = currentAddress;
             return [...addrs];
           } else {
-            return [...addrs, { address, amount, amountSats: btcToSatoshi(amount!), key: String(Math.random()), unit: amountUnit }];
+            return [
+              ...addrs,
+              {
+                address,
+                amount,
+                amountSats: btcToSatoshi(amount!),
+                key: String(Math.random()),
+                unit: amountUnit,
+              },
+            ];
           }
         });
 
         if (memo?.trim().length > 0) {
           setParams({ transactionMemo: memo });
         }
-        setParams({ payjoinUrl: getPayjoinUrl(wallet, pjUrl), amountUnit: BitcoinUnit.BTC });
+        setParams({
+          payjoinUrl: getPayjoinUrl(wallet, pjUrl),
+          amountUnit: BitcoinUnit.BTC,
+        });
       } catch (error) {
         console.log(error);
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
-        presentAlert({ title: loc.errors.error, message: loc.send.details_error_decode });
+        presentAlert({
+          title: loc.errors.error,
+          message: loc.send.details_error_decode,
+        });
       }
     } else if (routeParams.address) {
       // screen was called with `address` parameter, so we just prefill it
@@ -238,13 +262,19 @@ const SendDetails = () => {
     const suitable = wallets.filter(w => w.chain === Chain.ONCHAIN && w.allowSend());
     if (suitable.length === 0) {
       triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
-      presentAlert({ title: loc.errors.error, message: loc.send.details_wallet_before_tx });
+      presentAlert({
+        title: loc.errors.error,
+        message: loc.send.details_wallet_before_tx,
+      });
       navigation.goBack();
       return;
     }
     const newWallet = (routeParams.walletID && wallets.find(w => w.getID() === routeParams.walletID)) || suitable[0];
     setWallet(newWallet);
-    setParams({ feeUnit: newWallet.getPreferredBalanceUnit(), amountUnit: newWallet.getPreferredBalanceUnit() });
+    setParams({
+      feeUnit: newWallet.getPreferredBalanceUnit(),
+      amountUnit: newWallet.getPreferredBalanceUnit(),
+    });
 
     // we are ready!
     setIsLoading(false);
@@ -343,14 +373,20 @@ const SendDetails = () => {
         targets.push({ address: transaction.address, value });
       } else if (transaction.amount) {
         if (btcToSatoshi(transaction.amount) > 0) {
-          targets.push({ address: transaction.address, value: btcToSatoshi(transaction.amount) });
+          targets.push({
+            address: transaction.address,
+            value: btcToSatoshi(transaction.amount),
+          });
         }
       }
     }
 
     // if targets is empty, insert dust
     if (targets.length === 0) {
-      targets.push({ address: '36JxaUrpDzkEerkTf1FzwHNE1Hb7cCjgJV', value: 546 });
+      targets.push({
+        address: '36JxaUrpDzkEerkTf1FzwHNE1Hb7cCjgJV',
+        value: 546,
+      });
     }
 
     // replace wrong addresses with dump
@@ -457,7 +493,10 @@ const SendDetails = () => {
         // user probably scanned PSBT and got an object instead of string..?
         setIsLoading(false);
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
-        return presentAlert({ title: loc.errors.error, message: loc.send.details_address_field_is_not_valid });
+        return presentAlert({
+          title: loc.errors.error,
+          message: loc.send.details_address_field_is_not_valid,
+        });
       }
 
       const cl = new ContactList();
@@ -469,7 +508,14 @@ const SendDetails = () => {
           return [...addrs];
         });
         setIsLoading(false);
-        setTimeout(() => scrollView.current?.scrollToIndex({ index: currentIndex, animated: false }), 50);
+        setTimeout(
+          () =>
+            scrollView.current?.scrollToIndex({
+              index: currentIndex,
+              animated: false,
+            }),
+          50,
+        );
         return;
       }
 
@@ -500,9 +546,20 @@ const SendDetails = () => {
           addrs[scrollIndex.current].unit = BitcoinUnit.BTC;
           return [...addrs];
         });
-        setParams({ transactionMemo: options.label || '', amountUnit: BitcoinUnit.BTC, payjoinUrl: getPayjoinUrl(wallet, options.pj) }); // there used to be `options.message` here as well. bug?
+        setParams({
+          transactionMemo: options.label || '',
+          amountUnit: BitcoinUnit.BTC,
+          payjoinUrl: getPayjoinUrl(wallet, options.pj),
+        }); // there used to be `options.message` here as well. bug?
         // RN Bug: contentOffset gets reset to 0 when state changes. Remove code once this bug is resolved.
-        setTimeout(() => scrollView.current?.scrollToIndex({ index: currentIndex, animated: false }), 50);
+        setTimeout(
+          () =>
+            scrollView.current?.scrollToIndex({
+              index: currentIndex,
+              animated: false,
+            }),
+          50,
+        );
       }
 
       setIsLoading(false);
@@ -579,7 +636,10 @@ const SendDetails = () => {
         presentAlert({
           title:
             addresses.length > 1
-              ? loc.formatString(loc.send.details_recipient_title, { number: index + 1, total: addresses.length })
+              ? loc.formatString(loc.send.details_recipient_title, {
+                  number: index + 1,
+                  total: addresses.length,
+                })
               : undefined,
           message: error,
         });
@@ -589,6 +649,10 @@ const SendDetails = () => {
     }
 
     try {
+      if (!(await confirmXbtPayment())) {
+        setIsLoading(false);
+        return;
+      }
       await createPsbtTransaction();
     } catch (Err: any) {
       setIsLoading(false);
@@ -623,7 +687,10 @@ const SendDetails = () => {
         targets.push({ address: transaction.address, value });
       } else if (transaction.amount) {
         if (btcToSatoshi(transaction.amount) > 0) {
-          targets.push({ address: transaction.address, value: btcToSatoshi(transaction.amount) });
+          targets.push({
+            address: transaction.address,
+            value: btcToSatoshi(transaction.amount),
+          });
         }
       }
     }
@@ -722,7 +789,10 @@ const SendDetails = () => {
    */
   const importQrTransaction = useCallback(async () => {
     if (wallet?.type !== WatchOnlyWallet.type) {
-      return presentAlert({ title: loc.errors.error, message: 'Importing transaction in non-watchonly wallet (this should never happen)' });
+      return presentAlert({
+        title: loc.errors.error,
+        message: 'Importing transaction in non-watchonly wallet (this should never happen)',
+      });
     }
 
     navigateToQRCodeScanner();
@@ -733,7 +803,10 @@ const SendDetails = () => {
       if (!wallet) return;
       if (!ret.data) ret = { data: ret };
       if (ret.data.toUpperCase().startsWith('UR')) {
-        presentAlert({ title: loc.errors.error, message: 'BC-UR not decoded. This should never happen' });
+        presentAlert({
+          title: loc.errors.error,
+          message: 'BC-UR not decoded. This should never happen',
+        });
       } else if (ret.data.indexOf('+') === -1 && ret.data.indexOf('=') === -1 && ret.data.indexOf('=') === -1) {
         // this looks like NOT base64, so maybe its transaction's hex
         // we dont support it in this flow
@@ -766,7 +839,10 @@ const SendDetails = () => {
    */
   const importTransaction = useCallback(async () => {
     if (wallet?.type !== WatchOnlyWallet.type) {
-      return presentAlert({ title: loc.errors.error, message: 'Importing transaction in non-watchonly wallet (this should never happen)' });
+      return presentAlert({
+        title: loc.errors.error,
+        message: 'Importing transaction in non-watchonly wallet (this should never happen)',
+      });
     }
 
     try {
@@ -785,7 +861,11 @@ const SendDetails = () => {
 
         try {
           const txhex = possiblySignedPsbt.extractTransaction().toHex();
-          navigation.navigate('PsbtWithHardwareWallet', { memo: transactionMemo, walletID: wallet.getID(), txhex });
+          navigation.navigate('PsbtWithHardwareWallet', {
+            memo: transactionMemo,
+            walletID: wallet.getID(),
+            txhex,
+          });
           setIsLoading(false);
 
           return;
@@ -793,7 +873,11 @@ const SendDetails = () => {
 
         // looks like transaction is UNsigned, so we construct PSBT object and pass to next screen
         // so user can do smth with it:
-        navigation.navigate('PsbtWithHardwareWallet', { memo: transactionMemo, walletID: wallet.getID(), psbt });
+        navigation.navigate('PsbtWithHardwareWallet', {
+          memo: transactionMemo,
+          walletID: wallet.getID(),
+          psbt,
+        });
         setIsLoading(false);
 
         return;
@@ -802,19 +886,29 @@ const SendDetails = () => {
       if (DeeplinkSchemaMatch.isTXNFile(String(res.name))) {
         // plain text file with txhex ready to broadcast
         const file = (await RNFS.readFile(res.uri, 'ascii')).replace('\n', '').replace('\r', '');
-        navigation.navigate('PsbtWithHardwareWallet', { memo: transactionMemo, walletID: wallet.getID(), txhex: file });
+        navigation.navigate('PsbtWithHardwareWallet', {
+          memo: transactionMemo,
+          walletID: wallet.getID(),
+          txhex: file,
+        });
         setIsLoading(false);
 
         return;
       }
 
       triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
-      presentAlert({ title: loc.errors.error, message: loc.send.details_unrecognized_file_format });
+      presentAlert({
+        title: loc.errors.error,
+        message: loc.send.details_unrecognized_file_format,
+      });
     } catch (err: any) {
       console.error('error picking transaction:', err?.message);
       if (!isCancel(err)) {
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
-        presentAlert({ title: loc.errors.error, message: loc.send.details_no_signed_tx });
+        presentAlert({
+          title: loc.errors.error,
+          message: loc.send.details_no_signed_tx,
+        });
       }
     }
   }, [navigation, setIsLoading, transactionMemo, wallet]);
@@ -864,7 +958,10 @@ const SendDetails = () => {
         }
       } catch (error: any) {
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
-        presentAlert({ title: loc.send.problem_with_psbt, message: error.message });
+        presentAlert({
+          title: loc.send.problem_with_psbt,
+          message: error.message,
+        });
       }
       setIsLoading(false);
     },
@@ -879,7 +976,10 @@ const SendDetails = () => {
     (ret: any) => {
       if (!ret.data) ret = { data: ret };
       if (ret.data.toUpperCase().startsWith('UR')) {
-        presentAlert({ title: loc.errors.error, message: 'BC-UR not decoded. This should never happen' });
+        presentAlert({
+          title: loc.errors.error,
+          message: 'BC-UR not decoded. This should never happen',
+        });
       } else if (ret.data.indexOf('+') === -1 && ret.data.indexOf('=') === -1 && ret.data.indexOf('=') === -1) {
         // this looks like NOT base64, so maybe its transaction's hex
         // we dont support it in this flow
@@ -975,10 +1075,15 @@ const SendDetails = () => {
     const incompleteIndex = addresses.findIndex(item => !item.address || !item.amount);
     if (incompleteIndex !== -1) {
       scrollIndex.current = incompleteIndex;
-      scrollView.current?.scrollToIndex({ index: incompleteIndex, animated: true });
+      scrollView.current?.scrollToIndex({
+        index: incompleteIndex,
+        animated: true,
+      });
       presentAlert({
         title: loc.send.please_complete_recipient_title,
-        message: loc.formatString(loc.send.please_complete_recipient_details, { number: incompleteIndex + 1 }),
+        message: loc.formatString(loc.send.please_complete_recipient_details, {
+          number: incompleteIndex + 1,
+        }),
       });
       return;
     }
@@ -1364,7 +1469,10 @@ const SendDetails = () => {
             accessibilityRole="button"
             style={({ pressed }) => [pressed && styles.pressed, styles.selectTouch]}
             onPress={() => {
-              navigation.navigate('SelectWallet', { chainType: Chain.ONCHAIN, selectedWalletID: wallet?.getID() });
+              navigation.navigate('SelectWallet', {
+                chainType: Chain.ONCHAIN,
+                selectedWalletID: wallet?.getID(),
+              });
             }}
           >
             <Text style={styles.selectText}>{loc.wallets.select_wallet.toLowerCase()}</Text>
@@ -1376,7 +1484,10 @@ const SendDetails = () => {
             accessibilityRole="button"
             style={({ pressed }) => [pressed && styles.pressed, styles.selectTouch]}
             onPress={() => {
-              navigation.navigate('SelectWallet', { chainType: Chain.ONCHAIN, selectedWalletID: wallet?.getID() });
+              navigation.navigate('SelectWallet', {
+                chainType: Chain.ONCHAIN,
+                selectedWalletID: wallet?.getID(),
+              });
             }}
             disabled={!isEditable || isLoading}
           >
@@ -1465,7 +1576,9 @@ const SendDetails = () => {
             onPress={handleCoinControl}
           >
             <BlueText>
-              {loc.formatString(loc.send.details_frozen, { amount: formatBalanceWithoutSuffix(frozenBalance, BitcoinUnit.BTC, true) })}
+              {loc.formatString(loc.send.details_frozen, {
+                amount: formatBalanceWithoutSuffix(frozenBalance, BitcoinUnit.BTC, true),
+              })}
             </BlueText>
           </Pressable>
         )}
@@ -1496,7 +1609,10 @@ const SendDetails = () => {
               setIsLoading(false);
               setParams(
                 hasPositiveAmount
-                  ? { payjoinUrl: getPayjoinUrl(wallet, pjUrl), amountUnit: BitcoinUnit.BTC }
+                  ? {
+                      payjoinUrl: getPayjoinUrl(wallet, pjUrl),
+                      amountUnit: BitcoinUnit.BTC,
+                    }
                   : { payjoinUrl: getPayjoinUrl(wallet, pjUrl) },
               );
             }}
@@ -1510,7 +1626,10 @@ const SendDetails = () => {
 
         {addresses.length > 1 && (
           <Text style={[styles.of, stylesHook.of, styles.ofMargin]}>
-            {loc.formatString(loc._.of, { number: index + 1, total: addresses.length })}
+            {loc.formatString(loc._.of, {
+              number: index + 1,
+              total: addresses.length,
+            })}
           </Text>
         )}
       </View>

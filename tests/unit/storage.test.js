@@ -554,3 +554,32 @@ it('rejects a BTC signer in encrypted storage without rewriting the ciphertext',
   await expect(reopened.saveToDisk()).rejects.toThrow('Original wallet data has been preserved');
   expect(await AsyncStorage.getItem('data')).toBe(before);
 });
+
+it('migrates an active legacy encrypted bucket to authenticated v2 without overwriting a decoy', async () => {
+  const encryption = require('../../blue_modules/encryption');
+  const { createCipheriv } = require('crypto');
+  const storage = new BlueApp();
+  const wallet = new XbtSegwitBech32Wallet();
+  wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+  wallet.setLabel('legacy wallet');
+  storage.wallets.push(wallet);
+  await storage.saveToDisk();
+  const plaintext = await AsyncStorage.getItem('data');
+  const salt = Buffer.from('0102030405060708', 'hex');
+  const kdf = encryption.evpBytesToKeyMd5(Buffer.from('active password'), salt, 48);
+  const cipher = createCipheriv('aes-256-cbc', kdf.subarray(0, 32), kdf.subarray(32));
+  const legacy = Buffer.concat([Buffer.from('Salted__'), salt, cipher.update(plaintext), cipher.final()]).toString('base64');
+  const decoy = await encryption.encrypt(JSON.stringify({ wallets: [], tx_metadata: {} }), 'decoy password');
+  await AsyncStorage.setItem('data', JSON.stringify([legacy, decoy]));
+  await AsyncStorage.setItem(BlueApp.FLAG_ENCRYPTED, '1');
+  const reopened = new BlueApp();
+  expect(await reopened.loadFromDisk('active password')).toBe(true);
+  expect(reopened.wallets[0].getLabel()).toBe('legacy wallet');
+  await reopened.saveToDisk();
+  const saved = JSON.parse(await AsyncStorage.getItem('data'));
+  expect(saved[0]).toMatch(/^RWV2:/);
+  expect(saved[1]).toBe(decoy);
+  const restored = new BlueApp();
+  expect(await restored.loadFromDisk('active password')).toBe(true);
+  expect(restored.wallets[0].getLabel()).toBe('legacy wallet');
+});

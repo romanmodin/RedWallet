@@ -10,7 +10,7 @@ The iPhone beta is available through TestFlight to invited testers. The signed A
 
 The current XBT wallet supports one Native SegWit/P2WPKH BIP84 account, Unified Sighash signing, wallet recovery, Fulcrum balance and transaction history, QR receive/send, configurable servers, and XBT pricing. Hardware signing, Taproot, multisig, silent payments and Lightning are outside this release.
 
-History is fetched for discovered receive and change addresses; it is not limited to transactions created in RedWallet. A tester has reported a restored balance with missing history. That report remains unresolved, and this Android package does not claim to fix it.
+History is fetched for discovered receive and change addresses; it is not limited to transactions created in RedWallet. The tester who reported a restored balance with missing history resolved it by fixing their server, as reported by the maintainer on October 2, 2026. That case was server-side; this is not a claim that every recovery scenario has been independently validated.
 
 PR #1 has been reviewed and merged. Signing checks use published vectors and independent regression fixtures. The Android release package passed emulator installation and launch checks, and its signature, alignment and payload were verified. Each release includes an APK checksum and a receipt identifying its source commit, CI run and signing certificate.
 

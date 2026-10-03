@@ -129,10 +129,25 @@ const startImport = (
     let password;
 
     if (xbtOnly) {
+      const watchOnly = new WatchOnlyWallet();
+      try {
+        watchOnly.setSecret(text);
+        if (watchOnly.valid()) {
+          watchOnly.init();
+          if (!watchOnly.isXbtSigningCompatible()) throw new Error('XBT watch-only import requires a BIP84 Native SegWit account');
+          watchOnly.xbt_network = true;
+          watchOnly.init();
+          yield { progress: 'XBT watch-only account' };
+          yield { wallet: watchOnly };
+          return;
+        }
+      } catch (error) {
+        if (/^(?:[xyz]pub|\{|wpkh\(|\[)/.test(text)) throw error;
+      }
       const xbtWallet = new XbtSegwitBech32Wallet();
       xbtWallet.setSecret(text);
       if (!xbtWallet.validateMnemonic()) {
-        throw new Error('RedWallet currently imports a BIP39 recovery phrase for its XBT BIP84 wallet.');
+        throw new Error('RedWallet currently imports a BIP39 recovery phrase or a BIP84 watch-only public key for XBT.');
       }
       if (askPassphrase) {
         password = await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message);

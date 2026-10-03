@@ -8,8 +8,12 @@ import { HDSegwitP2SHWallet } from './hd-segwit-p2sh-wallet';
 import { LegacyWallet } from './legacy-wallet';
 import { THDWalletForWatchOnly } from './types';
 import { HDTaprootWallet } from './hd-taproot-wallet';
+import { XbtSegwitBech32Wallet } from './xbt-segwit-bech32-wallet';
+import { assertSignedUnifiedTransactionMatchesPsbt, finalizeUnifiedP2wpkhInput, SIGHASH_ALL_UNIFIED } from '../xbt/unified-psbt';
 
 const bip32 = BIP32Factory(ecc);
+const pendingSigningRequests = new WeakMap<WatchOnlyWallet, string>();
+const approvedExternalTransactions = new WeakMap<WatchOnlyWallet, string>();
 
 export class WatchOnlyWallet extends LegacyWallet {
   static readonly type = 'watchOnly';
@@ -22,6 +26,8 @@ export class WatchOnlyWallet extends LegacyWallet {
 
   public _hdWalletInstance?: THDWalletForWatchOnly;
   use_with_hardware_wallet = false;
+  xbt_network = false;
+  xbt_signer_enabled = false;
   masterFingerprint: number = 0;
 
   /**
@@ -43,11 +49,11 @@ export class WatchOnlyWallet extends LegacyWallet {
   }
 
   allowSend() {
-    return this.useWithHardwareWalletEnabled() && this.isHd() && this._hdWalletInstance!.allowSend();
+    return this.useWithHardwareWalletEnabled() && this._hdWalletInstance instanceof XbtSegwitBech32Wallet;
   }
 
   allowRBF() {
-    return this._hdWalletInstance?.type === HDSegwitBech32Wallet.type;
+    return false;
   }
 
   allowSignVerifyMessage() {
@@ -104,6 +110,10 @@ export class WatchOnlyWallet extends LegacyWallet {
     } else if (this.secret.startsWith('ypub')) hdWalletInstance = new HDSegwitP2SHWallet();
     else if (this.secret.startsWith('zpub')) hdWalletInstance = new HDSegwitBech32Wallet();
     else return this;
+    if (this.xbt_network) {
+      if (!(hdWalletInstance instanceof HDSegwitBech32Wallet)) throw new Error('XBT watch-only signing requires Native SegWit');
+      hdWalletInstance = new XbtSegwitBech32Wallet();
+    }
     hdWalletInstance._xpub = this.secret;
 
     // if derivation path recovered from JSON file it should be moved to hdWalletInstance
@@ -114,6 +124,7 @@ export class WatchOnlyWallet extends LegacyWallet {
     if (this._hdWalletInstance) {
       // now, porting all properties from old object to new one
       for (const k of Object.keys(this._hdWalletInstance)) {
+        if (k === 'type' || k === 'typeReadable') continue;
         // @ts-ignore: JS magic here
         hdWalletInstance[k] = this._hdWalletInstance[k];
       }
@@ -209,28 +220,64 @@ export class WatchOnlyWallet extends LegacyWallet {
     return super.getUtxo(...args);
   }
 
-  combinePsbt(...args: Parameters<THDWalletForWatchOnly['combinePsbt']>) {
-    if (this._hdWalletInstance) return this._hdWalletInstance.combinePsbt(...args);
-    throw new Error('Not initialized');
+  combinePsbt(..._args: Parameters<THDWalletForWatchOnly['combinePsbt']>): ReturnType<THDWalletForWatchOnly['combinePsbt']> {
+    if (!this.allowSend()) throw new Error('Enable an XBT-compatible external signer first');
+    approvedExternalTransactions.delete(this);
+    const [one, two] = _args;
+    const expected = typeof one === 'string' ? bitcoin.Psbt.fromBase64(one) : one.clone();
+    if (expected.data.inputs.some(input => input.sighashType !== SIGHASH_ALL_UNIFIED)) {
+      throw new Error('Reviewed PSBT does not declare XBT Unified Sighash on every input');
+    }
+    if (pendingSigningRequests.get(this) !== expected.toBase64())
+      throw new Error('PSBT does not match the current reviewed signing request');
+    const signed = typeof two === 'string' ? bitcoin.Psbt.fromBase64(two) : two.clone();
+    const combined = expected.clone().combine(signed);
+    combined.data.inputs.forEach((input, index) => {
+      if (!input.finalScriptWitness) {
+        const publicKey = input.partialSig?.[0]?.pubkey;
+        if (!publicKey) throw new Error('External signer did not sign every input');
+        finalizeUnifiedP2wpkhInput(combined, index, publicKey, (key, digest, signature) => ecc.verify(digest, key, signature));
+      }
+    });
+    const transaction = combined.extractTransaction();
+    assertSignedUnifiedTransactionMatchesPsbt(transaction.toHex(), expected, (key, digest, signature) =>
+      ecc.verify(digest, key, signature),
+    );
+    approvedExternalTransactions.set(this, transaction.toHex());
+    return transaction;
   }
 
-  broadcastTx(...args: Parameters<THDWalletForWatchOnly['broadcastTx']>) {
-    if (this._hdWalletInstance) return this._hdWalletInstance.broadcastTx(...args);
-    throw new Error('Not initialized');
+  async broadcastTx(..._args: Parameters<THDWalletForWatchOnly['broadcastTx']>): Promise<boolean> {
+    if (!this.allowSend() || !(this._hdWalletInstance instanceof XbtSegwitBech32Wallet))
+      throw new Error('Enable an XBT-compatible external signer first');
+    if (approvedExternalTransactions.get(this) !== _args[0])
+      throw new Error('External transaction must match the verified signing request');
+    return this._hdWalletInstance.broadcastTx(_args[0]);
   }
 
   /**
    * signature of this method is the same ad BIP84 createTransaction, BUT this method should be used to create
    * unsinged PSBT to be used with HW wallet (or other external signer)
    */
-  createTransaction(...args: Parameters<THDWalletForWatchOnly['createTransaction']>) {
-    const [utxos, targets, feeRate, changeAddress, sequence] = args;
-    if (this._hdWalletInstance && this.isHd()) {
-      const masterFingerprint = this.getMasterFingerprint();
-      return this._hdWalletInstance.createTransaction(utxos, targets, feeRate, changeAddress, sequence, true, masterFingerprint);
-    } else {
-      throw new Error('Not a HD watch-only wallet, cant create PSBT (or just not initialized)');
-    }
+  createTransaction(
+    ..._args: Parameters<THDWalletForWatchOnly['createTransaction']>
+  ): ReturnType<THDWalletForWatchOnly['createTransaction']> {
+    if (!this.allowSend() || !(this._hdWalletInstance instanceof XbtSegwitBech32Wallet))
+      throw new Error('Enable an XBT-compatible external signer first');
+    approvedExternalTransactions.delete(this);
+    const [utxos, targets, feeRate, changeAddress, sequence] = _args;
+    pendingSigningRequests.delete(this);
+    const result = this._hdWalletInstance.createTransaction(
+      utxos,
+      targets,
+      feeRate,
+      changeAddress,
+      sequence,
+      true,
+      this.getMasterFingerprint(),
+    );
+    pendingSigningRequests.set(this, result.psbt.toBase64());
+    return result;
   }
 
   getMasterFingerprint() {
@@ -275,11 +322,29 @@ export class WatchOnlyWallet extends LegacyWallet {
   }
 
   useWithHardwareWalletEnabled() {
-    return !!this.use_with_hardware_wallet;
+    return this.xbt_signer_enabled === true && this.xbt_network === true;
   }
 
   setUseWithHardwareWalletEnabled(enabled: boolean) {
-    this.use_with_hardware_wallet = !!enabled;
+    approvedExternalTransactions.delete(this);
+    pendingSigningRequests.delete(this);
+    if (enabled && !this.isXbtSigningCompatible()) throw new Error('XBT external signing requires a BIP84 Native SegWit account');
+    if (enabled) this.xbt_network = true;
+    this.xbt_signer_enabled = !!enabled;
+    this.use_with_hardware_wallet = false; // Old BTC hardware flags never grant XBT signing permission.
+    this.init();
+  }
+
+  isXbtSigningCompatible() {
+    if (!(this._hdWalletInstance instanceof HDSegwitBech32Wallet)) return false;
+    const account = /^m\/84'\/0'\/(\d+)'$/.exec(this.getDerivationPath() ?? '');
+    if (!account) return false;
+    try {
+      const node = bip32.fromBase58(this.secret.startsWith('zpub') ? this._zpubToXpub(this.secret) : this.secret);
+      return node.depth === 3 && node.index === 0x80000000 + Number(account[1]);
+    } catch {
+      return false;
+    }
   }
 
   /**

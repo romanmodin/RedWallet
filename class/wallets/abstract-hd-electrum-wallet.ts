@@ -276,6 +276,10 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
   /**
    * @inheritDoc
    */
+  requiresVerifiedTransactions(): boolean {
+    return false;
+  }
+
   async fetchTransactions() {
     // if txs are absent for some internal address in hierarchy - this is a sign
     // we should fetch txs for that address
@@ -297,7 +301,8 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
       // external addresses first
       let hasUnconfirmed = false;
       this._txs_by_external_index[c] = this._txs_by_external_index[c] || [];
-      for (const tx of this._txs_by_external_index[c]) hasUnconfirmed = hasUnconfirmed || !tx.confirmations || tx.confirmations < 7;
+      for (const tx of this._txs_by_external_index[c])
+        hasUnconfirmed = hasUnconfirmed || !tx.confirmations || tx.confirmations < 7 || (this.requiresVerifiedTransactions() && !tx.rawHex);
 
       if (hasUnconfirmed || this._txs_by_external_index[c].length === 0 || this._balances_by_external_index[c].u !== 0) {
         addresses2fetch.push(this._getExternalAddressByIndex(c));
@@ -308,7 +313,8 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
       // next, internal addresses
       let hasUnconfirmed = false;
       this._txs_by_internal_index[c] = this._txs_by_internal_index[c] || [];
-      for (const tx of this._txs_by_internal_index[c]) hasUnconfirmed = hasUnconfirmed || !tx.confirmations || tx.confirmations < 7;
+      for (const tx of this._txs_by_internal_index[c])
+        hasUnconfirmed = hasUnconfirmed || !tx.confirmations || tx.confirmations < 7 || (this.requiresVerifiedTransactions() && !tx.rawHex);
 
       if (hasUnconfirmed || this._txs_by_internal_index[c].length === 0 || this._balances_by_internal_index[c].u !== 0) {
         addresses2fetch.push(this._getInternalAddressByIndex(c));
@@ -340,7 +346,7 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
     }
 
     // next, batch fetching each txid we got
-    const txdatas = await BlueElectrum.multiGetTransactionByTxid(Object.keys(txs), true);
+    const txdatas = await BlueElectrum.multiGetTransactionByTxid(Object.keys(txs), true, 45, this.requiresVerifiedTransactions());
 
     // now, tricky part. we collect all transactions from inputs (vin), and batch fetch them too.
     // then we combine all this data (we need inputs to see source addresses and amounts)
@@ -354,7 +360,7 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
         // ^^^^ not all inputs have txid, some of them are Coinbase (newly-created coins)
       }
     }
-    const vintxdatas = await BlueElectrum.multiGetTransactionByTxid(vinTxids, true);
+    const vintxdatas = await BlueElectrum.multiGetTransactionByTxid(vinTxids, true, 45, this.requiresVerifiedTransactions());
 
     // fetched all transactions from our inputs. now we need to combine it.
     // iterating all _our_ transactions:
@@ -402,7 +408,10 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
     const paymentCodeIndexByAddress = new Map<string, { pc: string; c: number }>();
     for (const pc of this._receive_payment_codes) {
       for (let c = 0; c < this._getNextFreePaymentCodeIndexReceive(pc) + this.gap_limit; c++) {
-        paymentCodeIndexByAddress.set(this._getBIP47AddressReceive(pc, c), { pc, c });
+        paymentCodeIndexByAddress.set(this._getBIP47AddressReceive(pc, c), {
+          pc,
+          c,
+        });
       }
     }
 
@@ -1136,7 +1145,11 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
           if (this.type === 'HDlegacyP2PKH') utxoType = 'p2pkh';
       }
 
-      const spUtxos: SPUTXO[] = inputs.map(u => ({ ...u, utxoType, wif: u.wif! }));
+      const spUtxos: SPUTXO[] = inputs.map(u => ({
+        ...u,
+        utxoType,
+        wif: u.wif!,
+      }));
       const sp = new SilentPayment();
       outputs = sp.createTransaction(spUtxos, outputs) as CoinSelectOutput[];
     }
