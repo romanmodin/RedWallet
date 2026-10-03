@@ -25,7 +25,11 @@ beforeAll(async () => {
       // launches. Retry that specific system-shell failure once; app crashes,
       // connection errors and test assertions still fail without retry.
       const message = String(error?.stack || error?.message || error);
-      if (device.getPlatform() !== 'ios' || !/system shell.*SpringBoard.*crashed|NSPOSIXErrorDomain.*(?:code[:= ]+64|Code=64)/i.test(message)) throw error;
+      if (
+        device.getPlatform() !== 'ios' ||
+        !/system shell.*SpringBoard.*crashed|NSPOSIXErrorDomain.*(?:code[:= ]+64|Code=64)/i.test(message)
+      )
+        throw error;
       console.error('[detox-setup] retrying launch after simulator system-shell failure');
       result = await originalLaunchApp(...args);
     }
