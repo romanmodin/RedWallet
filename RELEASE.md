@@ -129,13 +129,70 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   unit tests. Physical iPhone QA and the complete phone/Fulcrum send flow remain
   open; this tester release does not close those gates.
 
+### Security follow-up source and pending tester packages (2026-10-02)
+
+- Security and pre-send quote changes from PRs #3–#7 were merged atomically
+  through PR #7 at `fdb9b0e94984937647e30c5cacb11fcfd3b91368`.
+  Public reviewed production source remains
+  `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd`. Final unit/lint run
+  `37105957233` passed 77 suites, 697 tests and one skipped; TypeScript passed.
+  Native Android source292 run `37104706218` passed all 19 supported checks.
+  iOS run `37104706146` passed its build and all seven native TLS cases,
+  including private trust/restart and rejection before RPCs; wallet checks
+  continue. Final sourceaba native builds both passed; its full Android and
+  iOS test runs `37105957226`/`37105957236` are still in progress.
+- Approved private signing source:
+  `4d97ec8a1ac767d1ce9788bde99282af6b943f25`. All 941 production entries
+  (Git file mode, blob ID and path) match the public source. Production tree
+  SHA-256: `d0e3f97b4e3625b05d2bd6bd38fd1313dc5392908e33db4bf07268798c25d72f`.
+  The mapping excludes workflows, tests, Markdown and store metadata. It is
+  source equivalence, not a claim of reproducible binary equivalence.
+- Both signing and upload jobs verify the pinned production tree before
+  installing dependencies. Source and IPA verification use isolated Python
+  and the public orchestration scripts, never scripts from the private source.
+  Package receipts include the source mapping and the IPA hash.
+- These changes are not yet in the existing Android APK or TestFlight build.
+  New package version numbers, run IDs and hashes will be recorded after the
+  builds and upload finish; an upload alone is not tester availability.
+- Follow-up device checks include authenticated TLS after restart, rejecting
+  an impostor even with the correct public checkpoint, password/decoy storage,
+  native cache migration, restored history, and an XBT cold-wallet PSBT round
+  trip. Physical signing compatibility and broader recovery validation
+  remain open. The earlier missing-history case was resolved by the tester
+  correcting their server; no app fix is claimed for it. Use disposable wallets
+  for exploratory testing.
+- Password storage upgrades to scrypt/AES-GCM with the identical fixed-strength
+  native derivation on iOS/Android. Native self-test checks an independent
+  full-cost reference; failed decoy creation preserves the active wallet.
+  Secret copies on iOS are local-only and expire at the OS level. All executable coinb.in verification links are removed, including transaction
+  export and CPFP/RBF review screens. The send
+  confirmation includes the configured XBT price estimate below the amount.
+  Earlier app versions cannot
+  read upgraded storage: retain an offline recovery backup and do not downgrade.
+
+### Native Android verification (2026-10-03)
+
+- At public source `29211e8f6663c2fa25ad53ca3381adf9e1b15cd5`,
+  [run 37104706218](https://github.com/romanmodin/RedWallet/actions/runs/37104706218)
+  completed successfully: seven native TLS cases and twelve supported wallet/UI
+  cases passed. Five inherited unsupported multisig/account cases were skipped.
+- The run checked the full-cost UTF-8 native storage vector, password/decoy
+  recovery, wallet/recovery persistence, receive QR, scanning, deletion,
+  watch-only import with external signing disabled, and saved-price persistence.
+- Later source `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd` removes two web
+  verification buttons/imports. Its unit/lint run `37105957233` passed with
+  697 tests and one skipped. Both final native builds passed; final Android wallet tests and iOS
+  verification remain in progress at this checkpoint.
+- Simulator/emulator checks do not establish physical-device cache migration,
+  funded spending or a particular cold signer's interoperability.
+
 ## Build and upload
 
 1. Review the pinned private source revision and the exact public `main`
    workflow revision, then dispatch **Build approved private iOS source** with
    `upload_to_testflight=false`. Approve the signing environment after checking
-   both revisions. An early macOS check parses the certificate requirement
-   before dependency installation and compilation.
+   both revisions. Early checks verify the pinned production source and parse the certificate
+   requirement before dependency installation and compilation.
 2. The macOS verifier requires an Apple certificate from the configured team,
    verifies each app/extension identifier and profile-authorized leaf
    certificate, and checks entitlements and arm64 architecture. It emits an IPA
