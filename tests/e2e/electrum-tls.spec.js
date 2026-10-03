@@ -130,7 +130,7 @@ describe('native Electrum TLS authentication', () => {
           .withTimeout(15_000);
         console.log('[tls-e2e] saving server:', scenario.name);
         await element(by.id('Save')).tap();
-        await waitForText(scenario.accepted ? saved : failed, 30_000);
+        await waitForText(scenario.accepted ? saved : failed, 60_000);
         console.log('[tls-e2e] expected connection result:', scenario.name, 'RPCs:', requests);
         assert.equal(await dismissAlertByText('OK', 10_000, false), true, 'Could not dismiss the connection result');
         if (scenario.accepted) {

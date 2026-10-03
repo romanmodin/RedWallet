@@ -36,6 +36,9 @@ jest.mock('../../components/Alert', () => ({
 }));
 
 type FakeClient = {
+  connectDeferred: Deferred<void>;
+  connect: jest.Mock;
+  server_version: jest.Mock;
   initElectrumDeferred: Deferred<[string, string]>;
   headersDeferred: Deferred<{ height: number }>;
   pingDeferred: Deferred<unknown> | null;
@@ -72,6 +75,7 @@ function deferred<T>(): Deferred<T> {
 
 function makeFakeClient(host = 'fake.host', port = 50002): FakeClient {
   const fc: Partial<FakeClient> = {
+    connectDeferred: deferred<void>(),
     initElectrumDeferred: deferred<[string, string]>(),
     headersDeferred: deferred<{ height: number }>(),
     pingDeferred: null,
@@ -80,6 +84,8 @@ function makeFakeClient(host = 'fake.host', port = 50002): FakeClient {
     host,
     port,
   };
+  fc.connect = jest.fn(() => fc.connectDeferred!.promise);
+  fc.server_version = jest.fn(async () => ['Fulcrum', '1.4']);
   fc.initElectrum = jest.fn(() => fc.initElectrumDeferred!.promise);
   fc.blockchainHeaders_subscribe = jest.fn(() => fc.headersDeferred!.promise);
   fc.blockchainBlock_header = jest.fn(async () => XBT_MAINNET_CHECKPOINT_HEADER);
@@ -128,6 +134,75 @@ describe('BlueElectrum lifecycle', () => {
     await BlueElectrum.setDisabled(false);
     created.length = 0;
     presentAlertMock.mockClear();
+  });
+
+  describe('settings connection authentication deadline', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('waits for authenticated TLS beyond five seconds before making RPCs', async () => {
+      const pending = BlueElectrum.testConnection('private.example', undefined, 50002, 'configured certificate');
+      const client = created[0];
+      await jest.advanceTimersByTimeAsync(6000);
+      expect(client.server_version).not.toHaveBeenCalled();
+      expect(client.blockchainBlock_header).not.toHaveBeenCalled();
+      expect(client.close).not.toHaveBeenCalled();
+      client.connectDeferred.resolve();
+      await expect(pending).resolves.toBe(true);
+      expect(client.blockchainBlock_header).toHaveBeenCalled();
+      expect(client.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes a stalled TLS handshake at its bounded deadline without RPCs', async () => {
+      const pending = BlueElectrum.testConnection('private.example', undefined, 50002);
+      const client = created[0];
+      await jest.advanceTimersByTimeAsync(15000);
+      await expect(pending).resolves.toBe(false);
+      expect(client.close).toHaveBeenCalledTimes(1);
+      client.connectDeferred.resolve();
+      await jest.advanceTimersByTimeAsync(0);
+      expect(client.server_version).not.toHaveBeenCalled();
+      expect(client.blockchainBlock_header).not.toHaveBeenCalled();
+      expect(created).toHaveLength(1);
+    });
+
+    it('rejects a TLS authentication error immediately with no retry or fallback', async () => {
+      const pending = BlueElectrum.testConnection('private.example', undefined, 50002);
+      const client = created[0];
+      client.connectDeferred.reject(new Error('Certificate hostname mismatch'));
+      await expect(pending).resolves.toBe(false);
+      expect(client.server_version).not.toHaveBeenCalled();
+      expect(client.close).toHaveBeenCalledTimes(1);
+      expect(created).toHaveLength(1);
+    });
+
+    it('still rejects an authenticated endpoint on the wrong chain', async () => {
+      const pending = BlueElectrum.testConnection('private.example', undefined, 50002);
+      const client = created[0];
+      client.blockchainBlock_header.mockResolvedValue('00'.repeat(80));
+      client.connectDeferred.resolve();
+      await expect(pending).resolves.toBe(false);
+      expect(client.close).toHaveBeenCalledTimes(1);
+      expect(created).toHaveLength(1);
+    });
+
+    it('retains the five-second deadline for intentional plain TCP', async () => {
+      const pending = BlueElectrum.testConnection('private.example', 50001);
+      const client = created[0];
+      await jest.advanceTimersByTimeAsync(5000);
+      await expect(pending).resolves.toBe(false);
+      expect(client.server_version).not.toHaveBeenCalled();
+      expect(client.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('retains the longer deadline for an onion connection', async () => {
+      const pending = BlueElectrum.testConnection('private.onion', undefined, 50002);
+      const client = created[0];
+      await jest.advanceTimersByTimeAsync(16000);
+      expect(client.close).not.toHaveBeenCalled();
+      client.connectDeferred.resolve();
+      await expect(pending).resolves.toBe(true);
+    });
   });
 
   describe('coalescing', () => {
