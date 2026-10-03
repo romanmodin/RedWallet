@@ -131,14 +131,16 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 
 ### Security follow-up source and pending tester packages (2026-10-02)
 
-- The security changes are pushed on PRs #3, #4 and #6; PR #5 adds the requested pre-send price estimate. Public reviewed source:
-  `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd`. GitHub run 37104706195 passed;
-  all 77 unit suites passed locally (697 tests passed, one skipped), with
-  TypeScript and lint passing. Native TLS run 37102407152 passed all seven
-  certificate scenarios before cancellation during later wallet checks; Android
-  run 37102407156 also passed all seven TLS scenarios and wallet creation/restart
-  before the slow JavaScript password test failed. Updated native-derivation
-  device runs 37104706146 and 37104706218 remain pending.
+- Security and pre-send quote changes from PRs #3–#7 were merged atomically
+  through PR #7 at `fdb9b0e94984937647e30c5cacb11fcfd3b91368`.
+  Public reviewed production source remains
+  `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd`. Final unit/lint run
+  `37105957233` passed 77 suites, 697 tests and one skipped; TypeScript passed.
+  Native Android source292 run `37104706218` passed all 19 supported checks.
+  iOS run `37104706146` passed its build and all seven native TLS cases,
+  including private trust/restart and rejection before RPCs; wallet checks
+  continue. Final sourceaba native builds both passed; its full Android and
+  iOS test runs `37105957226`/`37105957236` are still in progress.
 - Approved private signing source:
   `4d97ec8a1ac767d1ce9788bde99282af6b943f25`. All 941 production entries
   (Git file mode, blob ID and path) match the public source. Production tree
@@ -179,8 +181,8 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   watch-only import with external signing disabled, and saved-price persistence.
 - Later source `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd` removes two web
   verification buttons/imports. Its unit/lint run `37105957233` passed with
-  697 tests and one skipped. Its native Android build passed; subsequent native
-  tests and iOS verification are pending at this checkpoint.
+  697 tests and one skipped. Both final native builds passed; final Android wallet tests and iOS
+  verification remain in progress at this checkpoint.
 - Simulator/emulator checks do not establish physical-device cache migration,
   funded spending or a particular cold signer's interoperability.
 
