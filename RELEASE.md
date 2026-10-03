@@ -137,10 +137,10 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   source to `e34407a3c98db41dec4ebd38927d08badb45dcfa`.
   Final unit/lint run `37109292569` passed 77 suites, 703 tests and one skipped;
   TypeScript passed. Fresh final-source native checks remain in progress.
-- Approved private signing source:
-  `796ea55a60eeb9765b094f544fc884d171053e29`. All 941 production entries
+- Approved private signing source for the inner-timeout follow-up:
+  `91bc88b6e1f70f6050f55130d4a66b140c3021b8`. All 941 production entries
   (Git file mode, blob ID and path) match the public source. Production tree
-  SHA-256: `8556e92432273168ee23cff089973459f3f92e8f37353bac7acb0c29c14b8514`.
+  SHA-256: `05b0f3c2dc181952f74c1842882511e7f31693e9b51d064b2265e9df6f06509a`.
   The mapping excludes workflows, tests, Markdown and store metadata. It is
   source equivalence, not a claim of reproducible binary equivalence.
 - Both signing and upload jobs verify the pinned production tree before
@@ -205,6 +205,36 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   for the preceding source, but remain unpublished and superseded. New tester
   packages must use this final source mapping. No new tester availability is
   claimed until the signed packages, upload and Apple processing are verified.
+
+### Inner TLS authentication timer and package status (2026-10-03)
+
+- Current reviewed production source: `ead773ee0269d7dfc9ff16822fd3e760aaa33b75`.
+  Its 941 production entries match private source `91bc88b6e1f70f6050f55130d4a66b140c3021b8`;
+  production SHA-256 `05b0f3c2dc181952f74c1842882511e7f31693e9b51d064b2265e9df6f06509a`. Trusted isolated source verification passed.
+- The preceding focused iOS run `37109350530` compiled successfully but failed
+  its trusted-server case with zero RPCs. The screenshot showed a genuine
+  connection failure. Correct certificate, host and SSL settings were verified.
+  The socket closed at the dependency's inherited five-second timer; native
+  trust evaluation arrived afterward. Increasing only the outer settings timer
+  was insufficient. This follow-up also aligns the patched client's inner TLS
+  timer to 15 seconds (onion 21, TCP 5). Authentication still gates all RPCs,
+  fails closed and never falls back. Five real-patched-client regressions passed.
+- Local full unit checks: 77 suites, 708 tests passed, one skipped; targeted lint
+  passed. Fresh focused iOS run `37112094288` and Android native run
+  `37112045214` are in progress. No successful iOS wallet-flow result is claimed.
+- Preceding source `e34407a3c98db41dec4ebd38927d08badb45dcfa` passed
+  final Android run `37109292589`: seven TLS and twelve supported wallet checks,
+  including the full-cost native storage vector. Package build `37109789321`
+  passed release launch checks. Signed Android beta `1791016257` was published
+  with the retained certificate, verified unchanged APK payload and checksum
+  `b4461b116e576da996286bdc0e69fc0cd363cf24174a7ae78876a41d7b3d2080`.
+  It predates the inner-timer follow-up; slow TLS still fails closed in that beta.
+- Preceding iOS package run `37109790915` successfully signed and verified
+  build `1791016465`, IPA SHA-256
+  `5d1e2929026bf86d3510ee47228da7476071146bfa834e18f3037ca5ed60ac49`.
+  It was not uploaded and is superseded by this final timer source. TestFlight
+  remains on the older tester build until fresh native checks, package build
+  and upload pass. No public App Store submission is authorized or performed.
 
 ## Build and upload
 
