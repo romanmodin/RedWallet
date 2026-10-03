@@ -37,3 +37,5 @@ Regression coverage includes real Knots acceptance vectors, partial/finalized Un
 Final combined checks: 77 unit suites passed (697 passed, 1 skipped), including a real local Node TLS server that accepts the configured CA and rejects untrusted, wrong-hostname, expired and replaced certificates before any RPC. Native TLS device tests also exercise a replaced certificate and the saved-certificate normal connection path; their CI results must be checked before shipping. Password device tests now wait for completion of the asynchronous KDF/save before relaunching; the import test checks the supported watch-only account stays read-only.
 
 Final native build/device check results and any remaining limitations are recorded in the pull request.
+
+The TLS settings test now allows15 seconds for authenticated certificate evaluation (TCP5/onion21 unchanged), with bounded timeout and no fallback. Native source292 passed all7iOS TLS cases but hit a simulator SpringBoard launch failure. Sourceaba had6TLS passes and a trusted-server timeout; both failures remain explicit. The final timing follow-up and supported iOS wallet flow must pass before tester upload.

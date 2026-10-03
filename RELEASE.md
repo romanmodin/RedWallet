@@ -134,7 +134,7 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 - Security and pre-send quote changes from PRs #3–#7 were merged atomically
   through PR #7 at `fdb9b0e94984937647e30c5cacb11fcfd3b91368`.
   Public reviewed production source remains
-  `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd`. Final unit/lint run
+  `e34407a3c98db41dec4ebd38927d08badb45dcfa`. Final unit/lint run
   `37105957233` passed 77 suites, 697 tests and one skipped; TypeScript passed.
   Native Android source292 run `37104706218` passed all 19 supported checks.
   iOS run `37104706146` passed its build and all seven native TLS cases,
@@ -142,9 +142,9 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   continue. Final sourceaba native builds both passed; its full Android and
   iOS test runs `37105957226`/`37105957236` are still in progress.
 - Approved private signing source:
-  `4d97ec8a1ac767d1ce9788bde99282af6b943f25`. All 941 production entries
+  `796ea55a60eeb9765b094f544fc884d171053e29`. All 941 production entries
   (Git file mode, blob ID and path) match the public source. Production tree
-  SHA-256: `d0e3f97b4e3625b05d2bd6bd38fd1313dc5392908e33db4bf07268798c25d72f`.
+  SHA-256: `8556e92432273168ee23cff089973459f3f92e8f37353bac7acb0c29c14b8514`.
   The mapping excludes workflows, tests, Markdown and store metadata. It is
   source equivalence, not a claim of reproducible binary equivalence.
 - Both signing and upload jobs verify the pinned production tree before
@@ -179,12 +179,34 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 - The run checked the full-cost UTF-8 native storage vector, password/decoy
   recovery, wallet/recovery persistence, receive QR, scanning, deletion,
   watch-only import with external signing disabled, and saved-price persistence.
-- Later source `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd` removes two web
+- Later source `e34407a3c98db41dec4ebd38927d08badb45dcfa` removes two web
   verification buttons/imports. Its unit/lint run `37105957233` passed with
   697 tests and one skipped. Both final native builds passed; final Android wallet tests and iOS
   verification remain in progress at this checkpoint.
 - Simulator/emulator checks do not establish physical-device cache migration,
   funded spending or a particular cold signer's interoperability.
+
+### Final TLS connection deadline follow-up (2026-10-03)
+
+- Source `e34407a3c98db41dec4ebd38927d08badb45dcfa` gives authenticated
+  TLS connections 15 seconds for certificate evaluation; intentional TCP stays
+  at 5 seconds and onion connections at 21 seconds. Authentication failures do
+  not retry or fall back. Six new deadline/late-completion/authentication/chain
+  regressions passed, with TypeScript and lint. Full unit CI is in progress.
+- The preceding sourceaba Android run `37105957226` passed all seven TLS and
+  twelve supported wallet checks. Source292 iOS passed all seven TLS checks,
+  then its simulator SpringBoard failed before the wallet self-test launch.
+  Final sourceaba iOS run `37105957236` passed six TLS cases but rejected a
+  correctly entered trusted certificate at the five-second connection deadline.
+  Neither failed iOS attempt is an overall native pass.
+- A fresh focused iOS run `37109350530` rechecks that trusted-certificate case
+  before the complete supported wallet suite. Normal CI retains full TLS
+  coverage. Test diagnostics log failures/RPC counts and retry launch once only
+  for the specific simulator system-shell failure; assertions are not retried.
+- Package builds `37107835911` (Android) and `37108017688` (iOS) succeeded
+  for the preceding source, but remain unpublished and superseded. New tester
+  packages must use this final source mapping. No new tester availability is
+  claimed until the signed packages, upload and Apple processing are verified.
 
 ## Build and upload
 
