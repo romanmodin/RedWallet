@@ -4,11 +4,11 @@ RedWallet is an XBT wallet based on [BlueWallet 8.0.1](https://github.com/BlueWa
 
 ## Try the beta
 
-The iPhone beta is available through TestFlight to invited testers. The signed Android phone beta is available from [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1790940564). See [ANDROID_INSTALL.md](ANDROID_INSTALL.md) for installation and update instructions. Android 7.0 or newer is required; Google Play distribution is not enabled.
+The iPhone beta is available through TestFlight to invited testers. The signed Android phone beta is available from [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791019127). See [ANDROID_INSTALL.md](ANDROID_INSTALL.md) for installation and update instructions. Android 7.0 or newer is required; Google Play distribution is not enabled.
 
 ## Scope and verification
 
-The current XBT wallet supports one Native SegWit/P2WPKH BIP84 account, Unified Sighash signing, wallet recovery, Fulcrum balance and transaction history, QR receive/send, configurable servers, and XBT pricing. Hardware signing, Taproot, multisig, silent payments and Lightning are outside this release.
+The current XBT wallet supports one Native SegWit/P2WPKH BIP84 account, Unified Sighash signing, wallet recovery, Fulcrum balance and transaction history, QR receive/send, configurable servers, and XBT pricing. BIP84 watch-only import and Unified-capable external PSBT signing are supported in source; physical cold-device interoperability still needs validation. Taproot, multisig, silent payments and Lightning are outside this release.
 
 History is fetched for discovered receive and change addresses; it is not limited to transactions created in RedWallet. The tester who reported a restored balance with missing history resolved it by fixing their server, as reported by the maintainer on October 2, 2026. That case was server-side; this is not a claim that every recovery scenario has been independently validated.
 
@@ -20,7 +20,7 @@ RedWallet installs separately from BlueWallet and does not automatically migrate
 
 ## Security follow-up source
 
-The source on the security follow-up branches adds authenticated Electrum TLS, verified raw inputs and coinbase refresh, stronger password/cache encryption, authenticated secret exports with clipboard expiry, and BIP84 XBT watch-only import with Unified external-signature verification. Updated tester packages are not yet published; the installation links above still identify the preceding beta.
+The published security beta includes authenticated Electrum TLS, verified raw inputs and coinbase refresh, stronger password/cache encryption, authenticated secret exports with clipboard expiry, and BIP84 XBT watch-only import with Unified external-signature verification. Android beta 1791019127 and iPhone TestFlight build 1791019257 contain these changes.
 
 A watch-only phone stores public keys. Use an XBT Unified-capable cold wallet that supports the Native SegWit PSBT QR/file workflow; physical device compatibility still needs validation. Do not import a cold-wallet seed to use this workflow. Fulcrum confirmations still rely on the configured server, and the original missing-history report was resolved on the tester’s server. Keep an offline recovery backup and do not downgrade after the RWV2 password-storage migration. See [SECURITY_FOLLOWUP.md](SECURITY_FOLLOWUP.md).
 
