@@ -31,6 +31,7 @@ import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
 import { XBT_PROFILE } from '../../class/xbt/profile';
 import confirm from '../../helpers/confirm';
 import { requiresHighFeeApproval } from '../../class/xbt/fee-policy';
+import XbtFiatEstimate from '../../components/XbtFiatEstimate';
 
 enum ActionType {
   SET_LOADING = 'SET_LOADING',
@@ -328,6 +329,7 @@ const Confirm: React.FC = () => {
             {item.value && satoshiToLocalCurrency(item.value)}
           </Text>
         )}
+        <XbtFiatEstimate satoshis={item.value ?? 0} style={styles.quoteEstimate} />
         <BlueCard>
           <Text style={[styles.transactionDetailsTitle, stylesHook.transactionDetailsTitle]}>{loc.send.create_to}</Text>
           <Text testID="TransactionAddress" style={[styles.transactionDetailsSubtitle, stylesHook.transactionDetailsSubtitle]}>
@@ -408,6 +410,7 @@ const Confirm: React.FC = () => {
 export default Confirm;
 
 const styles = StyleSheet.create({
+  quoteEstimate: { textAlign: 'center' },
   transactionDetailsTitle: {
     fontWeight: '500',
     fontSize: 17,
