@@ -24,6 +24,11 @@ jobs:
           sdkmanager 'build-tools;36.0.0'
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs signed-beta.apk > apk-signature.txt
           python3 -c "from pathlib import Path; assert 'Signer #1 certificate SHA-256 digest: 7843791c3cf340458fbf400a204361a0a97ac9c2902ae36c4511396f1f55884f' in Path('apk-signature.txt').read_text()"
+      - name: Enable KVM for the disposable screenshot emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - name: Capture actual Android app views
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
