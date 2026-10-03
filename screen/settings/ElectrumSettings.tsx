@@ -7,6 +7,7 @@ import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { hardcodedPeers, presentResetToDefaultsAlert, suggestedServers } from '../../blue_modules/BlueElectrum';
 import { GROUP_IO_BLUEWALLET } from '../../blue_modules/currency';
 import triggerHapticFeedback, { HapticFeedbackTypes, triggerSelectionHapticFeedback } from '../../blue_modules/hapticFeedback';
+import { normalizeCertificatePem } from '../../blue_modules/tls-certificate';
 import DeeplinkSchemaMatch from '../../class/deeplink-schema-match';
 import AddressInput from '../../components/AddressInput';
 import presentAlert from '../../components/Alert';
@@ -212,7 +213,7 @@ const ElectrumSettings: React.FC = () => {
         const serverHost = v?.host || host;
         const serverPort = v ? v.tcp?.toString() || '' : port?.toString() || '';
         const serverSslPort = v ? v.ssl?.toString() || '' : sslPort?.toString() || '';
-        const serverTlsCa = serverSslPort ? (v ? v.tlsCa || '' : tlsCa).trim() : '';
+        const serverTlsCa = serverSslPort ? normalizeCertificatePem((v ? v.tlsCa || '' : tlsCa).trim()) : '';
         if (
           serverTlsCa &&
           (serverTlsCa.length > 16384 || !/^-----BEGIN CERTIFICATE-----\s+[A-Za-z0-9+/=\s]+-----END CERTIFICATE-----$/.test(serverTlsCa))
@@ -613,7 +614,7 @@ const ElectrumSettings: React.FC = () => {
                 <TextInput
                   testID="TlsCaInput"
                   value={tlsCa}
-                  onChangeText={setTlsCa}
+                  onChangeText={text => setTlsCa(normalizeCertificatePem(text))}
                   multiline
                   scrollEnabled
                   blurOnSubmit
@@ -621,6 +622,8 @@ const ElectrumSettings: React.FC = () => {
                   onSubmitEditing={Keyboard.dismiss}
                   inputAccessoryViewID={DoneAndDismissKeyboardInputAccessoryViewID}
                   autoCorrect={false}
+                  keyboardType="ascii-capable"
+                  smartInsertDelete={false}
                   autoCapitalize="none"
                   editable={!isLoading}
                   style={[styles.tlsCertificate, stylesHook.inputText]}

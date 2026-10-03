@@ -27,7 +27,7 @@ The 6480-confirmation coinbase filter remains conservative for the reviewed Knot
 
 An XBT `0x21` spend cannot be replayed as an ordinary BTC spend. An ordinary BTC spend of a shared pre-fork output can still affect XBT. The existing recovery warning remains. No automatic sweep or transaction is performed by this change.
 
-Physical XBT cold-wallet QR signing, native cache migration on iOS/Android, and restored-wallet full transaction history must be checked on a tester build before shipping. Synthetic tests cannot establish a particular hardware device's compatibility. The earlier report of a balance with missing history still needs a missing transaction ID and the configured server/build to reproduce; it is not claimed fixed here.
+Physical XBT cold-wallet QR signing, native cache migration on iOS/Android, and restored-wallet full transaction history must be checked on a tester build before shipping. Synthetic tests cannot establish a particular hardware device's compatibility. The maintainer reported on October 2, 2026 that the earlier missing-history case was resolved by the tester fixing their server. No app-code fix is claimed for that server-side issue; broader physical recovery validation remains separate.
 
 ## Validation
 

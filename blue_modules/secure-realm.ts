@@ -47,13 +47,20 @@ function secureCachePath(legacyPath: string): Promise<string> {
   const cacheName = legacyPath.split('/').pop()!;
   const task = assigningPath.then(async () => {
     const credentials = await Keychain.getGenericPassword({ service: PATH_SERVICE });
-    const record: CachePaths = credentials
-      ? JSON.parse(credentials.password)
-      : { version: 3, salt: uint8ArrayToHex(await randomBytes(16)), paths: {} };
+    let record: CachePaths;
+    if (credentials) {
+      record = JSON.parse(credentials.password);
+    } else {
+      // Complete the native async call before constructing the record. Do not
+      // suspend a release-runtime object initializer partway through its fields.
+      const salt = uint8ArrayToHex(await randomBytes(16));
+      record = { version: 3, salt, paths: {} };
+    }
     // Report the failed shape without exposing the stored salt, password index,
     // filenames or encryption keys. Native Keychain reads need their own checks.
     if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('Invalid secure cache mapping: record');
-    if (record.version !== 3) throw new Error('Invalid secure cache mapping: version');
+    if (record.version !== 3)
+      throw new Error(`Invalid secure cache mapping: version (${credentials ? 'stored' : 'new'}, ${typeof record.version})`);
     if (typeof record.salt !== 'string' || !/^[a-f0-9]{32}$/.test(record.salt)) throw new Error('Invalid secure cache mapping: salt');
     if (!record.paths || typeof record.paths !== 'object' || Array.isArray(record.paths))
       throw new Error('Invalid secure cache mapping: paths');

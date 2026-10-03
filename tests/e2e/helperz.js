@@ -268,9 +268,32 @@ export async function helperCreateWallet(walletName) {
     // Wait for the backup screen to mount after the asynchronous storage write.
     // Its scroll content can exceed the viewport; visibility is checked on OK.
     // Never tap Create again while a wallet may already have been created.
-    await waitFor(element(by.id('PleaseBackupScrollView')))
-      .toExist()
-      .withTimeout(120_000);
+    try {
+      await waitFor(element(by.id('PleaseBackupScrollView')))
+        .toExist()
+        .withTimeout(120_000);
+    } catch (error) {
+      // Retain only control identifiers, native types and frames. The backup
+      // view contains a disposable seed, which must not enter diagnostic logs.
+      await device
+        .generateViewHierarchyXml(false)
+        .then(xml => {
+          const controls = [];
+          for (const match of xml.matchAll(/<([\w.$]+)\s+([^>]*?)\/?>/g)) {
+            const attributes = Object.fromEntries(Array.from(match[2].matchAll(/([\w-]+)="([^"]*)"/g), item => [item[1], item[2]]));
+            const known = ['PleaseBackupScrollView', 'PleasebackupOk', 'WalletsList', 'Create', 'Secret'].includes(attributes.id);
+            if (!known && !/Scroll|Window|Dialog/.test(match[1])) continue;
+            const control = { type: match[1] };
+            for (const key of ['height', 'width', 'x', 'y', 'visibility'])
+              if (attributes[key] !== undefined) control[key] = attributes[key];
+            if (known) control.id = attributes.id;
+            controls.push(control);
+          }
+          console.error('[wallet-e2e] backup control hierarchy:', JSON.stringify(controls));
+        })
+        .catch(() => {});
+      throw error;
+    }
 
     await waitFor(element(by.id('PleasebackupOk')))
       .toBeVisible()
