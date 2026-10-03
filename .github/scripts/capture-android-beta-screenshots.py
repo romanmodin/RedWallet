@@ -21,7 +21,7 @@ def find(key,scroll=False,timeout=90):
  while time.monotonic()<until:
   ns=nodes()
   for n in ns:
-   if key in [n.get('resource-id'),n.get('text'),n.get('content-desc')] and n.get('enabled')!='false' and center(n):return n
+   if (n.get('resource-id')==key or any((n.get(k) or '').casefold()==key.casefold() for k in ['text','content-desc'])) and n.get('enabled')!='false' and center(n):return n
   if scroll and swipes<8:
    adb('shell','input','swipe',540,1850,540,650,400);swipes+=1
   time.sleep(1)
