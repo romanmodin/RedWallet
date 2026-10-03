@@ -236,11 +236,6 @@ export class BlueApp {
    * Encrypts the bucket and saves it storage
    */
   createFakeStorage = async (fakePassword: string): Promise<boolean> => {
-    usedBucketNum = false; // resetting currently used bucket so we wont overwrite it
-    this.wallets = [];
-    this.tx_metadata = {};
-    this.counterparty_metadata = {};
-
     const data: TBucketStorage = {
       wallets: [],
       tx_metadata: {},
@@ -250,10 +245,17 @@ export class BlueApp {
     let buckets = await this.getItem('data');
     buckets = JSON.parse(buckets);
     buckets.push(await encryption.encrypt(JSON.stringify(data), fakePassword));
-    this.cachedPassword = fakePassword;
     const bucketsString = JSON.stringify(buckets);
     await this.setItem('data', bucketsString);
-    return (await this.getItem('data')) === bucketsString;
+    if ((await this.getItem('data')) !== bucketsString) throw new Error('Could not verify decoy storage; active wallet was preserved');
+    // Derivation/write failure must leave the active wallet and password intact.
+    // Switch buckets only after the additional encrypted bucket is durable.
+    usedBucketNum = false;
+    this.cachedPassword = fakePassword;
+    this.wallets = [];
+    this.tx_metadata = {};
+    this.counterparty_metadata = {};
+    return true;
   };
 
   hashIt = (s: string): string => {
