@@ -1,153 +1,47 @@
-name: Tests e2e Android
-
+name: Capture signed Android beta screenshots
 on: [pull_request]
-
 permissions:
   contents: read
-
-concurrency:
-  group: e2e-android-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  build:
+  screenshots:
+    if: github.head_ref == 'test/android-beta-screenshots-20261003'
     runs-on: ubuntu-24.04
-
+    timeout-minutes: 25
     steps:
-    - name: Checkout
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-    - name: Free disk space (Ubuntu)
-      run: |
-        echo "Disk before cleanup:" && df -h
-        sudo rm -rf /usr/share/dotnet /opt/ghc
-        sudo apt-get clean
-        sudo rm -rf /opt/ghc || true
-        sudo rm -rf /usr/local/share/boost || true
-        sudo rm -rf /usr/local/lib/android/sdk/ndk || true
-        sudo docker system prune -af || true
-        sudo rm -rf /usr/local/lib/android/sdk/system-images || true
-        sudo rm -rf /usr/local/lib/android/sdk/emulator || true
-        rm -rf ~/.gradle/caches/modules-2/files-2.1 || true
-        rm -rf ~/.gradle/caches/build-cache || true
-        rm -rf ~/.npm/_cacache ~/.cache || true
-        sudo rm -rf /home/runner/work/_temp || true
-        echo "Disk after cleanup:" && df -h
-
-    - name: Specify node version
-      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-      with:
-        node-version: 24
-        cache: 'npm'
-
-    - name: Use gradle caches
-      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle', 'android/**/*.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-
-    - name: Install node_modules
-      run: npm ci || npm ci
-
-    - name: Use specific Java version for sdkmanager to work
-      uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-
-    - name: Build
-      run: npm run e2e:release-build || npm run e2e:release-build
-
-    - name: Package APKs
-      run: |
-        tar -czf bluewallet-android-apks.tar.gz \
-          android/app/build/outputs/apk/release/app-release.apk \
-          android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk
-
-    - name: Upload APKs
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      with:
-        name: bluewallet-android-apks
-        path: bluewallet-android-apks.tar.gz
-        retention-days: 3
-        compression-level: 0
-        if-no-files-found: error
-
-  test:
-    runs-on: ubuntu-24.04
-    needs: build
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-    - name: Free disk space (Ubuntu)
-      run: |
-        echo "Disk before cleanup:" && df -h
-        sudo rm -rf /usr/share/dotnet /opt/ghc
-        sudo apt-get clean
-        sudo rm -rf /opt/ghc || true
-        sudo rm -rf /usr/local/share/boost || true
-        sudo rm -rf /usr/local/lib/android/sdk/ndk || true
-        sudo docker system prune -af || true
-        rm -rf ~/.npm/_cacache ~/.cache || true
-        sudo rm -rf /home/runner/work/_temp || true
-        echo "Disk after cleanup:" && df -h
-
-    - name: Ensure artifacts directory
-      run: mkdir -p ${{ github.workspace }}/artifacts
-
-    - name: Specify node version
-      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-      with:
-        node-version: 24
-        cache: 'npm'
-
-    - name: Install node_modules
-      run: npm ci || npm ci
-
-    - name: Use specific Java version for sdkmanager to work
-      uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-
-    - name: Enable KVM group perms
-      run: |
-        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-        sudo udevadm control --reload-rules
-        sudo udevadm trigger --name-match=kvm
-
-    - name: Download APKs
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-      with:
-        name: bluewallet-android-apks
-
-    - name: Restore APKs
-      run: tar -xzf bluewallet-android-apks.tar.gz
-
-    - name: Run tests
-      uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
-      with:
-        api-level: 36
-        profile: pixel
-        avd-name: Pixel_API_29_AOSP
-        force-avd-creation: true
-        enable-hw-keyboard: true
-        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none -partition-size 2047
-        arch: x86_64
-        # Authenticate native TLS first, then preserve settings, encryption, scan, deletion, watch-only import and XBT recovery coverage.
-        # bluewallet2 depends on a funded Bitcoin fixture; unsupported cases in bluewallet.spec are explicit skips.
-        script: |
-          npx detox test -c android.release.device tests/e2e/electrum-tls.spec.js --runTestsByPath --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location ${{ github.workspace }}/artifacts/tls
-          npx detox test -c android.release.device tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location ${{ github.workspace }}/artifacts
-
-    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      if: failure() || cancelled()
-      with:
-        name: e2e-android-videos
-        path: ${{ github.workspace }}/artifacts
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Download and verify the published signed APK
+        run: |
+          curl --fail --location --retry 2 --output signed-beta.apk https://github.com/romanmodin/RedWallet/releases/download/android-v8.0.1-beta-1791019127/RedWallet-8.0.1-android-beta-1791019127.apk
+          echo 'e966c2f9594f9e1894c48bf6857fe4df07f51dc04cb83bc53c9db77ed11f438c  signed-beta.apk' | sha256sum --check
+          sdkmanager 'build-tools;36.0.0'
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs signed-beta.apk > apk-signature.txt
+          python3 -c "from pathlib import Path; assert 'Signer #1 certificate SHA-256 digest: 7843791c3cf340458fbf400a204361a0a97ac9c2902ae36c4511396f1f55884f' in Path('apk-signature.txt').read_text()"
+      - name: Capture actual Android app views
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: pixel
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: |
+            adb shell wm size 1080x2400
+            adb shell wm density 420
+            adb shell cmd uimode night yes
+            adb install signed-beta.apk
+            adb shell pm grant com.romanmodin.redwallet android.permission.POST_NOTIFICATIONS
+            python3 .github/scripts/capture-android-beta-screenshots.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: signed-android-beta-screenshots
+          path: promo-screenshots/
+          if-no-files-found: error
