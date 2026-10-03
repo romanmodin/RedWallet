@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { copySensitiveClipboard, clearSensitiveClipboard } from '../../blue_modules/sensitive-clipboard';
 import { useSecretExport } from '../../hooks/useSecretExport';
+import presentAlert from '../../components/Alert';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import Icon from '../../components/Icon';
 import { ActivityIndicator, LayoutChangeEvent, ScrollView, StyleSheet, Pressable, View } from 'react-native';
@@ -157,8 +158,14 @@ const WalletExport: React.FC = () => {
   const handleCopy = useCallback(() => {
     // The displayed secret has already been authenticated for this foreground session.
     if (!authorized || !secrets[0]) return;
-    copySensitiveClipboard(secrets[0]);
-    triggerHapticFeedback(HapticFeedbackTypes.Selection);
+    try {
+      copySensitiveClipboard(secrets[0]);
+      triggerHapticFeedback(HapticFeedbackTypes.Selection);
+    } catch {
+      presentAlert({
+        message: 'Secure clipboard copying is unavailable in this build',
+      });
+    }
   }, [secrets, authorized]);
 
   const Scroll = useCallback(

@@ -1,5 +1,9 @@
 import Clipboard from '@react-native-clipboard/clipboard';
-import { AppState, NativeEventSubscription } from 'react-native';
+import { AppState, NativeEventSubscription, TurboModuleRegistry, TurboModule } from 'react-native';
+
+type SensitiveClipboardModule = TurboModule & {
+  setSensitiveString(value: string): void;
+};
 
 export const SECRET_CLIPBOARD_TTL_MS = 30_000;
 let secret: string | undefined;
@@ -29,7 +33,9 @@ export async function clearSensitiveClipboard(): Promise<void> {
 
 export function copySensitiveClipboard(value: string): void {
   if (AppState.currentState && AppState.currentState !== 'active') return;
-  Clipboard.setString(value);
+  const native = TurboModuleRegistry.getEnforcing<SensitiveClipboardModule>('RNCClipboard');
+  if (typeof native.setSensitiveString !== 'function') throw new Error('Secure clipboard copying is unavailable in this build');
+  native.setSensitiveString(value);
   generation++;
   secret = value;
   if (timer) clearTimeout(timer);

@@ -1,15 +1,23 @@
 import Clipboard from '@react-native-clipboard/clipboard';
-import { AppState } from 'react-native';
+import { AppState, TurboModuleRegistry } from 'react-native';
 import { copySensitiveClipboard, clearSensitiveClipboard, SECRET_CLIPBOARD_TTL_MS } from '../../blue_modules/sensitive-clipboard';
 
 let content = '';
 let onState: (state: any) => void;
+let sensitiveCopy: jest.Mock;
 beforeEach(() => {
   AppState.currentState = 'active';
   jest.useFakeTimers();
-  jest.spyOn(Clipboard, 'setString').mockImplementation(value => {
+  sensitiveCopy = jest.fn(value => {
     content = value;
   });
+  jest.spyOn(TurboModuleRegistry, 'getEnforcing').mockReturnValue({ setSensitiveString: sensitiveCopy } as any);
+  jest
+    .spyOn(Clipboard, 'setString')
+    .mockImplementation(value => {
+      content = value;
+    })
+    .mockClear();
   jest.spyOn(Clipboard, 'getString').mockImplementation(async () => content);
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, callback) => {
     onState = callback;
@@ -24,9 +32,16 @@ afterEach(async () => {
 
 it('expires copied secrets after 30 seconds', async () => {
   copySensitiveClipboard('test seed');
+  expect(sensitiveCopy).toHaveBeenCalledWith('test seed');
+  expect(Clipboard.setString).not.toHaveBeenCalled();
   expect(content).toBe('test seed');
   await jest.advanceTimersByTimeAsync(SECRET_CLIPBOARD_TTL_MS);
   expect(content).toBe('');
+});
+it('refuses to copy a secret through the ordinary clipboard when the native protection is missing', () => {
+  jest.spyOn(TurboModuleRegistry, 'getEnforcing').mockReturnValue({} as any);
+  expect(() => copySensitiveClipboard('test seed')).toThrow('Secure clipboard copying is unavailable');
+  expect(Clipboard.setString).not.toHaveBeenCalled();
 });
 it('clears a secret when the app leaves the foreground', async () => {
   copySensitiveClipboard('test key');
