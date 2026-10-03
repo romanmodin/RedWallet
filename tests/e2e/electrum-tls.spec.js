@@ -11,6 +11,14 @@ const failed =
   'Cannot connect to the provided Electrum server. TLS requires a trusted certificate matching the server name. XBT servers must also match the mainnet checkpoint.';
 const saved = 'Your changes have been saved successfully. Restarting RedWallet may be required for the changes to take effect.';
 
+function field(id) {
+  // The iOS native hierarchy exposes this custom AddressInput's placeholder
+  // value but omits its testID. Match the actual, unique native input instead.
+  return device.getPlatform() === 'ios' && id === 'HostInput'
+    ? element(by.type('RCTUITextField').and(by.value('E.g., 10.20.30.40')))
+    : element(by.id(id));
+}
+
 async function visible(id) {
   // Offline mode and SSL reveal fields after React state/async preference
   // updates. With iOS synchronization disabled, wait for the field to mount
@@ -22,18 +30,16 @@ async function visible(id) {
     while (true) {
       await new Promise(resolve => setTimeout(resolve, 200));
       try {
-        await expect(element(by.id(id))).toExist();
+        await expect(field(id)).toExist();
         break;
       } catch (error) {
         if (Date.now() >= deadline) throw error;
       }
     }
   } else {
-    await waitFor(element(by.id(id)))
-      .toExist()
-      .withTimeout(30_000);
+    await waitFor(field(id)).toExist().withTimeout(30_000);
   }
-  await waitFor(element(by.id(id)))
+  await waitFor(field(id))
     .toBeVisible()
     .whileElement(by.id('ElectrumSettingsScrollView'))
     // Start in the outer margin so the multiline PEM editor cannot consume the gesture.
@@ -109,7 +115,7 @@ describe('native Electrum TLS authentication', () => {
         await openSettings();
         console.log('[tls-e2e] settings opened:', scenario.name);
         await visible('HostInput');
-        await element(by.id('HostInput')).replaceText(device.getPlatform() === 'android' ? '10.0.2.2' : '127.0.0.1');
+        await field('HostInput').replaceText(device.getPlatform() === 'android' ? '10.0.2.2' : '127.0.0.1');
         await visible('PortInput');
         await element(by.id('PortInput')).replaceText(String(server.address().port));
         await visible('SSLPortInput');
