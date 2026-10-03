@@ -132,7 +132,7 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 ### Security follow-up source and pending tester packages (2026-10-02)
 
 - The security changes are pushed on PRs #3, #4 and #6; PR #5 adds the requested pre-send price estimate. Public reviewed source:
-  `29211e8f6663c2fa25ad53ca3381adf9e1b15cd5`. GitHub run 37104706195 passed;
+  `aba239ae5f2be93ee2d8f5c2e048fe4395b2b7dd`. GitHub run 37104706195 passed;
   all 77 unit suites passed locally (697 tests passed, one skipped), with
   TypeScript and lint passing. Native TLS run 37102407152 passed all seven
   certificate scenarios before cancellation during later wallet checks; Android
@@ -140,9 +140,9 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   before the slow JavaScript password test failed. Updated native-derivation
   device runs 37104706146 and 37104706218 remain pending.
 - Approved private signing source:
-  `e736ebe49e2b20923ff945b966410d9a0ed00e0b`. All 941 production entries
+  `4d97ec8a1ac767d1ce9788bde99282af6b943f25`. All 941 production entries
   (Git file mode, blob ID and path) match the public source. Production tree
-  SHA-256: `c024a54244e183d8479dac7c6f74b3c8fd4d2f57bb34070c079e322fcbbee438`.
+  SHA-256: `d0e3f97b4e3625b05d2bd6bd38fd1313dc5392908e33db4bf07268798c25d72f`.
   The mapping excludes workflows, tests, Markdown and store metadata. It is
   source equivalence, not a claim of reproducible binary equivalence.
 - Both signing and upload jobs verify the pinned production tree before
@@ -162,7 +162,8 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 - Password storage upgrades to scrypt/AES-GCM with the identical fixed-strength
   native derivation on iOS/Android. Native self-test checks an independent
   full-cost reference; failed decoy creation preserves the active wallet.
-  Secret copies on iOS are local-only and expire at the OS level. The send
+  Secret copies on iOS are local-only and expire at the OS level. All executable coinb.in verification links are removed, including transaction
+  export and CPFP/RBF review screens. The send
   confirmation includes the configured XBT price estimate below the amount.
   Earlier app versions cannot
   read upgraded storage: retain an offline recovery backup and do not downgrade.
