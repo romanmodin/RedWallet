@@ -119,6 +119,86 @@ describe('patched Electrum TLS authentication', () => {
     expect(client.status).toBe(1);
     client.close();
   });
+  describe('native authentication deadline', () => {
+    let socket;
+    beforeEach(() => {
+      jest.useFakeTimers();
+      const { EventEmitter } = require('events');
+      socket = new EventEmitter();
+      let timer;
+      socket.setTimeout = milliseconds => {
+        clearTimeout(timer);
+        if (milliseconds) timer = setTimeout(() => socket.emit('timeout'), milliseconds);
+      };
+      for (const method of ['setEncoding', 'setKeepAlive', 'setNoDelay', 'end']) socket[method] = () => {};
+      socket.destroy = jest.fn(() => socket.setTimeout(0));
+      socket.write = jest.fn();
+    });
+    afterEach(() => {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    });
+    const connect = host => {
+      const client = new Client(net, { connectTLS: () => socket }, 50002, host, 'tls');
+      client.onError = () => {};
+      return [client, client.connect()];
+    };
+    it('allows native certificate evaluation beyond five seconds with no early RPC', async () => {
+      const [client, pending] = connect('private.example');
+      const outcome = pending.then(
+        () => 'authenticated',
+        () => 'failed',
+      );
+      jest.advanceTimersByTime(9000);
+      expect(socket.destroy).not.toHaveBeenCalled();
+      await expect(client.request('wallet.query', [])).rejects.toThrow('Connection to server lost');
+      expect(socket.write).not.toHaveBeenCalled();
+      socket.emit('secureConnect');
+      await expect(outcome).resolves.toBe('authenticated');
+      expect(client.status).toBe(1);
+      client.close();
+    });
+    it.each([
+      ['private.example', 15000],
+      ['private.onion', 21000],
+    ])('bounds %s authentication at %i ms', async (host, deadline) => {
+      const [client, pending] = connect(host);
+      const outcome = pending.catch(error => error.message);
+      jest.advanceTimersByTime(deadline - 1);
+      expect(socket.destroy).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+      await expect(outcome).resolves.toBe('TLS authentication timed out');
+      expect(socket.destroy).toHaveBeenCalledTimes(1);
+      socket.emit('secureConnect');
+      await expect(client.request('wallet.query', [])).rejects.toThrow('Connection to server lost');
+      expect(socket.write).not.toHaveBeenCalled();
+      client.close();
+    });
+    it('still rejects certificate errors immediately with no fallback or RPC', async () => {
+      const [client, pending] = connect('private.example');
+      const outcome = pending.catch(error => error.message);
+      socket.emit('error', new Error('certificate rejected'));
+      await expect(outcome).resolves.toBe('certificate rejected');
+      expect(socket.destroy).toHaveBeenCalledTimes(1);
+      expect(socket.write).not.toHaveBeenCalled();
+      client.close();
+    });
+    it('keeps the five-second intentional TCP socket deadline', () => {
+      const tcp = {
+        Socket: function () {
+          return socket;
+        },
+      };
+      const timedOut = jest.fn();
+      socket.on('timeout', timedOut);
+      const client = new Client(tcp, undefined, 50001, 'private.example', 'tcp');
+      jest.advanceTimersByTime(4999);
+      expect(timedOut).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+      expect(timedOut).toHaveBeenCalledTimes(1);
+      client.conn.setTimeout(0);
+    });
+  });
   it('refuses an option that disables authentication', () => {
     expect(
       () =>

@@ -21,7 +21,8 @@ diff --git a/node_modules/electrum-client/lib/client.js b/node_modules/electrum-
 +  }
 +
 +  configureSocket() {
-     this.conn.setTimeout(TIMEOUT);
+-    this.conn.setTimeout(TIMEOUT);
++    this.conn.setTimeout(this._protocol === 'tcp' ? TIMEOUT : this.host.endsWith('.onion') ? 21000 : 15000);
      this.conn.setEncoding('utf8');
      this.conn.setKeepAlive(true, 0);
      this.conn.setNoDelay(true);
