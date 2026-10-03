@@ -1,7 +1,7 @@
 import { cbc, gcm } from '@noble/ciphers/aes';
-import { scryptAsync } from '@noble/hashes/scrypt';
 import { md5 } from '@noble/hashes/legacy';
 import { randomBytes } from '@noble/hashes/utils';
+import { deriveStorageKey } from './storage-key';
 
 import { areUint8ArraysEqual, base64ToUint8Array, concatUint8Arrays, stringToUint8Array, uint8ArrayToBase64 } from './uint8array-extras';
 
@@ -53,14 +53,7 @@ const V2_AAD = stringToUint8Array('RedWallet vault v2: scrypt N32768 r8 p3 AES25
 async function deriveVaultKey(password: string, salt: Uint8Array): Promise<Uint8Array> {
   const bytes = stringToUint8Array(password);
   try {
-    return await scryptAsync(bytes, salt, {
-      N: 32768,
-      r: 8,
-      p: 3,
-      dkLen: KEY_LEN,
-      maxmem: 40 * 1024 * 1024,
-      asyncTick: 10,
-    });
+    return await deriveStorageKey(bytes, salt);
   } finally {
     bytes.fill(0);
   }

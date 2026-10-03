@@ -1,7 +1,7 @@
 import Realm, { Configuration } from 'realm';
-import { scryptAsync } from '@noble/hashes/scrypt';
 import Keychain from 'react-native-keychain';
 import { randomBytes } from '../class/rng';
+import { deriveStorageKey } from './storage-key';
 import { hexToUint8Array, stringToUint8Array, uint8ArrayToHex } from './uint8array-extras';
 
 const opening = new Map<string, Promise<Configuration>>();
@@ -21,14 +21,7 @@ function cacheIndex(cacheName: string, salt: string): Promise<string> {
       const bytes = stringToUint8Array(`RedWallet cache index v3:${cacheName}`);
       let key: Uint8Array | undefined;
       try {
-        key = await scryptAsync(bytes, hexToUint8Array(salt), {
-          N: 32768,
-          r: 8,
-          p: 3,
-          dkLen: 32,
-          maxmem: 40 * 1024 * 1024,
-          asyncTick: 10,
-        });
+        key = await deriveStorageKey(bytes, hexToUint8Array(salt));
         return uint8ArrayToHex(key);
       } finally {
         bytes.fill(0);

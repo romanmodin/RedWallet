@@ -3,7 +3,7 @@ import bip38 from 'bip38';
 import * as bip39 from 'bip39';
 import * as bitcoin from 'bitcoinjs-lib';
 import React, { Component } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Linking, NativeModules, StyleSheet, View } from 'react-native';
 // @ts-ignore theres no type declaration for this
 import BlueCrypto from 'react-native-blue-crypto';
 import wif from 'wif';
@@ -11,7 +11,8 @@ import wif from 'wif';
 import * as encryption from '../../blue_modules/encryption';
 import * as fs from '../../blue_modules/fs';
 import ecc from '../../blue_modules/noble_ecc';
-import { hexToUint8Array, uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
+import { hexToUint8Array, stringToUint8Array, uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
+import { deriveStorageKey } from '../../blue_modules/storage-key';
 import BlueText from '../../components/BlueText';
 import { HDAezeedWallet } from '../../class/wallets/hd-aezeed-wallet';
 import { HDSegwitP2SHWallet } from '../../class/wallets/hd-segwit-p2sh-wallet';
@@ -309,6 +310,21 @@ export default class SelfTest extends Component {
         const hex = await BlueCrypto.scrypt('717765727479', '4749345a22b23cf3', 64, 8, 8, 32); // using non-default parameters to speed it up (not-bip38 compliant)
         if (hex.toUpperCase() !== 'F36AB2DC12377C788D61E6770126D8A01028C8F6D8FE01871CE0489A1F696A90')
           throw new Error('react-native-blue-crypto is not ok');
+        if (typeof NativeModules.BlueCrypto?.scryptSecure !== 'function') throw new Error('Native storage crypto is unavailable');
+        // Independent Node scrypt vector at the exact vault/cache cost, including UTF-8.
+        const storageKey = await deriveStorageKey(
+          stringToUint8Array('storage test café 🛡'),
+          hexToUint8Array('000102030405060708090a0b0c0d0e0f'),
+        );
+        try {
+          assertStrictEqual(
+            uint8ArrayToHex(storageKey),
+            '4f6cb554d96106325b274ebc047eb70463de9a2569d18f56800ba5c7d59ff7c2',
+            'Native storage key does not match the reference',
+          );
+        } finally {
+          storageKey.fill(0);
+        }
       }
 
       // bip38 test
