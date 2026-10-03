@@ -16,7 +16,19 @@ beforeAll(async () => {
 
   const originalLaunchApp = device.launchApp.bind(device);
   device.launchApp = async (...args) => {
-    const result = await originalLaunchApp(...args);
+    let result;
+    try {
+      result = await originalLaunchApp(...args);
+    } catch (error) {
+      console.error('[detox-setup] launch failed:', error?.stack || error?.message || error);
+      // iOS simulator Keychain resets can crash SpringBoard before the app
+      // launches. Retry that specific system-shell failure once; app crashes,
+      // connection errors and test assertions still fail without retry.
+      const message = String(error?.stack || error?.message || error);
+      if (device.getPlatform() !== 'ios' || !/system shell.*SpringBoard.*crashed|NSPOSIXErrorDomain.*(?:code[:= ]+64|Code=64)/i.test(message)) throw error;
+      console.error('[detox-setup] retrying launch after simulator system-shell failure');
+      result = await originalLaunchApp(...args);
+    }
     try {
       await device.setURLBlacklist(URL_BLACKLIST);
     } catch (e) {

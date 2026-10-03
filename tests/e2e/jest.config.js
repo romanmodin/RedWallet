@@ -3,6 +3,7 @@ module.exports = {
   ...(process.env.IMPORT_DIAGNOSTICS === 'true'
     ? { testNamePattern: 'restores the published BIP84 recovery phrase|imports a BIP84 public account' }
     : {}),
+  ...(process.env.TLS_TRUSTED_CERT_RECHECK === 'true' ? { testNamePattern: 'configured server certificate and matching name' } : {}),
   maxWorkers: 1,
   testTimeout: 600_000, // 10 minutes. iOS multisig and plausible deniability tests take a long time to run
   verbose: true,

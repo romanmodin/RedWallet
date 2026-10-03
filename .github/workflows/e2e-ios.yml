@@ -9,6 +9,11 @@ on:
         required: false
         default: ''
         type: string
+      wallet_validation:
+        description: Recheck explicit server trust then all supported wallet UI checks
+        required: false
+        default: false
+        type: boolean
       import_diagnostics:
         description: Run the two import checks with verbose diagnostics
         required: false
@@ -253,6 +258,7 @@ jobs:
         timeout-minutes: 90
         env:
           IMPORT_DIAGNOSTICS: ${{ inputs.import_diagnostics }}
+          WALLET_VALIDATION: ${{ inputs.wallet_validation }}
         run: |
           if [ "$IMPORT_DIAGNOSTICS" = "true" ]; then
             npm run e2e:test:ios-release -- \
@@ -263,11 +269,22 @@ jobs:
               --artifacts-location ./artifacts
             exit $?
           fi
+          # Full TLS coverage remains the default. A focused manual follow-up
+          # rechecks the one timed-out trust case before the complete wallet UI
+          # suite, using the identical production source on a fresh simulator.
+          if [ "$WALLET_VALIDATION" = "true" ]; then
+            TLS_TRUSTED_CERT_RECHECK=true npm run e2e:test:ios-release -- \
+              tests/e2e/electrum-tls.spec.js --runTestsByPath \
+              --record-videos all --record-logs all --take-screenshots all \
+              --loglevel verbose --headless --retries 0 --reuse \
+              --artifacts-location ./artifacts/tls
+          else
           # Authenticate the native TLS transport before the longer wallet flows.
           npm run e2e:test:ios-release -- \
             tests/e2e/electrum-tls.spec.js --runTestsByPath \
             --record-videos failing --record-logs failing --take-screenshots failing \
             --headless --retries 0 --reuse --artifacts-location ./artifacts/tls
+          fi
           # Retain supported inherited coverage; bluewallet2 requires a funded Bitcoin fixture.
           npm run e2e:test:ios-release -- \
             tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js \

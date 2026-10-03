@@ -154,7 +154,7 @@ describe('native Electrum TLS authentication', () => {
       } catch (error) {
         // The automatic failure screenshot runs after finally; preserve the
         // actual failed UI before cleanup terminates the app.
-        console.error('[tls-e2e] failed:', scenario.name, error.stack || error.message);
+        console.error('[tls-e2e] failed:', scenario.name, 'RPCs:', requests, error.stack || error.message);
         await device.takeScreenshot('tls-failure-before-cleanup').catch(() => {});
         // Only disposable, empty-wallet TLS fixtures run here. Retain native
         // identifiers/frames for diagnosing a failed field lookup.
