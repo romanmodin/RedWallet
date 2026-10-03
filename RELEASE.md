@@ -131,14 +131,18 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 
 ### Security follow-up source and pending tester packages (2026-10-02)
 
-- The security changes are pushed on PR #3. Public reviewed source:
-  `8b9d07eae1188c10522d99bf1aab09d5c662a70b`. GitHub run 37102407150 passed all 75 unit suites:
-  688 tests passed, one skipped; lint passed. Fresh native device checks
-  remain pending.
+- The security changes are pushed on PRs #3, #4 and #6; PR #5 adds the requested pre-send price estimate. Public reviewed source:
+  `29211e8f6663c2fa25ad53ca3381adf9e1b15cd5`. GitHub run 37104706195 passed;
+  all 77 unit suites passed locally (697 tests passed, one skipped), with
+  TypeScript and lint passing. Native TLS run 37102407152 passed all seven
+  certificate scenarios before cancellation during later wallet checks; Android
+  run 37102407156 also passed all seven TLS scenarios and wallet creation/restart
+  before the slow JavaScript password test failed. Updated native-derivation
+  device runs 37104706146 and 37104706218 remain pending.
 - Approved private signing source:
-  `84c8140eb1490ea1f92953198a96964884b63789`. All 938 production entries
+  `e736ebe49e2b20923ff945b966410d9a0ed00e0b`. All 941 production entries
   (Git file mode, blob ID and path) match the public source. Production tree
-  SHA-256: `26c1e4f83586778db31b668f3bedf4a66e8bd70306c8ad2127aeeab221b5b934`.
+  SHA-256: `c024a54244e183d8479dac7c6f74b3c8fd4d2f57bb34070c079e322fcbbee438`.
   The mapping excludes workflows, tests, Markdown and store metadata. It is
   source equivalence, not a claim of reproducible binary equivalence.
 - Both signing and upload jobs verify the pinned production tree before
@@ -155,7 +159,12 @@ bootstrap operation; there is no bootstrap option in the release workflow.
   remain open. The earlier missing-history case was resolved by the tester
   correcting their server; no app fix is claimed for it. Use disposable wallets
   for exploratory testing.
-- Password storage upgrades to scrypt/AES-GCM. Earlier app versions cannot
+- Password storage upgrades to scrypt/AES-GCM with the identical fixed-strength
+  native derivation on iOS/Android. Native self-test checks an independent
+  full-cost reference; failed decoy creation preserves the active wallet.
+  Secret copies on iOS are local-only and expire at the OS level. The send
+  confirmation includes the configured XBT price estimate below the amount.
+  Earlier app versions cannot
   read upgraded storage: retain an offline recovery backup and do not downgrade.
 
 ## Build and upload
