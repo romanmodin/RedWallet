@@ -63,10 +63,14 @@ jobs:
               cert=OpenSSL::X509::Certificate.new(File.binread(file))
               subject=cert.subject.to_a.to_h { |key,value,_| [key,value] }
               next unless subject['OU']==ENV.fetch('TEAM_ID') && subject['CN'].start_with?('Apple Distribution:') && cert.not_after>Time.now
-              openssl='/opt/homebrew/opt/openssl@3/bin/openssl'
-              pem,_,status=Open3.capture3(openssl,'pkcs12','-legacy','-in',p12file,'-passin','pass:','-nodes')
-              raise 'Cannot read existing distribution key' unless status.success?
-              key=OpenSSL::PKey.read(pem)
+              begin
+                key=OpenSSL::PKey.read(File.binread(p12file))
+              rescue OpenSSL::PKey::PKeyError, ArgumentError
+                openssl='/opt/homebrew/opt/openssl@3/bin/openssl'
+                pem,_,status=Open3.capture3(openssl,'pkcs12','-legacy','-in',p12file,'-passin','pass:','-nodes')
+                raise 'Cannot read existing distribution key' unless status.success?
+                key=OpenSSL::PKey.read(pem)
+              end
               raise 'Certificate/private-key mismatch' unless cert.check_private_key(key)
               normalized=OpenSSL::PKCS12.create('','White Bird distribution',key,cert).to_der
               [cert.to_der,normalized]
