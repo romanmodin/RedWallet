@@ -7,6 +7,7 @@
  * and the swap-check that guards against a stale client clobbering newer state.
  */
 
+import * as bitcoin from 'bitcoinjs-lib';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { XBT_MAINNET_CHECKPOINT_HEADER } from '../../class/xbt/electrum-checkpoint';
 import fixture from '../fixtures/xbt-knots-regtest-acceptance.json';
@@ -134,6 +135,95 @@ describe('BlueElectrum lifecycle', () => {
     await BlueElectrum.setDisabled(false);
     created.length = 0;
     presentAlertMock.mockClear();
+  });
+
+  describe('server batch-limit recovery', () => {
+    const address = bitcoin.address.fromOutputScript(Buffer.from('0014' + '11'.repeat(20), 'hex'));
+    const txid = 'ab'.repeat(32);
+    beforeEach(async () => {
+      const connected = BlueElectrum.ensureConnected();
+      await flush();
+      resolveLastConnect();
+      await connected;
+    });
+
+    it.each(['balance', 'history', 'utxo', 'transaction'])('recovers rejected %s batches using individual requests', async kind => {
+      const client = created[0] as FakeClient & Record<string, jest.Mock>;
+      const methods: Record<string, string> = {
+        balance: 'blockchainScripthash_getBalance',
+        history: 'blockchainScripthash_getHistory',
+        utxo: 'blockchainScripthash_listunspent',
+        transaction: 'blockchainTransaction_get',
+      };
+      const method = methods[kind];
+      client[method + 'Batch'] = jest.fn(async () => {
+        throw new Error('Batch limit exceeded');
+      });
+      const values: Record<string, unknown> = {
+        balance: { confirmed: 123, unconfirmed: 0 },
+        history: [{ tx_hash: txid, height: 1 }],
+        utxo: [{ tx_hash: txid, tx_pos: 0, height: 1, value: 123 }],
+        transaction: fixture.signed.goodHex,
+      };
+      client[method] = jest.fn(async () => values[kind]);
+      if (kind === 'balance') expect((await BlueElectrum.multiGetBalanceByAddress([address])).balance).toBe(123);
+      if (kind === 'history') expect((await BlueElectrum.multiGetHistoryByAddress([address]))[address][0].tx_hash).toBe(txid);
+      if (kind === 'utxo') expect((await BlueElectrum.multiGetUtxoByAddress([address]))[address][0].txid).toBe(txid);
+      if (kind === 'transaction') expect((await BlueElectrum.multiGetTransactionByTxid([txid], false))[txid]).toBe(fixture.signed.goodHex);
+      expect(client[method + 'Batch']).toHaveBeenCalledTimes(1);
+      expect(client[method]).toHaveBeenCalledTimes(1);
+    });
+
+    it('recovers every address sequentially without dropping transaction history', async () => {
+      const client = created[0] as FakeClient & Record<string, jest.Mock>;
+      const addresses = ['11', '22', '33'].map(byte => bitcoin.address.fromOutputScript(Buffer.from('0014' + byte.repeat(20), 'hex')));
+      client.blockchainScripthash_getHistoryBatch = jest.fn(async () => {
+        // eslint-disable-next-line no-throw-literal -- Simulate a plain JSON-RPC error object from the server.
+        throw { message: 'Batch limit exceeded' };
+      });
+      let active = 0;
+      let maximum = 0;
+      client.blockchainScripthash_getHistory.mockImplementation(async () => {
+        active++;
+        maximum = Math.max(maximum, active);
+        await tick();
+        active--;
+        return [{ tx_hash: txid, height: 1 }];
+      });
+      const histories = await BlueElectrum.multiGetHistoryByAddress(addresses);
+      expect(maximum).toBe(1);
+      expect(client.blockchainScripthash_getHistory).toHaveBeenCalledTimes(3);
+      for (const addr of addresses) expect(histories[addr][0]).toMatchObject({ tx_hash: txid, address: addr });
+    });
+
+    it('decodes a raw single transaction returned for a verbose fallback', async () => {
+      const client = created[0] as FakeClient & Record<string, jest.Mock>;
+      client.blockchainTransaction_getBatch = jest.fn(async () => {
+        throw new Error('Batch limit exceeded');
+      });
+      client.blockchainTransaction_get.mockResolvedValue(fixture.signed.goodHex);
+      const tx = (await BlueElectrum.multiGetTransactionByTxid(['ef'.repeat(32)], true))['ef'.repeat(32)];
+      expect(tx.vin.length).toBeGreaterThan(0);
+      expect(tx.vout.length).toBeGreaterThan(0);
+    });
+
+    it('does not turn an authentication/network error into a retry or empty history', async () => {
+      const client = created[0] as FakeClient & Record<string, jest.Mock>;
+      client.blockchainScripthash_getHistoryBatch = jest.fn(async () => {
+        throw new Error('Certificate hostname mismatch');
+      });
+      await expect(BlueElectrum.multiGetHistoryByAddress([address])).rejects.toThrow('Certificate hostname mismatch');
+      expect(client.blockchainScripthash_getHistory).not.toHaveBeenCalled();
+    });
+
+    it('propagates individual history failure instead of reporting an empty wallet', async () => {
+      const client = created[0] as FakeClient & Record<string, jest.Mock>;
+      client.blockchainScripthash_getHistoryBatch = jest.fn(async () => {
+        throw new Error('Batch limit exceeded');
+      });
+      client.blockchainScripthash_getHistory.mockRejectedValue(new Error('Connection lost'));
+      await expect(BlueElectrum.multiGetHistoryByAddress([address])).rejects.toThrow('Connection lost');
+    });
   });
 
   describe('settings connection authentication deadline', () => {
