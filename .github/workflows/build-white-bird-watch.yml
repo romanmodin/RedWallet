@@ -198,8 +198,27 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           cp "$APPLE_API_KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+          python3 <<'PYINFO'
+          import plistlib, pathlib, zipfile, json
+          root=pathlib.Path(__import__('os').environ['RUNNER_TEMP'])/'WhiteBird-export'
+          with zipfile.ZipFile(root/'WhiteBird.ipa') as z:
+              for name in z.namelist():
+                  if name.endswith('.app/Info.plist'):
+                      d=plistlib.loads(z.read(name))
+                      keys=['CFBundleIdentifier','CFBundleShortVersionString','CFBundleVersion','CFBundleExecutable','CFBundleSupportedPlatforms','DTPlatformName','UIDeviceFamily','ITSWatchOnlyContainer','WKWatchOnly','WKApplication','WKWatchKitApp']
+                      print(name, json.dumps({k:d.get(k) for k in keys}))
+          d=plistlib.loads((root/'AppStoreInfo.plist').read_bytes())
+          def show(d, p='metadata'):
+              if isinstance(d,dict):
+                  for k,v in d.items():
+                      if isinstance(v,(dict,list)): show(v,p+'.'+k)
+                      elif any(t in k.lower() for t in ['version','platform','identifier','bundle']): print(p+'.'+k,str(v)[:200])
+              elif isinstance(d,list):
+                  for n,v in enumerate(d): show(v,p+'.'+str(n))
+          show(d)
+          PYINFO
           /usr/local/itms/bin/iTMSTransporter -m upload -assetFile "$RUNNER_TEMP/WhiteBird-export/WhiteBird.ipa" \
-            -assetDescription "$RUNNER_TEMP/WhiteBird-export/AppStoreInfo.plist" -appPlatform iOS \
+            -assetDescription "$RUNNER_TEMP/WhiteBird-export/AppStoreInfo.plist" -appPlatform ios -v informational \
             -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER_ID"
       - name: Clean up temporary credentials
         if: always()
