@@ -6,9 +6,9 @@ import subprocess
 from pathlib import Path
 
 REPO = 'romanmodin/RedWallet'
-PUBLIC = '71697797a2967718adeba19d82160422885d59db'
-ORCHESTRATION = '10720d07c36eace3f7e27aca828f75d0ea7a1fca'
-UPLOAD_RUN = '37214109044'
+PUBLIC = '2479c4f5d7b31b2836fa1d3b3d366219bc6f1969'
+ORCHESTRATION = '817e20cbfec5548a5958fe9c6d9bd3033749ec06'
+UPLOAD_RUN = '37233767699'
 
 def run(run_id, expected_head, expected_path):
     data = json.loads(subprocess.check_output(['gh', 'api', f'repos/{REPO}/actions/runs/{run_id}']))
@@ -23,17 +23,17 @@ assert upload['event'] == 'workflow_dispatch' and upload['head_branch'] == 'main
 # Run-level success cannot substitute for an actual successful upload job.
 jobs = json.loads(subprocess.check_output(['gh', 'api', f'repos/{REPO}/actions/runs/{UPLOAD_RUN}/jobs?per_page=100']))['jobs']
 assert any(j['name'] == 'testflight-upload' and j['conclusion'] == 'success' for j in jobs), 'Upload job did not pass'
-for rid in ['37207037717', '37207037746', '37207037709']:
+for rid in ['37227082250', '37227082241', '37227082300']:
     data = json.loads(subprocess.check_output(['gh', 'api', f'repos/{REPO}/actions/runs/{rid}']))
     assert data['repository']['full_name'] == REPO and data['head_repository']['full_name'] == REPO
     assert data['head_sha'] == PUBLIC and data['status'] == 'completed' and data['conclusion'] == 'success', 'Native/unit gate did not pass'
 receipt = json.loads(Path(os.environ['UPLOAD_RECEIPT_PATH']).read_text())
 expected = {
-    'ipaSha256': '922a612f31d03d72ad602dce3600593a59c4814df64ddf744e7868d1bbb37c34',
+    'ipaSha256': '4796314f5181e041f42c967e74e36398e6dd78ad8ac6fa4d370259c4120ca76d',
     'publicSourceCommit': PUBLIC,
-    'sourceCommit': 'e4ea8deccdd1bc3e1728b6d52e27985ef0a83467',
+    'sourceCommit': '87bdf8512c4626aeba34005a013ef1dc2fa209d4',
     'orchestrationCommit': ORCHESTRATION,
-    'productionTreeSha256': '1258feff0a9579ce623c2c37682a43ca192c163ac29c7df8766a6ace75a8c7c1',
+    'productionTreeSha256': 'd1d57fe1b2439a009f672f98325eb9b78deaf73f4c80c2f0d5744caad8b52c92',
     'productionPathCount': 945,
     'signatureVerification': 'passed',
     'sourceMappingVerification': 'passed'
@@ -41,5 +41,5 @@ expected = {
 assert all(receipt.get(k) == v for k, v in expected.items()), 'Uploaded package receipt does not match'
 bundles = receipt['bundles']
 assert len(bundles) == 2 and {b['bundleId'] for b in bundles} == {'com.romanmodin.redwallet', 'com.romanmodin.redwallet.Stickers'}
-assert all(b['version'] == '8.0.1' and b['build'] == '1791127611' and b['architectures'] == ['arm64'] for b in bundles), 'Wrong iPhone package'
+assert all(b['version'] == '8.0.1' and b['build'] == '1791146217' and b['architectures'] == ['arm64'] for b in bundles), 'Wrong iPhone package'
 print('PASS: uploaded IPA, exact production source, and completed native/unit gates verified')
