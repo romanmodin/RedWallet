@@ -16,7 +16,7 @@ jobs:
   sign:
     if: ${{ github.ref == 'refs/heads/main' }}
     environment: ios-upload
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
     env:
       TEAM_ID: ${{ secrets.TEAM_ID }}
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: romanmodin/TeslaWatchICP
-          ref: 277e75748482b015d23ea67137e32e711be25720
+          ref: 2463ddedd2999d99e54bde6ef24995b4740dbd17
           ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
           persist-credentials: false
       - name: Prepare application icons
@@ -47,13 +47,22 @@ jobs:
       - name: Archive and verify signed watch app
         run: |
           set -euo pipefail
-          xcodebuild -project distribution/WhiteBirdDistribution.xcodeproj -scheme WhiteBird \
+          archive_watch() {
+            xcodebuild -project distribution/WhiteBirdDistribution.xcodeproj -scheme WhiteBird \
             -configuration Release -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/WhiteBird.xcarchive" \
             -allowProvisioningUpdates -authenticationKeyPath "$APPLE_API_KEY_PATH" \
             -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID" \
             DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" archive
+          }
+          if ! archive_watch > "$RUNNER_TEMP/WhiteBird-archive.log" 2>&1; then
+            python3 distribution/scripts/recover_profile.py "$RUNNER_TEMP/WhiteBird-archive.log"
+            archive_watch > "$RUNNER_TEMP/WhiteBird-archive-retry.log" 2>&1 || {
+              sed -n '/error:/p' "$RUNNER_TEMP/WhiteBird-archive-retry.log"
+              exit 1
+            }
+          fi
           python3 distribution/scripts/verify_archive.py "$RUNNER_TEMP/WhiteBird.xcarchive"
           codesign --verify --deep --strict "$RUNNER_TEMP/WhiteBird.xcarchive/Products/Applications/WhiteBird.app"
       - name: Export signed archive; upload only when explicitly selected
@@ -63,9 +72,6 @@ jobs:
             -exportPath "$RUNNER_TEMP/WhiteBird-export" -exportOptionsPlist "$APPLE_EXPORT_OPTIONS" \
             -allowProvisioningUpdates -authenticationKeyPath "$APPLE_API_KEY_PATH" \
             -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
-      - name: Record signing result
-        run: |
-          printf 'White Bird watch archive signed and verified. Upload requested: %s.\n' "$APPLE_UPLOAD" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary signing credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/WhiteBird-AuthKey.p8" "$RUNNER_TEMP/WhiteBird-ExportOptions.plist"
