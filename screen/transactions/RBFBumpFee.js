@@ -1,4 +1,6 @@
+import { isXbtTaprootWallet, XbtTaprootTransaction } from '../../class/xbt-taproot-transaction';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
+import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import React from 'react';
 import PropTypes from 'prop-types';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
@@ -30,12 +32,18 @@ export default class RBFBumpFee extends CPFP {
       newFeeRate: '',
       nonReplaceable: false,
     });
-    await this.checkPossibilityOfRBFBumpFee();
+    try {
+      await this.checkPossibilityOfRBFBumpFee();
+    } catch {
+      this.setState({ nonReplaceable: true, isLoading: false });
+    }
   }
 
   async checkPossibilityOfRBFBumpFee() {
     let tx;
-    if (isWatchOnlySegwitBech32(this.state.wallet)) {
+    if (isXbtTaprootWallet(this.state.wallet)) {
+      tx = new XbtTaprootTransaction(null, this.state.txid, this.state.wallet);
+    } else if (isWatchOnlySegwitBech32(this.state.wallet)) {
       tx = new HDSegwitBech32Transaction(
         null,
         this.state.txid,
@@ -49,7 +57,12 @@ export default class RBFBumpFee extends CPFP {
     }
     if ((await tx.isOurTransaction()) && (await tx.getRemoteConfirmationsNum()) === 0 && (await tx.isSequenceReplaceable())) {
       const info = await tx.getInfo();
-      return this.setState({ nonReplaceable: false, feeRate: info.feeRate + 1, isLoading: false, tx });
+      return this.setState({
+        nonReplaceable: false,
+        feeRate: info.feeRate + 1,
+        isLoading: false,
+        tx,
+      });
       // 1 sat makes a lot of difference, since sometimes because of rounding created tx's fee might be insufficient
     } else {
       return this.setState({ nonReplaceable: true, isLoading: false });
@@ -63,12 +76,13 @@ export default class RBFBumpFee extends CPFP {
       const tx = this.state.tx;
       this.setState({ isLoading: true });
       try {
-        const { tx: newTx, psbt } = await tx.createRBFbumpFee(newFeeRate);
+        const result = await tx.createRBFbumpFee(newFeeRate);
+        const { tx: newTx, psbt } = result;
 
         // watch-only wallets with enabled HW wallet support have different flow. we have to show PSBT to user as QR code
         // so he can scan it and sign it. then we have to scan it back from user (via camera and QR code), and ask
         // user whether he wants to broadcast it
-        if (isWatchOnlySegwitBech32(this.state.wallet)) {
+        if (this.state.wallet instanceof WatchOnlyWallet) {
           let memo;
           // porting memo from old tx:
           if (this.context.txMetadata[this.state.txid]?.memo) {
@@ -90,7 +104,12 @@ export default class RBFBumpFee extends CPFP {
           return;
         }
 
-        this.setState({ stage: 2, txhex: newTx.toHex(), newTxid: newTx.getId() });
+        this.reviewFeeBump(result);
+        this.setState({
+          stage: 2,
+          txhex: newTx.toHex(),
+          newTxid: newTx.getId(),
+        });
         this.setState({ isLoading: false });
       } catch (_) {
         this.setState({ isLoading: false });

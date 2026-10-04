@@ -8,6 +8,8 @@ import { HDSegwitP2SHWallet } from './hd-segwit-p2sh-wallet';
 import { LegacyWallet } from './legacy-wallet';
 import { THDWalletForWatchOnly } from './types';
 import { HDTaprootWallet } from './hd-taproot-wallet';
+import { XbtTaprootWallet } from './xbt-taproot-wallet';
+import { assertSignedUnifiedTaprootTransactionMatchesPsbt, finalizeUnifiedTaprootInput } from '../xbt/unified-taproot-psbt';
 import { XbtSegwitBech32Wallet } from './xbt-segwit-bech32-wallet';
 import { assertSignedUnifiedTransactionMatchesPsbt, finalizeUnifiedP2wpkhInput, SIGHASH_ALL_UNIFIED } from '../xbt/unified-psbt';
 
@@ -33,6 +35,20 @@ export class WatchOnlyWallet extends LegacyWallet {
   /**
    * @inheritDoc
    */
+  setSecret(secret: string): this {
+    approvedExternalTransactions.delete(this);
+    pendingSigningRequests.delete(this);
+    if (
+      secret.trim().startsWith('tr(') &&
+      !/^tr\(\[[0-9a-fA-F]{8}(?:\/\d+['h]?)*\](?:xpub|zpub)[1-9A-HJ-NP-Za-km-z]+(?:\/(?:[01]|<0;1>)\/\*)?\)?(?:#[a-z0-9]{8})?$/.test(
+        secret.trim(),
+      )
+    ) {
+      throw new Error('Only single-key Taproot account descriptors are supported');
+    }
+    return super.setSecret(secret);
+  }
+
   getLastTxFetch() {
     if (this._hdWalletInstance) return this._hdWalletInstance.getLastTxFetch();
     return super.getLastTxFetch();
@@ -49,11 +65,14 @@ export class WatchOnlyWallet extends LegacyWallet {
   }
 
   allowSend() {
-    return this.useWithHardwareWalletEnabled() && this._hdWalletInstance instanceof XbtSegwitBech32Wallet;
+    return (
+      this.useWithHardwareWalletEnabled() &&
+      (this._hdWalletInstance instanceof XbtSegwitBech32Wallet || this._hdWalletInstance instanceof XbtTaprootWallet)
+    );
   }
 
   allowRBF() {
-    return false;
+    return this.allowSend() && this._hdWalletInstance instanceof XbtTaprootWallet;
   }
 
   allowSignVerifyMessage() {
@@ -111,8 +130,9 @@ export class WatchOnlyWallet extends LegacyWallet {
     else if (this.secret.startsWith('zpub')) hdWalletInstance = new HDSegwitBech32Wallet();
     else return this;
     if (this.xbt_network) {
-      if (!(hdWalletInstance instanceof HDSegwitBech32Wallet)) throw new Error('XBT watch-only signing requires Native SegWit');
-      hdWalletInstance = new XbtSegwitBech32Wallet();
+      if (hdWalletInstance instanceof HDTaprootWallet) hdWalletInstance = new XbtTaprootWallet();
+      else if (hdWalletInstance instanceof HDSegwitBech32Wallet) hdWalletInstance = new XbtSegwitBech32Wallet();
+      else throw new Error('XBT watch-only signing requires a BIP84 or BIP86 account');
     }
     hdWalletInstance._xpub = this.secret;
 
@@ -231,25 +251,51 @@ export class WatchOnlyWallet extends LegacyWallet {
     if (pendingSigningRequests.get(this) !== expected.toBase64())
       throw new Error('PSBT does not match the current reviewed signing request');
     const signed = typeof two === 'string' ? bitcoin.Psbt.fromBase64(two) : two.clone();
+    const taproot = this._hdWalletInstance instanceof XbtTaprootWallet;
+    if (
+      taproot &&
+      signed.data.inputs.some(
+        input =>
+          input.tapLeafScript?.length ||
+          input.tapScriptSig?.length ||
+          input.tapMerkleRoot ||
+          input.redeemScript ||
+          input.witnessScript ||
+          input.partialSig?.length ||
+          input.finalScriptSig ||
+          (input.sighashType !== undefined && input.sighashType !== SIGHASH_ALL_UNIFIED),
+      )
+    ) {
+      throw new Error('Only BIP86 Unified Taproot key-path signatures are supported');
+    }
     const combined = expected.clone().combine(signed);
     combined.data.inputs.forEach((input, index) => {
       if (!input.finalScriptWitness) {
+        if (taproot) {
+          finalizeUnifiedTaprootInput(combined, index, (key, digest, signature) => ecc.verifySchnorr!(digest, key, signature));
+          return;
+        }
         const publicKey = input.partialSig?.[0]?.pubkey;
         if (!publicKey) throw new Error('External signer did not sign every input');
         finalizeUnifiedP2wpkhInput(combined, index, publicKey, (key, digest, signature) => ecc.verify(digest, key, signature));
       }
     });
     const transaction = combined.extractTransaction();
-    assertSignedUnifiedTransactionMatchesPsbt(transaction.toHex(), expected, (key, digest, signature) =>
-      ecc.verify(digest, key, signature),
-    );
+    if (taproot) {
+      assertSignedUnifiedTaprootTransactionMatchesPsbt(transaction.toHex(), expected, (key, digest, signature) =>
+        ecc.verifySchnorr!(digest, key, signature),
+      );
+    } else {
+      assertSignedUnifiedTransactionMatchesPsbt(transaction.toHex(), expected, (key, digest, signature) =>
+        ecc.verify(digest, key, signature),
+      );
+    }
     approvedExternalTransactions.set(this, transaction.toHex());
     return transaction;
   }
 
   async broadcastTx(..._args: Parameters<THDWalletForWatchOnly['broadcastTx']>): Promise<boolean> {
-    if (!this.allowSend() || !(this._hdWalletInstance instanceof XbtSegwitBech32Wallet))
-      throw new Error('Enable an XBT-compatible external signer first');
+    if (!this.allowSend() || !this._hdWalletInstance) throw new Error('Enable an XBT-compatible external signer first');
     if (approvedExternalTransactions.get(this) !== _args[0])
       throw new Error('External transaction must match the verified signing request');
     return this._hdWalletInstance.broadcastTx(_args[0]);
@@ -262,8 +308,7 @@ export class WatchOnlyWallet extends LegacyWallet {
   createTransaction(
     ..._args: Parameters<THDWalletForWatchOnly['createTransaction']>
   ): ReturnType<THDWalletForWatchOnly['createTransaction']> {
-    if (!this.allowSend() || !(this._hdWalletInstance instanceof XbtSegwitBech32Wallet))
-      throw new Error('Enable an XBT-compatible external signer first');
+    if (!this.allowSend() || !this._hdWalletInstance) throw new Error('Enable an XBT-compatible external signer first');
     approvedExternalTransactions.delete(this);
     const [utxos, targets, feeRate, changeAddress, sequence] = _args;
     pendingSigningRequests.delete(this);
@@ -280,26 +325,25 @@ export class WatchOnlyWallet extends LegacyWallet {
     return result;
   }
 
+  createRBFTransaction(...args: Parameters<XbtTaprootWallet['createRBFTransaction']>) {
+    approvedExternalTransactions.delete(this);
+    pendingSigningRequests.delete(this);
+    if (!this.allowSend() || !(this._hdWalletInstance instanceof XbtTaprootWallet)) {
+      throw new Error('Enable an XBT-compatible Taproot external signer first');
+    }
+    const result = this._hdWalletInstance.createRBFTransaction(args[0], args[1], args[2], true, this.getMasterFingerprint());
+    pendingSigningRequests.set(this, result.psbt.toBase64());
+    return result;
+  }
+
   getMasterFingerprint() {
     return this.masterFingerprint;
   }
 
   getMasterFingerprintHex() {
-    if (!this.masterFingerprint) return '00000000';
-    let masterFingerprintHex = Number(this.masterFingerprint).toString(16);
-    if (masterFingerprintHex.length < 8) masterFingerprintHex = '0' + masterFingerprintHex; // conversion without explicit zero might result in lost byte
-    // poor man's little-endian conversion:
-    // ¯\_(ツ)_/¯
-    return (
-      masterFingerprintHex[6] +
-      masterFingerprintHex[7] +
-      masterFingerprintHex[4] +
-      masterFingerprintHex[5] +
-      masterFingerprintHex[2] +
-      masterFingerprintHex[3] +
-      masterFingerprintHex[0] +
-      masterFingerprintHex[1]
-    );
+    const fingerprint = Buffer.alloc(4);
+    fingerprint.writeUInt32LE(this.masterFingerprint);
+    return fingerprint.toString('hex');
   }
 
   isHd() {
@@ -328,7 +372,8 @@ export class WatchOnlyWallet extends LegacyWallet {
   setUseWithHardwareWalletEnabled(enabled: boolean) {
     approvedExternalTransactions.delete(this);
     pendingSigningRequests.delete(this);
-    if (enabled && !this.isXbtSigningCompatible()) throw new Error('XBT external signing requires a BIP84 Native SegWit account');
+    if (enabled && !this.isXbtSigningCompatible())
+      throw new Error('XBT external signing requires a BIP84 Native SegWit or BIP86 Taproot account');
     if (enabled) this.xbt_network = true;
     this.xbt_signer_enabled = !!enabled;
     this.use_with_hardware_wallet = false; // Old BTC hardware flags never grant XBT signing permission.
@@ -336,8 +381,10 @@ export class WatchOnlyWallet extends LegacyWallet {
   }
 
   isXbtSigningCompatible() {
-    if (!(this._hdWalletInstance instanceof HDSegwitBech32Wallet)) return false;
-    const account = /^m\/84'\/0'\/(\d+)'$/.exec(this.getDerivationPath() ?? '');
+    const purpose =
+      this._hdWalletInstance instanceof HDTaprootWallet ? 86 : this._hdWalletInstance instanceof HDSegwitBech32Wallet ? 84 : undefined;
+    if (!purpose) return false;
+    const account = new RegExp('^m/' + purpose + "'/0'/(\\d+)'$").exec(this.getDerivationPath() ?? '');
     if (!account) return false;
     try {
       const node = bip32.fromBase58(this.secret.startsWith('zpub') ? this._zpubToXpub(this.secret) : this.secret);

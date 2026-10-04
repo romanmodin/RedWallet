@@ -136,7 +136,8 @@ const startImport = (
         watchOnly.setSecret(text);
         if (watchOnly.valid()) {
           watchOnly.init();
-          if (!watchOnly.isXbtSigningCompatible()) throw new Error('XBT watch-only import requires a BIP84 Native SegWit account');
+          if (!watchOnly.isXbtSigningCompatible())
+            throw new Error('XBT watch-only import requires a BIP84 Native SegWit or BIP86 Taproot account');
           watchOnly.xbt_network = true;
           watchOnly.init();
           yield { progress: 'XBT watch-only account' };
@@ -144,18 +145,20 @@ const startImport = (
           return;
         }
       } catch (error) {
-        if (/^(?:[xyz]pub|\{|wpkh\(|\[)/.test(text)) throw error;
+        if (/^(?:[xyz]pub|\{|wpkh\(|tr\(|\[)/.test(text)) throw error;
       }
       const xbtWallet = xbtFormat === 'taproot' ? new XbtTaprootWallet() : new XbtSegwitBech32Wallet();
       xbtWallet.setSecret(text);
       if (!xbtWallet.validateMnemonic()) {
-        throw new Error('RedWallet currently imports a BIP39 recovery phrase or a BIP84 watch-only public key for XBT.');
+        throw new Error('RedWallet currently imports a BIP39 recovery phrase or a BIP84 or BIP86 watch-only public key for XBT.');
       }
       if (askPassphrase) {
         password = await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message);
         xbtWallet.setPassphrase(password);
       }
-      yield { progress: xbtFormat === 'taproot' ? 'XBT BIP86 recovery' : 'XBT BIP84 recovery' };
+      yield {
+        progress: xbtFormat === 'taproot' ? 'XBT BIP86 recovery' : 'XBT BIP84 recovery',
+      };
       yield { wallet: xbtWallet };
       return;
     }

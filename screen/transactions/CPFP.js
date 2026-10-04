@@ -1,3 +1,9 @@
+import * as bitcoin from 'bitcoinjs-lib';
+import { unlockWithBiometrics } from '../../hooks/useBiometrics';
+import confirm from '../../helpers/confirm';
+import { requiresHighFeeApproval } from '../../class/xbt/fee-policy';
+import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
+import { isXbtTaprootWallet, XbtTaprootTransaction } from '../../class/xbt-taproot-transaction';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import React, { Component } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -76,9 +82,47 @@ export default class CPFP extends Component {
     };
   }
 
+  reviewFeeBump(result) {
+    if (!isXbtTaprootWallet(this.state.wallet)) return;
+    if (!result.tx) throw new Error('A signed fee bump is required');
+    const recipients = result.tx.outs.filter(output => {
+      try {
+        return !this.state.wallet.addressIsChange(bitcoin.address.fromOutputScript(output.script));
+      } catch {
+        return true;
+      }
+    });
+    const recipientValue = recipients.reduce((sum, output) => sum + output.value, 0n);
+    const amountSats = Number(recipientValue || result.tx.outs.reduce((sum, output) => sum + output.value, 0n));
+    const feeRate = result.fee / result.tx.virtualSize();
+    const review = { feeSats: result.fee, feeRate, amountSats, hex: result.tx.toHex() };
+    // Validate the numeric review even when the fee does not trigger a warning.
+    requiresHighFeeApproval(review);
+    this.feeReview = review;
+    this.setState({ feeSats: result.fee, actualFeeRate: feeRate });
+  }
+
   broadcast = () => {
     this.setState({ isLoading: true }, async () => {
       try {
+        if (isXbtTaprootWallet(this.state.wallet)) {
+          if ((await this.context.getItem('Biometrics')) && !(await unlockWithBiometrics())) {
+            this.setState({ isLoading: false });
+            return;
+          }
+          const review = this.feeReview;
+          if (!review || review.hex !== this.state.txhex) throw new Error('No reviewed fee bump available');
+          if (
+            requiresHighFeeApproval(review) &&
+            !(await confirm(
+              'High transaction fee',
+              `The fee is ${review.feeSats} sats (${review.feeRate.toFixed(2)} sats/vB). Confirm this fee before sending.`,
+            ))
+          ) {
+            this.setState({ isLoading: false });
+            return;
+          }
+        }
         if (!(await BlueElectrum.ensureConnected())) {
           throw new Error(loc.errors.network);
         }
@@ -99,7 +143,9 @@ export default class CPFP extends Component {
   };
 
   onSuccessBroadcast() {
-    this.context.txMetadata[this.state.newTxid] = { memo: 'Child pays for parent (CPFP)' };
+    this.context.txMetadata[this.state.newTxid] = {
+      memo: 'Child pays for parent (CPFP)',
+    };
     majorTomToGroundControl([], [], [this.state.newTxid]);
     this.context.sleep(4000).then(() => this.context.fetchAndSaveWalletTransactions(this.state.wallet.getID()));
     this.props.navigation.navigate('Success', { amount: undefined });
@@ -121,13 +167,24 @@ export default class CPFP extends Component {
   }
 
   async checkPossibilityOfCPFP() {
-    if (this.state.wallet.type !== HDSegwitBech32Wallet.type && this.state.wallet.type !== XbtSegwitBech32Wallet.type) {
+    if (
+      !isXbtTaprootWallet(this.state.wallet) &&
+      this.state.wallet.type !== HDSegwitBech32Wallet.type &&
+      this.state.wallet.type !== XbtSegwitBech32Wallet.type
+    ) {
       return this.setState({ nonReplaceable: true, isLoading: false });
     }
-    const tx = new HDSegwitBech32Transaction(null, this.state.txid, this.state.wallet);
+    const tx = isXbtTaprootWallet(this.state.wallet)
+      ? new XbtTaprootTransaction(null, this.state.txid, this.state.wallet)
+      : new HDSegwitBech32Transaction(null, this.state.txid, this.state.wallet);
     if ((await tx.isToUsTransaction()) && (await tx.getRemoteConfirmationsNum()) === 0) {
       const info = await tx.getInfo();
-      return this.setState({ nonReplaceable: false, feeRate: info.feeRate + 1, isLoading: false, tx });
+      return this.setState({
+        nonReplaceable: false,
+        feeRate: info.feeRate + 1,
+        isLoading: false,
+        tx,
+      });
       // 1 sat makes a lot of difference, since sometimes because of rounding created tx's fee might be insufficient
     } else {
       return this.setState({ nonReplaceable: true, isLoading: false });
@@ -141,8 +198,29 @@ export default class CPFP extends Component {
       const tx = this.state.tx;
       this.setState({ isLoading: true });
       try {
-        const { tx: newTx } = await tx.createCPFPbumpFee(newFeeRate);
-        this.setState({ stage: 2, txhex: newTx.toHex(), newTxid: newTx.getId() });
+        const result = await tx.createCPFPbumpFee(newFeeRate);
+        const { tx: newTx, psbt } = result;
+        if (this.state.wallet instanceof WatchOnlyWallet) {
+          this.props.navigation
+            .getParent()
+            ?.getParent()
+            ?.navigate('SendDetailsRoot', {
+              screen: 'PsbtWithHardwareWallet',
+              params: {
+                memo: 'Child pays for parent (CPFP)',
+                walletID: this.state.wallet.getID(),
+                psbt,
+              },
+            });
+          this.setState({ isLoading: false });
+          return;
+        }
+        this.reviewFeeBump(result);
+        this.setState({
+          stage: 2,
+          txhex: newTx.toHex(),
+          newTxid: newTx.getId(),
+        });
         this.setState({ isLoading: false });
       } catch (_) {
         this.setState({ isLoading: false });
@@ -174,6 +252,9 @@ export default class CPFP extends Component {
     return (
       <View style={styles.root}>
         <BlueCard style={styles.center}>
+          {this.state.feeSats !== undefined && (
+            <BlueText>{`Fee: ${this.state.feeSats} sats (${this.state.actualFeeRate.toFixed(2)} sats/vB)`}</BlueText>
+          )}
           <BlueText style={styles.hex}>{loc.send.create_this_is_hex}</BlueText>
           <TextInput style={styles.hexInput} height={112} multiline editable value={this.state.txhex} />
 
@@ -231,6 +312,7 @@ export default class CPFP extends Component {
 CPFP.propTypes = {
   navigation: PropTypes.shape({
     popToTop: PropTypes.func,
+    getParent: PropTypes.func,
     navigate: PropTypes.func,
   }),
   route: PropTypes.shape({

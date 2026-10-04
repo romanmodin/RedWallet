@@ -11,7 +11,13 @@ import {
 const assert = require('assert').strict;
 
 describe('RedWallet XBT watch-only import', () => {
-  it('imports a BIP84 public account with external signing disabled', async () => {
+  it.each([
+    ['BIP84', 'zpub6s2EvLxwvDpaHNVP5vfordTyi8cH1fR8usmEjz7RsSQjfTTGU2qA5VEcEyYYBxpZAyBarJoTraB4VRJKVz97Au9jRNYfLAeeHC5UnRZbz8Y'],
+    [
+      'BIP86',
+      'tr([73c5da0a/86h/0h/0h]xpub6BgBgsespWvERF3LHQu6CnqdvfEvtMcQjYrcRzx53QJjSxarj2afYWcLteoGVky7D3UKDP9QyrLprQ3VCECoY49yfdDEHGCtMMj92pReUsQ/0/*)',
+    ],
+  ])('imports a %s public account with external signing disabled', async (format, descriptor) => {
     await device.clearKeychain();
     await device.launchApp({ delete: true, permissions: { notifications: 'NO', camera: 'YES' } });
     await waitForWalletsList();
@@ -28,9 +34,7 @@ describe('RedWallet XBT watch-only import', () => {
     await waitForId('ImportWallet');
     await element(by.id('ImportWallet')).tap();
     await waitForId('MnemonicInput');
-    await enterMnemonicText(
-      'zpub6s2EvLxwvDpaHNVP5vfordTyi8cH1fR8usmEjz7RsSQjfTTGU2qA5VEcEyYYBxpZAyBarJoTraB4VRJKVz97Au9jRNYfLAeeHC5UnRZbz8Y',
-    );
+    await enterMnemonicText(descriptor);
     const isIOS = device.getPlatform() === 'ios';
     if (isIOS) await device.disableSynchronization();
     try {
@@ -50,5 +54,30 @@ describe('RedWallet XBT watch-only import', () => {
       .whileElement(by.id('WalletDetailsScroll'))
       .scroll(150, 'down');
     assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), false);
+    if (format === 'BIP86') {
+      if (isIOS) await device.disableSynchronization();
+      try {
+        await element(by.id('XbtExternalSignerSwitch')).tap();
+        await waitForText('Enable XBT external signing');
+        if (!(await dismissAlertByText('Cancel'))) throw new Error('Could not cancel signer enrollment');
+        assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), false);
+        await element(by.id('XbtExternalSignerSwitch')).tap();
+        await waitForText('Enable XBT external signing');
+        if (!(await dismissAlertByText('Yes'))) throw new Error('Could not confirm test signer enrollment');
+      } finally {
+        if (isIOS) await device.enableSynchronization();
+      }
+      assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), true);
+      await device.launchApp({ newInstance: true });
+      await waitForWalletsList();
+      await element(by.id('Imported Watch-only')).tap();
+      await waitForId('WalletDetails');
+      await element(by.id('WalletDetails')).tap();
+      await waitFor(element(by.id('XbtExternalSignerSwitch')))
+        .toBeVisible()
+        .whileElement(by.id('WalletDetailsScroll'))
+        .scroll(150, 'down');
+      assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), true);
+    }
   });
 });

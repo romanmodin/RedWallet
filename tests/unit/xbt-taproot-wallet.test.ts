@@ -84,7 +84,7 @@ describe('XBT BIP86 wallet', () => {
     const segwit = new XbtSegwitBech32Wallet();
     segwit.setSecret(mnemonic);
     expect(wallet.getID()).not.toBe(segwit.getID());
-    expect(wallet.allowRBF()).toBe(false);
+    expect(wallet.allowRBF()).toBe(true);
     expect(wallet.allowCosignPsbt()).toBe(false);
     expect(wallet.allowSilentPaymentSend()).toBe(false);
   });

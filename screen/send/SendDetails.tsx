@@ -1,3 +1,4 @@
+import { isXbtTaprootWallet } from '../../class/xbt-taproot-transaction';
 import { confirmXbtPayment } from '../../class/xbt/payment-warning';
 import { getPayjoinUrl, supportsPayjoin } from '../../class/payjoin-policy';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
@@ -316,7 +317,10 @@ const SendDetails = () => {
     setParams({
       ...(walletActuallyChanged ? { utxos: null } : {}),
       isTransactionReplaceable:
-        (wallet.type === HDSegwitBech32Wallet.type || wallet.type === XbtSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) &&
+        (wallet.type === HDSegwitBech32Wallet.type ||
+          wallet.type === XbtSegwitBech32Wallet.type ||
+          isWatchOnlySegwitBech32(wallet) ||
+          isXbtTaprootWallet(wallet)) &&
         !routeParams.isTransactionReplaceable
           ? true
           : undefined,
@@ -1276,7 +1280,10 @@ const SendDetails = () => {
         ...CommonToolTipActions.AllowRBF,
         menuState: isTransactionReplaceable,
         hidden: !(
-          (wallet.type === HDSegwitBech32Wallet.type || wallet.type === XbtSegwitBech32Wallet.type || isWatchOnlySegwitBech32(wallet)) &&
+          (wallet.type === HDSegwitBech32Wallet.type ||
+            wallet.type === XbtSegwitBech32Wallet.type ||
+            isWatchOnlySegwitBech32(wallet) ||
+            isXbtTaprootWallet(wallet)) &&
           isTransactionReplaceable !== undefined
         ),
       },

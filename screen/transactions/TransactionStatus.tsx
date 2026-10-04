@@ -1,3 +1,4 @@
+import { isXbtTaprootWallet, XbtTaprootTransaction } from '../../class/xbt-taproot-transaction';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -135,7 +136,12 @@ const reducer = (state: State, action: { type: ActionType; payload?: any }): Sta
     case ActionType.SetIntervalMs:
       return { ...state, intervalMs: action.payload };
     case ActionType.SetAllButtonStatus:
-      return { ...state, isCPFPPossible: action.payload, isRBFBumpFeePossible: action.payload, isRBFCancelPossible: action.payload };
+      return {
+        ...state,
+        isCPFPPossible: action.payload,
+        isRBFBumpFeePossible: action.payload,
+        isRBFCancelPossible: action.payload,
+      };
     case ActionType.SetWallet:
       return { ...state, wallet: action.payload };
     case ActionType.SetLoadingError:
@@ -254,7 +260,9 @@ const TransactionStatus: React.FC = () => {
     valueUnit: { color: colors.foregroundColor },
     titleDate: { color: colors.alternativeTextColor },
     localCurrency: { color: colors.alternativeTextColor },
-    counterpartyContainer: { backgroundColor: colors.cardSectionHeaderBackground },
+    counterpartyContainer: {
+      backgroundColor: colors.cardSectionHeaderBackground,
+    },
     counterpartyAvatar: { backgroundColor: colors.lightButton },
     counterpartyAvatarText: { color: colors.foregroundColor },
     counterpartyName: { color: colors.foregroundColor },
@@ -272,7 +280,9 @@ const TransactionStatus: React.FC = () => {
     addButtonText: { color: colors.buttonTextColor },
     explorerButton: { backgroundColor: colors.lightButton },
     explorerButtonText: { color: colors.buttonTextColor },
-    stateCardPending: { backgroundColor: colors.transactionPendingBackgroundColor },
+    stateCardPending: {
+      backgroundColor: colors.transactionPendingBackgroundColor,
+    },
     stateCardSent: { backgroundColor: colors.outgoingBackgroundColor },
     stateCardReceived: { backgroundColor: colors.incomingBackgroundColor },
     card: { backgroundColor: colors.elevated || colors.background },
@@ -284,9 +294,13 @@ const TransactionStatus: React.FC = () => {
       backgroundColor: colors.cardSectionBackground,
       borderBottomColor: colors.cardBorderColor,
     },
-    speedUpButton: { backgroundColor: colors.transactionStateBumpButtonBackground },
+    speedUpButton: {
+      backgroundColor: colors.transactionStateBumpButtonBackground,
+    },
     speedUpButtonText: { color: colors.transactionPendingColor },
-    cancelButton: { backgroundColor: colors.transactionStateCancelButtonBackground },
+    cancelButton: {
+      backgroundColor: colors.transactionStateCancelButtonBackground,
+    },
     cancelButtonText: { color: colors.transactionPendingColor },
     advancedContent: { borderTopColor: colors.cardBorderColor },
     rowValue: { color: colors.alternativeTextColor },
@@ -538,7 +552,10 @@ const TransactionStatus: React.FC = () => {
           setTxFromElectrum(fetchedTx);
 
           if (tx) {
-            setTX({ ...tx, confirmations: fetchedTx.confirmations } as Transaction);
+            setTX({
+              ...tx,
+              confirmations: fetchedTx.confirmations,
+            } as Transaction);
           } else {
             console.error('Cannot set confirmations: tx is undefined.');
           }
@@ -681,7 +698,9 @@ const TransactionStatus: React.FC = () => {
       return setIsCPFPPossible(ButtonStatus.NotPossible);
     }
 
-    const cpfbTx = new HDSegwitBech32Transaction(null, tx.hash, wallet as HDSegwitBech32Wallet);
+    const cpfbTx = isXbtTaprootWallet(wallet)
+      ? new XbtTaprootTransaction(null, tx.hash, wallet)
+      : new HDSegwitBech32Transaction(null, tx.hash, wallet as HDSegwitBech32Wallet);
 
     if ((await cpfbTx.isToUsTransaction()) && (await cpfbTx.getRemoteConfirmationsNum()) === 0) {
       return setIsCPFPPossible(ButtonStatus.Possible);
@@ -698,8 +717,10 @@ const TransactionStatus: React.FC = () => {
       return setIsRBFBumpFeePossible(ButtonStatus.NotPossible);
     }
 
-    let rbfTx: HDSegwitBech32Transaction;
-    if (isWatchOnlySegwitBech32(wallet)) {
+    let rbfTx: HDSegwitBech32Transaction | XbtTaprootTransaction;
+    if (isXbtTaprootWallet(wallet)) {
+      rbfTx = new XbtTaprootTransaction(null, tx.hash, wallet);
+    } else if (isWatchOnlySegwitBech32(wallet)) {
       rbfTx = new HDSegwitBech32Transaction(null, tx.hash, wallet._hdWalletInstance);
     } else {
       rbfTx = new HDSegwitBech32Transaction(null, tx.hash, wallet as HDSegwitBech32Wallet);
@@ -720,7 +741,7 @@ const TransactionStatus: React.FC = () => {
     if (!wallet || !tx?.hash) {
       return setIsRBFCancelPossible(ButtonStatus.Unknown);
     }
-    if (!wallet?.allowRBF()) {
+    if (!wallet?.allowRBF() || isXbtTaprootWallet(wallet)) {
       return setIsRBFCancelPossible(ButtonStatus.NotPossible);
     }
 
@@ -768,6 +789,7 @@ const TransactionStatus: React.FC = () => {
         { cancelable: false },
       );
     }
+    navigate(route, { txid: transaction.hash, wallet: w });
   };
 
   const navigateToCPFP = (transaction: Transaction, w: TWallet) => {
@@ -782,7 +804,10 @@ const TransactionStatus: React.FC = () => {
     const metadataKey = tx.hash ?? (tx as { txid?: string }).txid;
     const currentMemo = (metadataKey && txMetadata[metadataKey]?.memo) || '';
     try {
-      const newMemo = await prompt(loc.send.details_note_placeholder, '', { type: 'plain-text', defaultValue: currentMemo });
+      const newMemo = await prompt(loc.send.details_note_placeholder, '', {
+        type: 'plain-text',
+        defaultValue: currentMemo,
+      });
       if (newMemo !== undefined && metadataKey) {
         txMetadata[metadataKey] = { memo: newMemo };
         await saveToDisk();
@@ -1417,7 +1442,9 @@ const TransactionStatus: React.FC = () => {
             {tx.inputs && tx.inputs.length > 0 && (
               <View style={[styles.detailRowFullWidth, stylesHook.detailRowFullWidth]}>
                 <BlueText style={[styles.detailLabelFullWidth, stylesHook.detailLabel]}>
-                  {loc.formatString(loc.transactions.details_inputs_count, { count: tx.inputs.length })}
+                  {loc.formatString(loc.transactions.details_inputs_count, {
+                    count: tx.inputs.length,
+                  })}
                 </BlueText>
                 <View style={styles.detailValueFullWidth}>
                   {from.filter(onlyUnique).length > 0 && renderSection(from.filter(onlyUnique))}
@@ -1429,7 +1456,9 @@ const TransactionStatus: React.FC = () => {
             {tx.outputs && tx.outputs.length > 0 && (
               <View style={[styles.detailRowFullWidth, styles.detailRowLast, stylesHook.detailRowFullWidth]}>
                 <BlueText style={[styles.detailLabelFullWidth, stylesHook.detailLabel]}>
-                  {loc.formatString(loc.transactions.details_outputs_count, { count: tx.outputs.length })}
+                  {loc.formatString(loc.transactions.details_outputs_count, {
+                    count: tx.outputs.length,
+                  })}
                 </BlueText>
                 <View style={styles.detailValueFullWidth}>{to.filter(onlyUnique).length > 0 && renderSection(to.filter(onlyUnique))}</View>
               </View>
