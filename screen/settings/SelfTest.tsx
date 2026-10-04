@@ -1,3 +1,4 @@
+import { runTaprootSigningSelfTest } from '../../class/xbt/taproot-self-test';
 import BIP32Factory from 'bip32';
 import bip38 from 'bip38';
 import * as bip39 from 'bip39';
@@ -251,6 +252,8 @@ export default class SelfTest extends Component {
       }
 
       //
+
+      runTaprootSigningSelfTest();
 
       const data2encrypt = 'really long data string';
       const crypted = await encryption.encrypt(data2encrypt, 'password');
