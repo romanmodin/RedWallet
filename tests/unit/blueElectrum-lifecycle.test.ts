@@ -264,6 +264,28 @@ describe('BlueElectrum lifecycle', () => {
       expect(decoded.vout[1].scriptPubKey.addresses).toHaveLength(1);
     });
 
+    it('loads raw coinbase history without requesting its null parent', async () => {
+      const connected = BlueElectrum.ensureConnected();
+      await flush();
+      resolveLastConnect();
+      await connected;
+      const tx = new bitcoin.Transaction();
+      tx.addInput(Buffer.alloc(32), 0xffffffff, 0xffffffff, Buffer.from('0101', 'hex'));
+      tx.addOutput(Buffer.from('0014' + '11'.repeat(20), 'hex'), 1000n);
+      tx.addOutput(Buffer.from('6a24aa21a9ed' + '00'.repeat(32), 'hex'), 0n);
+      const client = created[0];
+      client.blockchainScripthash_getHistory.mockResolvedValue([{ tx_hash: tx.getId(), height: 900 }]);
+      client.blockchainTransaction_get.mockImplementation(async (txid: string) => {
+        if (txid === '0'.repeat(64)) throw new Error('Coinbase null outpoint must not be queried');
+        return BlueElectrum.txhexToElectrumTransaction(tx.toHex());
+      });
+      const history = await BlueElectrum.getTransactionsFullByAddress(bitcoin.address.fromOutputScript(tx.outs[0].script));
+      expect(history).toHaveLength(1);
+      expect(history[0].txid).toBe(tx.getId());
+      expect(history[0]).toMatchObject({ outputs: [{ n: 0, value: 0.00001 }, { n: 1, value: 0, addresses: [] }] });
+      expect(client.blockchainTransaction_get.mock.calls.map(call => call[0])).toEqual([tx.getId()]);
+    });
+
     it('still rejects malformed raw transactions', () => {
       expect(() => BlueElectrum.txhexToElectrumTransaction('01000000')).toThrow();
     });

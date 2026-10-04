@@ -6,6 +6,7 @@ import Realm from 'realm';
 import { openSecureRealm } from './secure-realm';
 import { capSuggestedFeeRate } from '../class/xbt/fee-policy';
 import { parseVerifiedParentTransaction } from '../class/xbt/verified-transaction';
+import { isCoinbaseTransaction } from '../class/xbt/coinbase-maturity';
 import { sha256 as _sha256 } from '@noble/hashes/sha256';
 
 import type { LegacyWallet as LegacyWalletT } from '../class/wallets/legacy-wallet';
@@ -934,7 +935,8 @@ export const getTransactionsFullByAddress = async (address: string): Promise<Ele
       }
     }
     full.address = address;
-    for (const input of full.vin) {
+    // A coinbase input creates coins; its null outpoint has no parent to fetch.
+    for (const input of isCoinbaseTransaction(full.vin) ? [] : full.vin) {
       // now we need to fetch previous TX where this VIN became an output, so we can see its amount
       let prevTxForVin;
       try {
