@@ -1,4 +1,4 @@
-import { Psbt, payments } from 'bitcoinjs-lib';
+import { Psbt, Transaction, payments } from 'bitcoinjs-lib';
 
 import { SpentOutput, unifiedTaprootKeyPathSighashAll } from './unified-sighash';
 import { buildUnsignedTransaction, SIGHASH_ALL_UNIFIED, UnifiedSigner, UnifiedSignatureVerifier } from './unified-psbt';
@@ -31,7 +31,9 @@ function getKeyPathInput(psbt: Psbt, index: number) {
   if (!input.tapInternalKey || input.tapInternalKey.length !== 32 || !input.witnessUtxo) {
     throw new Error('Taproot internal key and witness UTXO are required');
   }
-  const expected = payments.p2tr({ internalPubkey: input.tapInternalKey }).output!;
+  const expected = payments.p2tr({
+    internalPubkey: input.tapInternalKey,
+  }).output!;
   if (!Buffer.from(expected).equals(Buffer.from(input.witnessUtxo.script))) {
     throw new Error('Taproot internal key does not match the witness UTXO');
   }
@@ -70,7 +72,50 @@ export function finalizeUnifiedTaprootInput(psbt: Psbt, index: number, verifier:
   if (!verifier(spentOutputs[index].script.subarray(2), digest, signature.subarray(0, 64))) {
     throw new Error('Unified Taproot signature is invalid');
   }
-  psbt.data.updateInput(index, { finalScriptWitness: Buffer.concat([Buffer.from([1, 65]), Buffer.from(signature)]) });
+  psbt.data.updateInput(index, {
+    finalScriptWitness: Buffer.concat([Buffer.from([1, 65]), Buffer.from(signature)]),
+  });
   psbt.data.clearFinalizedInput(index);
   return psbt;
+}
+
+/** Only a single explicit Unified key-path signature is supported: no annex or script path. */
+export function assertUnifiedTaprootSignatures(
+  transaction: Transaction,
+  spentOutputs: SpentOutput[],
+  verifier: UnifiedSignatureVerifier,
+): void {
+  if (!transaction.ins.length || transaction.ins.length !== spentOutputs.length) throw new Error('Missing Taproot prevouts');
+  transaction.ins.forEach((input, index) => {
+    const output = spentOutputs[index];
+    const signature = input.witness[0];
+    if (
+      input.script.length ||
+      input.witness.length !== 1 ||
+      !signature ||
+      signature.length !== 65 ||
+      signature[64] !== SIGHASH_ALL_UNIFIED ||
+      output.script.length !== 34 ||
+      output.script[0] !== 0x51 ||
+      output.script[1] !== 0x20
+    )
+      throw new Error('Taproot signature must use SIGHASH_ALL | SIGHASH_UNIFIED with no annex or script path');
+    const digest = unifiedTaprootKeyPathSighashAll(transaction, index, spentOutputs);
+    if (!verifier(output.script.subarray(2), digest, signature.subarray(0, 64))) {
+      throw new Error('Unified Taproot signature is invalid');
+    }
+  });
+}
+
+/** Verify the exact reviewed transaction, including every input's authenticated amount and script. */
+export function assertSignedUnifiedTaprootTransactionMatchesPsbt(hex: string, expected: Psbt, verifier: UnifiedSignatureVerifier): void {
+  const transaction = Transaction.fromHex(hex);
+  const unsigned = transaction.clone();
+  unsigned.ins.forEach(input => {
+    input.witness = [];
+  });
+  if (unsigned.toHex() !== buildUnsignedTransaction(expected).toHex()) {
+    throw new Error('External transaction changed the reviewed transaction');
+  }
+  assertUnifiedTaprootSignatures(transaction, getSpentOutputs(expected), verifier);
 }

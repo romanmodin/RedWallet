@@ -4,12 +4,13 @@ import ecc from '../../blue_modules/noble_ecc';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { isMatureXbtCoinbase, verifiedCoinbaseConfirmations } from '../xbt/coinbase-maturity';
 import { SIGHASH_ALL_UNIFIED } from '../xbt/unified-psbt';
-import { finalizeUnifiedTaprootInput, signUnifiedTaprootInput } from '../xbt/unified-taproot-psbt';
+import { assertUnifiedTaprootSignatures, finalizeUnifiedTaprootInput, signUnifiedTaprootInput } from '../xbt/unified-taproot-psbt';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
 import { HDTaprootWallet } from './hd-taproot-wallet';
 import { assertXbtUnifiedTransaction } from '../xbt/broadcast-validation';
 import { parseVerifiedParentTransaction } from '../xbt/verified-transaction';
 import * as bitcoin from 'bitcoinjs-lib';
+import { CreateTransactionResult, CreateTransactionUtxo } from './types';
 
 const ECPair = ECPairFactory(ecc);
 
@@ -25,7 +26,7 @@ export class XbtTaprootWallet extends HDTaprootWallet {
   static readonly derivationPath = "m/86'/0'/0'";
 
   allowRBF() {
-    return false;
+    return true;
   }
 
   allowPayJoin() {
@@ -129,7 +130,9 @@ export class XbtTaprootWallet extends HDTaprootWallet {
   coinselect(...args: Parameters<AbstractHDElectrumWallet['coinselect']>) {
     const [utxos, targets, feeRate] = args;
     const result = super.coinselect(utxos, targets, feeRate);
-    const outputs = result.outputs as ((typeof result.outputs)[number] & { script?: { hex?: string } })[];
+    const outputs = result.outputs as ((typeof result.outputs)[number] & {
+      script?: { hex?: string };
+    })[];
     // coinselect assumes 25-byte change. BIP86 change is 34 bytes; price
     // the actual 65-byte Unified witness and CompactSize lengths instead.
     const estimate = new bitcoin.Transaction();
@@ -165,8 +168,49 @@ export class XbtTaprootWallet extends HDTaprootWallet {
   createTransaction(...args: Parameters<AbstractHDElectrumWallet['createTransaction']>) {
     const [utxos, targets, feeRate, changeAddress, sequence, skipSigning, masterFingerprint] = args;
     if (!this.weOwnAddress(changeAddress)) throw new Error('XBT change address is not controlled by this wallet');
+    const verifiedUtxos = this.verifyInputs(utxos);
+    const result = super.createTransaction(verifiedUtxos, targets, feeRate, changeAddress, sequence, true, masterFingerprint);
+    result.psbt.data.inputs.forEach((_, inputIndex) => {
+      result.psbt.updateInput(inputIndex, { sighashType: SIGHASH_ALL_UNIFIED });
+      const fingerprint = Buffer.alloc(4);
+      fingerprint.writeUInt32LE(masterFingerprint ?? 0);
+      result.psbt.data.inputs[inputIndex].tapBip32Derivation?.forEach(derivation => {
+        derivation.masterFingerprint = fingerprint;
+      });
+    });
+    this.addOwnedOutputMetadata(result.psbt, masterFingerprint ?? 0);
+    if (skipSigning) return result;
+    return this.signTransaction(result);
+  }
+
+  private signTransaction(result: CreateTransactionResult): CreateTransactionResult {
+    result.inputs.forEach((input, inputIndex) => {
+      if (!input.address) throw new Error('XBT signing input is missing its wallet address');
+      const wif = this._getWifForAddress(input.address);
+      if (!wif) throw new Error('XBT signing input is not controlled by this wallet');
+      const internalKey = result.psbt.data.inputs[inputIndex].tapInternalKey;
+      if (!internalKey) throw new Error('XBT Taproot input is missing its internal key');
+      const keyPair = ECPair.fromWIF(wif).tweak(bitcoin.crypto.taggedHash('TapTweak', internalKey));
+      if (!keyPair.signSchnorr || !ecc.verifySchnorr) throw new Error('Schnorr signing is unavailable');
+      const signSchnorr = keyPair.signSchnorr.bind(keyPair);
+      const verifySchnorr = ecc.verifySchnorr;
+      const outputKey = keyPair.publicKey.subarray(1);
+      signUnifiedTaprootInput(result.psbt, inputIndex, {
+        publicKey: outputKey,
+        sign: messageHash => signSchnorr(messageHash),
+      });
+      finalizeUnifiedTaprootInput(result.psbt, inputIndex, (publicKey, messageHash, signature) =>
+        verifySchnorr(messageHash, publicKey, signature),
+      );
+    });
+
+    result.tx = result.psbt.extractTransaction();
+    return result;
+  }
+
+  private verifyInputs(utxos: CreateTransactionUtxo[]) {
     const transactions = new Map(this.getTransactions().map(transaction => [transaction.txid, transaction]));
-    const verifiedUtxos = utxos.map(utxo => {
+    return utxos.map(utxo => {
       const parent = transactions.get(utxo.txid);
       if (!parent?.rawHex) throw new Error('Cannot verify XBT input transaction and coinbase maturity; refresh wallet history');
       const raw = parseVerifiedParentTransaction(utxo.txid, parent.rawHex);
@@ -189,30 +233,115 @@ export class XbtTaprootWallet extends HDTaprootWallet {
       }
       return { ...utxo, coinbase, confirmations };
     });
-    const result = super.createTransaction(verifiedUtxos, targets, feeRate, changeAddress, sequence, true, masterFingerprint);
-    result.psbt.data.inputs.forEach((_, inputIndex) => {
-      result.psbt.updateInput(inputIndex, { sighashType: SIGHASH_ALL_UNIFIED });
-    });
-    if (skipSigning) return result;
+  }
 
-    result.inputs.forEach((input, inputIndex) => {
-      if (!input.address) throw new Error('XBT signing input is missing its wallet address');
-      const wif = this._getWifForAddress(input.address);
-      if (!wif) throw new Error('XBT signing input is not controlled by this wallet');
-      const internalKey = result.psbt.data.inputs[inputIndex].tapInternalKey;
-      if (!internalKey) throw new Error('XBT Taproot input is missing its internal key');
-      const keyPair = ECPair.fromWIF(wif).tweak(bitcoin.crypto.taggedHash('TapTweak', internalKey));
-      if (!keyPair.signSchnorr || !ecc.verifySchnorr) throw new Error('Schnorr signing is unavailable');
-      const signSchnorr = keyPair.signSchnorr.bind(keyPair);
-      const verifySchnorr = ecc.verifySchnorr;
-      const outputKey = keyPair.publicKey.subarray(1);
-      signUnifiedTaprootInput(result.psbt, inputIndex, { publicKey: outputKey, sign: messageHash => signSchnorr(messageHash) });
-      finalizeUnifiedTaprootInput(result.psbt, inputIndex, (publicKey, messageHash, signature) =>
-        verifySchnorr(messageHash, publicKey, signature),
-      );
+  _addPsbtInput(...args: Parameters<HDTaprootWallet['_addPsbtInput']>) {
+    const [psbt, input] = args;
+    super._addPsbtInput(...args);
+    const parent = this.getTransactions().find(transaction => transaction.txid === input.txid);
+    if (!parent?.rawHex) throw new Error('Missing authenticated Taproot parent transaction');
+    psbt.updateInput(psbt.inputCount - 1, {
+      nonWitnessUtxo: Buffer.from(parent.rawHex, 'hex'),
     });
+    return psbt;
+  }
 
-    result.tx = result.psbt.extractTransaction();
-    return result;
+  private addOwnedOutputMetadata(psbt: bitcoin.Psbt, masterFingerprint: number) {
+    const fingerprint = Buffer.alloc(4);
+    fingerprint.writeUInt32LE(masterFingerprint);
+    psbt.txOutputs.forEach((output, index) => {
+      if (!output.address || !this.weOwnAddress(output.address)) return;
+      const path = this._getDerivationPathByAddress(output.address);
+      const pubkey = this._getPubkeyByAddress(output.address);
+      if (!path || !pubkey) throw new Error('Missing owned Taproot output derivation');
+      delete psbt.data.outputs[index].tapBip32Derivation;
+      delete psbt.data.outputs[index].tapInternalKey;
+      psbt.updateOutput(index, {
+        tapInternalKey: pubkey,
+        tapBip32Derivation: [{ pubkey, masterFingerprint: fingerprint, path, leafHashes: [] }],
+      });
+    });
+  }
+
+  /** Keep every original input and recipient output. Pay the increase only from BIP86 change. */
+  createRBFTransaction(
+    original: bitcoin.Transaction,
+    utxos: CreateTransactionUtxo[],
+    feeRate: number,
+    skipSigning = false,
+    masterFingerprint = 0,
+  ): CreateTransactionResult {
+    if (!Number.isFinite(feeRate) || feeRate <= 0) throw new Error('Invalid replacement fee rate');
+    const known = this.getTransactions().find(transaction => transaction.txid === original.getId());
+    if (!known?.rawHex || known.rawHex !== original.toHex() || known.confirmations !== 0) {
+      throw new Error('Replacement requires an authenticated unconfirmed wallet transaction');
+    }
+    if (!original.ins.some(input => input.sequence < 0xfffffffe)) throw new Error('Transaction does not signal RBF');
+    const inputs = this.verifyInputs(utxos);
+    if (inputs.length !== original.ins.length) throw new Error('Replacement input count changed');
+    const spentOutputs = inputs.map((input, index) => {
+      const previous = original.ins[index];
+      if (
+        input.txid !== Buffer.from(previous.hash).reverse().toString('hex') ||
+        input.vout !== previous.index ||
+        !input.address ||
+        !this.weOwnAddress(input.address)
+      )
+        throw new Error('Replacement input is not controlled by this wallet');
+      return {
+        value: BigInt(input.value),
+        script: bitcoin.address.toOutputScript(input.address),
+      };
+    });
+    assertUnifiedTaprootSignatures(original, spentOutputs, (key, digest, signature) => ecc.verifySchnorr!(digest, key, signature));
+    const inputValue = spentOutputs.reduce((sum, output) => sum + output.value, 0n);
+    const oldFee = inputValue - original.outs.reduce((sum, output) => sum + output.value, 0n);
+    if (oldFee < 0n) throw new Error('Invalid original fee');
+    const priced = original.clone();
+    priced.ins.forEach((_, index) => priced.setWitness(index, [Buffer.alloc(65)]));
+    const fee = BigInt(Math.ceil(priced.virtualSize() * feeRate));
+    // BIP125 absolute fee + incremental relay fee (1 sat/vB). A node with a higher policy may still refuse.
+    if (
+      fee <= oldFee ||
+      fee < oldFee + BigInt(priced.virtualSize()) ||
+      Number(fee) / priced.virtualSize() <= Number(oldFee) / original.virtualSize()
+    ) {
+      throw new Error('Replacement fee must cover the original fee plus at least 1 sat/vB');
+    }
+    let increase = fee - oldFee;
+    const outputs = original.outs.map(output => {
+      let address: string | undefined;
+      try {
+        address = bitcoin.address.fromOutputScript(output.script);
+      } catch {}
+      let value = output.value;
+      if (address && this.addressIsChange(address)) {
+        const available = value > 330n ? value - 330n : 0n;
+        const taken = available < increase ? available : increase;
+        value -= taken;
+        increase -= taken;
+      }
+      return { ...output, value };
+    });
+    if (increase !== 0n) throw new Error('Not enough change to bump the fee without reducing recipient amounts');
+    if (fee > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Fee exceeds safe integer range');
+    const psbt = new bitcoin.Psbt();
+    psbt.setVersion(original.version);
+    psbt.setLocktime(original.locktime);
+    const fingerprint = Buffer.alloc(4);
+    fingerprint.writeUInt32LE(masterFingerprint);
+    inputs.forEach((input, index) => {
+      this._addPsbtInput(psbt, input, original.ins[index].sequence, fingerprint);
+      psbt.updateInput(index, { sighashType: SIGHASH_ALL_UNIFIED });
+    });
+    outputs.forEach(output => psbt.addOutput({ script: output.script, value: output.value }));
+    this.addOwnedOutputMetadata(psbt, masterFingerprint);
+    const result = {
+      inputs,
+      outputs: outputs.map(output => ({ value: Number(output.value) })),
+      fee: Number(fee),
+      psbt,
+    };
+    return skipSigning ? result : this.signTransaction(result);
   }
 }

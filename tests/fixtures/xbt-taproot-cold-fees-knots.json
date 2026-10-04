@@ -1,0 +1,157 @@
+{
+  "chain": "regtest",
+  "networkactive": false,
+  "connections": 0,
+  "originalAcceptance": {
+    "txid": "7f848d4a0888d741f44d70fb64c326a6239b8c45eefafdd6c988c2a1c9158215",
+    "wtxid": "6efed3794eed24b6566ed8e6676cb93e146e7816ddb15a1209c65cbffb760970",
+    "usage": 832,
+    "allowed": true,
+    "vsize": 212,
+    "fees": {
+      "base": 0.00000212,
+      "effective-feerate": 0.00001,
+      "effective-includes": [
+        "6efed3794eed24b6566ed8e6676cb93e146e7816ddb15a1209c65cbffb760970"
+      ]
+    }
+  },
+  "negativeAcceptance": {
+    "txid": "58317c3253d30e56505c801e9eea0b882a0633ff9c6189aab17001bc6606ff76",
+    "wtxid": "9e5106da4086e324444546c2bbcd678fa6721b5a1b24f67750053294fa1d6688",
+    "usage": 832,
+    "allowed": false,
+    "reject-reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)",
+    "reject-details": "mempool-script-verify-flag-failed (Invalid Schnorr signature), input 0 of 58317c3253d30e56505c801e9eea0b882a0633ff9c6189aab17001bc6606ff76 (wtxid 9e5106da4086e324444546c2bbcd678fa6721b5a1b24f67750053294fa1d6688), spending 1483f50e44aaf7b2bfe3e34eca8ac1fefc2e4448c73079dbae3538af3550cf81:2"
+  },
+  "replacementAcceptance": {
+    "txid": "3396914635a22b455ee4d15ee4eee19160d289487e5c792d9f938e7df8fee292",
+    "wtxid": "4acfb0ae274000ddf7bc3b631f15b64e334fec0b646197ac3ccea21a02501d27",
+    "usage": 832,
+    "allowed": true,
+    "vsize": 212,
+    "fees": {
+      "base": 0.00000636,
+      "effective-feerate": 0.00003,
+      "effective-includes": [
+        "4acfb0ae274000ddf7bc3b631f15b64e334fec0b646197ac3ccea21a02501d27"
+      ]
+    }
+  },
+  "cpfpAcceptance": {
+    "txid": "6b971ad564e9ac4acf047ad3f34d1ba0677799108b2bda7afb8e8fcd74834936",
+    "wtxid": "ab93ddba285112403d371edebb14c017825476c0db67ffbcec5d7a7ad6c8cd66",
+    "usage": 784,
+    "allowed": true,
+    "vsize": 169,
+    "fees": {
+      "base": 0.00003662,
+      "effective-feerate": 0.00021668,
+      "effective-includes": [
+        "ab93ddba285112403d371edebb14c017825476c0db67ffbcec5d7a7ad6c8cd66"
+      ]
+    }
+  },
+  "cpfpMempool": {
+    "vsize": 169,
+    "weight": 676,
+    "time": 1791105209,
+    "height": 153,
+    "startingpriority": 0,
+    "currentpriority": 0,
+    "descendantcount": 1,
+    "descendantsize": 169,
+    "ancestorcount": 2,
+    "ancestorsize": 381,
+    "wtxid": "ab93ddba285112403d371edebb14c017825476c0db67ffbcec5d7a7ad6c8cd66",
+    "hash": "ab93ddba285112403d371edebb14c017825476c0db67ffbcec5d7a7ad6c8cd66",
+    "fees": {
+      "base": 0.00003662,
+      "modified": 0.00003662,
+      "ancestor": 0.00003874,
+      "descendant": 0.00003662
+    },
+    "depends": [
+      "7f848d4a0888d741f44d70fb64c326a6239b8c45eefafdd6c988c2a1c9158215"
+    ],
+    "spentby": [],
+    "bip125-replaceable": true,
+    "unbroadcast": true
+  },
+  "replacementWithChild": {
+    "txid": "3396914635a22b455ee4d15ee4eee19160d289487e5c792d9f938e7df8fee292",
+    "wtxid": "4acfb0ae274000ddf7bc3b631f15b64e334fec0b646197ac3ccea21a02501d27",
+    "usage": 832,
+    "allowed": false,
+    "reject-reason": "insufficient fee",
+    "reject-details": "insufficient fee, rejecting replacement 3396914635a22b455ee4d15ee4eee19160d289487e5c792d9f938e7df8fee292, less fees than conflicting txs; 0.00000636 < 0.00003874"
+  },
+  "mempool": [
+    "7f848d4a0888d741f44d70fb64c326a6239b8c45eefafdd6c988c2a1c9158215",
+    "6b971ad564e9ac4acf047ad3f34d1ba0677799108b2bda7afb8e8fcd74834936"
+  ],
+  "signed": {
+    "chain": "regtest",
+    "height": 153,
+    "original": {
+      "hex": "0200000000010281cf5035af3835aedb7930c748442efcfec18aca4ee3e3bfb2f7aa440ef5831402000000000000008081cf5035af3835aedb7930c748442efcfec18aca4ee3e3bfb2f7aa440ef5831401000000000000008002905f0100000000002251207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c53c26000000000000225120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc0141c6af5ef3847cc363d5e48bdf499da7578c1959ed50a5f4ac20a8a66f1262e962ebc9945feb3f41d02801e8ff9e7e1050c90ef40f742d7531b51f0b904d9a61c62101412ba750dd6da3086a2cb7ad7db012ed9ceaee74a8edbcaf7cf3d7120ae177706244b19104c96704385653be8c66219c8e5556bb8981367f0ea0ad7278ea1b9db02100000000",
+      "txid": "7f848d4a0888d741f44d70fb64c326a6239b8c45eefafdd6c988c2a1c9158215",
+      "fee": 212,
+      "vsize": 212
+    },
+    "replacement": {
+      "hex": "0200000000010281cf5035af3835aedb7930c748442efcfec18aca4ee3e3bfb2f7aa440ef5831402000000000000008081cf5035af3835aedb7930c748442efcfec18aca4ee3e3bfb2f7aa440ef5831401000000000000008002905f0100000000002251207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c59424000000000000225120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc014153755544368482ce085d5d92c9ec827e4a9a2400f873029f4ef92b69a674217bf8ea164a3236ce987fe92662e227a0f1ee6e2e0f636aacc8b6c1154ec046cff6210141a0f9609611ab68fbf989f7eae8f6a459c7dc433b4458e0e055265b6e9f050a604c81d923c94ee9bbae57bc4fe437c61d50649bd3b9b41a3038cfd2bf25ef73812100000000",
+      "txid": "3396914635a22b455ee4d15ee4eee19160d289487e5c792d9f938e7df8fee292",
+      "fee": 636,
+      "vsize": 212
+    },
+    "cpfp": {
+      "hex": "02000000000102158215c9a1c288c9d6fdfaee458c9b23a626c364fb704df441d788084a8d847f000000000000000080158215c9a1c288c9d6fdfaee458c9b23a626c364fb704df441d788084a8d847f010000000000000080017e77010000000000225120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc0141d51019b95bc3537df743d13345f9c1a82695fe9e3da7385d17e3e5cb26c2f0d37a26ed774fef1a75d4cb37e322bd68983ed7042232cbe2d33ba93c584eef921f2101414c453957a15fda69e1c56272d83fe99cd6f313923ffe4a4b1b61ac6bdd06530cd2c974895e3bfefed6a167329eb98eff89816850e07f9abfdb6fb30a144be3c42100000000",
+      "txid": "6b971ad564e9ac4acf047ad3f34d1ba0677799108b2bda7afb8e8fcd74834936",
+      "fee": 3662,
+      "vsize": 169
+    },
+    "negative": {
+      "changedOutput": "0200000000010281cf5035af3835aedb7930c748442efcfec18aca4ee3e3bfb2f7aa440ef5831402000000000000008081cf5035af3835aedb7930c748442efcfec18aca4ee3e3bfb2f7aa440ef58314010000000000000080028f5f0100000000002251207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c53c26000000000000225120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc0141c6af5ef3847cc363d5e48bdf499da7578c1959ed50a5f4ac20a8a66f1262e962ebc9945feb3f41d02801e8ff9e7e1050c90ef40f742d7531b51f0b904d9a61c62101412ba750dd6da3086a2cb7ad7db012ed9ceaee74a8edbcaf7cf3d7120ae177706244b19104c96704385653be8c66219c8e5556bb8981367f0ea0ad7278ea1b9db02100000000"
+    }
+  },
+  "highReplacement": {
+    "hex": "0200000000010281cf5035af3835aedb7930c748442efcfec18aca4ee3e3bfb2f7aa440ef5831402000000000000008081cf5035af3835aedb7930c748442efcfec18aca4ee3e3bfb2f7aa440ef5831401000000000000008002905f0100000000002251207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c55c12000000000000225120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc01416491ded334fffdb9e4239ded34d5d222a4ea1d1387303b43346e7b9169799aabbbb215f2735c02be6b733c25bb6b56cfc7b0cc1e077a9a03fc09ebcf6cb1401221014141f14df9d0eb139809b2636ede728903a97bfdde90515c806b4897128c4b156d317433e119e125e65c6967ba09feca74c7315f937708a2428203bb01a94f64402100000000",
+    "txid": "78e59d0eab7e0af4727075cd56fb5ba738ab2094578b50dc2844a51779813aa5",
+    "fee": 5300,
+    "vsize": 212
+  },
+  "highReplacementAcceptance": {
+    "txid": "78e59d0eab7e0af4727075cd56fb5ba738ab2094578b50dc2844a51779813aa5",
+    "wtxid": "34ce62d75d960ac7730ddd3dfcb6e523f306e59effefe88dec3b8eedf4d38d68",
+    "usage": 832,
+    "allowed": true,
+    "vsize": 212,
+    "fees": {
+      "base": 0.000053,
+      "effective-feerate": 0.00025,
+      "effective-includes": [
+        "34ce62d75d960ac7730ddd3dfcb6e523f306e59effefe88dec3b8eedf4d38d68"
+      ]
+    }
+  },
+  "postReplacementMempool": [
+    "78e59d0eab7e0af4727075cd56fb5ba738ab2094578b50dc2844a51779813aa5"
+  ],
+  "minedReplacement": {
+    "txid": "78e59d0eab7e0af4727075cd56fb5ba738ab2094578b50dc2844a51779813aa5",
+    "confirmations": 1,
+    "height": 154
+  },
+  "fixture": {
+    "chain": "regtest",
+    "blake2bHeight": 150,
+    "height": 153,
+    "fundingTransactions": [
+      {
+        "rawTx": "0200000001cd9cd9c76c9891c8470a6a942f78af2724b6373c20191c09967c1baaed65ee96020000006a47304402200f862908073802a12ae5ed1479bd6dafb769ff61a3f8d55c43e045f72dc4905b02207b0f1587479cefe3e9b053f56c6f8d06e3cf53e6409ce60c8ec1e83bc75501542121025054a2ee74fc41c6b88acd845f3c863279aa861350c92ec661e7a39e57aaff25fdffffff0396e2022a010000001976a914a295ca437de618b74ec04db0889d47026381f4a788ac409c000000000000225120a82f29944d65b86ae6b5e5cc75e294ead6c59391a1edc5e016e3498c67fc7bbb60ea000000000000225120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c98000000",
+        "confirmations": 1
+      }
+    ]
+  }
+}

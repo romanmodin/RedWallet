@@ -676,7 +676,7 @@ const WalletDetails: React.FC = () => {
                         enabled &&
                         !(await confirm(
                           'Enable XBT external signing',
-                          'Your signing device must support Native SegWit PSBTs with Unified Sighash 0x21. Ordinary BTC signatures will be rejected. Confirm that your device has compatible XBT firmware.',
+                          'Your signing device must support this account’s Native SegWit or Taproot PSBTs with Unified Sighash 0x21. Ordinary BTC signatures will be rejected. Confirm that your device has compatible XBT firmware.',
                         ))
                       )
                         return;
