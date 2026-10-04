@@ -226,6 +226,66 @@ describe('BlueElectrum lifecycle', () => {
     });
   });
 
+  describe('raw history output decoding', () => {
+    function transactionWith(script: string) {
+      const tx = new bitcoin.Transaction();
+      tx.addInput(Buffer.alloc(32, 1), 0);
+      tx.addOutput(Buffer.from(script, 'hex'), 1000n);
+      tx.addOutput(Buffer.from('0014' + '11'.repeat(20), 'hex'), 2000n);
+      return tx;
+    }
+
+    it.each([
+      ['data output', '6a0464656d6f', 'nulldata'],
+      ['bare public key', '210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ac', 'nonstandard'],
+      ['non-address script', '51', 'nonstandard'],
+      ['empty script', '', 'nonstandard'],
+    ])('retains %s without aborting history or shifting output indices', (_label, script, type) => {
+      const tx = transactionWith(script);
+      const decoded = BlueElectrum.txhexToElectrumTransaction(tx.toHex());
+      expect(decoded.txid).toBe(tx.getId());
+      expect(decoded.vout).toHaveLength(2);
+      expect(decoded.vout[0]).toMatchObject({ n: 0, value: 0.00001, scriptPubKey: { hex: script, type, addresses: [] } });
+      expect(decoded.vout[1]).toMatchObject({
+        n: 1,
+        value: 0.00002,
+        scriptPubKey: { addresses: [bitcoin.address.fromOutputScript(tx.outs[1].script)] },
+      });
+      expect(decoded.hex).toBe(tx.toHex());
+    });
+
+    it('decodes P2WSH destinations alongside owned P2WPKH outputs', () => {
+      const tx = transactionWith('0020' + '22'.repeat(32));
+      const decoded = BlueElectrum.txhexToElectrumTransaction(tx.toHex());
+      expect(decoded.vout[0].scriptPubKey).toMatchObject({
+        type: 'witness_v0_scripthash',
+        addresses: [bitcoin.address.fromOutputScript(tx.outs[0].script)],
+      });
+      expect(decoded.vout[1].scriptPubKey.addresses).toHaveLength(1);
+    });
+
+    it('still rejects malformed raw transactions', () => {
+      expect(() => BlueElectrum.txhexToElectrumTransaction('01000000')).toThrow();
+    });
+
+    it('loads mixed-output raw history after batch-limit recovery', async () => {
+      const connected = BlueElectrum.ensureConnected();
+      await flush();
+      resolveLastConnect();
+      await connected;
+      const client = created[0] as FakeClient & Record<string, jest.Mock>;
+      client.blockchainTransaction_getBatch = jest.fn(async () => {
+        throw new Error('Batch limit exceeded');
+      });
+      const tx = transactionWith('6a0464656d6f');
+      client.blockchainTransaction_get.mockResolvedValue(tx.toHex());
+      const result = (await BlueElectrum.multiGetTransactionByTxid([tx.getId()], true))[tx.getId()];
+      expect(result.vout).toHaveLength(2);
+      expect(result.vout[0].scriptPubKey.addresses).toEqual([]);
+      expect(result.vout[1].scriptPubKey.addresses).toHaveLength(1);
+    });
+  });
+
   describe('settings connection authentication deadline', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());

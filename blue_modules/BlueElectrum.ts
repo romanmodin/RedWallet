@@ -879,13 +879,24 @@ export function txhexToElectrumTransaction(txhex: string): ElectrumTransactionWi
     } else if (LegacyWallet.scriptPubKeyToAddress(uint8ArrayToHex(out.script))) {
       address = LegacyWallet.scriptPubKeyToAddress(uint8ArrayToHex(out.script));
       type = '???'; // TODO
-    } else {
+    } else if (
+      out.script.length === 34 &&
+      out.script[0] === bitcoin.opcodes.OP_1 &&
+      out.script[1] === 32 &&
+      TaprootWallet.scriptPubKeyToAddress(uint8ArrayToHex(out.script))
+    ) {
       address = TaprootWallet.scriptPubKeyToAddress(uint8ArrayToHex(out.script));
       type = 'witness_v1_taproot';
-    }
-
-    if (!address) {
-      throw new Error('Internal error: unable to decode address from output script');
+    } else {
+      // History can include P2WSH destinations and outputs with no address,
+      // including data and bare-key scripts. Retain their value, script and
+      // index rather than aborting the entire transaction or inventing an address.
+      try {
+        address = bitcoin.address.fromOutputScript(out.script);
+        type = uint8ArrayToHex(out.script).startsWith('0020') ? 'witness_v0_scripthash' : 'witness_unknown';
+      } catch {
+        type = out.script[0] === bitcoin.opcodes.OP_RETURN ? 'nulldata' : 'nonstandard';
+      }
     }
 
     ret.vout.push({
@@ -894,9 +905,9 @@ export function txhexToElectrumTransaction(txhex: string): ElectrumTransactionWi
       scriptPubKey: {
         asm: '',
         hex: uint8ArrayToHex(out.script),
-        reqSigs: 1, // todo
+        reqSigs: type === 'nulldata' ? 0 : 1, // todo
         type,
-        addresses: [address],
+        addresses: address ? [address] : [],
       },
     });
     n++;
