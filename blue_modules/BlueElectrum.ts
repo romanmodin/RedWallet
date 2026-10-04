@@ -969,6 +969,18 @@ export const getTransactionsFullByAddress = async (address: string): Promise<Ele
   return ret;
 };
 
+// Some servers reject a whole JSON-RPC batch without identifying individual requests.
+// Recover only that explicit limit error with sequential requests on the same client.
+async function recoverBatchLimit<T>(batch: () => Promise<T>, singles: () => Promise<T>): Promise<T> {
+  try {
+    return await batch();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? error);
+    if (message.trim().toLowerCase() !== 'batch limit exceeded') throw error;
+    return singles();
+  }
+}
+
 type MultiGetBalanceResponse = {
   balance: number;
   unconfirmed_balance: number;
@@ -985,7 +997,7 @@ export const multiGetBalanceByAddress = async (addresses: string[], batchsize: n
 
   const chunks = splitIntoChunks(addresses, batchsize);
   for (const chunk of chunks) {
-    const scripthashes = [];
+    const scripthashes: string[] = [];
     const scripthash2addr: Record<string, string> = {};
     for (const addr of chunk) {
       const script = bitcoin.address.toOutputScript(addr);
@@ -995,7 +1007,7 @@ export const multiGetBalanceByAddress = async (addresses: string[], batchsize: n
       scripthash2addr[reversedHash] = addr;
     }
 
-    let balances = [];
+    let balances: { param: string; result: { confirmed: number; unconfirmed: number }; error?: { code: number; message: string } }[] = [];
 
     if (disableBatching) {
       const promises = [];
@@ -1012,7 +1024,17 @@ export const multiGetBalanceByAddress = async (addresses: string[], batchsize: n
         });
       }
     } else {
-      balances = await mainClient.blockchainScripthash_getBalanceBatch(scripthashes);
+      const client = mainClient;
+      balances = await recoverBatchLimit(
+        () => client.blockchainScripthash_getBalanceBatch(scripthashes),
+        async () => {
+          const recovered = [];
+          for (const param of scripthashes) {
+            recovered.push({ param, result: await client.blockchainScripthash_getBalance(param) });
+          }
+          return recovered;
+        },
+      );
     }
 
     for (const bal of balances) {
@@ -1032,7 +1054,7 @@ export const multiGetUtxoByAddress = async function (addresses: string[], batchs
 
   const chunks = splitIntoChunks(addresses, batchsize);
   for (const chunk of chunks) {
-    const scripthashes = [];
+    const scripthashes: string[] = [];
     const scripthash2addr: Record<string, string> = {};
     for (const addr of chunk) {
       const script = bitcoin.address.toOutputScript(addr);
@@ -1042,14 +1064,24 @@ export const multiGetUtxoByAddress = async function (addresses: string[], batchs
       scripthash2addr[reversedHash] = addr;
     }
 
-    let results = [];
+    let results: { param: string; result: any; error?: { code: number; message: string } }[] = [];
 
     if (disableBatching) {
       // ElectrumPersonalServer doesnt support `blockchain.scripthash.listunspent`
       // electrs OTOH supports it, but we dont know it we are currently connected to it or to EPS
       // so it is pretty safe to do nothing, as caller can derive UTXO from stored transactions
     } else {
-      results = await mainClient.blockchainScripthash_listunspentBatch(scripthashes);
+      const client = mainClient;
+      results = await recoverBatchLimit(
+        () => client.blockchainScripthash_listunspentBatch(scripthashes),
+        async () => {
+          const recovered = [];
+          for (const param of scripthashes) {
+            recovered.push({ param, result: await client.blockchainScripthash_listunspent(param) });
+          }
+          return recovered;
+        },
+      );
     }
 
     for (const utxos of results) {
@@ -1082,7 +1114,7 @@ export const multiGetHistoryByAddress = async function (
 
   const chunks = splitIntoChunks(addresses, batchsize);
   for (const chunk of chunks) {
-    const scripthashes = [];
+    const scripthashes: string[] = [];
     const scripthash2addr: Record<string, string> = {};
     for (const addr of chunk) {
       const script = bitcoin.address.toOutputScript(addr);
@@ -1092,7 +1124,7 @@ export const multiGetHistoryByAddress = async function (
       scripthash2addr[reversedHash] = addr;
     }
 
-    let results = [];
+    let results: { param: string; result: any; error?: { code: number; message: string } }[] = [];
 
     if (disableBatching) {
       const promises = [];
@@ -1109,7 +1141,17 @@ export const multiGetHistoryByAddress = async function (
         });
       }
     } else {
-      results = await mainClient.blockchainScripthash_getHistoryBatch(scripthashes);
+      const client = mainClient;
+      results = await recoverBatchLimit(
+        () => client.blockchainScripthash_getHistoryBatch(scripthashes),
+        async () => {
+          const recovered = [];
+          for (const param of scripthashes) {
+            recovered.push({ param, result: await client.blockchainScripthash_getHistory(param) });
+          }
+          return recovered;
+        },
+      );
     }
 
     for (const history of results) {
@@ -1173,7 +1215,7 @@ export async function multiGetTransactionByTxid<T extends boolean>(
 
   const chunks = splitIntoChunks(txids, batchsize);
   for (const chunk of chunks) {
-    let results = [];
+    let results: { param: string; result: any; error?: { code: number; message: string } }[] = [];
 
     if (disableBatching) {
       try {
@@ -1229,7 +1271,19 @@ export async function multiGetTransactionByTxid<T extends boolean>(
         }
       }
     } else {
-      results = await mainClient.blockchainTransaction_getBatch(chunk, verbose);
+      const client = mainClient;
+      results = await recoverBatchLimit(
+        () => client.blockchainTransaction_getBatch(chunk, verbose),
+        async () => {
+          const recovered = [];
+          for (const param of chunk) {
+            let result = await client.blockchainTransaction_get(param, verbose);
+            if (verbose && typeof result === 'string') result = txhexToElectrumTransaction(result);
+            recovered.push({ param, result });
+          }
+          return recovered;
+        },
+      );
     }
 
     for (const txdata of results) {
