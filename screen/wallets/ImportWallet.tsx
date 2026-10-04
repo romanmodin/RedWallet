@@ -4,6 +4,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { Keyboard, Platform, StyleSheet, View } from 'react-native';
 import BlueFormLabel from '../../components/BlueFormLabel';
 import BlueText from '../../components/BlueText';
+import BlueButtonLink from '../../components/BlueButtonLink';
 import { XBT_REPLAY_NOTICE } from '../../class/xbt/replay-notice';
 import BlueFormMultiInput from '../../components/BlueFormMultiInput';
 import Button from '../../components/Button';
@@ -30,6 +31,7 @@ const ImportWallet = () => {
   const navigation = useExtendedNavigation<NavigationProps>();
   const { colors } = useTheme();
   const route = useRoute<RouteProps>();
+  const xbtFormat = route.params?.xbtFormat ?? 'segwit';
   const label = route?.params?.label ?? '';
   const triggerImport = route?.params?.triggerImport ?? false;
   const [importText, setImportText] = useState<string>(label);
@@ -84,10 +86,11 @@ const ImportWallet = () => {
         importText: text,
         askPassphrase: askPassphraseMenuState,
         searchAccounts: false,
+        xbtFormat,
       });
     },
 
-    [askPassphraseMenuState, clearClipboardMenuState, navigation],
+    [askPassphraseMenuState, clearClipboardMenuState, navigation, xbtFormat],
   );
 
   const handleImport = useCallback(() => {
@@ -148,6 +151,13 @@ const ImportWallet = () => {
       <BlueFormLabel>{loc.wallets.import_explanation}</BlueFormLabel>
       <BlueSpacing20 />
       <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
+      <BlueSpacing20 />
+      <BlueFormLabel testID="XbtImportFormat">{xbtFormat === 'taproot' ? 'Taproot (BIP86)' : 'Native SegWit (BIP84)'}</BlueFormLabel>
+      <BlueButtonLink
+        testID="ToggleXbtImportFormat"
+        title={xbtFormat === 'taproot' ? 'Use Native SegWit' : 'Use Taproot'}
+        onPress={() => navigation.setParams({ xbtFormat: xbtFormat === 'taproot' ? 'segwit' : 'taproot' })}
+      />
       <BlueSpacing20 />
       <BlueFormMultiInput
         value={importText}

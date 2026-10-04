@@ -7,6 +7,7 @@ import BlueCard from '../../components/BlueCard';
 import BlueText from '../../components/BlueText';
 import { XBT_REPLAY_NOTICE } from '../../class/xbt/replay-notice';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
+import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
 import { HDAezeedWallet } from '../../class/wallets/hd-aezeed-wallet';
 import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
 import { LegacyWallet } from '../../class/wallets/legacy-wallet';
@@ -518,7 +519,7 @@ const WalletDetails: React.FC = () => {
           <BlueLoading />
         ) : (
           <>
-            {wallet?.type === XbtSegwitBech32Wallet.type && (
+            {(wallet?.type === XbtSegwitBech32Wallet.type || wallet?.type === XbtTaprootWallet.type) && (
               <BlueCard>
                 <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
               </BlueCard>
@@ -848,7 +849,7 @@ const WalletDetails: React.FC = () => {
               )}
             </SettingsSection>
 
-            {wallet?.type === XbtSegwitBech32Wallet.type && (
+            {(wallet?.type === XbtSegwitBech32Wallet.type || wallet?.type === XbtTaprootWallet.type) && (
               <BlueCard>
                 <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
               </BlueCard>

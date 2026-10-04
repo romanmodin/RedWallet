@@ -9,6 +9,7 @@ import navigationStyle, { CloseButtonPosition, withRouteParamHeaderOptions } fro
 import { isIOS26OrHigher } from '../blue_modules/environment';
 import { useTheme } from '../components/themes';
 import { XbtSegwitBech32Wallet } from '../class/wallets/xbt-segwit-bech32-wallet';
+import { XbtTaprootWallet } from '../class/wallets/xbt-taproot-wallet';
 import loc from '../loc';
 import { Chain } from '../models/bitcoinUnits';
 import { CommonToolTipActions } from '../typings/CommonToolTipActions';
@@ -32,10 +33,12 @@ export type AddWalletStackParamList = {
     onBarScanned?: string;
     askPassphraseMenuState?: boolean;
     clearClipboardMenuState?: boolean;
+    xbtFormat?: 'segwit' | 'taproot';
     headerRight?: HeaderRightRenderer;
   };
   ImportWalletDiscovery: {
     importText: string;
+    xbtFormat?: 'segwit' | 'taproot';
     askPassphrase: boolean;
     searchAccounts: boolean;
   };
@@ -134,14 +137,19 @@ const styles = StyleSheet.create({
 const addWalletTypes = [
   {
     id: XbtSegwitBech32Wallet.type,
-    text: 'RedWallet XBT',
+    text: 'Native SegWit (BIP84)',
     subtitle: "P2WPKH · m/84'/0'/0'",
+  },
+  {
+    id: XbtTaprootWallet.type,
+    text: 'Taproot (BIP86)',
+    subtitle: "P2TR · m/86'/0'/0'",
   },
 ];
 
 const createAddWalletOptions = (theme: ReturnType<typeof useTheme>) =>
   navigationStyle({ closeButtonPosition: CloseButtonPosition.Left, title: loc.wallets.add_title }, (options, { navigation, route }) => {
-    const selectedIndex = 0;
+    const selectedIndex = route.params?.selectedIndex === 1 ? 1 : 0;
     const selectedWalletType = Chain.ONCHAIN;
     const words = route.params?.words;
     const entropyHex = route.params?.entropy;
