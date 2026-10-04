@@ -1,6 +1,6 @@
 # RedWallet Android beta
 
-The Android beta is distributed as an APK through [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791019127). It is not listed on Google Play.
+The Android beta is distributed as an APK through [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791085960). It is not listed on Google Play.
 
 ## Install on a phone
 

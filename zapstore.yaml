@@ -1,7 +1,7 @@
 # Private signing credentials must never be committed here.
 repository: https://github.com/romanmodin/RedWallet
 pubkey: npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0
-release_source: https://github.com/romanmodin/RedWallet/releases/download/android-v8.0.1-beta-1791019127/RedWallet-8.0.1-android-beta-1791019127.apk
+release_source: https://github.com/romanmodin/RedWallet/releases/download/android-v8.0.1-beta-1791085960/RedWallet-8.0.1-android-beta-1791085960.apk
 name: RedWallet (XBT Beta)
 summary: A self-custody Bitcoin (XBT) Native SegWit wallet — early tester beta.
 license: MIT

@@ -347,3 +347,15 @@ bootstrap operation; there is no bootstrap option in the release workflow.
 - [Individual-to-organization conversion](https://developer.apple.com/help/account/membership/updating-your-account-information/)
 - [Apple wallet guideline](https://developer.apple.com/app-store/review/guidelines/#cryptocurrencies)
 - [Fastlane Match authorization and storage](https://docs.fastlane.tools/actions/match/)
+
+## Android red launcher icon update — October 4, 2026 UTC
+
+Android 8.0.1 beta 1791085960 is published at [1791085960](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791085960). Source commit `157d454c0023f86c4b051e1f4716fce41e2cfa4c`, reviewed PR #17 head `5d4353cdd0cda933128ac3a01acd4389ed845228`, Android build run `37175162998`. Production tree has 941 tracked paths and SHA-256 `dcc36cf6c552df722b50781ce6941cc0fe063af3ff56c9a733054270c758bcea`.
+
+The package uses the existing RedWallet red artwork for installation and launcher icons in every Android density, and corrects the Android settings label. Thanks to Mark of TEC-1G for the report. Documentation describes independent installed-package verification and its limits. Signing and networking logic are unchanged.
+
+Signed APK SHA-256: `d5622f7271d13b283ac6305ebd9f75931f4c50b68a0817d4d6c2b027c2ded2c8`; size 66378735 bytes. The persistent certificate remains `7843791c3cf340458fbf400a204361a0a97ac9c2902ae36c4511396f1f55884f`. Signatures, 16 KB alignment, unchanged unsigned payload, all ten compiled launcher resources and the extracted red app icon were checked. The release workflow passed emulator installation and launch; the maintainer has not tested on physical Android hardware. Download checksum, signing/source receipt and icon-verification evidence are attached to the GitHub release.
+
+This Android-only update does not replace the existing iOS TestFlight build or claim that the public/private iOS production trees now match this Android branding revision. Historical source/package receipts above retain their original hashes.
+
+Zapstore beta publication was independently read back from `wss://relay.zapstore.dev` with valid Nostr signatures and references to the new APK. The complete CDN APK matches the signed GitHub file, and the CDN icon matches the compiled red icon. The public publication receipt is in `fastlane/metadata/zapstore/publication-receipt.json`; the previous receipt is retained separately. The four emulator screenshots were captured from the preceding security beta, build 1791019127.
