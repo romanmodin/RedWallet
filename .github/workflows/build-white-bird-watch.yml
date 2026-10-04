@@ -112,6 +112,18 @@ jobs:
           ref: 47adcb58d20064ea4dab7cc2d543440b308dd732
           ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
           persist-credentials: false
+      - name: Install Apple-signed Transporter for watch-only uploads
+        if: ${{ inputs.upload_to_testflight }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            'https://itunesconnect.apple.com/WebObjects/iTunesConnect.woa/ra/resources/download/public/Transporter__OSX/bin/' \
+            --output "$RUNNER_TEMP/Apple-Transporter.pkg"
+          pkgutil --check-signature "$RUNNER_TEMP/Apple-Transporter.pkg" > "$RUNNER_TEMP/Transporter-signature.txt"
+          grep -q 'Apple Inc.' "$RUNNER_TEMP/Transporter-signature.txt"
+          spctl --assess --type install "$RUNNER_TEMP/Apple-Transporter.pkg"
+          sudo installer -pkg "$RUNNER_TEMP/Apple-Transporter.pkg" -target /
+          /usr/local/itms/bin/iTMSTransporter -version
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: WhiteBird_Encrypted_Identity
@@ -186,7 +198,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           cp "$APPLE_API_KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
-          xcrun iTMSTransporter -m upload -assetFile "$RUNNER_TEMP/WhiteBird-export/WhiteBird.ipa" \
+          /usr/local/itms/bin/iTMSTransporter -m upload -assetFile "$RUNNER_TEMP/WhiteBird-export/WhiteBird.ipa" \
             -assetDescription "$RUNNER_TEMP/WhiteBird-export/AppStoreInfo.plist" -appPlatform iOS \
             -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER_ID"
       - name: Clean up temporary credentials
