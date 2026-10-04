@@ -1,0 +1,24 @@
+{
+  "sourceCommit": "55da26022f6d9d211d286cc07486cce0cec19a82",
+  "runId": "37202360816",
+  "version": "8.0.1",
+  "versionCode": 1791117248,
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86_64"
+  ],
+  "unsignedSha256": "b915e9d41d7bfff5456f141cd0e2160b8805ace04c7d33c0075c33a88974e3dd",
+  "publicReviewedCommit": "32c54888ee383cc1fe418b7c5968376dfeadd71d",
+  "productionTreeSha256": "ff91f542e77c912d69b48d40c834eabc42c838e4924232e33f52d6bb00b59157",
+  "binaryReproducibilityVerified": false,
+  "signedSha256": "1bfc40cf4ec6d9cd909eaa2b0ce0475eab908d07dab234167d36b3e160103aff",
+  "certificateSha256": "7843791c3cf340458fbf400a204361a0a97ac9c2902ae36c4511396f1f55884f",
+  "applicationId": "com.romanmodin.redwallet",
+  "minAndroidApi": 24,
+  "releaseName": "RedWallet-8.0.1-android-beta-1791117248.apk",
+  "signatureVerified": true,
+  "alignmentVerified": true,
+  "payloadMatchesUnsigned": true,
+  "physicalAndroidPhoneTested": false
+}

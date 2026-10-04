@@ -396,3 +396,13 @@ Zapstore beta publication was independently read back from `wss://relay.zapstore
   include script paths, annexes, multisig, cancellation, full SPV or public
   App Store submission. Android source/native checks are covered; its unsigned
   phone package does not replace the previously published Android beta.
+
+### Taproot cold signing and fee beta publication (2026-10-04)
+
+Android **8.0.1 (1791117248)** is published on [GitHub](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791117248) and [Zapstore](https://zapstore.dev/apps/com.romanmodin.redwallet). The original release certificate is retained. APK SHA-256: `1bfc40cf4ec6d9cd909eaa2b0ce0475eab908d07dab234167d36b3e160103aff`. Signature, 16-KB alignment, unsigned payload identity, GitHub digest and full CDN download hash passed. Official relay readback verified Nostr signatures and current beta asset/release links; the store icon now explicitly uses the red launcher image extracted from this APK. Existing screenshots remain from beta 1791019127.
+
+Apple readback at **2026-10-04T13:31:04Z**, assignment run `37205797230`, confirms iPhone **8.0.1 (1791117525)** is `VALID`, `APPROVED` and `IN_BETA_TESTING` internally and externally. Both existing tester groups are assigned; the existing TestFlight link is unchanged. No App Store or Google Play production submission was performed.
+
+Both packages contain reviewed source `32c54888ee383cc1fe418b7c5968376dfeadd71d`, mapped across 945 production paths with tree SHA-256 `ff91f542e77c912d69b48d40c834eabc42c838e4924232e33f52d6bb00b59157`. Package receipts are in `.github/release/`; store identity/publication evidence is in `fastlane/metadata/zapstore/publication-receipt.json`, preserving the earlier receipt under `history/`.
+
+A tester subsequently reported `Batch limit exceeded` during watch-only refresh, with balance displayed but no transactions. Recovery from this server batch rejection is being validated separately; these published packages do not yet contain that follow-up. Physical Android and funded physical cold-device flows remain unverified.
