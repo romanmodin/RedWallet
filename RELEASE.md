@@ -406,3 +406,37 @@ Apple readback at **2026-10-04T13:31:04Z**, assignment run `37205797230`, confir
 Both packages contain reviewed source `32c54888ee383cc1fe418b7c5968376dfeadd71d`, mapped across 945 production paths with tree SHA-256 `ff91f542e77c912d69b48d40c834eabc42c838e4924232e33f52d6bb00b59157`. Package receipts are in `.github/release/`; store identity/publication evidence is in `fastlane/metadata/zapstore/publication-receipt.json`, preserving the earlier receipt under `history/`.
 
 A tester subsequently reported `Batch limit exceeded` during watch-only refresh, with balance displayed but no transactions. Recovery from this server batch rejection is being validated separately; these published packages do not yet contain that follow-up. Physical Android and funded physical cold-device flows remain unverified.
+
+## Electrum batch-limit refresh hotfix — October 4, 2026 UTC
+
+Reviewed source `71697797a2967718adeba19d82160422885d59db` (PR #27) recovers only the explicit
+`Batch limit exceeded` error with sequential balance/history/UTXO/transaction
+reads on the same client. Other errors and single-request failures propagate;
+failed reads are not converted into empty history. The released-baseline
+regressions reproduced the failure. Exact-head full unit/lint and both native
+gates passed. A loopback test with the real Electrum client verified recovery
+on the existing connection.
+
+Android **8.0.1 (1791127386)** is published at https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791127386
+and https://zapstore.dev/apps/com.romanmodin.redwallet. Its signed APK SHA-256
+is `13fc1561efa833494bcf71d83b172212eb8f210e84ae5440269392ce1a222002`. The original certificate, signatures, alignment
+and unsigned payload were verified. GitHub digest, signed relay events, complete
+CDN APK and red launcher icon match. No physical Android-phone test is claimed.
+
+iPhone **8.0.1 (1791127611)** was signed in run `37212623964` and
+uploaded without rebuilding in run `37214109044`. IPA SHA-256:
+`922a612f31d03d72ad602dce3600593a59c4814df64ddf744e7868d1bbb37c34`. Apple readback at `2026-10-04T15:53:01Z`
+reports `AVAILABLE_TO_TESTERS`, processing `VALID`,
+internal `IN_BETA_TESTING`, external
+`IN_BETA_TESTING`, review `APPROVED`;
+both existing groups are assigned. TestFlight:
+https://testflight.apple.com/join/UuExh5RP.
+
+Public/private source mapping covers 945 production paths with SHA-256
+`1258feff0a9579ce623c2c37682a43ca192c163ac29c7df8766a6ace75a8c7c1`; private source `e4ea8deccdd1bc3e1728b6d52e27985ef0a83467`.
+Signing and same-artifact upload used frozen orchestration
+`10720d07c36eace3f7e27aca828f75d0ea7a1fca`. Package and wire-test receipts are under
+`.github/release/electrum-batch-*`; previous release records are retained.
+This update fixes the batch rejection, not every possible server, account,
+address-discovery or connection issue. Update and refresh an existing wallet;
+this fix does not require deleting or re-importing it.

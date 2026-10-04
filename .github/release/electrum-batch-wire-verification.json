@@ -1,0 +1,10 @@
+{
+  "publicVectorsOnly": true,
+  "loopbackOnly": true,
+  "realElectrumClient": true,
+  "batchRejected": true,
+  "sameConnectionIndividualReadsSucceeded": true,
+  "connections": 1,
+  "batches": 1,
+  "singles": 2
+}
