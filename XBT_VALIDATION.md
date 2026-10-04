@@ -271,3 +271,66 @@ but it predates the Payjoin/broadcast changes; the new safety behavior is
 covered by the real-dependency unit regressions rather than this simulator
 artifact. Physical iPhone checks and the complete phone/Fulcrum send flow
 remain open.
+
+## Taproot cold signing and fee bumps — verified 2026-10-04
+
+Reviewed public source `32c54888ee383cc1fe418b7c5968376dfeadd71d`
+was merged by PR #23 at `55da26022f6d9d211d286cc07486cce0cec19a82`.
+The merged app retains all 945 production entries and SHA-256
+`ff91f542e77c912d69b48d40c834eabc42c838e4924232e33f52d6bb00b59157`.
+Private signing source `e8f5512062c0bfa5da4c7b86ba1ee423bb898ba3`
+matches those entries. This is source equivalence, not binary reproducibility.
+
+- Full CI [37198159377](https://github.com/romanmodin/RedWallet/actions/runs/37198159377)
+  passed lint and 81 unit suites: 750 tests passed and one skipped.
+- iOS [37198159386](https://github.com/romanmodin/RedWallet/actions/runs/37198159386)
+  and Android [37198159406](https://github.com/romanmodin/RedWallet/actions/runs/37198159406)
+  passed on that exact public revision. Each passed all seven TLS checks and
+  fifteen supported wallet checks, with five inherited unsupported cases skipped.
+- Native offline self-test covers finalized and unfinalized cold PSBT returns,
+  rejection of changed recipients and Bitcoin signature flags, raw-parent
+  authentication, full fingerprint metadata, RBF and package-priced CPFP.
+  BIP86 public-account import, opt-in enrollment and restart persistence passed.
+- A native Buffer-view mismatch was reproduced and fixed with byte-wise
+  comparison. Four screen-action cases also reproduced missing fee-review
+  initialization before its fix. All nine fee-screen tests now pass, including
+  actual RBF/CPFP creation-to-broadcast actions and invalid-fee rejection.
+  These regression tests complement native tests; they are not funded phone QA.
+
+Independent Knots **29.4.1.knots20260508rc4** accepted the wallet's transactions
+on isolated regtest with Unified activation at height 150. Funding used ordinary
+outputs at height 153; no current coinbase-maturity bypass was introduced.
+
+| Transaction | Fee / vsize | Independent result |
+| --- | --- | --- |
+| Original | 212 sats / 212 vB | Accepted and broadcast on isolated regtest |
+| First RBF | 636 sats / 212 vB | Accepted before the child existed |
+| CPFP child | 3,662 sats / 169 vB | Accepted and broadcast; parent plus child paid 3,874 sats / 381 vB |
+| Higher RBF | 5,300 sats / 212 vB | Accepted after the child, evicted both transactions and confirmed at height 154 |
+
+The replacement preserved the 90,000-sat recipient amount. A changed recipient
+failed Schnorr verification, and the first replacement's lower fee was rejected
+after a child existed. Public transactions and receipts are in
+`tests/fixtures/xbt-taproot-cold-fees-knots.json`.
+
+In a separate interoperability check, Knots `walletprocesspsbt` independently
+signed the app's request with `ALL|UNIFIED`, using only the published BIP86
+test vector. Both finalized and unfinalized signed PSBT returns passed the
+current app's exact-transaction and Schnorr verification. Both inputs had
+65-byte signatures ending in `0x21`. The unfinalized RPC result's
+`complete:false` is expected before finalization. This check did not broadcast;
+the earlier regtest funding had already been spent. Its public proof is
+`.github/release/taproot-cold-core-signer-proof.json`.
+
+Both regtest operations had P2P networking disabled and zero peers, used no
+real funds or user keys, and stopped the temporary node afterward. Physical
+cold-device compatibility, funded physical-phone tests and the complete
+phone/Fulcrum send/confirmation flow remain unverified. Ordinary Bitcoin signer
+firmware does not implement the Unified digest required by RedWallet. Support
+requires a signed PSBT return; raw signed transaction hex is unsupported.
+Requests are bound to the current app session, so restarting or replacing a
+request requires a fresh signing request. Support is limited to Taproot key
+paths; no script paths, annexes, multisig or cancellation. RBF requires replaceability and enough change; descendants or
+stricter node policy may require more fee. CPFP prices one unconfirmed parent
+with confirmed inputs. These checks do not establish full SPV or production
+readiness.
