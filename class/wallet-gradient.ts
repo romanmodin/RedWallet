@@ -1,4 +1,5 @@
 import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
+import { XbtTaprootWallet } from './wallets/xbt-taproot-wallet';
 import { HDAezeedWallet } from './wallets/hd-aezeed-wallet';
 import { HDLegacyBreadwalletWallet } from './wallets/hd-legacy-breadwallet-wallet';
 import { HDLegacyElectrumSeedP2PKHWallet } from './wallets/hd-legacy-electrum-seed-p2pkh-wallet';
@@ -38,6 +39,7 @@ export default class WalletGradient {
     let gradient: string[];
     switch (type) {
       case XbtSegwitBech32Wallet.type:
+      case XbtTaprootWallet.type:
         gradient = WalletGradient.xbtWallet;
         break;
       case WatchOnlyWallet.type:

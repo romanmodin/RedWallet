@@ -8,7 +8,7 @@ The iPhone beta is available through TestFlight to invited testers. The signed A
 
 ## Scope and verification
 
-The current XBT wallet supports one Native SegWit/P2WPKH BIP84 account, Unified Sighash signing, wallet recovery, Fulcrum balance and transaction history, QR receive/send, configurable servers, and XBT pricing. BIP84 watch-only import and Unified-capable external PSBT signing are supported in source; physical cold-device interoperability still needs validation. Taproot, multisig, silent payments and Lightning are outside this release.
+The current XBT wallet supports one Native SegWit/P2WPKH BIP84 account, Unified Sighash signing, wallet recovery, Fulcrum balance and transaction history, QR receive/send, configurable servers, and XBT pricing. BIP84 watch-only import and Unified-capable external PSBT signing are supported in source; physical cold-device interoperability still needs validation. The next beta source adds separate BIP86 Taproot creation, recovery and key-path spending; see [TAPROOT.md](TAPROOT.md) for reference checks and release status. Multisig, silent payments and Lightning remain outside this release.
 
 History is fetched for discovered receive and change addresses; it is not limited to transactions created in RedWallet. The tester who reported a restored balance with missing history resolved it by fixing their server, as reported by the maintainer on October 2, 2026. That case was server-side; this is not a claim that every recovery scenario has been independently validated.
 

@@ -19,12 +19,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as bitcoin from 'bitcoinjs-lib';
 
+import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
+
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({}));
 
 // Public BIP84 test vector; never replace with a user's recovery phrase.
 const publicMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+const taproot = process.env.XBT_KNOTS_TAPROOT === '1';
 const prepare = process.env.XBT_KNOTS_PREPARE === '1';
 const fixturePath = process.env.XBT_KNOTS_FIXTURE;
 const resultPath = process.env.XBT_KNOTS_RESULT;
@@ -45,7 +48,7 @@ describe('XBT Knots acceptance bridge', () => {
       throw new Error('Fixture and result paths must differ');
     }
 
-    const wallet = new XbtSegwitBech32Wallet();
+    const wallet = taproot ? new XbtTaprootWallet() : new XbtSegwitBech32Wallet();
     wallet.setSecret(publicMnemonic);
     const addressDetails = (address: string) => {
       const script = Buffer.from(bitcoin.address.toOutputScript(address));
@@ -67,8 +70,8 @@ describe('XBT Knots acceptance bridge', () => {
     const change = addressDetails(wallet._getInternalAddressByIndex(0));
     const plan = {
       schemaVersion: 1,
-      purpose: 'Public BIP84 fixture on network-isolated regtest only',
-      derivationPath: XbtSegwitBech32Wallet.derivationPath,
+      purpose: `Public ${taproot ? 'BIP86' : 'BIP84'} fixture on network-isolated regtest only`,
+      derivationPath: wallet.getDerivationPath(),
       sources,
       destination,
       change,
@@ -130,7 +133,8 @@ describe('XBT Knots acceptance bridge', () => {
       return matches[0];
     });
     const parentSpy = jest.spyOn(wallet, 'getTransactions').mockReturnValue(
-      parents.map(({ txid, confirmations, inputs }) => ({
+      parents.map(({ transaction, txid, confirmations, inputs }) => ({
+        rawHex: transaction.toHex(),
         txid,
         confirmations,
         inputs,
@@ -148,9 +152,10 @@ describe('XBT Knots acceptance bridge', () => {
       expect(transaction.ins).toHaveLength(2);
       expect(result.inputs).toHaveLength(2);
       for (const input of transaction.ins) {
-        expect(input.witness).toHaveLength(2);
+        expect(input.witness).toHaveLength(taproot ? 1 : 2);
         expect(input.witness[0][input.witness[0].length - 1]).toBe(0x21);
-        expect(input.witness[1]).toHaveLength(33);
+        if (taproot) expect(input.witness[0]).toHaveLength(65);
+        else expect(input.witness[1]).toHaveLength(33);
       }
       const expectedInputs = utxos.map(utxo => utxo.txid + ':' + utxo.vout).sort();
       expect(transaction.ins.map(input => Buffer.from(input.hash).reverse().toString('hex') + ':' + input.index).sort()).toEqual(

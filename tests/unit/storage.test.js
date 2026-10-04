@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import assert from 'assert';
 
 import { BlueApp } from '../../class/blue-app';
+import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { SegwitP2SHWallet } from '../../class/wallets/segwit-p2sh-wallet';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
@@ -582,4 +583,25 @@ it('migrates an active legacy encrypted bucket to authenticated v2 without overw
   const restored = new BlueApp();
   expect(await restored.loadFromDisk('active password')).toBe(true);
   expect(restored.wallets[0].getLabel()).toBe('legacy wallet');
+});
+
+it('persists both XBT BIP84 and BIP86 wallets without changing their type or address', async () => {
+  const storage = new BlueApp();
+  const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  for (const Wallet of [XbtSegwitBech32Wallet, XbtTaprootWallet]) {
+    const wallet = new Wallet();
+    wallet.setSecret(mnemonic);
+    wallet._getExternalAddressByIndex(0);
+    storage.wallets.push(wallet);
+  }
+  await storage.saveToDisk();
+  const restored = new BlueApp();
+  expect(await restored.loadFromDisk()).toBe(true);
+  expect(restored.wallets).toHaveLength(2);
+  storage.wallets.forEach((wallet, index) => {
+    expect(restored.wallets[index].type).toBe(wallet.type);
+    expect(restored.wallets[index].getID()).toBe(wallet.getID());
+    expect(restored.wallets[index]._getExternalAddressByIndex(0)).toBe(wallet._getExternalAddressByIndex(0));
+    expect(restored.wallets[index].requiresVerifiedTransactions()).toBe(true);
+  });
 });

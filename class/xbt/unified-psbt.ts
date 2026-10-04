@@ -12,7 +12,7 @@ export type UnifiedSignatureVerifier = (publicKey: Uint8Array, messageHash: Uint
 export const SIGHASH_ALL_UNIFIED = 0x21;
 const STANDARD_SIGHASH_ALL = 0x01;
 
-function buildUnsignedTransaction(psbt: Psbt): Transaction {
+export function buildUnsignedTransaction(psbt: Psbt): Transaction {
   const transaction = new Transaction();
   transaction.version = psbt.version;
   transaction.locktime = psbt.locktime;

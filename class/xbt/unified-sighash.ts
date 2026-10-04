@@ -53,17 +53,12 @@ function serializeInt64LE(value: bigint, signed: boolean): Buffer {
   return out;
 }
 
-/**
- * Computes the XBT Unified Sighash digest for a SegWit v0 input using SIGHASH_ALL.
- * The caller must provide every spent output, in transaction input order, from
- * trustworthy PSBT UTXO data. For P2WPKH, scriptCode must be the implied P2PKH script.
- * This function does not sign or finalize a PSBT.
- */
-export function unifiedSegwitV0SighashAll(
+function unifiedSighashAll(
   transaction: Transaction,
   inputIndex: number,
   spentOutputs: SpentOutput[],
-  scriptCode: Uint8Array,
+  scriptType: number,
+  scriptSpecificData: Uint8Array,
 ): Buffer {
   if (!Number.isInteger(inputIndex) || inputIndex < 0 || inputIndex >= transaction.ins.length) {
     throw new Error('Input index is outside the transaction');
@@ -71,8 +66,6 @@ export function unifiedSegwitV0SighashAll(
   if (spentOutputs.length !== transaction.ins.length) {
     throw new Error('A spent output is required for every transaction input');
   }
-  // Buffer and Uint8Array are accepted; reject accidental string input.
-  if (!(scriptCode instanceof Uint8Array)) throw new Error('scriptCode must be bytes');
   for (const output of spentOutputs) {
     if (typeof output.value !== 'bigint' || output.value < 0n || output.value > 0x7fffffffffffffffn) {
       throw new Error('Spent output amount is outside int64 range');
@@ -109,11 +102,32 @@ export function unifiedSegwitV0SighashAll(
     sha256(scripts),
     sha256(sequences),
     sha256(outputs),
-    Buffer.from([SEGWIT_V0_SCRIPT_TYPE]),
+    Buffer.from([scriptType]),
     index,
-    serializeBytes(scriptCode),
+    scriptSpecificData,
   ]);
 
   const tagHash = sha256(UNIFIED_SIGHASH_TAG);
   return sha256(Buffer.concat([tagHash, tagHash, message]));
+}
+
+/**
+ * Computes the XBT Unified Sighash digest for a SegWit v0 input using SIGHASH_ALL.
+ * The caller must provide every spent output, in transaction input order, from
+ * trustworthy PSBT UTXO data. For P2WPKH, scriptCode must be the implied P2PKH script.
+ * This function does not sign or finalize a PSBT.
+ */
+export function unifiedSegwitV0SighashAll(
+  transaction: Transaction,
+  inputIndex: number,
+  spentOutputs: SpentOutput[],
+  scriptCode: Uint8Array,
+): Buffer {
+  if (!(scriptCode instanceof Uint8Array)) throw new Error('scriptCode must be bytes');
+  return unifiedSighashAll(transaction, inputIndex, spentOutputs, SEGWIT_V0_SCRIPT_TYPE, serializeBytes(scriptCode));
+}
+
+/** XBT Taproot key-path SIGHASH_ALL | UNIFIED, without an annex or script path. */
+export function unifiedTaprootKeyPathSighashAll(transaction: Transaction, inputIndex: number, spentOutputs: SpentOutput[]): Buffer {
+  return unifiedSighashAll(transaction, inputIndex, spentOutputs, 0x02, Buffer.from([0x00]));
 }

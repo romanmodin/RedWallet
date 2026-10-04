@@ -1,11 +1,18 @@
 import { Transaction, script } from 'bitcoinjs-lib';
 import { SIGHASH_ALL_UNIFIED } from './unified-psbt';
 
-/** The supported XBT signer emits native P2WPKH inputs with Unified Sighash only. */
+/** The supported XBT signer emits native P2WPKH or Taproot key-path inputs with Unified Sighash only. */
 export function assertXbtUnifiedTransaction(hex: string): void {
   const transaction = Transaction.fromHex(hex);
   if (!transaction.ins.length || !transaction.outs.length) throw new Error('XBT broadcast requires a signed payment');
   for (const input of transaction.ins) {
+    if (!input.script.length && input.witness.length === 1) {
+      const signature = input.witness[0];
+      if (signature.length !== 65 || signature[64] !== SIGHASH_ALL_UNIFIED) {
+        throw new Error('XBT broadcast requires a 65-byte Unified Taproot signature');
+      }
+      continue;
+    }
     if (input.script.length || input.witness.length !== 2) {
       throw new Error('XBT broadcast requires native P2WPKH Unified signatures on every input');
     }

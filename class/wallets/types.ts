@@ -8,6 +8,7 @@ import { HDLegacyElectrumSeedP2PKHWallet } from './hd-legacy-electrum-seed-p2pkh
 import { HDLegacyP2PKHWallet } from './hd-legacy-p2pkh-wallet';
 import { HDSegwitBech32Wallet } from './hd-segwit-bech32-wallet';
 import { XbtSegwitBech32Wallet } from './xbt-segwit-bech32-wallet';
+import { XbtTaprootWallet } from './xbt-taproot-wallet';
 import { HDSegwitElectrumSeedP2WPKHWallet } from './hd-segwit-electrum-seed-p2wpkh-wallet';
 import { HDSegwitP2SHWallet } from './hd-segwit-p2sh-wallet';
 import { LegacyWallet } from './legacy-wallet';
@@ -164,6 +165,7 @@ export type TWallet =
   | HDLegacyP2PKHWallet
   | HDSegwitBech32Wallet
   | XbtSegwitBech32Wallet
+  | XbtTaprootWallet
   | HDSegwitElectrumSeedP2WPKHWallet
   | HDSegwitP2SHWallet
   | HDTaprootWallet
@@ -182,6 +184,7 @@ export type TWallet =
 export type THDWalletForWatchOnly =
   | HDSegwitBech32Wallet
   | XbtSegwitBech32Wallet
+  | XbtTaprootWallet
   | HDSegwitP2SHWallet
   | HDLegacyP2PKHWallet
   | HDTaprootWallet;
