@@ -359,3 +359,40 @@ Signed APK SHA-256: `d5622f7271d13b283ac6305ebd9f75931f4c50b68a0817d4d6c2b027c2d
 This Android-only update does not replace the existing iOS TestFlight build or claim that the public/private iOS production trees now match this Android branding revision. Historical source/package receipts above retain their original hashes.
 
 Zapstore beta publication was independently read back from `wss://relay.zapstore.dev` with valid Nostr signatures and references to the new APK. The complete CDN APK matches the signed GitHub file, and the CDN icon matches the compiled red icon. The public publication receipt is in `fastlane/metadata/zapstore/publication-receipt.json`; the previous receipt is retained separately. The four emulator screenshots were captured from the preceding security beta, build 1791019127.
+
+## Taproot cold signing and fee bump package — October 4, 2026 UTC
+
+- iPhone **8.0.1 (1791117525)** was signed in
+  [run 37202507594](https://github.com/romanmodin/RedWallet/actions/runs/37202507594)
+  and uploaded without rebuilding in
+  [run 37203666704](https://github.com/romanmodin/RedWallet/actions/runs/37203666704).
+  Both receipts verify the same IPA SHA-256:
+  `20f97d1775245fc6d80c7b576021f5ec2ce3747105fea5087efd5409c9ef9544`.
+- Reviewed public source: `32c54888ee383cc1fe418b7c5968376dfeadd71d`;
+  private source: `e8f5512062c0bfa5da4c7b86ba1ee423bb898ba3`.
+  All 945 production entries match SHA-256
+  `ff91f542e77c912d69b48d40c834eabc42c838e4924232e33f52d6bb00b59157`.
+  Signing and same-artifact upload used orchestration
+  `3b775d3ad2e8af31a93d5ee6464a3178341fed0c`, with main frozen between them.
+  This is a source mapping, not a reproducible binary claim.
+- Original protected signing/upload reviews, read-only Match access, encrypted
+  artifact storage and authenticated decryption stayed enforced. The macOS
+  verifier checked the owner team, both bundle identities, distribution
+  entitlements, profile-authorized certificates and arm64 architecture.
+- This beta adds opt-in BIP86 external signed-PSBT returns, strict Unified
+  Schnorr verification, recipient-preserving RBF and one-parent package CPFP.
+  Hot fee bumps review their actual fee and honor enabled biometrics and
+  high-fee approval. External returns go through the reviewed PSBT flow.
+- The exact source passed full unit/lint, iOS and Android native checks.
+  Independent Knots software-signer and regtest fee-acceptance evidence,
+  including test counts and limits, is in XBT_VALIDATION.md.
+- Tester assignment uses only the two existing groups and requires the exact
+  uploaded package and completed native gates. Upload alone does not establish
+  installability; Apple processing, beta review and group access must be read
+  back before reporting availability. The existing TestFlight link remains
+  https://testflight.apple.com/join/UuExh5RP.
+- Physical cold-device compatibility and funded physical-phone testing remain
+  unverified. An XBT Unified-capable signer is required. This release does not
+  include script paths, annexes, multisig, cancellation, full SPV or public
+  App Store submission. Android source/native checks are covered; its unsigned
+  phone package does not replace the previously published Android beta.
