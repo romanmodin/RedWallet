@@ -440,3 +440,38 @@ Signing and same-artifact upload used frozen orchestration
 This update fixes the batch rejection, not every possible server, account,
 address-discovery or connection issue. Update and refresh an existing wallet;
 this fix does not require deleting or re-importing it.
+
+## Raw transaction-history output decoder hotfix — October 4, 2026 UTC
+
+Reviewed source `2479c4f5d7b31b2836fa1d3b3d366219bc6f1969` (PR #33) preserves raw history output values,
+scripts and indices when an output has no address, and decodes P2WSH destinations
+without labelling them Taproot. Malformed raw transactions and RPC failures
+still propagate; signing and TLS validation are unchanged. Nine public-vector
+regression cases include six reproduced failures on the released source and
+history loading after batch-limit recovery. Two additional null-parent failures reproduced on the decoder-only fix; both history readers now skip recognized coinbase parent lookups. Full 81 unit suites passed 767 tests
+with one inherited skip. Exact-source lint and both native gates passed.
+The owner's specific history transaction was not independently inspected.
+
+Android **8.0.1 (1791146077)** is published at https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791146077
+and https://zapstore.dev/apps/com.romanmodin.redwallet. Its signed APK SHA-256
+is `a9ffd0794cd1bc1299ee008f49485045e8e6fdc0d59abd4475e465aa177c771d`. The original certificate, signatures, alignment
+and unsigned payload were verified. GitHub digest, signed relay events, complete
+CDN APK and red launcher icon match. No physical Android-phone test is claimed.
+
+iPhone **8.0.1 (1791146217)** was signed in run `37232395910` and
+uploaded without rebuilding in run `37233767699`. IPA SHA-256:
+`4796314f5181e041f42c967e74e36398e6dd78ad8ac6fa4d370259c4120ca76d`. Apple readback at `2026-10-04T21:01:40Z`
+reports `AVAILABLE_TO_TESTERS`, processing `VALID`,
+internal `IN_BETA_TESTING`, external
+`IN_BETA_TESTING`, review `APPROVED`;
+both existing groups are assigned. TestFlight:
+https://testflight.apple.com/join/UuExh5RP.
+
+Public/private source mapping covers 945 production paths with SHA-256
+`d1d57fe1b2439a009f672f98325eb9b78deaf73f4c80c2f0d5744caad8b52c92`; private source `87bdf8512c4626aeba34005a013ef1dc2fa209d4`.
+Signing and same-artifact upload used frozen orchestration
+`817e20cbfec5548a5958fe9c6d9bd3033749ec06`. Package and decoder regression receipts are under
+`.github/release/history-output-*`; previous release records are retained.
+This update fixes the raw output decoder, not every possible server, account,
+address-discovery or connection issue. Update and refresh an existing wallet;
+this fix does not require deleting or re-importing it.

@@ -1,0 +1,15 @@
+{
+  "publicSourceCommit": "2479c4f5d7b31b2836fa1d3b3d366219bc6f1969",
+  "focusedPassed": 55,
+  "newRegressionCases": 9,
+  "releasedSourceDecoderRegressionFailures": 6,
+  "decoderOnlySourceNullParentRegressionFailures": 2,
+  "fullUnitSuites": 81,
+  "fullUnitPassed": 767,
+  "fullUnitInheritedSkipped": 1,
+  "lintErrors": 0,
+  "lintWarnings": 2,
+  "publicSyntheticVectorsOnly": true,
+  "ownerTransactionInspected": false,
+  "coinbaseMaturityRulesUnchanged": true
+}
