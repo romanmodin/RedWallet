@@ -1,7 +1,7 @@
 # Private signing credentials must never be committed here.
 repository: https://github.com/romanmodin/RedWallet
 pubkey: npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0
-release_source: https://github.com/romanmodin/RedWallet/releases/download/android-v8.0.1-beta-1791117248/RedWallet-8.0.1-android-beta-1791117248.apk
+release_source: https://github.com/romanmodin/RedWallet/releases/download/android-v8.0.1-beta-1791127386/RedWallet-8.0.1-android-beta-1791127386.apk
 icon: ./fastlane/metadata/zapstore/icon.png
 name: RedWallet (XBT Beta)
 summary: A self-custody Bitcoin (XBT) wallet with Taproot, cold PSBT signing and fee bumps — tester beta.
