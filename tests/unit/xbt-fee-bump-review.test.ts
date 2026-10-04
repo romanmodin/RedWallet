@@ -15,13 +15,14 @@ jest.mock('../../blue_modules/hapticFeedback', () => ({
 }));
 jest.mock('../../components/Alert', () => ({ __esModule: true, default: jest.fn(), AlertType: { Toast: 'toast' } }));
 
-function reviewScreen(fee = 20_000) {
+function reviewScreen(fee = 20_000, recipient = 0) {
   const wallet = new XbtTaprootWallet();
   wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
   const transaction = new bitcoin.Transaction();
   transaction.addInput(Buffer.alloc(32, 1), 0);
   transaction.setWitness(0, [Buffer.alloc(65)]);
   transaction.addOutput(bitcoin.address.toOutputScript(wallet._getInternalAddressByIndex(0)), 50_000n);
+  if (recipient) transaction.addOutput(bitcoin.address.toOutputScript(wallet._getExternalAddressByIndex(0)), BigInt(recipient));
   const screen = new CPFP({ route: { params: { wallet, txid: transaction.getId() } }, navigation: {} });
   const storage = { getItem: jest.fn().mockResolvedValue('') };
   screen.context = storage;
@@ -76,5 +77,14 @@ it('keeps enabled biometrics as a broadcast gate', async () => {
   await flush();
   expect(unlockWithBiometrics).toHaveBeenCalledTimes(1);
   expect(confirm).not.toHaveBeenCalled();
+  expect(broadcast).not.toHaveBeenCalled();
+});
+
+it('compares a high fee to recipient amounts without diluting the warning with change', async () => {
+  const { screen, broadcast } = reviewScreen(200, 1_000);
+  (confirm as jest.Mock).mockResolvedValue(false);
+  screen.broadcast();
+  await flush();
+  expect(confirm).toHaveBeenCalledWith('High transaction fee', expect.stringContaining('200 sats'));
   expect(broadcast).not.toHaveBeenCalled();
 });

@@ -1,3 +1,4 @@
+import * as bitcoin from 'bitcoinjs-lib';
 import { unlockWithBiometrics } from '../../hooks/useBiometrics';
 import confirm from '../../helpers/confirm';
 import { requiresHighFeeApproval } from '../../class/xbt/fee-policy';
@@ -84,7 +85,15 @@ export default class CPFP extends Component {
   reviewFeeBump(result) {
     if (!isXbtTaprootWallet(this.state.wallet)) return;
     if (!result.tx) throw new Error('A signed fee bump is required');
-    const amountSats = Number(result.tx.outs.reduce((sum, output) => sum + output.value, 0n));
+    const recipients = result.tx.outs.filter(output => {
+      try {
+        return !this.state.wallet.addressIsChange(bitcoin.address.fromOutputScript(output.script));
+      } catch {
+        return true;
+      }
+    });
+    const recipientValue = recipients.reduce((sum, output) => sum + output.value, 0n);
+    const amountSats = Number(recipientValue || result.tx.outs.reduce((sum, output) => sum + output.value, 0n));
     const feeRate = result.fee / result.tx.virtualSize();
     const review = { feeSats: result.fee, feeRate, amountSats, hex: result.tx.toHex() };
     // Validate the numeric review even when the fee does not trigger a warning.
