@@ -4,7 +4,7 @@ RedWallet is an XBT wallet based on [BlueWallet 8.0.1](https://github.com/BlueWa
 
 ## Try the beta
 
-The iPhone beta is available through TestFlight to invited testers. The signed Android phone beta is available from [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791019127). See [ANDROID_INSTALL.md](ANDROID_INSTALL.md) for installation and update instructions. Android 7.0 or newer is required; Google Play distribution is not enabled.
+The iPhone beta is available through TestFlight to invited testers. The signed Android phone beta is available from [GitHub Releases](https://github.com/romanmodin/RedWallet/releases/tag/android-v8.0.1-beta-1791085960). See [ANDROID_INSTALL.md](ANDROID_INSTALL.md) for installation and update instructions. Android 7.0 or newer is required; Google Play distribution is not enabled.
 
 ## Scope and verification
 
@@ -20,7 +20,7 @@ RedWallet installs separately from BlueWallet and does not automatically migrate
 
 ## Security follow-up source
 
-The published security beta includes authenticated Electrum TLS, verified raw inputs and coinbase refresh, stronger password/cache encryption, authenticated secret exports with clipboard expiry, and BIP84 XBT watch-only import with Unified external-signature verification. Android beta 1791019127 and iPhone TestFlight build 1791019257 contain these changes.
+The published security beta includes authenticated Electrum TLS, verified raw inputs and coinbase refresh, stronger password/cache encryption, authenticated secret exports with clipboard expiry, and BIP84 XBT watch-only import with Unified external-signature verification. Android beta 1791085960 and iPhone TestFlight build 1791019257 contain these changes.
 
 A watch-only phone stores public keys. Use an XBT Unified-capable cold wallet that supports the Native SegWit PSBT QR/file workflow; physical device compatibility still needs validation. Do not import a cold-wallet seed to use this workflow. Fulcrum confirmations still rely on the configured server, and the original missing-history report was resolved on the tester’s server. Keep an offline recovery backup and do not downgrade after the RWV2 password-storage migration. See [SECURITY_FOLLOWUP.md](SECURITY_FOLLOWUP.md).
 

@@ -1,5 +1,1 @@
-RedWallet Android 8.0.1 beta (1791019127)
-
-Authenticated certificate/hostname validation and bounded slow TLS connections; raw transaction input and wallet-owned change checks; request-bound Unified PSBT signature verification; stronger password encryption and cache handling; authenticated secret exports and clipboard cleanup; high-fee/XBT-recipient confirmations; USDC estimates before sending; removed external signed-transaction verification links.
-
-Keep an offline recovery backup. Do not downgrade upgraded encrypted storage. Physical cold-signer tests and independent chain verification remain open.
+Android branding update: installation and home-screen icons now use RedWallet red artwork in every density, and Android system settings use the RedWallet name. Thanks to Mark of TEC-1G for the report. Added instructions for independent installed-package checksum and certificate verification. Retains the preceding security beta; no new signing or network behavior. Install over the existing official APK with the same signing certificate. Early tester beta; the maintainer has not personally tested on Android hardware. Preserve an offline recovery backup.
