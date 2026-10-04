@@ -1,0 +1,33 @@
+{
+  "appId": "6817118871",
+  "bundleId": "com.romanmodin.redwallet",
+  "version": "8.0.1",
+  "build": "1791117525",
+  "ipaSha256": "20f97d1775245fc6d80c7b576021f5ec2ce3747105fea5087efd5409c9ef9544",
+  "publicSourceCommit": "32c54888ee383cc1fe418b7c5968376dfeadd71d",
+  "sourceCommit": "e8f5512062c0bfa5da4c7b86ba1ee423bb898ba3",
+  "orchestrationCommit": "3b775d3ad2e8af31a93d5ee6464a3178341fed0c",
+  "uploadRunId": "37203666704",
+  "verifiedAt": "2026-10-04T13:31:04Z",
+  "appleBuildId": "75dda790-ae06-424e-a6af-a1d2be8770ea",
+  "betaNotesUpdated": true,
+  "status": "AVAILABLE_TO_TESTERS",
+  "processingState": "VALID",
+  "internalBuildState": "IN_BETA_TESTING",
+  "externalBuildState": "IN_BETA_TESTING",
+  "betaReviewState": "APPROVED",
+  "groups": [
+    {
+      "id": "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
+      "name": "Roman iPhone Testing",
+      "internal": true,
+      "assigned": true
+    },
+    {
+      "id": "463ff340-3283-4f17-949d-39c7aa929da2",
+      "name": "RedWallet Early Testers",
+      "internal": false,
+      "assigned": true
+    }
+  ]
+}

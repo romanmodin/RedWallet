@@ -1,9 +1,10 @@
 # Private signing credentials must never be committed here.
 repository: https://github.com/romanmodin/RedWallet
 pubkey: npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0
-release_source: https://github.com/romanmodin/RedWallet/releases/download/android-v8.0.1-beta-1791085960/RedWallet-8.0.1-android-beta-1791085960.apk
+release_source: https://github.com/romanmodin/RedWallet/releases/download/android-v8.0.1-beta-1791117248/RedWallet-8.0.1-android-beta-1791117248.apk
+icon: ./fastlane/metadata/zapstore/icon.png
 name: RedWallet (XBT Beta)
-summary: A self-custody Bitcoin (XBT) Native SegWit wallet — early tester beta.
+summary: A self-custody Bitcoin (XBT) wallet with Taproot, cold PSBT signing and fee bumps — tester beta.
 license: MIT
 website: https://github.com/romanmodin/RedWallet
 tags:
@@ -13,7 +14,7 @@ tags:
   - beta
 description: |
   RedWallet is an early Android beta for Bitcoin (XBT), based on BlueWallet.
-  Create or restore BIP39 Native SegWit wallets, send and receive with QR codes,
+  Create or restore BIP39 Native SegWit or BIP86 Taproot wallets, send and receive with QR codes,
   view wallet history, and connect to your own Fulcrum server.
   Authenticated TLS supports explicitly trusted private-server certificates.
   Supported spends use SIGHASH_UNIFIED (0x21). XBT watch-only accounts can
@@ -26,9 +27,17 @@ description: |
   not own an Android phone and has not personally tested this Android build.
   Begin with an empty disposable wallet and retain an offline recovery backup.
   Do not downgrade after upgrading encrypted storage.
-  Independent header-chain/merkle verification, Taproot, and multisig are not
-  implemented. The configured Fulcrum server remains trusted for chain state.
-  Screenshots show an empty demo wallet on an emulator; the manual 3.12 USDC
+  Taproot key-path spending and opt-in BIP86 watch-only signed-PSBT returns
+  require an XBT Unified-capable signer. RBF preserves recipients and inputs,
+  funding higher fees from sufficient change. CPFP prices one unconfirmed parent
+  plus child. Return a signed PSBT; raw signed hex is unsupported. Requests bind
+  the current app session; after restart, create and sign a fresh request.
+  No Taproot script paths, annexes, multisig, RBF cancellation or added inputs.
+  Physical cold-device and funded physical-phone interoperability are unverified.
+  Independent header-chain/merkle verification remains unimplemented.
+  The configured Fulcrum server remains trusted for chain state.
+  No community/default server is bundled; configure your own Fulcrum server.
+  Screenshots show an earlier empty demo wallet on an emulator; the manual 3.12 USDC
   quote is illustrative, not a market price. Do not fund the pictured address.
   Thanks to BlueWallet and the contributors, reviewers and testers.
 images:
