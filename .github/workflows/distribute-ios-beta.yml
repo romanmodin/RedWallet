@@ -10,10 +10,10 @@ name: Assign verified Taproot TestFlight beta
   workflow_dispatch:
     inputs:
       upload_run_id:
-        description: Reviewed completed upload run for Taproot cold signing and fee bump build 1791117525
+        description: Reviewed completed upload run for Taproot cold signing and fee bump build 1791127611
         required: true
         type: string
-        default: "37203666704"
+        default: "37214109044"
 permissions:
   contents: read
   actions: read
