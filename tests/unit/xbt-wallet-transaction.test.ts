@@ -75,6 +75,39 @@ describe('XBT wallet transaction flow', () => {
     expect(wallet.getUtxo()).toHaveLength(expected >= 6480 ? 1 : 0);
   });
 
+  it('refreshes raw coinbase history without fetching a nonexistent parent', async () => {
+    const wallet = new XbtSegwitBech32Wallet();
+    wallet.setSecret(mnemonic);
+    wallet.gap_limit = 1;
+    wallet._balances_by_external_index[0] = { c: 100_000, u: 0 };
+    wallet._balances_by_internal_index[0] = { c: 0, u: 0 };
+    const address = wallet._getExternalAddressByIndex(0);
+    const raw = new bitcoin.Transaction();
+    raw.addInput(Buffer.alloc(32), 0xffffffff, 0xffffffff, Buffer.from('0101', 'hex'));
+    raw.addOutput(bitcoin.address.toOutputScript(address), 100_000n);
+    raw.addOutput(Buffer.from('6a24aa21a9ed' + '00'.repeat(32), 'hex'), 0n);
+    const txid = raw.getId();
+    const decoded = {
+      txid,
+      rawHex: raw.toHex(),
+      confirmations: 6480,
+      vin: [{ txid: coinbaseTxid, vout: 0xffffffff }],
+      vout: [
+        { value: 0.001, n: 0, scriptPubKey: { addresses: [address] } },
+        { value: 0, n: 1, scriptPubKey: { addresses: [] } },
+      ],
+    };
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({ [address]: [{ tx_hash: txid, height: 100 }] });
+    const fetch = (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockClear().mockImplementation(async (txids: string[]) => {
+      if (txids.includes(coinbaseTxid)) throw new Error('Coinbase null outpoint must not be queried');
+      return txids.includes(txid) ? { [txid]: decoded } : {};
+    });
+    await wallet.fetchTransactions();
+    expect(fetch).toHaveBeenNthCalledWith(1, [txid], true, 45, true);
+    expect(fetch).toHaveBeenNthCalledWith(2, [], true, 45, true);
+    expect(wallet.getTransactions()).toEqual(expect.arrayContaining([expect.objectContaining({ txid, value: 100_000 })]));
+  });
+
   it('builds and signs a wallet transaction with Unified Sighash', () => {
     const wallet = createWalletWithParent([{ txid: ordinaryTxid, vout: 0 }], 100);
     const sourceAddress = wallet._getExternalAddressByIndex(0);
