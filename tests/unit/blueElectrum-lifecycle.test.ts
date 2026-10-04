@@ -282,7 +282,12 @@ describe('BlueElectrum lifecycle', () => {
       const history = await BlueElectrum.getTransactionsFullByAddress(bitcoin.address.fromOutputScript(tx.outs[0].script));
       expect(history).toHaveLength(1);
       expect(history[0].txid).toBe(tx.getId());
-      expect(history[0]).toMatchObject({ outputs: [{ n: 0, value: 0.00001 }, { n: 1, value: 0, addresses: [] }] });
+      expect(history[0]).toMatchObject({
+        outputs: [
+          { n: 0, value: 0.00001 },
+          { n: 1, value: 0, addresses: [] },
+        ],
+      });
       expect(client.blockchainTransaction_get.mock.calls.map(call => call[0])).toEqual([tx.getId()]);
     });
 
