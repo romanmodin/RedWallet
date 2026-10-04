@@ -1,3 +1,7 @@
+RedWallet refresh hotfix
+
+Fixes "Batch limit exceeded" during wallet refresh and watch-only history loading. Servers rejecting a batch are queried one item at a time on the same authenticated connection. Other errors still propagate. Update and refresh your existing wallet; no re-import is required for this fix.
+
 RedWallet Taproot: cold signing and fee bumping
 
 BIP86 Taproot watch-only accounts can now create PSBT requests and verify returned signed PSBTs. External signing is opt-in and requires an XBT-capable signer that supports Unified SIGHASH 0x21. Signed returns are checked against the exact reviewed transaction, authenticated input amounts and scripts, and Schnorr signatures before broadcast. Return a signed PSBT; raw signed transaction hex is unsupported. Signing requests belong to the current app session; after restarting the app or replacing a request, create and sign a fresh request.
