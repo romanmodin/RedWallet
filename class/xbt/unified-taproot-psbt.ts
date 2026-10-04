@@ -1,4 +1,5 @@
 import { Psbt, Transaction, payments } from 'bitcoinjs-lib';
+import { areUint8ArraysEqual } from '../../blue_modules/uint8array-extras';
 
 import { SpentOutput, unifiedTaprootKeyPathSighashAll } from './unified-sighash';
 import { buildUnsignedTransaction, SIGHASH_ALL_UNIFIED, UnifiedSigner, UnifiedSignatureVerifier } from './unified-psbt';
@@ -34,7 +35,7 @@ function getKeyPathInput(psbt: Psbt, index: number) {
   const expected = payments.p2tr({
     internalPubkey: input.tapInternalKey,
   }).output!;
-  if (!Buffer.from(expected).equals(Buffer.from(input.witnessUtxo.script))) {
+  if (!areUint8ArraysEqual(expected, input.witnessUtxo.script)) {
     throw new Error('Taproot internal key does not match the witness UTXO');
   }
   return input;
@@ -47,7 +48,7 @@ export function signUnifiedTaprootInput(psbt: Psbt, index: number, signer: Unifi
   if (input.tapKeySig) throw new Error('Refusing to overwrite a Taproot signature');
   if (input.sighashType !== undefined && input.sighashType !== SIGHASH_ALL_UNIFIED)
     throw new Error('Input declares an incompatible sighash type');
-  if (signer.publicKey.length !== 32 || !Buffer.from(signer.publicKey).equals(Buffer.from(spentOutputs[index].script).subarray(2))) {
+  if (signer.publicKey.length !== 32 || !areUint8ArraysEqual(signer.publicKey, spentOutputs[index].script.subarray(2))) {
     throw new Error('Signing key does not match the Taproot witness UTXO');
   }
   const digest = unifiedTaprootKeyPathSighashAll(buildUnsignedTransaction(psbt), index, spentOutputs);

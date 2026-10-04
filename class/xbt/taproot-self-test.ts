@@ -1,5 +1,6 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import ecc from '../../blue_modules/noble_ecc';
+import { areUint8ArraysEqual } from '../../blue_modules/uint8array-extras';
 import { XbtTaprootWallet } from '../wallets/xbt-taproot-wallet';
 import { WatchOnlyWallet } from '../wallets/watch-only-wallet';
 import { Transaction as WalletTransaction } from '../wallets/types';
@@ -76,7 +77,7 @@ export function runTaprootSigningSelfTest(): void {
   const replacement = cold.createRBFTransaction(original.tx!, inputs, 3);
   const replacementTx = watch.combinePsbt(replacementRequest.psbt.toBase64(), replacement.psbt.toBase64());
   check(replacementTx.outs[0].value === original.tx!.outs[0].value, 'RBF changed recipient amount');
-  check(Buffer.from(replacementTx.outs[0].script).equals(Buffer.from(original.tx!.outs[0].script)), 'RBF changed recipient script');
+  check(areUint8ArraysEqual(replacementTx.outs[0].script, original.tx!.outs[0].script), 'RBF changed recipient script');
   check(replacement.fee === replacementTx.virtualSize() * 3, 'RBF fee pricing');
   const childInputs = [
     { txid: original.tx!.getId(), vout: 1, address: change, value: Number(original.tx!.outs[1].value), confirmations: 0 },
