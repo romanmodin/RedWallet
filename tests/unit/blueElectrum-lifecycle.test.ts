@@ -178,6 +178,7 @@ describe('BlueElectrum lifecycle', () => {
       const client = created[0] as FakeClient & Record<string, jest.Mock>;
       const addresses = ['11', '22', '33'].map(byte => bitcoin.address.fromOutputScript(Buffer.from('0014' + byte.repeat(20), 'hex')));
       client.blockchainScripthash_getHistoryBatch = jest.fn(async () => {
+        // eslint-disable-next-line no-throw-literal -- Simulate a plain JSON-RPC error object from the server.
         throw { message: 'Batch limit exceeded' };
       });
       let active = 0;
