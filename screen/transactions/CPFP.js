@@ -215,6 +215,7 @@ export default class CPFP extends Component {
           this.setState({ isLoading: false });
           return;
         }
+        this.reviewFeeBump(result);
         this.setState({
           stage: 2,
           txhex: newTx.toHex(),

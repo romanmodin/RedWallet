@@ -104,6 +104,7 @@ export default class RBFBumpFee extends CPFP {
           return;
         }
 
+        this.reviewFeeBump(result);
         this.setState({
           stage: 2,
           txhex: newTx.toHex(),
