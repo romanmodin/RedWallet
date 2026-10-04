@@ -65,7 +65,7 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForWalletsList();
   });
 
-  it('offers only the supported XBT wallet profile', async () => {
+  it('offers supported XBT wallet profiles', async () => {
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
       .whileElement(by.id('WalletsList'))
@@ -118,6 +118,40 @@ describe('RedWallet XBT-only release UI', () => {
     await openReceive(walletLabel);
     await waitForLabel(expectedAddress);
 
+    await device.launchApp({ newInstance: true });
+    await waitForWalletsList();
+    await waitForId(walletLabel);
+    await openReceive(walletLabel);
+    await waitForLabel(expectedAddress);
+  });
+
+  it('creates a Taproot wallet and reloads it after restart', async () => {
+    await helperCreateWallet('xbt-taproot-created', 'taproot');
+    await device.launchApp({ newInstance: true });
+    await waitForWalletsList();
+    await openReceive('xbt-taproot-created', true);
+    await waitForId('BitcoinAddressQRCode');
+  });
+
+  it('restores BIP86 and preserves its receive address after restart', async () => {
+    const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+    const expectedAddress = 'bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr';
+    const walletLabel = 'Imported XBT Taproot (BIP86)';
+    await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'ImportWallet');
+    await element(by.id('ImportWallet')).tap();
+    await waitForId('MnemonicInput');
+    await element(by.id('ToggleXbtImportFormat')).tap();
+    await enterMnemonicText(mnemonic);
+    await withoutIosAlertSynchronization(async () => {
+      await element(by.id('DoImport')).tap();
+      await waitForText('Your wallet has been successfully imported.');
+      if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss successful Taproot recovery confirmation');
+    });
+    await waitForWalletsList();
+    await scrollUpOnHomeScreen();
+    await waitForId(walletLabel);
+    await openReceive(walletLabel);
+    await waitForLabel(expectedAddress);
     await device.launchApp({ newInstance: true });
     await waitForWalletsList();
     await waitForId(walletLabel);

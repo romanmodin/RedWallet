@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "description": "Public BIP86 fixture and isolated Knots regtest observation; no production funds or credentials.",
+  "fixture": {
+    "chain": "regtest",
+    "blake2bHeight": 150,
+    "height": 151,
+    "fundingTransactions": [
+      {
+        "rawTx": "0200000001c48c9b6b3285e94f40b4bdd586d36c372b81ded3179e60243a35719d7fc72ff9000000006a4730440220305ce30ce7156824bc7525a7c621e6f7ca1ae570f23362b02fe9947de886308702202f696b538407c557568ba798621698f8b91dabf0af69ecb2aaa533744b07c237212103712c56744923bb6afe198b7cfd096720f839d8105ff8eecd4d38f8d23da17f58fdffffff0360ea000000000000225120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c409c000000000000225120a82f29944d65b86ae6b5e5cc75e294ead6c59391a1edc5e016e3498c67fc7bbb4b6a042a010000001976a914de21ba7c0bcf1466bcdd47acb0dbf6bdcd9f72c688ac95000000",
+        "confirmations": 2
+      }
+    ]
+  },
+  "signed": {
+    "mode": "signed",
+    "schemaVersion": 1,
+    "purpose": "Public BIP86 fixture on network-isolated regtest only",
+    "derivationPath": "m/86'/0'/0'",
+    "sources": [
+      {
+        "index": 0,
+        "value": 60000,
+        "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
+        "regtestAddress": "bcrt1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqvg32hk",
+        "scriptHex": "5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c"
+      },
+      {
+        "index": 1,
+        "value": 40000,
+        "address": "bc1p4qhjn9zdvkux4e44uhx8tc55attvtyu358kutcqkudyccelu0was9fqzwh",
+        "regtestAddress": "bcrt1p4qhjn9zdvkux4e44uhx8tc55attvtyu358kutcqkudyccelu0waslcutpz",
+        "scriptHex": "5120a82f29944d65b86ae6b5e5cc75e294ead6c59391a1edc5e016e3498c67fc7bbb"
+      }
+    ],
+    "destination": {
+      "value": 90000,
+      "address": "bc1p0d0rhyynq0awa9m8cqrcr8f5nxqx3aw29w4ru5u9my3h0sfygnzs9khxz8",
+      "regtestAddress": "bcrt1p0d0rhyynq0awa9m8cqrcr8f5nxqx3aw29w4ru5u9my3h0sfygnzsl8t0dj",
+      "scriptHex": "51207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c5"
+    },
+    "change": {
+      "address": "bc1p3qkhfews2uk44qtvauqyr2ttdsw7svhkl9nkm9s9c3x4ax5h60wqwruhk7",
+      "regtestAddress": "bcrt1p3qkhfews2uk44qtvauqyr2ttdsw7svhkl9nkm9s9c3x4ax5h60wq5jq7et",
+      "scriptHex": "5120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc"
+    },
+    "feeRateSatPerVbyte": 1,
+    "chain": "regtest",
+    "blake2bHeight": 150,
+    "fixtureHeight": 151,
+    "inputs": [
+      {
+        "txid": "96ee65edaa1b7c96091c19203c37b62427af782f946a0a47c891986cc7d99ccd",
+        "vout": 0,
+        "value": 60000,
+        "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
+        "confirmations": 2
+      },
+      {
+        "txid": "96ee65edaa1b7c96091c19203c37b62427af782f946a0a47c891986cc7d99ccd",
+        "vout": 1,
+        "value": 40000,
+        "address": "bc1p4qhjn9zdvkux4e44uhx8tc55attvtyu358kutcqkudyccelu0was9fqzwh",
+        "confirmations": 2
+      }
+    ],
+    "expectedTxid": "fbce1fab3599b74c110751ee08cf84e830a85b47d6148cd45e2f6caceec70dc6",
+    "expectedOutputs": [
+      {
+        "vout": 0,
+        "value": 90000,
+        "scriptHex": "51207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c5"
+      },
+      {
+        "vout": 1,
+        "value": 9788,
+        "scriptHex": "5120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc"
+      }
+    ],
+    "feeSats": 212,
+    "virtualSize": 212,
+    "goodHex": "02000000000102cd9cd9c76c9891c8470a6a942f78af2724b6373c20191c09967c1baaed65ee96000000000000000080cd9cd9c76c9891c8470a6a942f78af2724b6373c20191c09967c1baaed65ee9601000000000000008002905f0100000000002251207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c53c26000000000000225120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc0141c90cfaf186e7edfbd6fa425279ed2f110b374f355253049131d5bc44c0aec2bd1dcea0005c89c2fec4ab057fd6277485bf54230edddf61c056b959c3e95139eb2101418f1ebdfd693e625b70c8719456e63b249abb2db86108e22b2cf1f4772fd126020b8b78e247e079d11d52521af7ddd8a4836a9e82b612ce44cfe221709d1407372100000000",
+    "finalizedPsbt": "cHNidP8BALICAAAAAs2c2cdsmJHIRwpqlC94rycktjc8IBkcCZZ8G6rtZe6WAAAAAAAAAACAzZzZx2yYkchHCmqUL3ivJyS2NzwgGRwJlnwbqu1l7pYBAAAAAAAAAIACkF8BAAAAAAAiUSB7XjuQkwP67pdnwAeBnTSZgGj1yiuqPlOF2SN3wSRExTwmAAAAAAAAIlEgiC105dBXLVqBbO8AQalrbB3oMvb5Z22WBcRNXpqX09wAAAAAAAEBK2DqAAAAAAAAIlEgpghp8NvPHcZZyc7Lr4BQE16p6M3EhwU/HcaICUncaEwBCEMBQckM+vGG5+371vpCUnntLxELN081UlMEkTHVvETArsK9Hc6gAFyJwv7EqwV/1id0hb9UIw7d32HAVrlZw+lROeshAAEBK0CcAAAAAAAAIlEgqC8plE1luGrmteXMdeKU6tbFk5Gh7cXgFuNJjGf8e7sBCEMBQY8evf1pPmJbcMhxlFbmOySauy24YQjiKyzx9Hcv0SYCC4t44kfgedEdUlIa993YpINqnoK2Es5Ez+IhcJ0UBzchAAEFIKcwojzotHJIpd37Mu73UmLZHwtVsITdH/DS+eAy4OUzAAEFIDmfGy9Dk/KaGMk3hZxd2KdzUBAxV+uIDwLowIIUJ3zvIQc5nxsvQ5PymhjJN4WcXdinc1AQMVfriA8C6MCCFCd87xkAAAAAAFYAAIAAAACAAAAAgAEAAAAAAAAAAA==",
+    "negativeControls": {
+      "changedOutputHex": "02000000000102cd9cd9c76c9891c8470a6a942f78af2724b6373c20191c09967c1baaed65ee96000000000000000080cd9cd9c76c9891c8470a6a942f78af2724b6373c20191c09967c1baaed65ee96010000000000000080028f5f0100000000002251207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c53c26000000000000225120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc0141c90cfaf186e7edfbd6fa425279ed2f110b374f355253049131d5bc44c0aec2bd1dcea0005c89c2fec4ab057fd6277485bf54230edddf61c056b959c3e95139eb2101418f1ebdfd693e625b70c8719456e63b249abb2db86108e22b2cf1f4772fd126020b8b78e247e079d11d52521af7ddd8a4836a9e82b612ce44cfe221709d1407372100000000",
+      "removedUnifiedBitHex": "02000000000102cd9cd9c76c9891c8470a6a942f78af2724b6373c20191c09967c1baaed65ee96000000000000000080cd9cd9c76c9891c8470a6a942f78af2724b6373c20191c09967c1baaed65ee9601000000000000008002905f0100000000002251207b5e3b909303faee9767c007819d34998068f5ca2baa3e5385d92377c12444c53c26000000000000225120882d74e5d0572d5a816cef0041a96b6c1de832f6f9676d9605c44d5e9a97d3dc0141c90cfaf186e7edfbd6fa425279ed2f110b374f355253049131d5bc44c0aec2bd1dcea0005c89c2fec4ab057fd6277485bf54230edddf61c056b959c3e95139eb0101418f1ebdfd693e625b70c8719456e63b249abb2db86108e22b2cf1f4772fd126020b8b78e247e079d11d52521af7ddd8a4836a9e82b612ce44cfe221709d1407372100000000"
+    }
+  },
+  "node": {
+    "observedAt": "2026-10-04T06:37:16.025692+00:00",
+    "nodeVersion": "/Satoshi:29.4.1/Knots:20260508rc4/",
+    "networkactive": false,
+    "connections": 0,
+    "chain": "regtest",
+    "height": 152,
+    "checks": {
+      "good": {
+        "txid": "fbce1fab3599b74c110751ee08cf84e830a85b47d6148cd45e2f6caceec70dc6",
+        "wtxid": "ac36caf12103e5d3d9140ae46cf7c36be1a6c1c01358b38b3857dbff4b871f11",
+        "usage": 832,
+        "allowed": true,
+        "vsize": 212,
+        "fees": {
+          "base": 0.00000212,
+          "effective-feerate": 0.00001,
+          "effective-includes": [
+            "ac36caf12103e5d3d9140ae46cf7c36be1a6c1c01358b38b3857dbff4b871f11"
+          ]
+        }
+      },
+      "changedOutputHex": {
+        "txid": "ac25667cb1b42d54a084453f276ad17212e35263127a24511848cc700cb60ef4",
+        "wtxid": "a27a37c8a288a0186a8fcb30a50e9a0d3a5832472cb7f8ba9258f25a83c297f1",
+        "usage": 832,
+        "allowed": false,
+        "reject-reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)",
+        "reject-details": "mempool-script-verify-flag-failed (Invalid Schnorr signature), input 0 of ac25667cb1b42d54a084453f276ad17212e35263127a24511848cc700cb60ef4 (wtxid a27a37c8a288a0186a8fcb30a50e9a0d3a5832472cb7f8ba9258f25a83c297f1), spending 96ee65edaa1b7c96091c19203c37b62427af782f946a0a47c891986cc7d99ccd:0"
+      },
+      "removedUnifiedBitHex": {
+        "txid": "fbce1fab3599b74c110751ee08cf84e830a85b47d6148cd45e2f6caceec70dc6",
+        "wtxid": "8fd45e8b2db13230460b31b2444f01a10fe35b7bf8c6d552e45f7fec4498569d",
+        "usage": 832,
+        "allowed": false,
+        "reject-reason": "mempool-script-verify-flag-failed (Invalid Schnorr signature)",
+        "reject-details": "mempool-script-verify-flag-failed (Invalid Schnorr signature), input 0 of fbce1fab3599b74c110751ee08cf84e830a85b47d6148cd45e2f6caceec70dc6 (wtxid 8fd45e8b2db13230460b31b2444f01a10fe35b7bf8c6d552e45f7fec4498569d), spending 96ee65edaa1b7c96091c19203c37b62427af782f946a0a47c891986cc7d99ccd:0"
+      }
+    },
+    "confirmation": {
+      "txid": "fbce1fab3599b74c110751ee08cf84e830a85b47d6148cd45e2f6caceec70dc6",
+      "blockhash": "6bf585c1bac888b3948f351bb95452fa717b61a108ae8fdba437b5297adc1ef6",
+      "confirmations": 1
+    }
+  }
+}

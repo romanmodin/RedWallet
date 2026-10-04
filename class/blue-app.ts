@@ -11,6 +11,7 @@ import * as encryption from '../blue_modules/encryption';
 import presentAlert from '../components/Alert';
 import { randomBytes } from './rng';
 import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
+import { XbtTaprootWallet } from './wallets/xbt-taproot-wallet';
 import { ExtendedTransaction, Transaction, TWallet } from './wallets/types';
 import { WatchOnlyWallet } from './wallets/watch-only-wallet';
 import { hexToUint8Array, uint8ArrayToHex } from '../blue_modules/uint8array-extras';
@@ -377,7 +378,7 @@ export class BlueApp {
       const data: TBucketStorage = JSON.parse(dataRaw);
       if (!data.wallets) return false;
       const wallets = data.wallets;
-      if (wallets.some(key => ![XbtSegwitBech32Wallet.type, WatchOnlyWallet.type].includes(JSON.parse(key).type))) {
+      if (wallets.some(key => ![XbtSegwitBech32Wallet.type, XbtTaprootWallet.type, WatchOnlyWallet.type].includes(JSON.parse(key).type))) {
         this.storageLoadBlocked = true;
         throw new UnsupportedWalletStorageError();
       }
@@ -394,6 +395,8 @@ export class BlueApp {
         let unserializedWallet: TWallet;
         if (tempObj.type === XbtSegwitBech32Wallet.type) {
           unserializedWallet = XbtSegwitBech32Wallet.fromJson(key) as unknown as XbtSegwitBech32Wallet;
+        } else if (tempObj.type === XbtTaprootWallet.type) {
+          unserializedWallet = XbtTaprootWallet.fromJson(key) as unknown as XbtTaprootWallet;
         } else {
           // Existing watch-only records remain read-only; never restore an inherited BTC signer.
           unserializedWallet = WatchOnlyWallet.fromJson(key) as unknown as WatchOnlyWallet;

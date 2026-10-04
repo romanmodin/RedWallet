@@ -9,6 +9,7 @@ import BlueFormLabel from '../../components/BlueFormLabel';
 import { HDLegacyP2PKHWallet } from '../../class/wallets/hd-legacy-p2pkh-wallet';
 import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
+import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
 import { HDTaprootWallet } from '../../class/wallets/hd-taproot-wallet';
 import { LightningCustodianWallet } from '../../class/wallets/lightning-custodian-wallet';
 import presentAlert from '../../components/Alert';
@@ -61,7 +62,8 @@ interface TAction {
 }
 
 const index2walletType: Record<number, { text: string; subtitle: string; walletType: string }> = {
-  0: { subtitle: 'XBT P2WPKH', text: 'RedWallet XBT', walletType: XbtSegwitBech32Wallet.type },
+  0: { subtitle: 'Native SegWit (BIP84)', text: 'RedWallet XBT', walletType: XbtSegwitBech32Wallet.type },
+  1: { subtitle: 'Taproot (BIP86)', text: 'RedWallet XBT', walletType: XbtTaprootWallet.type },
 };
 
 const initialState: State = {
@@ -106,10 +108,10 @@ const WalletsAdd: React.FC = () => {
   const { addWallet, saveToDisk } = useStorage();
   const route = useRoute<RouteProps>();
   const { entropy: entropyHex } = route.params || {};
-  const selectedIndex = 0;
+  const selectedIndex = route.params?.selectedIndex === 1 ? 1 : 0;
   const selectedWalletType = state.selectedWalletType;
   const entropy = entropyHex ? hexToUint8Array(entropyHex) : undefined;
-  const { navigate, goBack } = useExtendedNavigation<NavigationProps>();
+  const { navigate, goBack, setParams } = useExtendedNavigation<NavigationProps>();
   const stylesHook = {
     advancedText: {
       color: colors.feeText,
@@ -163,11 +165,15 @@ const WalletsAdd: React.FC = () => {
     } else if (selectedWalletType === ButtonSelected.ARK) {
       createLightningArkWallet();
     } else if (selectedWalletType === ButtonSelected.ONCHAIN) {
-      let w: HDSegwitBech32Wallet | XbtSegwitBech32Wallet | HDLegacyP2PKHWallet | HDTaprootWallet;
+      let w: HDSegwitBech32Wallet | XbtSegwitBech32Wallet | XbtTaprootWallet | HDLegacyP2PKHWallet | HDTaprootWallet;
 
       for (let c = 0; c < Object.values(index2walletType).length; c++) {
         if (c === selectedIndex) {
           switch (index2walletType[c].walletType) {
+            case XbtTaprootWallet.type:
+              w = new XbtTaprootWallet();
+              w.setLabel(label || loc.wallets.details_title);
+              break;
             case HDTaprootWallet.type:
               w = new HDTaprootWallet();
               w.setLabel(label || loc.wallets.details_title);
@@ -206,6 +212,7 @@ const WalletsAdd: React.FC = () => {
           w.type === HDLegacyP2PKHWallet.type ||
           w.type === HDSegwitBech32Wallet.type ||
           w.type === XbtSegwitBech32Wallet.type ||
+          w.type === XbtTaprootWallet.type ||
           w.type === HDTaprootWallet.type
         ) {
           navigate('PleaseBackup', {
@@ -280,7 +287,7 @@ const WalletsAdd: React.FC = () => {
   };
 
   const navigateToImportWallet = () => {
-    navigate('ImportWallet');
+    navigate('ImportWallet', { xbtFormat: selectedIndex === 1 ? 'taproot' : 'segwit' });
   };
 
   const handleOnBitcoinButtonPressed = () => {
@@ -321,6 +328,12 @@ const WalletsAdd: React.FC = () => {
             size={styles.button}
           />
         </View>
+        <BlueFormLabel testID="XbtWalletFormat">{index2walletType[selectedIndex].subtitle}</BlueFormLabel>
+        <BlueButtonLink
+          testID="ToggleXbtWalletFormat"
+          title={selectedIndex === 1 ? 'Use Native SegWit' : 'Use Taproot'}
+          onPress={() => setParams({ selectedIndex: selectedIndex === 1 ? 0 : 1 })}
+        />
         <View style={styles.advanced}>
           <BlueSpacing20 />
           {!isLoading ? (

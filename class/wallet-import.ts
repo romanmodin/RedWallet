@@ -8,6 +8,7 @@ import { HDLegacyElectrumSeedP2PKHWallet } from './wallets/hd-legacy-electrum-se
 import { HDLegacyP2PKHWallet } from './wallets/hd-legacy-p2pkh-wallet';
 import { HDSegwitBech32Wallet } from './wallets/hd-segwit-bech32-wallet';
 import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
+import { XbtTaprootWallet } from './wallets/xbt-taproot-wallet';
 import { HDSegwitElectrumSeedP2WPKHWallet } from './wallets/hd-segwit-electrum-seed-p2wpkh-wallet';
 import { HDSegwitP2SHWallet } from './wallets/hd-segwit-p2sh-wallet';
 import { HDTaprootWallet } from './wallets/hd-taproot-wallet';
@@ -55,7 +56,7 @@ export type TImport = {
  * @param onProgress {function} Callback to report scanning progress
  * @param onWallet {function} Callback to report wallet found
  * @param onPassword {function} Callback to ask for password if needed
- * @param xbtOnly {boolean} Restrict imports to the supported XBT BIP84 recovery profile
+ * @param xbtOnly {boolean} Restrict imports to supported XBT recovery profiles
  * @returns {{promise: Promise, stop: function}}
  */
 const startImport = (
@@ -67,6 +68,7 @@ const startImport = (
   onWallet: (wallet: TWallet) => void,
   onPassword: (title: string, text: string) => Promise<string>,
   xbtOnly: boolean = false,
+  xbtFormat: 'segwit' | 'taproot' = 'segwit',
 ): TImport => {
   // state
   let promiseResolve: (arg: TStatus) => void;
@@ -144,7 +146,7 @@ const startImport = (
       } catch (error) {
         if (/^(?:[xyz]pub|\{|wpkh\(|\[)/.test(text)) throw error;
       }
-      const xbtWallet = new XbtSegwitBech32Wallet();
+      const xbtWallet = xbtFormat === 'taproot' ? new XbtTaprootWallet() : new XbtSegwitBech32Wallet();
       xbtWallet.setSecret(text);
       if (!xbtWallet.validateMnemonic()) {
         throw new Error('RedWallet currently imports a BIP39 recovery phrase or a BIP84 watch-only public key for XBT.');
@@ -153,7 +155,7 @@ const startImport = (
         password = await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message);
         xbtWallet.setPassphrase(password);
       }
-      yield { progress: 'XBT BIP84 recovery' };
+      yield { progress: xbtFormat === 'taproot' ? 'XBT BIP86 recovery' : 'XBT BIP84 recovery' };
       yield { wallet: xbtWallet };
       return;
     }
