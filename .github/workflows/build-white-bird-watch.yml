@@ -1,0 +1,71 @@
+name: White Bird Watch — Apple signing bridge
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: Upload only after the separate White Bird Apple app record exists
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: white-bird-apple-upload
+  cancel-in-progress: false
+jobs:
+  sign:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      TEAM_ID: ${{ secrets.TEAM_ID }}
+      APPLE_UPLOAD: ${{ inputs.upload_to_testflight && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: romanmodin/TeslaWatchICP
+          ref: 277e75748482b015d23ea67137e32e711be25720
+          ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
+          persist-credentials: false
+      - name: Prepare application icons
+        run: |
+          python3 -m venv /tmp/white-bird-icons
+          /tmp/white-bird-icons/bin/pip install Pillow==11.3.0
+          /tmp/white-bird-icons/bin/python distribution/scripts/make_icons.py
+      - name: Generate distribution project
+        run: |
+          command -v xcodegen || brew install xcodegen
+          cd distribution
+          xcodegen generate
+      - name: Prepare temporary Apple signing credentials
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          umask 077
+          python3 distribution/scripts/prepare_signing.py
+      - name: Archive and verify signed watch app
+        run: |
+          set -euo pipefail
+          xcodebuild -project distribution/WhiteBirdDistribution.xcodeproj -scheme WhiteBird \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/WhiteBird.xcarchive" \
+            -allowProvisioningUpdates -authenticationKeyPath "$APPLE_API_KEY_PATH" \
+            -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" archive
+          python3 distribution/scripts/verify_archive.py "$RUNNER_TEMP/WhiteBird.xcarchive"
+          codesign --verify --deep --strict "$RUNNER_TEMP/WhiteBird.xcarchive/Products/Applications/WhiteBird.app"
+      - name: Export signed archive; upload only when explicitly selected
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/WhiteBird.xcarchive" \
+            -exportPath "$RUNNER_TEMP/WhiteBird-export" -exportOptionsPlist "$APPLE_EXPORT_OPTIONS" \
+            -allowProvisioningUpdates -authenticationKeyPath "$APPLE_API_KEY_PATH" \
+            -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
+      - name: Record signing result
+        run: |
+          printf 'White Bird watch archive signed and verified. Upload requested: %s.\n' "$APPLE_UPLOAD" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove temporary signing credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/WhiteBird-AuthKey.p8" "$RUNNER_TEMP/WhiteBird-ExportOptions.plist"
