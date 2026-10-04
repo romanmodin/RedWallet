@@ -5,7 +5,7 @@ require_relative 'distribute-ios-beta'
 
 class FixtureBetaRelease < RedWalletBetaRelease
   attr_reader :writes, :assigned
-  attr_accessor :wrong_app, :wrong_group, :wrong_build, :expired, :compliance, :review_state, :existing
+  attr_accessor :wrong_app, :wrong_group, :wrong_build, :expired, :compliance, :review_state, :existing, :external_state
   def initialize(notes_path:, receipt_path:)
     super(key_path: nil, notes_path: notes_path, receipt_path: receipt_path, token: Object.new)
     @writes = []; @assigned = []; @compliance = false; @review_state = 'WAITING_FOR_REVIEW'
@@ -44,7 +44,8 @@ class FixtureBetaRelease < RedWalletBetaRelease
     end
     if path == '/v1/builds/fixture-build'
       ids = existing ? GROUPS.map { |g| g[:id] } : assigned
-      external = review_state == 'APPROVED' ? 'IN_BETA_TESTING' : 'WAITING_FOR_BETA_REVIEW'
+      external = external_state || (review_state == 'APPROVED' ? 'IN_BETA_TESTING' :
+                                   review_state.nil? ? 'READY_FOR_BETA_SUBMISSION' : 'WAITING_FOR_BETA_REVIEW')
       return { 'data' => { 'attributes' => { 'processingState' => 'VALID' } }, 'included' =>
         [{ 'type' => 'buildBetaDetails', 'attributes' => { 'internalBuildState' => 'IN_BETA_TESTING',
               'externalBuildState' => external } },
@@ -92,6 +93,9 @@ Dir.mktmpdir('redwallet-beta-fixtures') do |dir|
     check(release.writes.all? { |w| w[0] == 'PATCH' }, 'Idempotent run reassigned groups or resubmitted review')
     check(report.call['status'] == 'AVAILABLE_TO_TESTERS', 'Available tester state was not recognized')
     check(report.call['groups'].all? { |g| g['assigned'] }, 'Receipt lost group confirmation')
-    puts 'PASS: 8 offline identity, compliance, assignment, review, and availability checks'
+    release = factory.call; release.review_state = nil; release.external_state = 'READY_FOR_BETA_TESTING'; release.run
+    check(release.writes.none? { |w| w[1] == '/v1/betaAppReviewSubmissions' }, 'Unneeded beta review was submitted')
+    check(report.call['status'] == 'TESTER_STATE_PROPAGATION_PENDING', 'Ready state falsely claims active availability')
+    puts 'PASS: 9 offline identity, compliance, assignment, review, and availability checks'
   end
 end

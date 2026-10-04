@@ -145,7 +145,9 @@ class RedWalletBetaRelease
     add_group(build_id, GROUPS.first.fetch(:id))
     review = api('GET', '/v1/betaAppReviewSubmissions', { 'filter[build]' => build_id }).fetch('data').first
     raise BetaReleaseError, 'Beta review rejected; owner follow-up required' if review&.dig('attributes', 'betaReviewState') == 'REJECTED'
-    unless review
+    beta = build_info(build_id).fetch('included', []).find { |item| item['type'] == 'buildBetaDetails' }
+    raise BetaReleaseError, 'Apple beta testing state unavailable' unless beta
+    if !review && beta.dig('attributes', 'externalBuildState') == 'READY_FOR_BETA_SUBMISSION'
       api('POST', '/v1/betaAppReviewSubmissions',
           payload: { data: { type: 'betaAppReviewSubmissions', relationships: { build: { data: { type: 'builds', id: build_id } } } } })
       @report[:betaReviewSubmitted] = true
