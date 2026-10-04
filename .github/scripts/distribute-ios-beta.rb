@@ -56,7 +56,7 @@ class RedWalletBetaRelease
       rescue StandardError
         []
       end
-      raise BetaReleaseError, "Apple API request failed: HTTP #{response.code}, codes #{codes.join(',')}"
+      raise BetaReleaseError, "Apple API #{method} #{path} failed: HTTP #{response.code}, codes #{codes.join(',')}"
     end
     response.body.to_s.empty? ? {} : JSON.parse(response.body)
   end
@@ -66,7 +66,7 @@ class RedWalletBetaRelease
   end
 
   def add_group(build_id, group_id)
-    ids = api('GET', "/v1/builds/#{build_id}/relationships/betaGroups").fetch('data').map { |group| group.fetch('id') }
+    ids = build_info(build_id).fetch('included', []).select { |item| item['type'] == 'betaGroups' }.map { |group| group.fetch('id') }
     return if ids.include?(group_id)
     api('POST', "/v1/builds/#{build_id}/relationships/betaGroups",
         payload: { data: [{ type: 'betaGroups', id: group_id }] })
@@ -145,7 +145,9 @@ class RedWalletBetaRelease
     add_group(build_id, GROUPS.first.fetch(:id))
     review = api('GET', '/v1/betaAppReviewSubmissions', { 'filter[build]' => build_id }).fetch('data').first
     raise BetaReleaseError, 'Beta review rejected; owner follow-up required' if review&.dig('attributes', 'betaReviewState') == 'REJECTED'
-    unless review
+    beta = build_info(build_id).fetch('included', []).find { |item| item['type'] == 'buildBetaDetails' }
+    raise BetaReleaseError, 'Apple beta testing state unavailable' unless beta
+    if !review && beta.dig('attributes', 'externalBuildState') == 'READY_FOR_BETA_SUBMISSION'
       api('POST', '/v1/betaAppReviewSubmissions',
           payload: { data: { type: 'betaAppReviewSubmissions', relationships: { build: { data: { type: 'builds', id: build_id } } } } })
       @report[:betaReviewSubmitted] = true
@@ -178,7 +180,12 @@ class RedWalletBetaRelease
     save_report(status, info)
   rescue BetaReleaseError => error
     @report[:error] = error.message
-    save_report('BLOCKED')
+    info = begin
+      @report[:appleBuildId] ? build_info(@report[:appleBuildId]) : nil
+    rescue StandardError
+      nil
+    end
+    save_report('BLOCKED', info)
     raise
   end
 end
