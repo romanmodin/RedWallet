@@ -1,0 +1,3 @@
+Adds XBT Taproot wallets (BIP86). Choose Taproot when creating a wallet or recovering its phrase. Includes Taproot receive/change addresses and Unified Schnorr key-path spending, with verified inputs and corrected fee sizing. Existing Native SegWit wallets remain available.
+
+Please test creation, backup, recovery with the original passphrase, receive QR, restart persistence and server/history refresh with an empty disposable wallet. Taproot cold-wallet signing, script-path spends, annexes, multisig and fee bumping are not enabled in this beta. Physical phone spending still needs validation.

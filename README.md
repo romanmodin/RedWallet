@@ -8,7 +8,7 @@ The iPhone beta is available through TestFlight to invited testers. The signed A
 
 ## Scope and verification
 
-The current XBT wallet supports one Native SegWit/P2WPKH BIP84 account, Unified Sighash signing, wallet recovery, Fulcrum balance and transaction history, QR receive/send, configurable servers, and XBT pricing. BIP84 watch-only import and Unified-capable external PSBT signing are supported in source; physical cold-device interoperability still needs validation. The next beta source adds separate BIP86 Taproot creation, recovery and key-path spending; see [TAPROOT.md](TAPROOT.md) for reference checks and release status. Multisig, silent payments and Lightning remain outside this release.
+The current XBT wallet supports one Native SegWit/P2WPKH BIP84 account, Unified Sighash signing, wallet recovery, Fulcrum balance and transaction history, QR receive/send, configurable servers, and XBT pricing. BIP84 watch-only import and Unified-capable external PSBT signing are supported in source; physical cold-device interoperability still needs validation. The verified iPhone Taproot beta 1791098754 adds separate BIP86 creation, recovery and key-path spending; see [TAPROOT.md](TAPROOT.md) for reference checks and release status. Multisig, silent payments and Lightning remain outside this release.
 
 History is fetched for discovered receive and change addresses; it is not limited to transactions created in RedWallet. The tester who reported a restored balance with missing history resolved it by fixing their server, as reported by the maintainer on October 2, 2026. That case was server-side; this is not a claim that every recovery scenario has been independently validated.
 
@@ -20,7 +20,7 @@ RedWallet installs separately from BlueWallet and does not automatically migrate
 
 ## Security follow-up source
 
-The published security beta includes authenticated Electrum TLS, verified raw inputs and coinbase refresh, stronger password/cache encryption, authenticated secret exports with clipboard expiry, and BIP84 XBT watch-only import with Unified external-signature verification. Android beta 1791085960 and iPhone TestFlight build 1791019257 contain these changes.
+The published security beta includes authenticated Electrum TLS, verified raw inputs and coinbase refresh, stronger password/cache encryption, authenticated secret exports with clipboard expiry, and BIP84 XBT watch-only import with Unified external-signature verification. Android beta 1791085960 and iPhone TestFlight builds 1791019257 and 1791098754 contain these changes. The Taproot build requires separate tester-group assignment and beta-review confirmation before external availability is claimed.
 
 A watch-only phone stores public keys. Use an XBT Unified-capable cold wallet that supports the Native SegWit PSBT QR/file workflow; physical device compatibility still needs validation. Do not import a cold-wallet seed to use this workflow. Fulcrum confirmations still rely on the configured server, and the original missing-history report was resolved on the tester’s server. Keep an offline recovery backup and do not downgrade after the RWV2 password-storage migration. See [SECURITY_FOLLOWUP.md](SECURITY_FOLLOWUP.md).
 
