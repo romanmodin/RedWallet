@@ -13,65 +13,174 @@ concurrency:
   group: white-bird-apple-upload
   cancel-in-progress: false
 jobs:
-  sign:
+  certificate:
     if: ${{ github.ref == 'refs/heads/main' }}
+    environment: ios-signing
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+        with:
+          ruby-version: 3.4.10
+      - name: Install verified signing-storage tooling
+        run: |
+          gem fetch fastlane --version 2.237.0
+          printf '%s\n' 'bb1e867bc070fb328741b5e6e7606d5ba596941a9ecca0478f60ef22d1009db9  fastlane-2.237.0.gem' | shasum -a 256 -c -
+          gem install ./fastlane-2.237.0.gem --no-document
+      - name: Read existing distribution identity and encrypt transfer
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          GIT_URL: ${{ secrets.GIT_URL }}
+          GIT_PRIVATE_KEY_CONTENT: ${{ secrets.GIT_PRIVATE_KEY_CONTENT }}
+          IPA_ARTIFACT_KEY: ${{ secrets.IPA_ARTIFACT_KEY }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          GH_TOKEN: ${{ github.token }}
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_HIDE_CHANGELOG: '1'
+          FASTLANE_OPT_OUT_USAGE: '1'
+        run: |
+          set -euo pipefail
+          umask 077
+          signing_key="$RUNNER_TEMP/white-bird-storage-key"
+          trap 'rm -f "$signing_key" "$RUNNER_TEMP/white-bird-identity.json"' EXIT
+          printf '%s\n' "$GIT_PRIVATE_KEY_CONTENT" > "$signing_key"
+          unset GIT_PRIVATE_KEY_CONTENT
+          export MATCH_GIT_PRIVATE_KEY="$signing_key"
+          mkdir -p "$HOME/.ssh"
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' > "$HOME/.ssh/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i \"$signing_key\" -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes"
+          ruby <<'RUBY'
+          require 'fastlane'; require 'match'; require 'json'; require 'base64'; require 'openssl'
+          raise 'Unexpected signing storage' unless ENV.fetch('GIT_URL') == 'git@github.com:romanmodin/RedWallet-signing.git'
+          params = FastlaneCore::Configuration.create(Match::Options.available_options, {storage_mode:'git',git_url:ENV.fetch('GIT_URL'),git_branch:'main',git_private_key:ENV.fetch('MATCH_GIT_PRIVATE_KEY'),readonly:true,type:'appstore',platform:'ios'})
+          storage = nil
+          begin
+            storage = Match::Storage.from_params(params); storage.download
+            encryption = Match::Encryption.for_storage_mode('git', {git_url:params[:git_url],working_directory:storage.working_directory,force_legacy_encryption:false})
+            encryption.decrypt_files
+            pairs = Dir[File.join(storage.working_directory,'certs','distribution','*.cer')].filter_map do |file|
+              p12file=file.sub(/\.cer\z/,'.p12'); next unless File.file?(p12file)
+              cert=OpenSSL::X509::Certificate.new(File.binread(file))
+              subject=cert.subject.to_a.to_h { |key,value,_| [key,value] }
+              next unless subject['OU']==ENV.fetch('TEAM_ID') && subject['CN'].start_with?('Apple Distribution:') && cert.not_after>Time.now
+              p12=OpenSSL::PKCS12.new(File.binread(p12file),'')
+              raise 'Certificate/private-key mismatch' unless p12.certificate.to_der==cert.to_der && cert.check_private_key(p12.key)
+              [cert.to_der,File.binread(p12file)]
+            end
+            raise 'Expected exactly one usable existing distribution identity' unless pairs.length==1
+            File.write(File.join(ENV.fetch('RUNNER_TEMP'),'white-bird-identity.json'),JSON.generate({cer:Base64.strict_encode64(pairs[0][0]),p12:Base64.strict_encode64(pairs[0][1])}),mode:'w',perm:0600)
+          ensure
+            storage.clear_changes if storage
+          end
+          RUBY
+          node <<'JS'
+          const fs=require('node:fs'),crypto=require('node:crypto');
+          const key=Buffer.from(process.env.IPA_ARTIFACT_KEY,'base64');
+          if(key.length!==32)throw Error('Invalid transfer key');
+          const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',key,iv);
+          cipher.setAAD(Buffer.from(`WhiteBirdIdentity:${process.env.GITHUB_SHA}:${process.env.GITHUB_RUN_ID}`));
+          const encrypted=Buffer.concat([cipher.update(fs.readFileSync(process.env.RUNNER_TEMP+'/white-bird-identity.json')),cipher.final()]);
+          fs.writeFileSync('white-bird-identity.enc',Buffer.concat([Buffer.from('WBID01'),iv,cipher.getAuthTag(),encrypted]),{mode:0o600});
+          JS
+          echo 'Existing distribution identity verified; encrypted transfer only.'
+      - name: Transfer encrypted identity to this run
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: WhiteBird_Encrypted_Identity
+          path: white-bird-identity.enc
+          retention-days: 1
+  sign:
+    needs: certificate
     environment: ios-upload
     runs-on: macos-26
     timeout-minutes: 30
     env:
       TEAM_ID: ${{ secrets.TEAM_ID }}
-      APPLE_UPLOAD: ${{ inputs.upload_to_testflight && '1' || '0' }}
+      APPLE_UPLOAD: '0'
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: romanmodin/TeslaWatchICP
-          ref: 2463ddedd2999d99e54bde6ef24995b4740dbd17
+          ref: ee3080a51f295387bcc65561831f526ee1688098
           ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
           persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: WhiteBird_Encrypted_Identity
+          path: ${{ runner.temp }}/identity-transfer
+      - name: Authenticate encrypted identity
+        env:
+          IPA_ARTIFACT_KEY: ${{ secrets.IPA_ARTIFACT_KEY }}
+        run: |
+          node <<'JS'
+          const fs=require('node:fs'),crypto=require('node:crypto');
+          const data=fs.readFileSync(process.env.RUNNER_TEMP+'/identity-transfer/white-bird-identity.enc'),key=Buffer.from(process.env.IPA_ARTIFACT_KEY,'base64');
+          if(key.length!==32||data.length<34||data.subarray(0,6).toString()!=='WBID01')throw Error('Invalid identity transfer');
+          const decipher=crypto.createDecipheriv('aes-256-gcm',key,data.subarray(6,18));
+          decipher.setAAD(Buffer.from(`WhiteBirdIdentity:${process.env.GITHUB_SHA}:${process.env.GITHUB_RUN_ID}`));
+          decipher.setAuthTag(data.subarray(18,34));
+          const identity=JSON.parse(Buffer.concat([decipher.update(data.subarray(34)),decipher.final()]));
+          const dir=process.env.RUNNER_TEMP+'/WhiteBird-signing';fs.mkdirSync(dir,{mode:0o700});
+          fs.writeFileSync(dir+'/distribution.cer',Buffer.from(identity.cer,'base64'),{mode:0o600});
+          fs.writeFileSync(dir+'/distribution.p12',Buffer.from(identity.p12,'base64'),{mode:0o600});
+          JS
       - name: Prepare application icons
         run: |
           python3 -m venv /tmp/white-bird-icons
           /tmp/white-bird-icons/bin/pip install Pillow==11.3.0
           /tmp/white-bird-icons/bin/python distribution/scripts/make_icons.py
-      - name: Generate distribution project
-        run: |
-          command -v xcodegen || brew install xcodegen
-          cd distribution
-          xcodegen generate
-      - name: Prepare temporary Apple signing credentials
+      - name: Prepare temporary Apple credentials
         env:
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: python3 distribution/scripts/prepare_signing.py
+      - name: Create dedicated White Bird store profiles
         run: |
+          python3 distribution/scripts/manual_profiles.py
+          command -v xcodegen || brew install xcodegen
+          cd distribution
+          xcodegen generate --spec manual-signing.json
+      - name: Import existing certificate into temporary keychain
+        run: |
+          set -euo pipefail
           umask 077
-          python3 distribution/scripts/prepare_signing.py
+          keychain_pass=$(openssl rand -hex 32)
+          echo "::add-mask::$keychain_pass"
+          keychain_path="$RUNNER_TEMP/WhiteBird-signing.keychain-db"
+          security create-keychain -p "$keychain_pass" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_pass" "$keychain_path"
+          security import "$RUNNER_TEMP/WhiteBird-signing/distribution.p12" -k "$keychain_path" -P '' -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_pass" "$keychain_path" > /dev/null
+          security list-keychains -d user -s "$keychain_path" "$HOME/Library/Keychains/login.keychain-db"
+          security find-identity -v -p codesigning "$keychain_path"
       - name: Archive and verify signed watch app
         run: |
           set -euo pipefail
-          archive_watch() {
-            xcodebuild -project distribution/WhiteBirdDistribution.xcodeproj -scheme WhiteBird \
+          xcodebuild -project distribution/WhiteBirdDistribution.xcodeproj -scheme WhiteBird \
             -configuration Release -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/WhiteBird.xcarchive" \
-            -allowProvisioningUpdates -authenticationKeyPath "$APPLE_API_KEY_PATH" \
-            -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID" \
-            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" archive
-          }
-          if ! archive_watch > "$RUNNER_TEMP/WhiteBird-archive.log" 2>&1; then
-            python3 distribution/scripts/recover_profile.py "$RUNNER_TEMP/WhiteBird-archive.log"
-            archive_watch > "$RUNNER_TEMP/WhiteBird-archive-retry.log" 2>&1 || {
-              sed -n '/error:/p' "$RUNNER_TEMP/WhiteBird-archive-retry.log"
-              exit 1
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" archive > "$RUNNER_TEMP/archive.log" 2>&1 || {
+              sed -n '/error:/p' "$RUNNER_TEMP/archive.log"; exit 1;
             }
-          fi
           python3 distribution/scripts/verify_archive.py "$RUNNER_TEMP/WhiteBird.xcarchive"
           codesign --verify --deep --strict "$RUNNER_TEMP/WhiteBird.xcarchive/Products/Applications/WhiteBird.app"
-      - name: Export signed archive; upload only when explicitly selected
+      - name: Export and verify installable package
         run: |
           set -euo pipefail
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/WhiteBird.xcarchive" \
-            -exportPath "$RUNNER_TEMP/WhiteBird-export" -exportOptionsPlist "$APPLE_EXPORT_OPTIONS" \
-            -allowProvisioningUpdates -authenticationKeyPath "$APPLE_API_KEY_PATH" \
-            -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
-      - name: Remove temporary signing credentials
+            -exportPath "$RUNNER_TEMP/WhiteBird-export" -exportOptionsPlist "$APPLE_EXPORT_OPTIONS"
+          python3 distribution/scripts/verify_ipa.py "$RUNNER_TEMP/WhiteBird-export"
+      - name: Upload to separate White Bird TestFlight record
+        if: ${{ inputs.upload_to_testflight }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          cp "$APPLE_API_KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+          xcrun altool --upload-app --type ios --file "$RUNNER_TEMP/WhiteBird-export/WhiteBird.ipa" \
+            --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER_ID"
+      - name: Clean up temporary credentials
         if: always()
-        run: rm -f "$RUNNER_TEMP/WhiteBird-AuthKey.p8" "$RUNNER_TEMP/WhiteBird-ExportOptions.plist"
+        run: |
+          security delete-keychain "$RUNNER_TEMP/WhiteBird-signing.keychain-db" || true
+          rm -rf "$RUNNER_TEMP/WhiteBird-signing" "$RUNNER_TEMP/identity-transfer" "$HOME/.appstoreconnect/private_keys"
+          rm -f "$RUNNER_TEMP/WhiteBird-AuthKey.p8" "$RUNNER_TEMP/WhiteBird-ExportOptions.plist"
