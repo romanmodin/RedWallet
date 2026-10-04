@@ -1,3 +1,7 @@
+RedWallet transaction-history decoder hotfix
+
+Fixes "unable to decode address from output script" during refresh. Raw history outputs without addresses retain their script, value and index; P2WSH destinations are decoded correctly; coinbase history no longer queries a nonexistent parent. Existing batch-limit recovery is retained. Update and refresh the existing wallet; no re-import is needed.
+
 RedWallet refresh hotfix
 
 Fixes "Batch limit exceeded" during wallet refresh and watch-only history loading. Servers rejecting a batch are queried one item at a time on the same authenticated connection. Other errors still propagate. Update and refresh your existing wallet; no re-import is required for this fix.
