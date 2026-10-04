@@ -50,7 +50,7 @@ jobs:
           gh api meta --jq '.ssh_keys[] | "github.com " + .' > "$HOME/.ssh/known_hosts"
           export GIT_SSH_COMMAND="ssh -i \"$signing_key\" -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes"
           ruby <<'RUBY'
-          require 'fastlane'; require 'match'; require 'json'; require 'base64'; require 'openssl'
+          require 'fastlane'; require 'match'; require 'json'; require 'base64'; require 'openssl'; require 'open3'
           raise 'Unexpected signing storage' unless ENV.fetch('GIT_URL') == 'git@github.com:romanmodin/RedWallet-signing.git'
           params = FastlaneCore::Configuration.create(Match::Options.available_options, {storage_mode:'git',git_url:ENV.fetch('GIT_URL'),git_branch:'main',git_private_key:ENV.fetch('MATCH_GIT_PRIVATE_KEY'),readonly:true,type:'appstore',platform:'ios'})
           storage = nil
@@ -63,9 +63,13 @@ jobs:
               cert=OpenSSL::X509::Certificate.new(File.binread(file))
               subject=cert.subject.to_a.to_h { |key,value,_| [key,value] }
               next unless subject['OU']==ENV.fetch('TEAM_ID') && subject['CN'].start_with?('Apple Distribution:') && cert.not_after>Time.now
-              p12=OpenSSL::PKCS12.new(File.binread(p12file),'')
-              raise 'Certificate/private-key mismatch' unless p12.certificate.to_der==cert.to_der && cert.check_private_key(p12.key)
-              [cert.to_der,File.binread(p12file)]
+              openssl='/opt/homebrew/opt/openssl@3/bin/openssl'
+              pem,_,status=Open3.capture3(openssl,'pkcs12','-legacy','-in',p12file,'-passin','pass:','-nodes')
+              raise 'Cannot read existing distribution key' unless status.success?
+              key=OpenSSL::PKey.read(pem)
+              raise 'Certificate/private-key mismatch' unless cert.check_private_key(key)
+              normalized=OpenSSL::PKCS12.create('','White Bird distribution',key,cert).to_der
+              [cert.to_der,normalized]
             end
             raise 'Expected exactly one usable existing distribution identity' unless pairs.length==1
             File.write(File.join(ENV.fetch('RUNNER_TEMP'),'white-bird-identity.json'),JSON.generate({cer:Base64.strict_encode64(pairs[0][0]),p12:Base64.strict_encode64(pairs[0][1])}),mode:'w',perm:0600)
