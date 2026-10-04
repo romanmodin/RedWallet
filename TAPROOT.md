@@ -18,4 +18,4 @@ References: [Knots Unified Sighash](https://github.com/bitcoinknots/bitcoin/blob
 
 ## Release status
 
-Taproot is implemented in this branch. Full unit/lint and fresh iOS/Android native checks are required before a tester package is released. Physical iPhone recovery/restart and a funded phone/Fulcrum spend remain to be checked. Existing TestFlight build 1791019257 does not contain this feature.
+Taproot source 755e6971 passed full unit/lint and fresh iOS/Android native checks, including creation/restart and BIP86 recovery/address persistence. Signed iPhone build 8.0.1 (1791098754) was verified, uploaded and finished Apple processing on October 4, 2026. Assignment to the existing tester groups and external beta review are verified separately by the protected manual beta workflow. Physical iPhone recovery/restart and a funded phone/Fulcrum spend remain to be checked. Earlier iPhone build 1791019257 and Android beta 1791085960 do not contain Taproot.
