@@ -12,6 +12,8 @@ class FixtureBetaRelease < RedWalletBetaRelease
   end
   def sleep(_seconds); end
   def api(method, path, query = {}, payload: nil)
+    # Apple OpenAPI exposes only POST/DELETE on the build-to-group relationship.
+    raise 'Unsupported Apple group relationship GET' if method == 'GET' && path.end_with?('/relationships/betaGroups')
     @writes << [method, path, payload] if method != 'GET'
     if path == "/v1/apps/#{APP_ID}"
       return { 'data' => { 'attributes' => { 'bundleId' => wrong_app ? 'wrong.app' : BUNDLE_ID } } }
@@ -32,10 +34,6 @@ class FixtureBetaRelease < RedWalletBetaRelease
     end
     return {} if path == '/v1/betaBuildLocalizations/fixture-locale' && method == 'PATCH'
     if path.end_with?('/relationships/betaGroups')
-      if method == 'GET'
-        ids = existing ? GROUPS.map { |g| g[:id] } : assigned
-        return { 'data' => ids.map { |id| { 'id' => id } } }
-      end
       assigned.concat(payload.fetch(:data).map { |g| g.fetch(:id) })
       return {}
     end

@@ -56,7 +56,7 @@ class RedWalletBetaRelease
       rescue StandardError
         []
       end
-      raise BetaReleaseError, "Apple API request failed: HTTP #{response.code}, codes #{codes.join(',')}"
+      raise BetaReleaseError, "Apple API #{method} #{path} failed: HTTP #{response.code}, codes #{codes.join(',')}"
     end
     response.body.to_s.empty? ? {} : JSON.parse(response.body)
   end
@@ -66,7 +66,7 @@ class RedWalletBetaRelease
   end
 
   def add_group(build_id, group_id)
-    ids = api('GET', "/v1/builds/#{build_id}/relationships/betaGroups").fetch('data').map { |group| group.fetch('id') }
+    ids = build_info(build_id).fetch('included', []).select { |item| item['type'] == 'betaGroups' }.map { |group| group.fetch('id') }
     return if ids.include?(group_id)
     api('POST', "/v1/builds/#{build_id}/relationships/betaGroups",
         payload: { data: [{ type: 'betaGroups', id: group_id }] })
@@ -178,7 +178,12 @@ class RedWalletBetaRelease
     save_report(status, info)
   rescue BetaReleaseError => error
     @report[:error] = error.message
-    save_report('BLOCKED')
+    info = begin
+      @report[:appleBuildId] ? build_info(@report[:appleBuildId]) : nil
+    rescue StandardError
+      nil
+    end
+    save_report('BLOCKED', info)
     raise
   end
 end
