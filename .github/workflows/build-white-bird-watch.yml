@@ -109,7 +109,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: romanmodin/TeslaWatchICP
-          ref: e5ff263d351b34f3e5b4bae225ab2b21b3883737
+          ref: c80e32fd6df5b6a094158f887db69e4ff7812d0b
           ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
           persist-credentials: false
       - name: Install Apple-signed Transporter for watch-only uploads
@@ -220,6 +220,9 @@ jobs:
           /usr/local/itms/bin/iTMSTransporter -m upload -assetFile "$RUNNER_TEMP/WhiteBird-export/WhiteBird.ipa" \
             -assetDescription "$RUNNER_TEMP/WhiteBird-export/AppStoreInfo.plist" -v informational \
             -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER_ID"
+      - name: Assign processed build to existing private internal group
+        if: ${{ inputs.upload_to_testflight }}
+        run: python3 distribution/scripts/assign_internal_build.py
       - name: Clean up temporary credentials
         if: always()
         run: |
