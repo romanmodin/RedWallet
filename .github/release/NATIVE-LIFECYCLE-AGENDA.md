@@ -1,6 +1,6 @@
 # Native live lifecycle agenda
 
-Updated: 2026-10-05 15:12 UTC. Owner requested autonomous work, checked agenda and periodic reports.
+Updated: 2026-10-05 17:45 UTC. Owner requested autonomous work, checked agenda and periodic reports.
 
 Release qualification source: `61b7c3f521809b3b12cb88d5e49d1ae00d9e2cc6` (PR40). Leave its worktree and gates unchanged. This work is isolated on `test/native-live-lifecycle-20261005`.
 
@@ -42,4 +42,6 @@ The initial software run shared an older dependency installation lacking this so
 
 ## Current task and next step
 
-Commit/push the isolated lifecycle source and run dedicated hosted workflows. Re-run live software acceptance after committing so receipts identify the actual lifecycle commit. Native UI specifications now compile; import confirmation handling, platform-specific text extraction, cancellation outcome assertions and bounded teardown are included. Hosted native execution is still pending, with no passing native receipt or publication receipt. The independent verification document is design only; the physical-device checklist is unexecuted. PR40 qualification remains separate and unchanged.
+Source `7c09b89852afaa1f6130cf1db9cc162d7f627310` was committed/pushed. Hosted Android run 37330512420 built successfully and passed its software job, but its two native cases failed: SegWit expected obsolete incomplete-recovery wording; Taproot failed during funding because the Node driver had no signing ECC initialized. iOS run 37330512560 built successfully, but both cases failed; teardown attempted to re-enable synchronization against a terminated app, masking the original failure and preventing backend cleanup. The iOS job then hit its 40-minute limit. No complete native receipt exists.
+
+Follow-up driver-only corrections: use the current English recovery text; encode/decode public Taproot witness programs without relying on signing ECC; start the app with explicit synchronization settings; skip prelaunch blacklist setup when --reuse has not connected an app; log the original failure before bounded screenshot/termination; stop the backend before interacting with a dead app. Four regression tests pass, including invalid checksum and invalid witness length rejection. Full corrected unit suite: 85 suites, 794 tests passed, one inherited skip (123.043 seconds); full lint/typecheck passed with the existing bitwise-test warning only. Working-tree real backend regression passed all three tests (54.72 seconds). Logs: /tmp/redwallet-lifecycle-driver-{full-unit,full-lint,typecheck,lint,unit,live}.log. Commit/push this correction and rerun fresh exact-source Android/iOS gates; also rerun committed-source software acceptance and retain receipts. These corrections do not establish that the original iOS UI failure is fixed; the fresh run must reveal/verify it. No native assertion has been removed. PR40 source/workflows/publication are untouched.

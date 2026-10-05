@@ -26,6 +26,7 @@ import {
   waitForWalletsList,
 } from './helperz';
 import vectors from '../fixtures/native-lifecycle-vectors.json';
+import english from '../../loc/en.json';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
 const native = process.env.REDWALLET_NATIVE_LIVE === '1' ? describe : describe.skip;
@@ -48,6 +49,22 @@ const field = (id: string) =>
         ),
       )
     : element(by.id(id));
+
+async function boundedDiagnostic(action: () => Promise<unknown>): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      action(),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Native diagnostic exceeded 20 seconds')), 20_000);
+      }),
+    ]);
+  } catch (error) {
+    console.warn('[native-lifecycle] diagnostic/termination failed:', error);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 async function fieldVisible(id: string): Promise<void> {
   if (device.getPlatform() === 'ios') {
@@ -85,12 +102,14 @@ async function configureNative(backend: KnotsFulcrumHarness): Promise<void> {
   await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
   // An expired certificate signed by the configured CA must be rejected before
   // any Electrum requests. Then test the checkpoint separately on valid TLS.
+  console.info('[native-lifecycle] testing expired TLS rejection');
   const beforeInvalidTls = backend.receipt.checkpointRequests;
   backend.setCertificate('native-expired.pem');
   await element(by.id('Save')).tap();
   await waitForText(connectionFailed, 60_000);
   assert.equal(await dismissAlertByText('OK', 10_000, false), true);
   assert.equal(backend.receipt.checkpointRequests, beforeInvalidTls);
+  console.info('[native-lifecycle] testing wrong checkpoint rejection');
   backend.setCertificate('native.pem');
   backend.fault = 'wrong-checkpoint';
   await element(by.id('Save')).tap();
@@ -211,16 +230,18 @@ native('continuous native live wallet lifecycle', () => {
         await device.launchApp({
           delete: true,
           permissions: { notifications: 'NO' },
+          launchArgs: { detoxEnableSynchronization: 0 },
         });
         if (isIOS) await device.disableSynchronization();
         await configureNative(backend);
 
+        console.info('[native-lifecycle] testing cancelled recovery');
         // A cancelled stalled scan must not silently become an empty successful recovery.
         backend.fault = 'history-timeout';
         await beginRecovery();
         await waitForId('RecoveryStopButton');
         await element(by.id('RecoveryStopButton')).tap();
-        await waitForText('Recovery is incomplete. Some accounts or addresses may not have been checked.', 60_000);
+        await waitForText(english.wallets.recovery_incomplete, 60_000);
         // RN Pressable disables its JS handler; native View.enabled can still
         // be true on Android. Exercise the button and assert the actual outcome.
         await waitForId('RecoveryImportSelected');
@@ -328,7 +349,10 @@ native('continuous native live wallet lifecycle', () => {
         // No new history can arrive during this restart/cache assertion.
         backend.fault = 'history-timeout';
         backend.disconnectClients();
-        await device.launchApp({ newInstance: true });
+        await device.launchApp({
+          newInstance: true,
+          launchArgs: { detoxEnableSynchronization: 0 },
+        });
         if (isIOS) await device.disableSynchronization();
         await unlock('wrong-fixture-password');
         await waitForText('Incorrect password. Please, try again.');
@@ -388,12 +412,16 @@ native('continuous native live wallet lifecycle', () => {
           ) + '\n',
         );
       } catch (error) {
-        await device.takeScreenshot('native-live-lifecycle-failure').catch(() => {});
+        // Record the original failure before diagnostics/teardown can fail.
+        console.error('[native-lifecycle] original failure:', error);
+        await boundedDiagnostic(() => device.takeScreenshot('native-live-lifecycle-failure'));
         throw error;
       } finally {
-        await device.terminateApp().catch(() => {});
-        if (isIOS) await device.enableSynchronization();
+        // Cleanup the real backend even when Detox has lost its app connection.
+        // Re-enabling synchronization after termination targets a dead app and
+        // used to mask the original error and leave backend children running.
         await backend.stop();
+        await boundedDiagnostic(() => device.terminateApp());
       }
     });
   }

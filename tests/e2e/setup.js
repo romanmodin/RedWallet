@@ -41,6 +41,10 @@ beforeAll(async () => {
     return result;
   };
 
+  // This isolated harness explicitly launches with synchronization disabled;
+  // no app is connected yet when Detox is invoked with --reuse.
+  if (process.env.REDWALLET_NATIVE_LIVE === '1') return;
+
   // Detox auto-launches the app before the first beforeAll; cover that launch too.
   try {
     await device.setURLBlacklist(URL_BLACKLIST);

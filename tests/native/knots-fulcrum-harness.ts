@@ -13,6 +13,24 @@ import net from 'net';
 import tls from 'tls';
 import * as bitcoin from 'bitcoinjs-lib';
 
+// Fixture address encoding needs no signing ECC. bitcoinjs-lib's P2TR payment
+// wrapper does, so decode/encode the witness program directly in this driver.
+export function fixtureOutputScript(address: string): Uint8Array {
+  if (/^(bc1p|bcrt1p|tb1p)/i.test(address)) {
+    const decoded = bitcoin.address.fromBech32(address);
+    assert.equal(decoded.version, 1);
+    assert.equal(decoded.data.length, 32);
+    return bitcoin.script.compile([bitcoin.opcodes.OP_1, decoded.data]);
+  }
+  return bitcoin.address.toOutputScript(address);
+}
+
+export function fixtureAddress(script: Uint8Array, prefix = 'bc'): string {
+  if (script.length === 34 && script[0] === bitcoin.opcodes.OP_1 && script[1] === 32)
+    return bitcoin.address.toBech32(script.slice(2), 1, prefix);
+  return bitcoin.address.fromOutputScript(script, prefix === 'bcrt' ? bitcoin.networks.regtest : bitcoin.networks.bitcoin);
+}
+
 type RpcResult = { result: any; error?: { message: string } };
 type Request = { id: number | string; method: string; params: unknown[] };
 export type Fault = 'none' | 'wrong-checkpoint' | 'history-timeout' | 'disconnect';
@@ -64,6 +82,7 @@ async function freePort(): Promise<number> {
 
 export class KnotsFulcrumHarness {
   readonly directory = mkdtempSync(path.join(tmpdir(), 'redwallet-disposable-regtest-'));
+
   readonly receipt: BackendReceipt;
   fault: Fault = 'none';
   private processes: ChildProcess[] = [];
@@ -79,7 +98,9 @@ export class KnotsFulcrumHarness {
   constructor(private options: BackendOptions) {
     this.receipt = {
       schemaVersion: 1,
-      sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+      sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {
+        encoding: 'utf8',
+      }).trim(),
       cleanupComplete: false,
       chain: 'regtest',
       checkpointAdapted: true,
@@ -261,7 +282,7 @@ export class KnotsFulcrumHarness {
               if (!value || typeof value !== 'object') return;
               if (value.scriptPubKey?.hex) {
                 try {
-                  const address = bitcoin.address.fromOutputScript(Buffer.from(value.scriptPubKey.hex, 'hex'));
+                  const address = fixtureAddress(Buffer.from(value.scriptPubKey.hex, 'hex'));
                   if (value.scriptPubKey.address) value.scriptPubKey.address = address;
                   if (value.scriptPubKey.addresses) value.scriptPubKey.addresses = [address];
                 } catch {}
@@ -361,8 +382,8 @@ export class KnotsFulcrumHarness {
 
   async fundAddress(mainnetAddress: string, valueSats: number): Promise<string> {
     assert.ok(Number.isSafeInteger(valueSats) && valueSats > 0);
-    const script = bitcoin.address.toOutputScript(mainnetAddress);
-    const regtestAddress = bitcoin.address.fromOutputScript(script, bitcoin.networks.regtest);
+    const script = fixtureOutputScript(mainnetAddress);
+    const regtestAddress = fixtureAddress(script, 'bcrt');
     const raw = await this.rpc('createrawtransaction', [[], [{ [regtestAddress]: valueSats / 100_000_000 }]]);
     const funded = await this.rpc('fundrawtransaction', [raw, { fee_rate: 1 }], true);
     const signed = await this.rpc('signrawtransactionwithwallet', [funded.hex], true);
