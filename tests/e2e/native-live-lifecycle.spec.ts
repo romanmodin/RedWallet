@@ -89,8 +89,11 @@ async function saveConnection(): Promise<void> {
 
 async function dismissConnectionAlert(message: string): Promise<void> {
   assert.equal(await dismissAlertByText('OK', 10_000, false), true);
+  // iOS 26 retains dismissed alert text in its view hierarchy. Both failed-run
+  // screenshots show the underlying settings screen with no alert displayed.
+  // Require visual dismissal; Save still must pass its actual hit test.
   await waitFor(element(by.text(message)))
-    .not.toExist()
+    .not.toBeVisible()
     .withTimeout(15_000);
 }
 
@@ -271,6 +274,9 @@ native('continuous native live wallet lifecycle', () => {
         backend.fault = 'none';
         await goBack();
         await goBack();
+        // Discovery and import are nested inside the Add Wallet modal.
+        await waitForId('NavigationCloseButton');
+        await element(by.id('NavigationCloseButton')).tap();
         await waitForWalletsList();
         await recover();
         await openWallet(label);
