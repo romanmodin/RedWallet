@@ -23,8 +23,8 @@ interface QRCodeProps {
 }
 
 const GRADIENT_ID = 'qrgrad';
-const GRADIENT_STOP_1 = '#0c2550';
-const GRADIENT_STOP_2 = '#1e3a8a';
+const GRADIENT_STOP_1 = '#7e1729';
+const GRADIENT_STOP_2 = '#9b2338';
 const BACKGROUND = '#FFFFFF';
 const LOGO_BACKGROUND = '#FFFFFF';
 
