@@ -212,6 +212,11 @@
     "problem_with_psbt": "Problem with PSBT"
   },
   "settings": {
+    "backup_title": "Backup XBT servers",
+    "backup_add": "Test and add as backup",
+    "backup_notice": "Backups are tried in order when the preferred server is unavailable. Each must pass TLS and XBT compatibility checks. Every server you add can see your address queries. Server history is never used automatically. Enter a TLS server below, then choose Test and add as backup.",
+    "backup_remove": "Tap to remove this backup",
+    "backup_tls": "Backup servers require TLS.",
     "about": "About",
     "about_awesome": "Built with the awesome",
     "about_backup": "Always backup your keys!",
@@ -402,6 +407,15 @@
     "details_outputs_count": "Outputs ({count})"
   },
   "wallets": {
+    "recovery_incomplete": "Search stopped before completion. Any accounts shown are partial results; remaining accounts and addresses were not checked.",
+    "recovery_search": "Search both formats and accounts",
+    "recovery_manual": "Import selected format only",
+    "recovery_limits": "For a recovery phrase, searches Native SegWit and Taproot, receive and change addresses. A public key searches only its supplied account. Stops each branch after the selected number of unused addresses. It cannot guarantee discovery beyond those limits. Your server sees the address queries.",
+    "recovery_gap": "Unused address gap: {gap} (tap to change)",
+    "recovery_accounts": "Accounts: 0\u2013{last} (tap to change)",
+    "recovery_none": "No activity found within the selected limits. Check your passphrase and scan depth, or return to import the selected format manually.",
+    "recovery_offline": "Enable your XBT server connection to search recovery history. Offline recovery supports manual import only.",
+    "recovery_stop": "Stop search",
     "add_bitcoin": "Bitcoin",
     "add_bitcoin_explain": "Simple and powerful Bitcoin wallet",
     "add_create": "Create",

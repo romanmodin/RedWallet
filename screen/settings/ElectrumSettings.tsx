@@ -50,6 +50,7 @@ const ElectrumSettings: React.FC = () => {
   const { server } = params;
   const navigation = useExtendedNavigation();
   const [isLoading, setIsLoading] = useState(true);
+  const [backupServers, setBackupServers] = useState<ElectrumServerItem[]>([]);
   const [serverHistory, setServerHistory] = useState<Set<ElectrumServerItem>>(new Set());
   const [config, setConfig] = useState<{
     connected?: number;
@@ -110,6 +111,7 @@ const ElectrumSettings: React.FC = () => {
   const configIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const fetchData = useCallback(async () => {
+    setBackupServers(await BlueElectrum.getBackupServers());
     const preferredServer = await BlueElectrum.getPreferredServer();
     const savedHost = preferredServer?.host;
     const savedPort = preferredServer?.tcp ? Number(preferredServer.tcp) : undefined;
@@ -232,6 +234,7 @@ const ElectrumSettings: React.FC = () => {
           }
           await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
 
+          BlueElectrum.forceDisconnect();
           await DefaultPreference.clear(BlueElectrum.ELECTRUM_HOST);
           await DefaultPreference.clear(BlueElectrum.ELECTRUM_TCP_PORT);
           await DefaultPreference.clear(BlueElectrum.ELECTRUM_SSL_PORT);
@@ -265,6 +268,7 @@ const ElectrumSettings: React.FC = () => {
         triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
         presentAlert({ message: loc.settings.electrum_saved });
 
+        BlueElectrum.forceDisconnect();
         await fetchData();
       } catch (error) {
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
@@ -275,6 +279,37 @@ const ElectrumSettings: React.FC = () => {
     },
     [host, port, sslPort, tlsCa, fetchData, serverHistory],
   );
+
+  const addBackup = async () => {
+    setIsLoading(true);
+    try {
+      if (!sslPort) throw new Error(loc.settings.backup_tls);
+      const peer = { host, ssl: sslPort, ...(tlsCa.trim() ? { tlsCa: normalizeCertificatePem(tlsCa.trim()) } : {}) };
+      // Validate before initiating any outbound connection.
+      const next = BlueElectrum.validateBackupConfiguration([...backupServers, peer]);
+      if (!(await BlueElectrum.testConnection(peer.host, 0, peer.ssl, peer.tlsCa))) throw new Error(loc.settings.electrum_error_connect);
+      await BlueElectrum.setBackupServers(next);
+      setBackupServers(next);
+      presentAlert({ message: loc.settings.electrum_saved });
+    } catch (error) {
+      presentAlert({ message: (error as Error).message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const removeBackup = async (index: number) => {
+    setIsLoading(true);
+    try {
+      const next = backupServers.filter((_, i) => i !== index);
+      await BlueElectrum.setBackupServers(next);
+      setBackupServers(next);
+    } catch (error) {
+      presentAlert({ message: (error as Error).message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const selectServer = useCallback(
     (value: string) => {
@@ -545,6 +580,18 @@ const ElectrumSettings: React.FC = () => {
           </View>
         </SettingsSection>
 
+        <SettingsSection title={loc.settings.backup_title}>
+          <SettingsFootnote>{loc.settings.backup_notice}</SettingsFootnote>
+          {backupServers.map((peer, index) => (
+            <SettingsListItem
+              key={`${peer.host}:${peer.ssl}`}
+              title={`${index + 1}. ${peer.host}:${peer.ssl}`}
+              subtitle={loc.settings.backup_remove}
+              disabled={isLoading}
+              onPress={() => removeBackup(index)}
+            />
+          ))}
+        </SettingsSection>
         <SettingsSection title={loc.settings.electrum_preferred_server}>
           <View style={settingsCardContent}>
             <SettingsFootnote>
@@ -636,6 +683,7 @@ const ElectrumSettings: React.FC = () => {
               </View>
             )}
             <View style={styles.buttonContainer}>
+              <Button disabled={isLoading || !host || !sslPort} testID="AddBackup" onPress={addBackup} title={loc.settings.backup_add} />
               <Button disabled={saveDisabled} testID="Save" onPress={() => save()} title={loc.settings.save} />
             </View>
           </View>
@@ -757,6 +805,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: 12,
+    gap: 12,
   },
   bannerText: {
     marginTop: 16,

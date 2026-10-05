@@ -34,6 +34,9 @@ const ImportWallet = () => {
   const xbtFormat = route.params?.xbtFormat ?? 'segwit';
   const label = route?.params?.label ?? '';
   const triggerImport = route?.params?.triggerImport ?? false;
+  const [searchAccounts, setSearchAccounts] = useState(false);
+  const [recoveryGapLimit, setRecoveryGapLimit] = useState(20);
+  const [recoveryAccountLimit, setRecoveryAccountLimit] = useState(3);
   const [importText, setImportText] = useState<string>(label);
   const [isToolbarVisibleForAndroid, setIsToolbarVisibleForAndroid] = useState<boolean>(false);
   const askPassphraseMenuState = route.params?.askPassphraseMenuState ?? false;
@@ -85,12 +88,14 @@ const ImportWallet = () => {
       navigation.navigate('ImportWalletDiscovery', {
         importText: text,
         askPassphrase: askPassphraseMenuState,
-        searchAccounts: false,
+        searchAccounts,
+        recoveryGapLimit,
+        recoveryAccountLimit,
         xbtFormat,
       });
     },
 
-    [askPassphraseMenuState, clearClipboardMenuState, navigation, xbtFormat],
+    [askPassphraseMenuState, clearClipboardMenuState, navigation, xbtFormat, searchAccounts, recoveryGapLimit, recoveryAccountLimit],
   );
 
   const handleImport = useCallback(() => {
@@ -156,9 +161,39 @@ const ImportWallet = () => {
       <BlueButtonLink
         testID="ToggleXbtImportFormat"
         title={xbtFormat === 'taproot' ? 'Use Native SegWit' : 'Use Taproot'}
-        onPress={() => navigation.setParams({ xbtFormat: xbtFormat === 'taproot' ? 'segwit' : 'taproot' })}
+        onPress={() =>
+          navigation.setParams({
+            xbtFormat: xbtFormat === 'taproot' ? 'segwit' : 'taproot',
+          })
+        }
       />
       <BlueSpacing20 />
+      <BlueButtonLink
+        testID="ToggleRecoveryDiscovery"
+        title={searchAccounts ? loc.wallets.recovery_manual : loc.wallets.recovery_search}
+        onPress={() => setSearchAccounts(value => !value)}
+      />
+      {searchAccounts && (
+        <>
+          <BlueText>{loc.wallets.recovery_limits}</BlueText>
+          <BlueButtonLink
+            title={
+              loc.formatString(loc.wallets.recovery_gap, {
+                gap: recoveryGapLimit,
+              }) as string
+            }
+            onPress={() => setRecoveryGapLimit(value => (value === 20 ? 100 : 20))}
+          />
+          <BlueButtonLink
+            title={
+              loc.formatString(loc.wallets.recovery_accounts, {
+                last: recoveryAccountLimit - 1,
+              }) as string
+            }
+            onPress={() => setRecoveryAccountLimit(value => (value === 3 ? 10 : 3))}
+          />
+        </>
+      )}
       <BlueFormMultiInput
         value={importText}
         onBlur={onBlur}
@@ -167,7 +202,10 @@ const ImportWallet = () => {
         inputAccessoryViewID={DoneAndDismissKeyboardInputAccessoryViewID}
       />
 
-      {Platform.select({ android: !isToolbarVisibleForAndroid && renderOptionsAndImportButton, default: renderOptionsAndImportButton })}
+      {Platform.select({
+        android: !isToolbarVisibleForAndroid && renderOptionsAndImportButton,
+        default: renderOptionsAndImportButton,
+      })}
       {Platform.select({
         ios: (
           <DoneAndDismissKeyboardInputAccessory

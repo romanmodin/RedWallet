@@ -35,11 +35,12 @@ const ImportWalletDiscovery: React.FC = () => {
   const navigation = useExtendedNavigation<NavigationProp>();
   const { colors } = useTheme();
   const route = useRoute<RouteProps>();
-  const { importText, askPassphrase, searchAccounts, xbtFormat = 'segwit' } = route.params;
+  const { importText, askPassphrase, searchAccounts, xbtFormat = 'segwit', recoveryGapLimit, recoveryAccountLimit } = route.params;
   const { isElectrumDisabled, isPrivacyBlurEnabled } = useSettings();
   const { enableScreenProtect, disableScreenProtect } = useScreenProtect();
   const task = useRef<TImport | null>(null);
   const { addAndSaveWallet } = useStorage();
+  const [scanOutcome, setScanOutcome] = useState<'complete' | 'stopped' | 'failed'>('complete');
   const [loading, setLoading] = useState<boolean>(true);
   const [wallets, setWallets] = useState<WalletEntry[]>([]);
   const [selected, setSelected] = useState<number>(0);
@@ -117,17 +118,22 @@ const ImportWalletDiscovery: React.FC = () => {
       onPassword,
       true,
       xbtFormat,
+      { gapLimit: recoveryGapLimit, accountLimit: recoveryAccountLimit },
     );
 
     task.current.promise
-      .then(({ cancelled, wallets: w }) => {
-        if (cancelled) return;
-        if (w.length === 1) saveWallet(w[0]); // Instantly save wallet if only one has been discovered
+      .then(({ cancelled, stopped, wallets: w }) => {
+        if (cancelled || stopped) {
+          setScanOutcome('stopped');
+          return;
+        }
+        if (w.length === 1 && !searchAccounts) saveWallet(w[0]); // Instantly save wallet if only one has been discovered
         if (w.length === 0) {
           triggerHapticFeedback(HapticFeedbackTypes.ImpactLight);
         }
       })
       .catch(e => {
+        setScanOutcome('failed');
         console.warn('import error', e);
         console.warn('err.stack', e.stack);
         presentAlert({ title: 'Import error', message: e.message });
@@ -139,7 +145,17 @@ const ImportWalletDiscovery: React.FC = () => {
     return () => {
       task.current?.stop();
     };
-  }, [askPassphrase, importText, isElectrumDisabled, navigation, saveWallet, searchAccounts, xbtFormat]);
+  }, [
+    askPassphrase,
+    importText,
+    isElectrumDisabled,
+    navigation,
+    saveWallet,
+    searchAccounts,
+    xbtFormat,
+    recoveryGapLimit,
+    recoveryAccountLimit,
+  ]);
 
   useEffect(() => {
     if (isPrivacyBlurEnabled) {
@@ -198,13 +214,19 @@ const ImportWalletDiscovery: React.FC = () => {
           </>
         ) : (
           <>
-            <BlueText style={styles.center}>{loc.wallets.import_discovery_no_wallets}</BlueText>
+            <BlueText style={styles.center}>
+              {searchAccounts
+                ? scanOutcome === 'complete'
+                  ? loc.wallets.recovery_none
+                  : loc.wallets.recovery_incomplete
+                : loc.wallets.import_discovery_no_wallets}
+            </BlueText>
             <BlueSpacing20 />
           </>
         )}
       </View>
     ),
-    [loading, progress],
+    [loading, progress, searchAccounts, scanOutcome],
   );
 
   const ListFooterComponent = useMemo(
@@ -223,6 +245,7 @@ const ImportWalletDiscovery: React.FC = () => {
 
   return (
     <SafeArea style={[styles.root, stylesHook.root]}>
+      {searchAccounts && !loading && scanOutcome !== 'complete' && <BlueText>{loc.wallets.recovery_incomplete}</BlueText>}
       <FlatList
         ListHeaderComponent={ListHeaderComponent}
         ListFooterComponent={ListFooterComponent}
@@ -238,7 +261,8 @@ const ImportWalletDiscovery: React.FC = () => {
       <View style={[styles.center, stylesHook.center]}>
         <BlueSpacing10 />
         <View style={styles.buttonContainer}>
-          <Button disabled={wallets?.length === 0} title={loc.wallets.import_do_import} onPress={handleSave} />
+          {loading && <Button title={loc.wallets.recovery_stop} onPress={() => task.current?.stop()} />}
+          <Button disabled={loading || wallets?.length === 0} title={loc.wallets.import_do_import} onPress={handleSave} />
         </View>
       </View>
     </SafeArea>
@@ -257,7 +281,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonContainer: {
-    height: 45,
+    gap: 8,
     marginBottom: 16,
   },
   noWallets: {

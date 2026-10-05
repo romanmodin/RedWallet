@@ -41,6 +41,8 @@ export type AddWalletStackParamList = {
     xbtFormat?: 'segwit' | 'taproot';
     askPassphrase: boolean;
     searchAccounts: boolean;
+    recoveryGapLimit?: number;
+    recoveryAccountLimit?: number;
   };
   ImportSpeed: undefined;
   ImportCustomDerivationPath: {

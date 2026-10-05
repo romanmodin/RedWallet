@@ -141,6 +141,14 @@ describe('RedWallet XBT-only release UI', () => {
     await element(by.id('ImportWallet')).tap();
     await waitForId('MnemonicInput');
     await element(by.id('ToggleXbtImportFormat')).tap();
+    await element(by.id('ToggleRecoveryDiscovery')).tap();
+    await waitForId('RecoveryGapLimit');
+    await element(by.id('RecoveryGapLimit')).tap();
+    await expect(element(by.text('Unused address gap: 100 (tap to change)'))).toBeVisible();
+    await element(by.id('RecoveryAccountLimit')).tap();
+    await expect(element(by.text('Accounts: 0–9 (tap to change)'))).toBeVisible();
+    await element(by.id('ToggleRecoveryDiscovery')).tap();
+    await expect(element(by.id('RecoveryGapLimit'))).not.toExist();
     await enterMnemonicText(mnemonic);
     await withoutIosAlertSynchronization(async () => {
       await element(by.id('DoImport')).tap();
