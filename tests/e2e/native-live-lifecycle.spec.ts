@@ -78,6 +78,22 @@ async function fieldVisible(id: string): Promise<void> {
   await waitFor(field(id)).toBeVisible().whileElement(by.id('ElectrumSettingsScrollView')).scroll(150, 'down', 0.95, 0.5);
 }
 
+async function saveConnection(): Promise<void> {
+  // iOS alert dismissal can return before its transition stops intercepting taps.
+  // Retry only failed hit tests; a successful Save is never submitted twice.
+  await eventually(async () => {
+    await element(by.id('Save')).tap();
+    return true;
+  }, 15_000);
+}
+
+async function dismissConnectionAlert(message: string): Promise<void> {
+  assert.equal(await dismissAlertByText('OK', 10_000, false), true);
+  await waitFor(element(by.text(message)))
+    .not.toExist()
+    .withTimeout(15_000);
+}
+
 async function configureNative(backend: KnotsFulcrumHarness): Promise<void> {
   await waitForWalletsList();
   await element(by.id('SettingsButton')).tap();
@@ -105,20 +121,20 @@ async function configureNative(backend: KnotsFulcrumHarness): Promise<void> {
   console.info('[native-lifecycle] testing expired TLS rejection');
   const beforeInvalidTls = backend.receipt.checkpointRequests;
   backend.setCertificate('native-expired.pem');
-  await element(by.id('Save')).tap();
+  await saveConnection();
   await waitForText(connectionFailed, 60_000);
-  assert.equal(await dismissAlertByText('OK', 10_000, false), true);
+  await dismissConnectionAlert(connectionFailed);
   assert.equal(backend.receipt.checkpointRequests, beforeInvalidTls);
   console.info('[native-lifecycle] testing wrong checkpoint rejection');
   backend.setCertificate('native.pem');
   backend.fault = 'wrong-checkpoint';
-  await element(by.id('Save')).tap();
+  await saveConnection();
   await waitForText(connectionFailed, 60_000);
-  assert.equal(await dismissAlertByText('OK', 10_000, false), true);
+  await dismissConnectionAlert(connectionFailed);
   backend.fault = 'none';
-  await element(by.id('Save')).tap();
+  await saveConnection();
   await waitForText(connectionSaved, 60_000);
-  assert.equal(await dismissAlertByText('OK', 10_000, false), true);
+  await dismissConnectionAlert(connectionSaved);
   await goBack();
   await goBack();
   await goBack();

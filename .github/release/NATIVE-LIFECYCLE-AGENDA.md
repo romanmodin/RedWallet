@@ -1,6 +1,6 @@
 # Native live lifecycle agenda
 
-Updated: 2026-10-05 17:45 UTC. Owner requested autonomous work, checked agenda and periodic reports.
+Updated: 2026-10-05 18:33 UTC. Owner requested autonomous work, checked agenda and periodic reports.
 
 Release qualification source: `61b7c3f521809b3b12cb88d5e49d1ae00d9e2cc6` (PR40). Leave its worktree and gates unchanged. This work is isolated on `test/native-live-lifecycle-20261005`.
 
@@ -41,6 +41,8 @@ No production node mounts, funds, credentials or private wallet data. Disposable
 The initial software run shared an older dependency installation lacking this source's Electrum TLS patch. An added expired-certificate test exposed that mismatch. Replaced the symlink with an isolated npm ci installation; patch-package applied current Electrum and native TCP patches, and all results above were rerun against those dependencies. Earlier shared-dependency results are not exact-source TLS qualification.
 
 ## Current task and next step
+
+Latest source `555f0e20d5d87cc00cef7242f5623e93913193c7` passed committed-source software acceptance: 3 tests, 54.301s, all backend receipts identify that source and cleanupComplete=true. Its Android run 37350796639 and iOS run 37350796641 built successfully but both native cases failed. Android screenshots show a real late-request race: Stop during a stalled scan is followed by an Electrum timeout rejection and an Import error alert, masking the incomplete state. iOS original errors are now preserved: after dismissing the wrong-checkpoint alert, its UITransitionView still intercepts the next Save tap. Current correction preserves the stopped outcome and partial discoveries when a pending request rejects, with paired regression tests proving an active request still rejects. Dedicated native driver waits for alert removal and retries only unsuccessful Save taps within a bound. No native assertions are waived. Targeted recovery/import tests passed (15 tests). Corrected full unit suite passed: 85 suites, 796 tests, one inherited skip (118.575s). Targeted lint/typecheck passed. Working-tree software acceptance passed all three tests (54.573s); these receipts still identify the pre-commit HEAD and are not qualified new-source receipts. Full lint passed with only the inherited encryption-test bitwise warning. Logs: /tmp/redwallet-lifecycle-cancel-{full-unit,full-lint,tsc,live}.log. Commit/push this correction and let the dedicated hosted software job and Android/iOS flows qualify the new commit. PR40 remains frozen; the production cancellation fix is isolated here and is not released. Historical details follow.
 
 Source `7c09b89852afaa1f6130cf1db9cc162d7f627310` was committed/pushed. Hosted Android run 37330512420 built successfully and passed its software job, but its two native cases failed: SegWit expected obsolete incomplete-recovery wording; Taproot failed during funding because the Node driver had no signing ECC initialized. iOS run 37330512560 built successfully, but both cases failed; teardown attempted to re-enable synchronization against a terminated app, masking the original failure and preventing backend cleanup. The iOS job then hit its 40-minute limit. No complete native receipt exists.
 

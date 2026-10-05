@@ -1,9 +1,56 @@
 import startImport from '../../class/wallet-import';
+import * as recovery from '../../class/xbt/recovery-discovery';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({
   getTransactionsByAddress: jest.fn().mockResolvedValue([]),
 }));
+
+describe.each([true, false])('pending recovery request, stopped=%s', stopped => {
+  it('preserves partial discoveries on Stop and still rejects genuine active failures', async () => {
+    const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+    const wallet = new XbtSegwitBech32Wallet();
+    wallet.setSecret(mnemonic);
+    let rejectRequest!: (error: Error) => void;
+    let enteredRequest!: () => void;
+    const entered = new Promise<void>(resolve => {
+      enteredRequest = resolve;
+    });
+    const request = new Promise<void>((_resolve, reject) => {
+      rejectRequest = reject;
+    });
+    const scan = jest.spyOn(recovery, 'discoverXbtRecovery').mockImplementation(async function* () {
+      yield { wallet };
+      enteredRequest();
+      await request;
+    });
+    const onWallet = jest.fn();
+    try {
+      const task = startImport(
+        mnemonic,
+        false,
+        true,
+        false,
+        () => {},
+        onWallet,
+        async () => '',
+        true,
+      );
+      await entered;
+      if (stopped) task.stop();
+      rejectRequest(new Error('Electrum request timeout'));
+      if (stopped) {
+        await expect(task.promise).resolves.toEqual({ cancelled: false, stopped: true, wallets: [wallet] });
+      } else {
+        await expect(task.promise).rejects.toThrow('Electrum request timeout');
+      }
+      expect(onWallet).toHaveBeenCalledTimes(1);
+      expect(onWallet).toHaveBeenCalledWith(wallet);
+    } finally {
+      scan.mockRestore();
+    }
+  });
+});
 
 describe('XBT mnemonic wallet restoration', () => {
   it('restores the default BIP84 account with the XBT Unified Sighash wallet type', async () => {

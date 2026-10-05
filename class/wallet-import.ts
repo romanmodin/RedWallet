@@ -686,6 +686,12 @@ const startImport = (
     }
     reportFinish();
   })().catch(e => {
+    // A pending request can reject after Stop. Keep the user's stopped outcome
+    // and partial discoveries instead of turning cancellation into an error.
+    if (!running) {
+      reportFinish(false, true);
+      return;
+    }
     if (e.message === 'Cancel Pressed') {
       reportFinish(true);
       return;
