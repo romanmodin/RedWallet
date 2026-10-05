@@ -177,6 +177,7 @@ const ImportWallet = () => {
         <>
           <BlueText>{loc.wallets.recovery_limits}</BlueText>
           <BlueButtonLink
+            testID="RecoveryGapLimit"
             title={
               loc.formatString(loc.wallets.recovery_gap, {
                 gap: recoveryGapLimit,
@@ -185,6 +186,7 @@ const ImportWallet = () => {
             onPress={() => setRecoveryGapLimit(value => (value === 20 ? 100 : 20))}
           />
           <BlueButtonLink
+            testID="RecoveryAccountLimit"
             title={
               loc.formatString(loc.wallets.recovery_accounts, {
                 last: recoveryAccountLimit - 1,
