@@ -245,7 +245,9 @@ const ImportWalletDiscovery: React.FC = () => {
 
   return (
     <SafeArea style={[styles.root, stylesHook.root]}>
-      {searchAccounts && !loading && scanOutcome !== 'complete' && <BlueText>{loc.wallets.recovery_incomplete}</BlueText>}
+      {searchAccounts && !loading && wallets.length > 0 && scanOutcome !== 'complete' && (
+        <BlueText>{loc.wallets.recovery_incomplete}</BlueText>
+      )}
       <FlatList
         ListHeaderComponent={ListHeaderComponent}
         ListFooterComponent={ListFooterComponent}

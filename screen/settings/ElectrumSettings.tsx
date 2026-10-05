@@ -684,7 +684,7 @@ const ElectrumSettings: React.FC = () => {
             )}
             <View style={styles.buttonContainer}>
               <Button disabled={isLoading || !host || !sslPort} testID="AddBackup" onPress={addBackup} title={loc.settings.backup_add} />
-              <Button disabled={saveDisabled} testID="Save" onPress={() => save()} title={loc.settings.save} />
+              <Button disabled={saveDisabled || isLoading} testID="Save" onPress={() => save()} title={loc.settings.save} />
             </View>
           </View>
         </SettingsSection>
