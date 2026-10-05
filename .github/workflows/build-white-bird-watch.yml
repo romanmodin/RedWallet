@@ -2,6 +2,11 @@ name: White Bird Watch — Apple signing bridge
 on:
   workflow_dispatch:
     inputs:
+      verify_existing_build:
+        description: Read-only verification of an already uploaded White Bird build number
+        required: false
+        type: string
+        default: ''
       upload_to_testflight:
         description: Upload only after the separate White Bird Apple app record exists
         required: true
@@ -14,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   certificate:
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: ${{ github.ref == 'refs/heads/main' && inputs.verify_existing_build == '' }}
     environment: ios-signing
     runs-on: macos-26
     timeout-minutes: 20
@@ -109,7 +114,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: romanmodin/TeslaWatchICP
-          ref: c80e32fd6df5b6a094158f887db69e4ff7812d0b
+          ref: 256ec29a945f7aad4609381efb211bf912d3912e
           ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
           persist-credentials: false
       - name: Install Apple-signed Transporter for watch-only uploads
@@ -229,3 +234,28 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/WhiteBird-signing.keychain-db" || true
           rm -rf "$RUNNER_TEMP/WhiteBird-signing" "$RUNNER_TEMP/identity-transfer" "$HOME/.appstoreconnect/private_keys"
           rm -f "$RUNNER_TEMP/WhiteBird-AuthKey.p8" "$RUNNER_TEMP/WhiteBird-ExportOptions.plist"
+
+  verify_existing:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.verify_existing_build != '' }}
+    environment: ios-upload
+    runs-on: macos-26
+    timeout-minutes: 5
+    env:
+      TEAM_ID: ${{ secrets.TEAM_ID }}
+      WHITE_BIRD_BUILD_VERSION: ${{ inputs.verify_existing_build }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: romanmodin/TeslaWatchICP
+          ref: 256ec29a945f7aad4609381efb211bf912d3912e
+          ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
+          persist-credentials: false
+      - name: Prepare temporary API credentials
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: python3 distribution/scripts/prepare_signing.py
+      - name: Verify existing private TestFlight build without changing it
+        run: python3 distribution/scripts/assign_internal_build.py --verify-only
+      - name: Remove temporary API credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/WhiteBird-AuthKey.p8" "$RUNNER_TEMP/WhiteBird-ExportOptions.plist"
