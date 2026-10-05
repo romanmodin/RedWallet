@@ -854,7 +854,7 @@ const TransactionStatus: React.FC = () => {
     } else if (isCPFPPossible === ButtonStatus.Possible) {
       return (
         <>
-          <Button onPress={() => navigateToCPFP(transaction, w)} title={loc.transactions.status_bump} />
+          <Button testID="TransactionCpfpButton" onPress={() => navigateToCPFP(transaction, w)} title={loc.transactions.status_bump} />
           <BlueSpacing10 />
         </>
       );
@@ -1096,7 +1096,7 @@ const TransactionStatus: React.FC = () => {
   }
 
   return (
-    <SafeAreaScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaScrollView testID="TransactionStatusScroll" contentContainerStyle={styles.scrollContent}>
       {/* Value Section */}
       <View style={styles.valueCard}>
         <View style={styles.valueContent}>
@@ -1154,6 +1154,7 @@ const TransactionStatus: React.FC = () => {
                 <View style={styles.stateButtons}>
                   {isRBFBumpFeePossible === ButtonStatus.Possible && (
                     <TouchableOpacity
+                      testID="TransactionRbfBumpButton"
                       onPress={() => navigateToRBF('RBFBumpFee', tx, wallet)}
                       style={[styles.speedUpButton, stylesHook.speedUpButton]}
                       accessibilityRole="button"

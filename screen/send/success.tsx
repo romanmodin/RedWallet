@@ -50,7 +50,7 @@ const Success = () => {
     <SafeArea style={[styles.root, stylesHook.root]}>
       <SuccessView amount={amount} amountUnit={amountUnit} fee={fee} invoiceDescription={invoiceDescription} />
       <View style={styles.buttonContainer}>
-        <Button onPress={onDonePressed} title={loc.send.success_done} />
+        <Button testID="SendSuccessDone" onPress={onDonePressed} title={loc.send.success_done} />
       </View>
       {explorerUrl && (
         <HandOffComponent title={loc.transactions.details_title} type={HandOffActivityType.ViewInBlockExplorer} url={explorerUrl} />

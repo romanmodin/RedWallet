@@ -249,6 +249,7 @@ const ImportWalletDiscovery: React.FC = () => {
         <BlueText>{loc.wallets.recovery_incomplete}</BlueText>
       )}
       <FlatList
+        testID="RecoveryResults"
         ListHeaderComponent={ListHeaderComponent}
         ListFooterComponent={ListFooterComponent}
         contentContainerStyle={styles.flatListContainer}
@@ -263,8 +264,13 @@ const ImportWalletDiscovery: React.FC = () => {
       <View style={[styles.center, stylesHook.center]}>
         <BlueSpacing10 />
         <View style={styles.buttonContainer}>
-          {loading && <Button title={loc.wallets.recovery_stop} onPress={() => task.current?.stop()} />}
-          <Button disabled={loading || wallets?.length === 0} title={loc.wallets.import_do_import} onPress={handleSave} />
+          {loading && <Button testID="RecoveryStopButton" title={loc.wallets.recovery_stop} onPress={() => task.current?.stop()} />}
+          <Button
+            testID="RecoveryImportSelected"
+            disabled={loading || wallets?.length === 0}
+            title={loc.wallets.import_do_import}
+            onPress={handleSave}
+          />
         </View>
       </View>
     </SafeArea>

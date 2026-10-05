@@ -397,6 +397,7 @@ const Confirm: React.FC = () => {
           ) : (
             <Button
               disabled={isElectrumDisabled || state.isButtonDisabled}
+              testID="ConfirmBroadcastButton"
               onPress={handleSendTransaction}
               title={loc.send.confirm_sendNow}
             />

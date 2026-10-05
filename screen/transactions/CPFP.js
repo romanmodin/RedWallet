@@ -240,6 +240,7 @@ export default class CPFP extends Component {
           <BlueSpacing />
           <Button
             disabled={this.state.newFeeRate <= this.state.feeRate}
+            testID="FeeBumpCreateButton"
             onPress={() => this.createTransaction()}
             title={loc.transactions.cpfp_create}
           />
@@ -256,12 +257,17 @@ export default class CPFP extends Component {
             <BlueText>{`Fee: ${this.state.feeSats} sats (${this.state.actualFeeRate.toFixed(2)} sats/vB)`}</BlueText>
           )}
           <BlueText style={styles.hex}>{loc.send.create_this_is_hex}</BlueText>
-          <TextInput style={styles.hexInput} height={112} multiline editable value={this.state.txhex} />
+          <TextInput testID="FeeBumpHexInput" style={styles.hexInput} height={112} multiline editable value={this.state.txhex} />
 
           <TouchableOpacity accessibilityRole="button" style={styles.action} onPress={() => Clipboard.setString(this.state.txhex)}>
             <Text style={styles.actionText}>{loc.send.create_copy}</Text>
           </TouchableOpacity>
-          <Button disabled={this.context.isElectrumDisabled} onPress={this.broadcast} title={loc.send.confirm_sendNow} />
+          <Button
+            testID="FeeBumpBroadcastButton"
+            disabled={this.context.isElectrumDisabled}
+            onPress={this.broadcast}
+            title={loc.send.confirm_sendNow}
+          />
         </BlueCard>
       </View>
     );

@@ -1,0 +1,31 @@
+{
+  "purpose": "Disposable native lifecycle testing only; archive SHA256 pins are integrity pins, not independent provenance attestations",
+  "knots": {
+    "tag": "v29.4.2.knots20260508",
+    "linux": {
+      "url": "https://github.com/bitcoinknots/bitcoin/releases/download/v29.4.2.knots20260508/bitcoin-29.4.2.knots20260508-x86_64-linux-gnu.tar.gz",
+      "sha256": "b59d0445a317e21a03dc29425db3aba79b27d5125230b1a2b1dce62e120827c5"
+    },
+    "macos_arm64": {
+      "url": "https://github.com/bitcoinknots/bitcoin/releases/download/v29.4.2.knots20260508/bitcoin-29.4.2.knots20260508-arm64-apple-darwin.tar.gz",
+      "sha256": "230eda151c877752beffed294897aaee7c1ab8ed9f510b3ca5ad5de1292d3258"
+    },
+    "macos_x86_64": {
+      "url": "https://github.com/bitcoinknots/bitcoin/releases/download/v29.4.2.knots20260508/bitcoin-29.4.2.knots20260508-x86_64-apple-darwin.tar.gz",
+      "sha256": "1587ff5cc52f9eef9641c40bd7671a048cfec8a172b792f5685facb6e8ff7d1a"
+    }
+  },
+  "fulcrum": {
+    "tag": "v2.1.3-blake",
+    "linux": {
+      "url": "https://github.com/privkeyio/Fulcrum/releases/download/v2.1.3-blake/Fulcrum-2.1.3-blake-x86_64-linux.tar.gz",
+      "sha256": "fab2afe2db1e57a1aa9ef502448a03fa20df1515b6d7748296cec0796afa369b"
+    },
+    "macos": "Source build required; no macOS fork release asset confirmed.",
+    "source": {
+      "url": "https://github.com/privkeyio/Fulcrum/releases/download/v2.1.3-blake/Fulcrum-2.1.3-blake-src.tar.gz",
+      "sha256": "ea38fe7a6d63f09bfab95d9e6e15962c1a3029eeeab2a96df8c8c878a2fb564f",
+      "commit": "3eee5d4e576b6e7b586e95beb58e1a22808eb41f"
+    }
+  }
+}
