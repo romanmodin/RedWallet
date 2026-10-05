@@ -21,7 +21,7 @@ jobs:
   certificate:
     if: ${{ github.ref == 'refs/heads/main' && inputs.verify_existing_build == '' }}
     environment: ios-signing
-    runs-on: macos-15
+    runs-on: macos-15-arm64
     timeout-minutes: 20
     steps:
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
@@ -107,7 +107,7 @@ jobs:
   sign:
     needs: certificate
     environment: ios-upload
-    runs-on: macos-15
+    runs-on: macos-15-arm64
     timeout-minutes: 30
     env:
       TEAM_ID: ${{ secrets.TEAM_ID }}
@@ -245,7 +245,7 @@ jobs:
   verify_existing:
     if: ${{ github.ref == 'refs/heads/main' && inputs.verify_existing_build != '' }}
     environment: ios-upload
-    runs-on: macos-15
+    runs-on: macos-15-arm64
     timeout-minutes: 5
     env:
       TEAM_ID: ${{ secrets.TEAM_ID }}
