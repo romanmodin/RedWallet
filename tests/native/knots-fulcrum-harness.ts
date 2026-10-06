@@ -130,11 +130,11 @@ export class KnotsFulcrumHarness {
     this.processes.push(child);
   }
 
-  async rpc(method: string, params: unknown[] = [], wallet = false): Promise<any> {
+  async rpc(method: string, params: unknown[] = [], wallet = false, timeout = 10_000): Promise<any> {
     // Only this harness's new temporary cookie is read, never a configured node's cookie.
     const cookie = readFileSync(path.join(this.directory, 'node/regtest/.cookie'), 'utf8').trim();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
+    const timer = setTimeout(() => controller.abort(), timeout);
     try {
       const response = await fetch('http://127.0.0.1:' + this.rpcPort + (wallet ? '/wallet/public-fixture-miner' : '/'), {
         method: 'POST',
@@ -149,6 +149,10 @@ export class KnotsFulcrumHarness {
       if (result.error) throw new Error('Isolated Knots ' + method + ': ' + result.error.message);
       if (!response.ok) throw new Error('Isolated Knots RPC HTTP ' + response.status);
       return result.result;
+    } catch (error) {
+      // Report the operation without its parameters or temporary RPC cookie.
+      if (controller.signal.aborted) throw new Error(`Isolated Knots RPC ${method} exceeded ${timeout}ms`);
+      throw error;
     } finally {
       clearTimeout(timer);
     }
@@ -221,9 +225,12 @@ export class KnotsFulcrumHarness {
       'knots',
     );
     await eventually(async () => (await this.rpc('getblockchaininfo')).chain === 'regtest');
-    await this.rpc('createwallet', ['public-fixture-miner']);
+    // First hosted Mac wallet initialization took 22.6s in the retained receipt.
+    await this.rpc('createwallet', ['public-fixture-miner'], false, 60_000);
     this.minerAddress = await this.rpc('getnewaddress', [], true);
-    await this.rpc('generatetoaddress', [151, this.minerAddress]);
+    // Bootstrap mining is larger than ordinary RPC reads.
+    // Keep it bounded; never retry a mutating timed-out RPC.
+    await this.rpc('generatetoaddress', [151, this.minerAddress], false, 60_000);
     const activationHash = await this.rpc('getblockhash', [150]);
     assert.equal((await this.rpc('getblockheader', [activationHash, false])).length, 328, 'BLAKE2b header activation required');
     const config = path.join(this.directory, 'fulcrum.conf');

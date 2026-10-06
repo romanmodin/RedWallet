@@ -37,7 +37,7 @@ const connectionSaved = 'Your changes have been saved successfully. Restarting R
 const connectionFailed =
   'Cannot connect to the provided Electrum server. TLS requires a trusted certificate matching the server name. XBT servers must also match the mainnet checkpoint.';
 
-const field = (id: string) =>
+const field = (id: string, hostValue = 'E.g., 10.20.30.40') =>
   device.getPlatform() === 'ios' && id === 'HostInput'
     ? element(
         by.type('RCTUITextField').and(
@@ -45,7 +45,7 @@ const field = (id: string) =>
             by as typeof by & {
               value(text: string): ReturnType<typeof by.id>;
             }
-          ).value('E.g., 10.20.30.40'),
+          ).value(hostValue),
         ),
       )
     : element(by.id(id));
@@ -93,11 +93,12 @@ async function dismissConnectionAlert(message: string): Promise<void> {
     // iOS 26 retains alert text that Detox still reports as visible after OK.
     // Require a real hit test on the underlying form: an active alert/transition
     // must not intercept this tap. Do not resubmit the rejected connection.
+    await element(by.id('ElectrumSettingsScrollView')).scrollTo('top', 0.95, 0.5);
     await eventually(async () => {
-      await field('HostInput').tap();
+      await field('HostInput', '127.0.0.1').tap();
       return true;
     }, 15_000);
-    await field('HostInput').tapReturnKey();
+    await field('HostInput', '127.0.0.1').tapReturnKey();
     await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
   } else {
     await waitFor(element(by.text(message)))
@@ -203,13 +204,40 @@ async function balanceSats(): Promise<number> {
 }
 
 async function openSentTransaction(txid: string): Promise<void> {
-  await waitFor(element(by.label(/^Sent,/)).atIndex(0))
-    .toExist()
-    .withTimeout(30_000);
-  await element(by.label(/^Sent,/))
-    .atIndex(0)
-    .tap();
+  // Unconfirmed outgoing rows are labeled Pending, and fee bumps reorder them.
+  // Select the exact transaction rather than assuming a Sent label or row index.
+  const row = element(by.id(`TransactionRow-${txid}`));
+  await waitFor(row).toExist().withTimeout(60_000);
+  await waitFor(row).toBeVisible().whileElement(by.id('WalletTransactionsList')).scroll(150, 'down');
+  await row.tap();
   await waitForLabel(txid, 30_000);
+}
+
+async function prepareNativePayment(): Promise<void> {
+  const next = element(by.id('CreateTransactionButton'));
+  const warning = element(by.text('Confirm XBT payment'));
+  // Unsynchronized taps during the fee screen's return transition can be lost.
+  // Retry only while still on Next, before approving any preparation or signing.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await waitFor(next).toBeVisible().withTimeout(15_000);
+    await next.tap();
+    try {
+      await waitFor(warning).toExist().withTimeout(5_000);
+    } catch (error) {
+      if (attempt === 2) throw error;
+      // An opened warning must never lead to a second Next tap.
+      try {
+        await nativeExpect(warning).toExist();
+      } catch {
+        await nativeExpect(next).toBeVisible();
+        continue;
+      }
+    }
+    // Never retry Next after approving preparation, even if review fails.
+    assert.equal(await dismissAlertByText(english._.yes, 15_000, false), true);
+    await waitForId('TransactionValue');
+    return;
+  }
 }
 
 async function bump(kind: 'rbf' | 'cpfp', rate: number): Promise<bitcoin.Transaction> {
@@ -251,9 +279,12 @@ native('continuous native live wallet lifecycle', () => {
       const label = 'Imported ' + profile.typeReadable;
       const isIOS = device.getPlatform() === 'ios';
       try {
+        console.info('[native-lifecycle] starting isolated backend');
         await backend.start();
+        console.info('[native-lifecycle] funding public fixtures');
         await backend.fundAddress(profile.receive[0], 60_000);
         await backend.fundAddress(profile.receive[1], 40_000);
+        console.info('[native-lifecycle] launching native app');
         await device.clearKeychain();
         await device.launchApp({
           delete: true,
@@ -334,14 +365,7 @@ native('continuous native live wallet lifecycle', () => {
         assert.equal(await nativeText('AddressInput'), vectors.recipient);
         await setCustomFeeRate(1);
         assert.equal(await nativeText('AddressInput'), vectors.recipient);
-        await element(by.id('CreateTransactionButton')).tap();
-        // Transaction preparation is gated by the real XBT recipient warning.
-        // Acknowledge it as a user would; never bypass the production gate.
-        await waitFor(element(by.text('Confirm XBT payment')))
-          .toExist()
-          .withTimeout(15_000);
-        assert.equal(await dismissAlertByText(english._.yes, 15_000, false), true);
-        await waitForId('TransactionValue');
+        await prepareNativePayment();
         await element(by.id('TransactionDetailsButton')).tap();
         const original = bitcoin.Transaction.fromHex(await nativeText('TxhexInput'));
         assert.ok(original.ins.every(input => input.witness[0][input.witness[0].length - 1] === 0x21));

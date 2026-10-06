@@ -73,9 +73,10 @@ type AnimatedPressableRowProps = {
   onPress: () => void;
   children: React.ReactNode;
   accessibilityLabel: string;
+  testID?: string;
 };
 
-const AnimatedPressableRow: React.FC<AnimatedPressableRowProps> = ({ onPress, children, accessibilityLabel }) => {
+const AnimatedPressableRow: React.FC<AnimatedPressableRowProps> = ({ onPress, children, accessibilityLabel, testID }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const animateTo = useCallback(
@@ -97,6 +98,7 @@ const AnimatedPressableRow: React.FC<AnimatedPressableRowProps> = ({ onPress, ch
       onPressOut={() => animateTo(1)}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      testID={testID}
     >
       <Animated.View style={[styles.animatedScaleContainer, { transform: [{ scale: scaleAnim }] }]}>{children}</Animated.View>
     </Pressable>
@@ -549,7 +551,11 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
       accessibilityLabel={`${transactionTypeLabel}, ${amountWithUnit}, ${subtitle ?? title}`}
       accessibilityRole="button"
     >
-      <AnimatedPressableRow onPress={onPress} accessibilityLabel={`${transactionTypeLabel}, ${amountWithUnit}, ${subtitle ?? title}`}>
+      <AnimatedPressableRow
+        onPress={onPress}
+        accessibilityLabel={`${transactionTypeLabel}, ${amountWithUnit}, ${subtitle ?? title}`}
+        testID={`TransactionRow-${item.hash}`}
+      >
         {/* @ts-ignore - Context menu wrapper types can be overly strict about child element props */}
         <ListItem
           leftAvatar={avatar}
