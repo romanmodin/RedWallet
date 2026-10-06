@@ -317,11 +317,20 @@ native('continuous native live wallet lifecycle', () => {
 
         await element(by.id('SendButton')).tap();
         await waitForId('AddressInput');
-        await element(by.id('AddressInput')).replaceText(vectors.recipient);
+        await element(by.id('AddressInput')).typeText(vectors.recipient + '\n');
+        await waitForKeyboardToClose();
+        assert.equal(await nativeText('AddressInput'), vectors.recipient);
         await element(by.id('BitcoinAmountInput')).replaceText('0.0009\n');
         await waitForKeyboardToClose();
         await setCustomFeeRate(1);
+        assert.equal(await nativeText('AddressInput'), vectors.recipient);
         await element(by.id('CreateTransactionButton')).tap();
+        // Transaction preparation is gated by the real XBT recipient warning.
+        // Acknowledge it as a user would; never bypass the production gate.
+        await waitFor(element(by.text('Confirm XBT payment')))
+          .toExist()
+          .withTimeout(15_000);
+        assert.equal(await dismissAlertByText(english._.yes, 15_000, false), true);
         await waitForId('TransactionValue');
         await element(by.id('TransactionDetailsButton')).tap();
         const original = bitcoin.Transaction.fromHex(await nativeText('TxhexInput'));
