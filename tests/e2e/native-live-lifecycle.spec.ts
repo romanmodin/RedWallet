@@ -93,13 +93,17 @@ async function dismissConnectionAlert(message: string): Promise<void> {
     // iOS 26 retains alert text that Detox still reports as visible after OK.
     // Require a real hit test on the underlying form: an active alert/transition
     // must not intercept this tap. Do not resubmit the rejected connection.
-    await element(by.id('ElectrumSettingsScrollView')).scrollTo('top', 0.95, 0.5);
+    // The host remains visible at the saved form position. Do not scroll while
+    // UIAlertController's transition can still intercept the gesture.
     await eventually(async () => {
       await field('HostInput', '127.0.0.1').tap();
       return true;
     }, 15_000);
     await field('HostInput', '127.0.0.1').tapReturnKey();
-    await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
+    await eventually(async () => {
+      await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
+      return true;
+    }, 15_000);
   } else {
     await waitFor(element(by.text(message)))
       .not.toBeVisible()
@@ -248,12 +252,18 @@ async function bump(kind: 'rbf' | 'cpfp', rate: number): Promise<bitcoin.Transac
     .scroll(200, 'down');
   await element(by.id(id)).tap();
   await waitForId('FeeBumpRateInput');
-  await element(by.id('FeeBumpRateInput')).replaceText(String(rate));
+  const feeInput = element(by.id('FeeBumpRateInput'));
+  // replaceText can leave Android's keyboard closed, making Back exit the
+  // fee-bump screen. Use the same keyboard submission as setCustomFeeRate.
+  await feeInput.tap();
+  await feeInput.clearText();
+  await feeInput.typeText(String(rate) + (device.getPlatform() === 'android' ? '\n' : ''));
   if (device.getPlatform() === 'ios') {
-    await element(by.text('Done')).tap();
-  } else {
-    await device.pressBack();
+    await element(by.text(english.send.input_done)).tap();
   }
+  await waitFor(feeInput).toBeVisible().withTimeout(15_000);
+  assert.equal(await nativeText('FeeBumpRateInput'), String(rate));
+  await waitForId('FeeBumpCreateButton');
   await element(by.id('FeeBumpCreateButton')).tap();
   await waitForId('FeeBumpHexInput');
   const tx = bitcoin.Transaction.fromHex(await nativeText('FeeBumpHexInput'));
