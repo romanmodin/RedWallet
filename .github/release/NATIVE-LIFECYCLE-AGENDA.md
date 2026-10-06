@@ -107,3 +107,25 @@ Updated 2026-10-06 14:50 UTC; follow-up to source 6de606a4d93b45f4157979c647b713
 Current 6de runs Android37438833040 and iOS37438833160 both completed failure, with software and both builds successful. Android both formats retain exact fee4 and show the RBF form alive, keyboard closed, with the Create button below the viewport. The driver must scroll rather than waive its visibility check. iOS both formats pass the cancelled scan and stop on the second recovery waiting for Done; the retained SegWit failure screenshot shows Import and no onscreen keyboard. A repeated tap on the mnemonic input is no longer used to demand an accessory when the keyboard is closed. New unit tests require failure within ten seconds if the keyboard remains open or Import is hidden; Android handling is unchanged. Exact mnemonic retention, fee retention before/after scroll, actual Import/Create/Broadcast taps, Unified signature checks, recipient/output checks and Knots acceptance remain required. No Create/Broadcast retry is introduced.
 
 Evidence screenshots are in /tmp/redwallet-6de-android-images and /tmp/redwallet-6de-ios-images. Full Android evidence download is in progress to /tmp/redwallet-lifecycle-6de-android-evidence. Validation log: /tmp/redwallet-lifecycle-scroll-keyboard-validation.log. Complete native lifecycle, physical-phone/cold-device interoperability and the independently reported public Android crash fix remain unproven. PR40 stays separate; no publication is claimed.
+
+
+## Fee-bump return, unset biometrics and recovery scrolling
+
+Updated 2026-10-06 18:57 UTC; follow-up to source 1d997f9ff980ddf2883016eba89d3c9edefa3343.
+
+- [x] Inspect exact-source Android/iOS failed jobs, native traces, failure screenshots and seven backend cleanup receipts.
+- [x] Correct fee-bump Done to pop the current wallet stack to its existing WalletTransactions route; preserve normal-send modal dismissal.
+- [x] Handle the native secure store's specific missing Biometrics preference result on a fresh installation; retain enabled-biometric authentication, high-fee approval, reviewed-hex binding and failure on other storage errors.
+- [x] Let import content grow beyond the viewport and keep the multiline input at least 120 points tall, so discovery controls cannot collapse it. Add drag-to-dismiss behavior and require the native driver to reveal discovery/input controls, dismiss the onscreen keyboard and reveal Import through actual UI gestures.
+- [x] Pass 27 targeted regression tests covering wallet-stack return, fee-bump authentication/storage gates and keyboard dismissal/visibility.
+- [x] Pass full local lint/typecheck and 89 unit suites: 818 passed, one inherited skip (112.738s), FULL_EXIT:0. Final targeted lint/typecheck/diff checks after the layout adjustment passed, FINAL_CHECKS_EXIT:0.
+- [ ] Pass fresh committed-source backend acceptance.
+- [ ] Pass new exact-source hosted software/backend and both native flows.
+
+The 1d997 source passed hosted software lint/typecheck, 805 unit tests (one inherited skip), three real-backend software tests and both native builds. Android [37482649867](https://github.com/romanmodin/RedWallet/actions/runs/37482649867) and iOS [37482649919](https://github.com/romanmodin/RedWallet/actions/runs/37482649919) failed both native cases. All seven retained backend receipts identify 1d997 and cleanupComplete=true.
+
+Android SegWit reached original send and replacement acceptance at Knots, then remained on Success after Done. Success is registered in both SendDetailsStack and the wallet DetailViewStack; its unconditional parent goBack targeted the wrong navigator after a fee bump. Router regression tests now verify the actual pop action preserves the existing wallet route and params.
+
+Android Taproot reached original acceptance and signed replacement review, but its backend receipt contains only the original broadcast. The native log at 15:16:46.922 UTC reports FileNotFoundException: Biometrics has not been set. The fee-bump broadcast path read the unset preference without the normal biometric hook's missing-key handling. The correction recognizes only the native 404 missing-setting contract, and tests still block unrelated 404s and keystore failures.
+
+iOS SegWit failed with an open keyboard lacking Done; Taproot failed waiting for input visibility. The import ScrollView now supports real drag dismissal. The driver verifies keyboard absence and actual Import visibility and retains mnemonic/fee/signature/output/Knots assertions; it does not retry Create or Broadcast. Full local validation passed with only the inherited encryption-test bitwise warning; logs /tmp/redwallet-lifecycle-return-full-validation.log and /tmp/redwallet-lifecycle-return-biometric-targeted.log. Final checks are logged in /tmp/redwallet-lifecycle-return-final-checks.log. No complete native pass, physical-phone/cold-device interoperability, public Android crash fix or publication is claimed. PR40 stays separate.

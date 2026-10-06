@@ -133,9 +133,8 @@ export async function waitForSwitchValue(switchId, expectedValue, timeoutMs = 80
   rethrowWithCallsite(lastErr || new Error(`Timed out waiting for ${switchId} == ${expectedValue}`), callsite);
 }
 
-// Dismiss an open iOS keyboard with its real Done accessory. A hardware
-// keyboard or a previous blur can leave no accessory to tap: require both the
-// onscreen keyboard to be absent and Import to be visible in that case.
+// Use the real Done accessory or the import form's drag-to-dismiss behavior.
+// Require both the onscreen keyboard to be absent and Import to be visible.
 export async function dismissMnemonicKeyboard() {
   if (device.getPlatform() !== 'ios') return;
   const deadline = Date.now() + 10000;
@@ -143,15 +142,22 @@ export async function dismissMnemonicKeyboard() {
   while (Date.now() < deadline) {
     try {
       await element(by.text('Done')).tap();
-      ready = true;
-      break;
     } catch (_) {}
     try {
       await expect(element(by.type('UIKeyboardLayoutStar'))).not.toBeVisible();
+    } catch (_) {
+      // Multiline iOS inputs can lack the accessory. Exercise an actual drag.
+      await element(by.id('ImportWalletScroll')).swipe('up', 'slow', 0.25);
+      await sleep(250);
+      continue;
+    }
+    try {
       await expect(element(by.id('DoImport'))).toBeVisible();
       ready = true;
       break;
-    } catch (_) {}
+    } catch (_) {
+      await element(by.id('ImportWalletScroll')).scroll(120, 'down');
+    }
     await sleep(250);
   }
   if (!ready) throw new Error('Mnemonic keyboard did not dismiss within 10 seconds');

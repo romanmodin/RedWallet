@@ -4,10 +4,17 @@ import { dismissMnemonicKeyboard } from '../e2e/helperz';
 jest.mock('detox', () => ({ element: jest.fn() }));
 
 const unitExpect = expect;
-const savedGlobals = { device: global.device, by: global.by, waitFor: global.waitFor, expect: global.expect };
+const savedGlobals = {
+  device: global.device,
+  by: global.by,
+  waitFor: global.waitFor,
+  expect: global.expect,
+};
 let doneTap;
 let keyboardAbsent;
 let importVisible;
+let drag;
+let scroll;
 
 beforeEach(() => {
   jest.useFakeTimers();
@@ -15,8 +22,19 @@ beforeEach(() => {
   keyboardAbsent = jest.fn().mockResolvedValue(undefined);
   importVisible = jest.fn().mockResolvedValue(undefined);
   global.device = { getPlatform: () => 'ios' };
-  global.by = { text: value => value, type: value => value, id: value => value };
-  element.mockImplementation(target => ({ target, tap: doneTap }));
+  global.by = {
+    text: value => value,
+    type: value => value,
+    id: value => value,
+  };
+  drag = jest.fn().mockResolvedValue(undefined);
+  scroll = jest.fn().mockResolvedValue(undefined);
+  element.mockImplementation(target => ({
+    target,
+    tap: doneTap,
+    swipe: drag,
+    scroll,
+  }));
   global.expect = control => ({
     not: { toBeVisible: keyboardAbsent },
     toBeVisible: () => {
@@ -24,7 +42,9 @@ beforeEach(() => {
       return importVisible();
     },
   });
-  global.waitFor = () => ({ toBeVisible: () => ({ withTimeout: importVisible }) });
+  global.waitFor = () => ({
+    toBeVisible: () => ({ withTimeout: importVisible }),
+  });
 });
 
 afterEach(() => {
@@ -37,8 +57,8 @@ test('dismisses an open keyboard using the real Done tap', async () => {
   doneTap.mockResolvedValue(undefined);
   await dismissMnemonicKeyboard();
   unitExpect(doneTap).toHaveBeenCalledTimes(1);
-  unitExpect(keyboardAbsent).not.toHaveBeenCalled();
-  unitExpect(importVisible).toHaveBeenCalledTimes(1);
+  unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
+  unitExpect(importVisible).toHaveBeenCalledTimes(2);
 });
 
 test('accepts a closed keyboard only when Import is visible', async () => {
@@ -67,4 +87,23 @@ test('leaves Android keyboard handling unchanged', async () => {
   global.device = { getPlatform: () => 'android' };
   await dismissMnemonicKeyboard();
   unitExpect(element).not.toHaveBeenCalled();
+});
+
+test('dismisses a keyboard without Done using the import form drag', async () => {
+  keyboardAbsent.mockRejectedValueOnce(new Error('Keyboard visible'));
+  const pending = dismissMnemonicKeyboard();
+  await jest.advanceTimersByTimeAsync(250);
+  await pending;
+  unitExpect(drag).toHaveBeenCalledWith('up', 'slow', 0.25);
+  unitExpect(keyboardAbsent).toHaveBeenCalledTimes(2);
+  unitExpect(importVisible).toHaveBeenCalledTimes(2);
+});
+
+test('reveals Import after dismissal by scrolling the actual form', async () => {
+  importVisible.mockRejectedValueOnce(new Error('Import below viewport'));
+  const pending = dismissMnemonicKeyboard();
+  await jest.advanceTimersByTimeAsync(250);
+  await pending;
+  unitExpect(scroll).toHaveBeenCalledWith(120, 'down');
+  unitExpect(drag).not.toHaveBeenCalled();
 });

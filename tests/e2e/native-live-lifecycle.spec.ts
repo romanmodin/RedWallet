@@ -162,8 +162,16 @@ async function beginRecovery(): Promise<void> {
   await scrollUpOnHomeScreen();
   await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'ImportWallet');
   await element(by.id('ImportWallet')).tap();
-  await waitForId('MnemonicInput');
+  await waitFor(element(by.id('ToggleRecoveryDiscovery')))
+    .toBeVisible()
+    .whileElement(by.id('ImportWalletScroll'))
+    .scroll(150, 'down');
   await element(by.id('ToggleRecoveryDiscovery')).tap();
+  // Discovery controls and retained scroll position can put the input below view.
+  await waitFor(element(by.id('MnemonicInput')))
+    .toBeVisible()
+    .whileElement(by.id('ImportWalletScroll'))
+    .scroll(150, 'down');
   await enterMnemonicText(publicSeed);
   await element(by.id('DoImport')).tap();
   await waitForId('RecoveryResults', 60_000);

@@ -15,6 +15,7 @@ import { HandOffActivityType } from '../../components/types';
 import { getTransactionExplorerUrl } from '../../models/blockExplorer';
 import { SendDetailsStackParamList } from '../../navigation/SendDetailsStackParamList.ts';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { sendSuccessReturnAction } from '../../navigation/sendSuccess';
 
 type RouteProps = RouteProp<SendDetailsStackParamList, 'Success'>;
 type NavigationProps = NativeStackNavigationProp<SendDetailsStackParamList, 'Success'>;
@@ -38,8 +39,13 @@ const Success = () => {
   });
 
   const onDonePressed = () => {
-    // Close SendDetails modal stack and return to the underlying wallet view.
-    navigation.getParent()?.goBack();
+    const action = sendSuccessReturnAction(navigation.getState());
+    if (action) {
+      navigation.dispatch(action);
+    } else {
+      // Ordinary sends close their SendDetails modal.
+      navigation.getParent()?.goBack();
+    }
   };
 
   useEffect(() => {

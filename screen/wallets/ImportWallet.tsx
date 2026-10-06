@@ -47,7 +47,10 @@ const ImportWallet = () => {
     root: {
       paddingTop: 10,
       backgroundColor: colors.elevated,
-      flex: 1,
+      flexGrow: 1,
+    },
+    input: {
+      minHeight: 120,
     },
     center: {
       flex: 1,
@@ -151,7 +154,13 @@ const ImportWallet = () => {
   );
 
   return (
-    <SafeAreaScrollView contentContainerStyle={styles.root} keyboardShouldPersistTaps="always" automaticallyAdjustKeyboardInsets>
+    <SafeAreaScrollView
+      testID="ImportWalletScroll"
+      contentContainerStyle={styles.root}
+      keyboardShouldPersistTaps="always"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
+    >
       <BlueSpacing20 />
       <BlueFormLabel>{loc.wallets.import_explanation}</BlueFormLabel>
       <BlueSpacing20 />
@@ -197,6 +206,7 @@ const ImportWallet = () => {
         </>
       )}
       <BlueFormMultiInput
+        style={styles.input}
         value={importText}
         onBlur={onBlur}
         onChangeText={setImportText}

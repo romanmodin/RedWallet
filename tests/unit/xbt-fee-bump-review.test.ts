@@ -1,4 +1,5 @@
 import * as bitcoin from 'bitcoinjs-lib';
+import { Platform } from 'react-native';
 import CPFP from '../../screen/transactions/CPFP';
 import RBFBumpFee from '../../screen/transactions/RBFBumpFee';
 import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
@@ -146,4 +147,38 @@ it.each([
   expect(screen.state.stage).toBe(1);
   expect(reviewState.txhex).toBeUndefined();
   expect(broadcast).not.toHaveBeenCalled();
+});
+
+const originalPlatform = Platform.OS;
+afterEach(() => {
+  Platform.OS = originalPlatform;
+});
+
+it.each([
+  ['android', '{"code":404,"api-level":35,"message":Biometrics has not been set}'],
+  ['ios', '{"message":"key does not present"}'],
+] as const)('permits a reviewed fee bump with an unset %s biometric preference', async (platform, message) => {
+  Platform.OS = platform;
+  const { screen, broadcast, transaction, storage } = reviewScreen(200, 90_000);
+  storage.getItem.mockRejectedValue(Object.assign(new Error(message), { code: '404' }));
+  screen.broadcast();
+  await flush();
+  expect(unlockWithBiometrics).not.toHaveBeenCalled();
+  expect(broadcast).toHaveBeenCalledWith(transaction.toHex());
+  expect(screen.onSuccessBroadcast).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  ['1', 'Keystore cannot be unlocked'],
+  ['404', 'An unrelated key has not been set'],
+  ['404', 'Biometrics storage is corrupted'],
+])('keeps storage failure %s/%s as a broadcast gate', async (code, message) => {
+  Platform.OS = 'android';
+  const { screen, broadcast, storage } = reviewScreen(200, 90_000);
+  storage.getItem.mockRejectedValue(Object.assign(new Error(message), { code }));
+  screen.broadcast();
+  await flush();
+  expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(screen.state.isLoading).toBe(false);
 });

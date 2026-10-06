@@ -6,7 +6,7 @@ import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import { isXbtTaprootWallet, XbtTaprootTransaction } from '../../class/xbt-taproot-transaction';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import React, { Component } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Platform } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import PropTypes from 'prop-types';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
@@ -95,18 +95,36 @@ export default class CPFP extends Component {
     const recipientValue = recipients.reduce((sum, output) => sum + output.value, 0n);
     const amountSats = Number(recipientValue || result.tx.outs.reduce((sum, output) => sum + output.value, 0n));
     const feeRate = result.fee / result.tx.virtualSize();
-    const review = { feeSats: result.fee, feeRate, amountSats, hex: result.tx.toHex() };
+    const review = {
+      feeSats: result.fee,
+      feeRate,
+      amountSats,
+      hex: result.tx.toHex(),
+    };
     // Validate the numeric review even when the fee does not trigger a warning.
     requiresHighFeeApproval(review);
     this.feeReview = review;
     this.setState({ feeSats: result.fee, actualFeeRate: feeRate });
   }
 
+  async isBiometricUseEnabled() {
+    try {
+      return !!(await this.context.getItem('Biometrics'));
+    } catch (error) {
+      // Native secure storage rejects an unset preference on fresh installs.
+      // Other storage failures must still prevent broadcasting.
+      const missingAndroid = Platform.OS === 'android' && error.message?.endsWith('"message":Biometrics has not been set}');
+      const missingIos = Platform.OS === 'ios' && error.message === '{"message":"key does not present"}';
+      if (error.code === '404' && (missingAndroid || missingIos)) return false;
+      throw error;
+    }
+  }
+
   broadcast = () => {
     this.setState({ isLoading: true }, async () => {
       try {
         if (isXbtTaprootWallet(this.state.wallet)) {
-          if ((await this.context.getItem('Biometrics')) && !(await unlockWithBiometrics())) {
+          if ((await this.isBiometricUseEnabled()) && !(await unlockWithBiometrics())) {
             this.setState({ isLoading: false });
             return;
           }
