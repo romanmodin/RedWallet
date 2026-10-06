@@ -121,7 +121,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: romanmodin/TeslaWatchICP
-          ref: c81579375a14831fef33dd602ed9cfaa2b6f58a2
+          ref: b51d08292baa95ab932a7712a3cb0f1328a19dbb
           ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
           persist-credentials: false
       - name: Install Apple-signed Transporter for watch-only uploads
@@ -254,7 +254,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: romanmodin/TeslaWatchICP
-          ref: c81579375a14831fef33dd602ed9cfaa2b6f58a2
+          ref: b51d08292baa95ab932a7712a3cb0f1328a19dbb
           ssh-key: ${{ secrets.TESLA_WATCH_SOURCE_READONLY_KEY }}
           persist-credentials: false
       - name: Prepare temporary API credentials
