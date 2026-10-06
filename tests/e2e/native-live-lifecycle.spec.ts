@@ -274,9 +274,15 @@ native('continuous native live wallet lifecycle', () => {
         backend.fault = 'none';
         await goBack();
         await goBack();
-        // Discovery and import are nested inside the Add Wallet modal.
-        await waitForId('NavigationCloseButton');
-        await element(by.id('NavigationCloseButton')).tap();
+        // Android renders this left close control as a native header back image,
+        // without the React NavigationCloseButton test ID. Back exits the modal;
+        // iOS exposes the custom close control. Require the home screen afterward.
+        if (isIOS) {
+          await waitForId('NavigationCloseButton');
+          await element(by.id('NavigationCloseButton')).tap();
+        } else {
+          await goBack();
+        }
         await waitForWalletsList();
         await recover();
         await openWallet(label);

@@ -1,6 +1,6 @@
 # Native live lifecycle agenda
 
-Updated: 2026-10-05 19:34 UTC. Owner requested autonomous work, checked agenda and periodic reports.
+Updated: 2026-10-06 00:40 UTC. Owner requested autonomous work, checked agenda and periodic reports.
 
 Release qualification source: `61b7c3f521809b3b12cb88d5e49d1ae00d9e2cc6` (PR40). Leave its worktree and gates unchanged. This work is isolated on `test/native-live-lifecycle-20261005`.
 
@@ -41,6 +41,8 @@ No production node mounts, funds, credentials or private wallet data. Disposable
 The initial software run shared an older dependency installation lacking this source's Electrum TLS patch. An added expired-certificate test exposed that mismatch. Replaced the symlink with an isolated npm ci installation; patch-package applied current Electrum and native TCP patches, and all results above were rerun against those dependencies. Earlier shared-dependency results are not exact-source TLS qualification.
 
 ## Current task and next step
+
+The `0aed78a8024ff31c2e3fc38011e7b48a5c318a82` Android attempt 2 built and ran both native cases. Expired TLS, wrong checkpoint and cancellation assertions completed, then both failed waiting for `NavigationCloseButton`. Source inspection confirms Android left close controls use `headerBackImageSource` rather than the React control/test ID. The driver now uses Android Back to exit the Add Wallet modal and still requires WalletsList plus its visible Settings toolbar. iOS retains its actual close-button tap. No security, recovery or lifecycle assertions are waived. iOS attempt 2 and the software job were cancelled with zero steps because no runner was acquired. Driver-only correction passed targeted ESLint, tsc --noEmit, git diff --check and all four existing driver regression tests. Log: /tmp/redwallet-lifecycle-modal-validation.log. Both failed Android backend receipts identify 0aed78a80 and cleanupComplete=true. Commit/push the correction for fresh exact-source software, Android and iOS jobs. No full native acceptance, physical-device interoperability or publication receipt exists.
 
 Source `3e4546f5f7422d62f8b336465098340a4742f31e` passed its hosted software job: 85 unit suites, 796 tests passed, one inherited skip, lint/typecheck and all three fresh isolated backend integration tests passed. Android run [37356889925](https://github.com/romanmodin/RedWallet/actions/runs/37356889925) and iOS run [37356889885](https://github.com/romanmodin/RedWallet/actions/runs/37356889885) built successfully but their native flows failed. Android passed expired TLS, wrong checkpoint and cancelled-scan assertions, then waited for WalletsList while the screenshot showed the Add Wallet modal: two backs exited discovery/import but did not close the modal. iOS failed its alert-text nonexistence wait; both screenshots show the alert visually dismissed and the underlying Electrum settings screen. The driver now explicitly closes the Add Wallet modal after cancellation and checks visual alert dismissal rather than removal of retained iOS alert text. Save still must pass its real hit test; security and incomplete-scan assertions remain intact. Qualify this driver correction on fresh exact-source hosted runs. No continuous native pass, physical-device interoperability or publication is claimed. PR40 remains frozen.
 
