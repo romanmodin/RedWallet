@@ -568,6 +568,52 @@ export async function goBack() {
   rethrowWithCallsite(wrapped, callsite);
 }
 
+/** Exit the cancelled scan through each actual screen before closing its modal. */
+export async function leaveCancelledRecovery() {
+  await goBack();
+  await waitFor(element(by.id('DoImport')))
+    .toBeVisible()
+    .withTimeout(15000);
+  await goBack();
+  await waitFor(element(by.id('ImportWallet')))
+    .toBeVisible()
+    .withTimeout(15000);
+
+  if (device.getPlatform() !== 'ios') {
+    await device.pressBack();
+    await waitFor(element(by.id('ImportWallet')))
+      .not.toBeVisible()
+      .withTimeout(15000);
+    return;
+  }
+
+  // Unsynchronized iOS stack transitions can accept a tap before its handler
+  // reaches the new screen. Retry only Close while Add Wallet is still visible;
+  // never continue unless the modal has actually disappeared.
+  const deadline = Date.now() + 15000;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      await expect(element(by.id('ImportWallet'))).not.toBeVisible();
+      return;
+    } catch (_) {}
+    try {
+      await expect(element(by.id('ImportWallet'))).toBeVisible();
+      await element(by.id('NavigationCloseButton')).tap();
+      await waitFor(element(by.id('ImportWallet')))
+        .not.toBeVisible()
+        .withTimeout(1000);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(250);
+  }
+  const timeoutError = new Error('Cancelled recovery Add Wallet modal did not close within 15 seconds');
+  timeoutError.cause = lastError;
+  throw timeoutError;
+}
+
 export async function typeTextIntoAlertInput(text) {
   if (device.getPlatform() === 'android') {
     await element(by.type('android.widget.EditText')).replaceText(text);
