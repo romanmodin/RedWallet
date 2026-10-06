@@ -89,12 +89,21 @@ async function saveConnection(): Promise<void> {
 
 async function dismissConnectionAlert(message: string): Promise<void> {
   assert.equal(await dismissAlertByText('OK', 10_000, false), true);
-  // iOS 26 retains dismissed alert text in its view hierarchy. Both failed-run
-  // screenshots show the underlying settings screen with no alert displayed.
-  // Require visual dismissal; Save still must pass its actual hit test.
-  await waitFor(element(by.text(message)))
-    .not.toBeVisible()
-    .withTimeout(15_000);
+  if (device.getPlatform() === 'ios') {
+    // iOS 26 retains alert text that Detox still reports as visible after OK.
+    // Require a real hit test on the underlying form: an active alert/transition
+    // must not intercept this tap. Do not resubmit the rejected connection.
+    await eventually(async () => {
+      await field('HostInput').tap();
+      return true;
+    }, 15_000);
+    await field('HostInput').tapReturnKey();
+    await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
+  } else {
+    await waitFor(element(by.text(message)))
+      .not.toBeVisible()
+      .withTimeout(15_000);
+  }
 }
 
 async function configureNative(backend: KnotsFulcrumHarness): Promise<void> {
@@ -322,6 +331,7 @@ native('continuous native live wallet lifecycle', () => {
         assert.equal(await nativeText('AddressInput'), vectors.recipient);
         await element(by.id('BitcoinAmountInput')).replaceText('0.0009\n');
         await waitForKeyboardToClose();
+        assert.equal(await nativeText('AddressInput'), vectors.recipient);
         await setCustomFeeRate(1);
         assert.equal(await nativeText('AddressInput'), vectors.recipient);
         await element(by.id('CreateTransactionButton')).tap();

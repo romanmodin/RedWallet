@@ -65,6 +65,7 @@ import ActionSheet from '../ActionSheet';
 import { isCancel, pickTransaction } from '../../blue_modules/fs';
 import { Measure } from '../../class/measure';
 import { isWatchOnlySegwitBech32 } from '../../util/isWatchOnlySegwitBech32';
+import { updatePaymentDestination } from '../../util/updatePaymentDestination';
 
 interface IPaymentDestinations {
   address: string; // btc address or payment code
@@ -1544,28 +1545,29 @@ const SendDetails = () => {
               });
             }}
             onChangeText={(text: string) => {
-              setAddresses(addrs => {
-                item.amount = text;
-                switch (item.unit || amountUnit) {
-                  case BitcoinUnit.BTC:
-                    item.amountSats = btcToSatoshi(item.amount);
-                    break;
-                  case BitcoinUnit.LOCAL_CURRENCY:
-                    if (!XBT_PROFILE.fiatEnabled) {
-                      item.amount = '';
-                      item.amountSats = 0;
+              setAddresses(addrs =>
+                updatePaymentDestination(addrs, item.key, destination => {
+                  destination.amount = text;
+                  switch (destination.unit || amountUnit) {
+                    case BitcoinUnit.BTC:
+                      destination.amountSats = btcToSatoshi(destination.amount);
                       break;
-                    }
-                    item.amountSats = btcToSatoshi(fiatToBTC(Number(item.amount)));
-                    break;
-                  case BitcoinUnit.SATS:
-                  default:
-                    item.amountSats = parseInt(text, 10);
-                    break;
-                }
-                addrs[index] = item;
-                return [...addrs];
-              });
+                    case BitcoinUnit.LOCAL_CURRENCY:
+                      if (!XBT_PROFILE.fiatEnabled) {
+                        destination.amount = '';
+                        destination.amountSats = 0;
+                        break;
+                      }
+                      destination.amountSats = btcToSatoshi(fiatToBTC(Number(destination.amount)));
+                      break;
+                    case BitcoinUnit.SATS:
+                    default:
+                      destination.amountSats = parseInt(text, 10);
+                      break;
+                  }
+                  return destination;
+                }),
+              );
             }}
             unit={item.unit || amountUnit}
             editable={isEditable}
