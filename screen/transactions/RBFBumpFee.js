@@ -157,6 +157,7 @@ export default class RBFBumpFee extends CPFP {
     return (
       <SafeArea style={styles.root}>
         <ScrollView
+          testID="FeeBumpScroll"
           automaticallyAdjustContentInsets
           automaticallyAdjustKeyboardInsets
           automaticallyAdjustsScrollIndicatorInsets

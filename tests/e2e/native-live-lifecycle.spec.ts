@@ -263,8 +263,16 @@ async function bump(kind: 'rbf' | 'cpfp', rate: number): Promise<bitcoin.Transac
   }
   await waitFor(feeInput).toBeVisible().withTimeout(15_000);
   assert.equal(await nativeText('FeeBumpRateInput'), String(rate));
-  await waitForId('FeeBumpCreateButton');
-  await element(by.id('FeeBumpCreateButton')).tap();
+  const create = element(by.id('FeeBumpCreateButton'));
+  if (kind === 'rbf') {
+    // The RBF explanation and fee suggestions can push Create below the viewport.
+    // Scroll the actual form; retain the standard visibility and real tap checks.
+    await waitFor(create).toBeVisible().whileElement(by.id('FeeBumpScroll')).scroll(150, 'down');
+  } else {
+    await waitForId('FeeBumpCreateButton');
+  }
+  assert.equal(await nativeText('FeeBumpRateInput'), String(rate));
+  await create.tap();
   await waitForId('FeeBumpHexInput');
   const tx = bitcoin.Transaction.fromHex(await nativeText('FeeBumpHexInput'));
   assert.ok(tx.ins.every(input => input.witness[0][input.witness[0].length - 1] === 0x21));

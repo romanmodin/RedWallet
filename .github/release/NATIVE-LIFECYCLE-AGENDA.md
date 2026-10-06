@@ -91,3 +91,19 @@ Both Android formats reached native review, Unified-signature and recipient/outp
 Both iOS cases reached the expired-certificate rejection, with invalidCertificateTested=true and checkpointRequests=0. Their next scroll failed because a UITransitionView intercepted the immediate scroll after OK. The final SegWit failure screenshot shows the alert gone and loopback host visible at the saved form position. The driver now retries the real host-field tap within 15 seconds before any scroll, then dismisses the keyboard and retries only the nonmutating scroll-to-bottom gesture within 15 seconds. It does not resubmit a rejected connection to dismiss its alert. Wrong-checkpoint, cancellation and complete iOS lifecycle acceptance still require the new run.
 
 Local logs: /tmp/redwallet-lifecycle-keyboard-transition-validation.log (VALIDATION_EXIT:0, 123.478s unit suite) and /tmp/redwallet-lifecycle-keyboard-transition-final.log (FINAL_EXIT:0). A naming warning introduced during the first lint pass was removed and final targeted lint/typecheck are clean; the inherited encryption-test bitwise warning is unchanged. This is a driver-only follow-up. Complete continuous native acceptance, physical-phone/cold-device interoperability and the independently reported public Android crash fix remain unproven. PR40 source/gates/publication stay separate and untouched.
+
+
+## RBF viewport and already-dismissed mnemonic keyboard
+
+Updated 2026-10-06 14:50 UTC; follow-up to source 6de606a4d93b45f4157979c647b7134f7b508cb4.
+
+- [x] Read exact-source Android/iOS failed-job logs and retained failure screenshots.
+- [x] Correct the RBF driver to scroll the existing fee-bump form until Create is visible; add only a stable test ID to that ScrollView.
+- [x] Correct iOS mnemonic keyboard handling: tap the real Done accessory if available, otherwise require the onscreen keyboard to be absent and Import visible.
+- [x] Pass 11 targeted tests and targeted ESLint/diff checks, including five keyboard-driver regressions.
+- [x] Pass full local lint/typecheck and 88 unit suites: 805 tests passed, one inherited skip, VALIDATION_EXIT:0 (121.416s unit suite).
+- [ ] Commit/push and pass fresh exact-source hosted software/backend, Android and iOS qualification.
+
+Current 6de runs Android37438833040 and iOS37438833160 both completed failure, with software and both builds successful. Android both formats retain exact fee4 and show the RBF form alive, keyboard closed, with the Create button below the viewport. The driver must scroll rather than waive its visibility check. iOS both formats pass the cancelled scan and stop on the second recovery waiting for Done; the retained SegWit failure screenshot shows Import and no onscreen keyboard. A repeated tap on the mnemonic input is no longer used to demand an accessory when the keyboard is closed. New unit tests require failure within ten seconds if the keyboard remains open or Import is hidden; Android handling is unchanged. Exact mnemonic retention, fee retention before/after scroll, actual Import/Create/Broadcast taps, Unified signature checks, recipient/output checks and Knots acceptance remain required. No Create/Broadcast retry is introduced.
+
+Evidence screenshots are in /tmp/redwallet-6de-android-images and /tmp/redwallet-6de-ios-images. Full Android evidence download is in progress to /tmp/redwallet-lifecycle-6de-android-evidence. Validation log: /tmp/redwallet-lifecycle-scroll-keyboard-validation.log. Complete native lifecycle, physical-phone/cold-device interoperability and the independently reported public Android crash fix remain unproven. PR40 stays separate; no publication is claimed.

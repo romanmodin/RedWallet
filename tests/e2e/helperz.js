@@ -133,18 +133,29 @@ export async function waitForSwitchValue(switchId, expectedValue, timeoutMs = 80
   rethrowWithCallsite(lastErr || new Error(`Timed out waiting for ${switchId} == ${expectedValue}`), callsite);
 }
 
-// iOS keeps the multiline import field focused after replaceText. Dismiss
-// its keyboard through the same Done accessory used on a phone before tapping
-// Import; do not bypass Detox visibility checks or alter the recovery assertions.
+// Dismiss an open iOS keyboard with its real Done accessory. A hardware
+// keyboard or a previous blur can leave no accessory to tap: require both the
+// onscreen keyboard to be absent and Import to be visible in that case.
 export async function dismissMnemonicKeyboard() {
   if (device.getPlatform() !== 'ios') return;
-  await element(by.id('MnemonicInput')).tap();
-  await waitFor(element(by.text('Done')))
-    .toBeVisible()
-    .withTimeout(10000);
-  await element(by.text('Done')).tap();
-  // Rounded button corners are clipped by the wrapper. Use Detox's normal
-  // visibility threshold before exercising its real tap action.
+  const deadline = Date.now() + 10000;
+  let ready = false;
+  while (Date.now() < deadline) {
+    try {
+      await element(by.text('Done')).tap();
+      ready = true;
+      break;
+    } catch (_) {}
+    try {
+      await expect(element(by.type('UIKeyboardLayoutStar'))).not.toBeVisible();
+      await expect(element(by.id('DoImport'))).toBeVisible();
+      ready = true;
+      break;
+    } catch (_) {}
+    await sleep(250);
+  }
+  if (!ready) throw new Error('Mnemonic keyboard did not dismiss within 10 seconds');
+  // The caller must still exercise Import's real tap; no hit test is bypassed.
   await waitFor(element(by.id('DoImport')))
     .toBeVisible()
     .withTimeout(10000);
