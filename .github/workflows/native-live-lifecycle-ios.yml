@@ -4,9 +4,16 @@ on:
   push:
     branches: [test/native-live-lifecycle-20261005]
   workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Focused stage, all focused stages, or gated final acceptance'
+        type: choice
+        default: focused
+        options: [focused, recovery, receive, send, rbf, cpfp, encryption, delete, final]
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: native-live-ios-${{ github.ref }}
@@ -164,6 +171,12 @@ jobs:
           if-no-files-found: error
 
   test:
+    name: Native ios (${{ matrix.stage }})
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        stage: ${{ fromJSON((github.event_name == 'push' || inputs.stage == 'focused') && '["cpfp","encryption","recovery","receive","send","rbf","delete"]' || format('["{0}"]', inputs.stage)) }}
     if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: macos-26
     needs: build
@@ -222,18 +235,25 @@ jobs:
       - name: Install Fulcrum build dependencies
         run: brew install qtbase
 
+      - name: Require both platforms' focused gates before final acceptance
+        if: matrix.stage == 'final'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/check-native-focused-gates.py "${{ github.sha }}"
+
       - name: Prepare isolated backend
         timeout-minutes: 30
         run: node .github/scripts/prepare-native-backend.ts "$RUNNER_TEMP/redwallet-backend-bin"
 
-      - name: Run continuous native lifecycle
+      - name: Run native stage ${{ matrix.stage }}
         timeout-minutes: 40
         env:
           REDWALLET_NATIVE_LIVE: '1'
+          REDWALLET_NATIVE_STAGE: ${{ matrix.stage }}
         run: REDWALLET_BACKEND_BIN="$RUNNER_TEMP/redwallet-backend-bin" npx detox test -c ios.release tests/e2e/native-live-lifecycle.spec.ts --runTestsByPath --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location artifacts/native-lifecycle/detox-ios
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
-          name: native-lifecycle-ios-evidence
+          name: native-lifecycle-ios-${{ matrix.stage }}-evidence
           path: artifacts/native-lifecycle

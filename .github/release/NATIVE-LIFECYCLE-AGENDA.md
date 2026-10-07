@@ -1,5 +1,17 @@
 # Native live lifecycle agenda
 
+## Focused native qualification (October 6, 2026)
+
+- [x] Split native execution into seven independently reset stages: recovery/resilience, receive, send, RBF, CPFP, encryption/restart/history, deletion/recovery. Every stage runs for SegWit and Taproot with a fresh app and isolated Knots/Fulcrum backend.
+- [x] CPFP creates its own native parent payment without depending on RBF. Encryption and deletion create and confirm their own native payment without depending on fee bumps. Prerequisite failures are reported with their exact step.
+- [x] Keep full uninterrupted lifecycle behind explicit final mode. Hosted final jobs fail closed until all seven focused jobs passed on both platforms at the same source commit.
+- [x] Disable matrix fail-fast; retain separate stage artifacts and screenshots. Limit concurrency to two stages per platform.
+- [ ] Pass focused native stages on Android and iOS.
+- [ ] After all focused stages pass on the same source, dispatch and pass uninterrupted final acceptance on both platforms.
+
+Push runs all focused stages. Workflow dispatch stage selects a single stage or focused; final is reserved for the last acceptance run. Stage receipts mark continuousAcceptance=false; only final can mark it true. These remain hosted emulator/simulator tests, not physical-phone or cold-device interoperability.
+
+
 ## CPFP eligibility, fee approval and launcher focus (October 6, 2026)
 
 - [x] Inspect 98770e06a exact-source failures and retained traces: Android Quickstep ANR before wallet readiness; iOS SegWit hides CPFP for outgoing change; iOS Taproot waits at the real high-fee confirmation.

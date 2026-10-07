@@ -32,6 +32,11 @@ import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
 const native = process.env.REDWALLET_NATIVE_LIVE === '1' ? describe : describe.skip;
+const focusedStages = ['recovery', 'receive', 'send', 'rbf', 'cpfp', 'encryption', 'delete'] as const;
+type Stage = (typeof focusedStages)[number] | 'final';
+const requestedStage = process.env.REDWALLET_NATIVE_STAGE || 'focused';
+assert.ok(['focused', 'final', ...focusedStages].includes(requestedStage), 'Unknown native stage: ' + requestedStage);
+const stages: readonly Stage[] = requestedStage === 'focused' ? focusedStages : [requestedStage as Stage];
 const publicSeed = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const fixturePassword = 'public-fixture-password';
 const ca = readFileSync(path.join(__dirname, '../fixtures/tls/ca.pem'), 'utf8').trim();
@@ -113,7 +118,7 @@ async function dismissConnectionAlert(message: string): Promise<void> {
   }
 }
 
-async function configureNative(backend: KnotsFulcrumHarness): Promise<void> {
+async function configureNative(backend: KnotsFulcrumHarness, testRejections: boolean): Promise<void> {
   await waitForWalletsList();
   await element(by.id('SettingsButton')).tap();
   await waitForId('SettingsRoot');
@@ -135,21 +140,23 @@ async function configureNative(backend: KnotsFulcrumHarness): Promise<void> {
   await element(by.id('TlsCaInput')).replaceText(ca);
   await element(by.id('TlsCaInput')).tapReturnKey();
   await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
-  // An expired certificate signed by the configured CA must be rejected before
-  // any Electrum requests. Then test the checkpoint separately on valid TLS.
-  console.info('[native-lifecycle] testing expired TLS rejection');
-  const beforeInvalidTls = backend.receipt.checkpointRequests;
-  backend.setCertificate('native-expired.pem');
-  await saveConnection();
-  await waitForText(connectionFailed, 60_000);
-  await dismissConnectionAlert(connectionFailed);
-  assert.equal(backend.receipt.checkpointRequests, beforeInvalidTls);
-  console.info('[native-lifecycle] testing wrong checkpoint rejection');
-  backend.setCertificate('native.pem');
-  backend.fault = 'wrong-checkpoint';
-  await saveConnection();
-  await waitForText(connectionFailed, 60_000);
-  await dismissConnectionAlert(connectionFailed);
+  if (testRejections) {
+    // An expired certificate signed by the configured CA must be rejected before
+    // any Electrum requests. Then test the checkpoint separately on valid TLS.
+    console.info('[native-lifecycle] testing expired TLS rejection');
+    const beforeInvalidTls = backend.receipt.checkpointRequests;
+    backend.setCertificate('native-expired.pem');
+    await saveConnection();
+    await waitForText(connectionFailed, 60_000);
+    await dismissConnectionAlert(connectionFailed);
+    assert.equal(backend.receipt.checkpointRequests, beforeInvalidTls);
+    console.info('[native-lifecycle] testing wrong checkpoint rejection');
+    backend.setCertificate('native.pem');
+    backend.fault = 'wrong-checkpoint';
+    await saveConnection();
+    await waitForText(connectionFailed, 60_000);
+    await dismissConnectionAlert(connectionFailed);
+  }
   backend.fault = 'none';
   await saveConnection();
   await waitForText(connectionSaved, 60_000);
@@ -275,13 +282,8 @@ async function bump(kind: 'rbf' | 'cpfp', rate: number, parent?: bitcoin.Transac
   await waitFor(feeInput).toBeVisible().withTimeout(15_000);
   assert.equal(await nativeText('FeeBumpRateInput'), String(rate));
   const create = element(by.id('FeeBumpCreateButton'));
-  if (kind === 'rbf') {
-    // The RBF explanation and fee suggestions can push Create below the viewport.
-    // Scroll the actual form; retain the standard visibility and real tap checks.
-    await waitFor(create).toBeVisible().whileElement(by.id('FeeBumpScroll')).scroll(150, 'down');
-  } else {
-    await waitForId('FeeBumpCreateButton');
-  }
+  // Both fee forms can place Create below the keyboard or viewport.
+  await waitFor(create).toBeVisible().whileElement(by.id('FeeBumpScroll')).scroll(150, 'down');
   assert.equal(await nativeText('FeeBumpRateInput'), String(rate));
   await create.tap();
   await waitForId('FeeBumpHexInput');
@@ -307,229 +309,267 @@ async function unlock(password: string): Promise<void> {
   await element(by.id('PasswordInput')).tapReturnKey();
 }
 
-native('continuous native live wallet lifecycle', () => {
-  for (const format of ['segwit', 'taproot'] as const) {
-    it(format + ' native recovery/receive/send/RBF/CPFP/confirmation/encrypted restart/delete/recovery', async () => {
-      const artifactDirectory = path.join(process.cwd(), 'artifacts/native-lifecycle', device.getPlatform() + '-' + format);
-      const backend = new KnotsFulcrumHarness(backendOptions(artifactDirectory));
-      const profile = vectors[format];
-      const label = 'Imported ' + profile.typeReadable;
-      const isIOS = device.getPlatform() === 'ios';
-      try {
-        console.info('[native-lifecycle] starting isolated backend');
-        await backend.start();
-        console.info('[native-lifecycle] funding public fixtures');
-        await backend.fundAddress(profile.receive[0], 60_000);
-        await backend.fundAddress(profile.receive[1], 40_000);
-        console.info('[native-lifecycle] launching native app');
-        await device.clearKeychain();
-        await device.launchApp({
-          delete: true,
-          permissions: { notifications: 'NO' },
-          launchArgs: { detoxEnableSynchronization: 0 },
-        });
-        if (isIOS) {
-          await device.disableSynchronization();
-        } else {
-          // Fresh installs can trigger a Quickstep ANR behind the app. Clear only
-          // that disposable launcher after launch, before checking app readiness.
-          execFileSync('adb', ['-s', device.id, 'shell', 'am', 'force-stop', 'com.android.launcher3'], {
-            timeout: 10_000,
-            stdio: 'pipe',
-          });
-        }
-        await configureNative(backend);
-
-        console.info('[native-lifecycle] testing cancelled recovery');
-        // A cancelled stalled scan must not silently become an empty successful recovery.
-        backend.fault = 'history-timeout';
-        await beginRecovery();
-        await waitForId('RecoveryStopButton');
-        await element(by.id('RecoveryStopButton')).tap();
-        await waitForText(english.wallets.recovery_incomplete, 60_000);
-        // RN Pressable disables its JS handler; native View.enabled can still
-        // be true on Android. Exercise the button and assert the actual outcome.
-        await waitForId('RecoveryImportSelected');
+native('isolated native live wallet stages and final acceptance', () => {
+  for (const stage of stages) {
+    for (const format of ['segwit', 'taproot'] as const) {
+      it(stage + ' / ' + format + ' native live', async () => {
+        const final = stage === 'final';
+        let currentStep = 'setup';
+        const artifactDirectory = path.join(process.cwd(), 'artifacts/native-lifecycle', device.getPlatform() + '-' + stage + '-' + format);
+        const backend = new KnotsFulcrumHarness(backendOptions(artifactDirectory));
+        const profile = vectors[format];
+        const label = 'Imported ' + profile.typeReadable;
+        const isIOS = device.getPlatform() === 'ios';
         try {
-          await element(by.id('RecoveryImportSelected')).tap();
+          console.info('[native-lifecycle] starting isolated backend');
+          await backend.start();
+          console.info('[native-lifecycle] funding public fixtures');
+          await backend.fundAddress(profile.receive[0], 60_000);
+          await backend.fundAddress(profile.receive[1], 40_000);
+          console.info('[native-lifecycle] launching native app');
+          await device.clearKeychain();
+          await device.launchApp({
+            delete: true,
+            permissions: { notifications: 'NO' },
+            launchArgs: { detoxEnableSynchronization: 0 },
+          });
+          if (isIOS) {
+            await device.disableSynchronization();
+          } else {
+            // Fresh installs can trigger a Quickstep ANR behind the app. Clear only
+            // that disposable launcher after launch, before checking app readiness.
+            execFileSync('adb', ['-s', device.id, 'shell', 'am', 'force-stop', 'com.android.launcher3'], {
+              timeout: 10_000,
+              stdio: 'pipe',
+            });
+          }
+          await configureNative(backend, final || stage === 'recovery');
+
+          if (final || stage === 'recovery') {
+            currentStep = 'cancelled recovery';
+            console.info('[native-lifecycle] testing cancelled recovery');
+            // A cancelled stalled scan must not silently become an empty successful recovery.
+            backend.fault = 'history-timeout';
+            await beginRecovery();
+            await waitForId('RecoveryStopButton');
+            await element(by.id('RecoveryStopButton')).tap();
+            await waitForText(english.wallets.recovery_incomplete, 60_000);
+            // RN Pressable disables its JS handler; native View.enabled can still
+            // be true on Android. Exercise the button and assert the actual outcome.
+            await waitForId('RecoveryImportSelected');
+            try {
+              await element(by.id('RecoveryImportSelected')).tap();
+            } catch (error) {
+              if (!/disabled|not enabled/i.test(String(error))) throw error;
+            }
+            await nativeExpect(element(by.id('RecoveryResults'))).toExist();
+            await nativeExpect(element(by.text('Your wallet has been successfully imported.'))).not.toExist();
+            backend.fault = 'none';
+            await leaveCancelledRecovery();
+            await waitForWalletsList();
+          }
+          currentStep = 'funded recovery';
+          await recover();
+          await openWallet(label);
+          assert.equal(await balanceSats(), 100_000);
+
+          if (final || stage === 'recovery') {
+            currentStep = 'server reconnect';
+            // A server reset must preserve the funded wallet until a fresh
+            // authenticated connection can fetch history again.
+            const beforeDisconnect = backend.receipt.disconnectFaults;
+            backend.fault = 'disconnect';
+            backend.disconnectClients();
+            await refresh();
+            await eventually(async () => backend.receipt.disconnectFaults > beforeDisconnect, 30_000);
+            assert.equal(await balanceSats(), 100_000);
+            backend.fault = 'none';
+            backend.disconnectClients();
+            const beforeReconnect = backend.receipt.forwardedMethods['blockchain.scripthash.get_history'] || 0;
+            await eventually(async () => {
+              await refresh();
+              return (backend.receipt.forwardedMethods['blockchain.scripthash.get_history'] || 0) > beforeReconnect;
+            }, 60_000);
+            assert.equal(await balanceSats(), 100_000);
+          }
+          if (final || stage === 'receive') {
+            currentStep = 'receive';
+            await element(by.id('ReceiveButton')).tap();
+            await waitForId('BitcoinAddressQRCode');
+            await waitForLabel(profile.receive[2]);
+            await backend.fundAddress(profile.receive[2], 50_000);
+            await goBack();
+            await eventually(async () => {
+              await refresh();
+              return (await balanceSats()) === 150_000;
+            }, 60_000);
+          }
+          let original: bitcoin.Transaction | undefined;
+          let replacement: bitcoin.Transaction | undefined;
+          let child: bitcoin.Transaction | undefined;
+          let retainedBalance = await balanceSats();
+          if (final || !['recovery', 'receive'].includes(stage)) {
+            currentStep = 'send';
+            await element(by.id('SendButton')).tap();
+            await waitForId('AddressInput');
+            await element(by.id('AddressInput')).typeText(vectors.recipient + '\n');
+            await waitForKeyboardToClose();
+            assert.equal(await nativeText('AddressInput'), vectors.recipient);
+            await element(by.id('BitcoinAmountInput')).replaceText('0.0009\n');
+            await waitForKeyboardToClose();
+            assert.equal(await nativeText('AddressInput'), vectors.recipient);
+            await setCustomFeeRate(1);
+            assert.equal(await nativeText('AddressInput'), vectors.recipient);
+            await prepareNativePayment();
+            await element(by.id('TransactionDetailsButton')).tap();
+            original = bitcoin.Transaction.fromHex(await nativeText('TxhexInput'));
+            assert.ok(original.ins.every(input => input.witness[0][input.witness[0].length - 1] === 0x21));
+            assert.equal(bitcoin.address.fromOutputScript(original.outs[0].script), vectors.recipient);
+            assert.equal(original.outs[0].value, 90_000n);
+            await goBack();
+            await element(by.id('ConfirmBroadcastButton')).tap();
+            await waitForId('SendSuccessDone', 60_000);
+            assert.ok((await backend.rpc('getrawmempool')).includes(original.getId()));
+            await element(by.id('SendSuccessDone')).tap();
+            await waitForId('WalletTransactionsList');
+            await refresh();
+            await openSentTransaction(original.getId());
+
+            replacement = original;
+            if (final || stage === 'rbf') {
+              currentStep = 'rbf';
+              replacement = await bump('rbf', 4);
+              assert.deepEqual(replacement.outs[0], original.outs[0]);
+              assert.ok((await backend.rpc('getrawmempool')).includes(replacement.getId()));
+              assert.ok(!(await backend.rpc('getrawmempool')).includes(original.getId()));
+              await waitForId('WalletTransactionsList');
+              await refresh();
+              await openSentTransaction(replacement.getId());
+            }
+            child = replacement;
+            if (final || stage === 'cpfp') {
+              currentStep = 'cpfp';
+              child = await bump('cpfp', 10, replacement);
+              assert.ok((await backend.rpc('getrawmempool')).includes(child.getId()));
+              assert.ok(child.ins.some(input => Buffer.from(input.hash).reverse().toString('hex') === replacement!.getId()));
+            }
+            if (final || stage === 'encryption' || stage === 'delete') {
+              currentStep = 'confirmation';
+              if (!final) await goBack();
+              await backend.mine(2);
+              for (const tx of new Set([replacement, child]))
+                assert.equal((await backend.rpc('getrawtransaction', [tx.getId(), true])).confirmations, 2);
+              await waitForId('WalletTransactionsList');
+              await refresh();
+              await openSentTransaction(child!.getId());
+              await waitFor(element(by.text(/2 confirmations/i)))
+                .toExist()
+                .withTimeout(60_000);
+              await goBack();
+              retainedBalance = await balanceSats();
+            }
+          }
+          if (final || stage === 'encryption') {
+            currentStep = 'encryption and restart';
+            await goBack();
+            await waitForWalletsList();
+
+            await element(by.id('SettingsButton')).tap();
+            await element(by.id('SecurityButton')).tap();
+            await element(by.id('EncyptedAndPasswordProtectedSwitch')).tap();
+            await element(by.id('IUnderstandButton')).tap();
+            await waitForId('PasswordInput');
+            await element(by.id('PasswordInput')).replaceText(fixturePassword);
+            await element(by.id('ConfirmPasswordInput')).replaceText(fixturePassword);
+            await element(by.id('ConfirmPasswordInput')).tapReturnKey();
+            await confirmPasswordDialog();
+            await waitFor(element(by.id('ConfirmPasswordInput')))
+              .not.toExist()
+              .withTimeout(120_000);
+            await waitForId('PlausibleDeniabilityButton');
+            // No new history can arrive during this restart/cache assertion.
+            backend.fault = 'history-timeout';
+            backend.disconnectClients();
+            await device.launchApp({
+              newInstance: true,
+              launchArgs: { detoxEnableSynchronization: 0 },
+            });
+            if (isIOS) await device.disableSynchronization();
+            await unlock('wrong-fixture-password');
+            await waitForText('Incorrect password. Please, try again.');
+            assert.equal(await dismissAlertByText('OK', 10_000, false), true);
+            await unlock(fixturePassword);
+            await waitForWalletsList();
+            await openWallet(label);
+            assert.equal(await balanceSats(), retainedBalance);
+            await openSentTransaction(child!.getId()); // real native history cache survived encryption/restart
+            await goBack();
+          }
+          if (final || stage === 'delete') {
+            currentStep = 'delete and recover';
+            backend.fault = 'none';
+            backend.disconnectClients();
+            await element(by.id('HeaderMenuButton')).tap();
+            await element(by.text('Details')).tap();
+            await waitForId('WalletDetailsScroll');
+            await waitFor(element(by.id('DeleteWallet')))
+              .toBeVisible()
+              .whileElement(by.id('WalletDetailsScroll'))
+              .scroll(500, 'down');
+            await element(by.id('DeleteWallet')).tap();
+            assert.equal(await dismissAlertByText('Yes, delete', 10_000, false), true);
+            await typeTextIntoAlertInput(String(retainedBalance));
+            assert.equal(await dismissAlertByText('Delete', 10_000, false), true);
+            await waitForWalletsList();
+            await nativeExpect(element(by.id(label))).not.toExist();
+            await recover();
+            await openWallet(label);
+            assert.equal(await balanceSats(), retainedBalance);
+            await openSentTransaction(child!.getId());
+          }
+          currentStep = 'receipt';
+          mkdirSync(artifactDirectory, { recursive: true });
+          writeFileSync(
+            path.join(artifactDirectory, 'native-receipt.json'),
+            JSON.stringify(
+              {
+                sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {
+                  encoding: 'utf8',
+                }).trim(),
+                platform: device.getPlatform(),
+                format,
+                stage,
+                continuousAcceptance: final,
+                hostedNativeUi: true,
+                physicalPhone: false,
+                coldDeviceInteroperability: false,
+                checkpointAdapted: true,
+                verboseAddressLabelsAdapted: true,
+                original: original?.getId(),
+                replacement: final || stage === 'rbf' ? replacement?.getId() : undefined,
+                child: final || stage === 'cpfp' ? child?.getId() : undefined,
+                confirmations: final || stage === 'encryption' || stage === 'delete' ? 2 : undefined,
+                encryptedHistoryPreserved: final || stage === 'encryption',
+                deletionRecoveryPassed: final || stage === 'delete',
+                height: await backend.rpc('getblockcount'),
+              },
+              null,
+              2,
+            ) + '\n',
+          );
         } catch (error) {
-          if (!/disabled|not enabled/i.test(String(error))) throw error;
+          // Record the original failure before diagnostics/teardown can fail.
+          console.error('[native-lifecycle] original failure at ' + stage + '/' + format + '/' + currentStep + ':', error);
+          await boundedDiagnostic(() => device.takeScreenshot('native-live-lifecycle-failure'));
+          throw error;
+        } finally {
+          // Cleanup the real backend even when Detox has lost its app connection.
+          // Re-enabling synchronization after termination targets a dead app and
+          // used to mask the original error and leave backend children running.
+          await backend.stop();
+          await boundedDiagnostic(() => device.terminateApp());
         }
-        await nativeExpect(element(by.id('RecoveryResults'))).toExist();
-        await nativeExpect(element(by.text('Your wallet has been successfully imported.'))).not.toExist();
-        backend.fault = 'none';
-        await leaveCancelledRecovery();
-        await waitForWalletsList();
-        await recover();
-        await openWallet(label);
-        assert.equal(await balanceSats(), 100_000);
-
-        // A server reset must preserve the funded wallet until a fresh
-        // authenticated connection can fetch history again.
-        const beforeDisconnect = backend.receipt.disconnectFaults;
-        backend.fault = 'disconnect';
-        backend.disconnectClients();
-        await refresh();
-        await eventually(async () => backend.receipt.disconnectFaults > beforeDisconnect, 30_000);
-        assert.equal(await balanceSats(), 100_000);
-        backend.fault = 'none';
-        backend.disconnectClients();
-        const beforeReconnect = backend.receipt.forwardedMethods['blockchain.scripthash.get_history'] || 0;
-        await eventually(async () => {
-          await refresh();
-          return (backend.receipt.forwardedMethods['blockchain.scripthash.get_history'] || 0) > beforeReconnect;
-        }, 60_000);
-        assert.equal(await balanceSats(), 100_000);
-
-        await element(by.id('ReceiveButton')).tap();
-        await waitForId('BitcoinAddressQRCode');
-        await waitForLabel(profile.receive[2]);
-        await backend.fundAddress(profile.receive[2], 50_000);
-        await goBack();
-        await eventually(async () => {
-          await refresh();
-          return (await balanceSats()) === 150_000;
-        }, 60_000);
-
-        await element(by.id('SendButton')).tap();
-        await waitForId('AddressInput');
-        await element(by.id('AddressInput')).typeText(vectors.recipient + '\n');
-        await waitForKeyboardToClose();
-        assert.equal(await nativeText('AddressInput'), vectors.recipient);
-        await element(by.id('BitcoinAmountInput')).replaceText('0.0009\n');
-        await waitForKeyboardToClose();
-        assert.equal(await nativeText('AddressInput'), vectors.recipient);
-        await setCustomFeeRate(1);
-        assert.equal(await nativeText('AddressInput'), vectors.recipient);
-        await prepareNativePayment();
-        await element(by.id('TransactionDetailsButton')).tap();
-        const original = bitcoin.Transaction.fromHex(await nativeText('TxhexInput'));
-        assert.ok(original.ins.every(input => input.witness[0][input.witness[0].length - 1] === 0x21));
-        assert.equal(bitcoin.address.fromOutputScript(original.outs[0].script), vectors.recipient);
-        assert.equal(original.outs[0].value, 90_000n);
-        await goBack();
-        await element(by.id('ConfirmBroadcastButton')).tap();
-        await waitForId('SendSuccessDone', 60_000);
-        assert.ok((await backend.rpc('getrawmempool')).includes(original.getId()));
-        await element(by.id('SendSuccessDone')).tap();
-        await waitForId('WalletTransactionsList');
-        await refresh();
-        await openSentTransaction(original.getId());
-
-        const replacement = await bump('rbf', 4);
-        assert.deepEqual(replacement.outs[0], original.outs[0]);
-        assert.ok((await backend.rpc('getrawmempool')).includes(replacement.getId()));
-        assert.ok(!(await backend.rpc('getrawmempool')).includes(original.getId()));
-        await waitForId('WalletTransactionsList');
-        await refresh();
-        await openSentTransaction(replacement.getId());
-
-        const child = await bump('cpfp', 10, replacement);
-        assert.ok((await backend.rpc('getrawmempool')).includes(child.getId()));
-        assert.ok(child.ins.some(input => Buffer.from(input.hash).reverse().toString('hex') === replacement.getId()));
-        await backend.mine(2);
-        for (const tx of [replacement, child]) assert.equal((await backend.rpc('getrawtransaction', [tx.getId(), true])).confirmations, 2);
-        await waitForId('WalletTransactionsList');
-        await refresh();
-        await openSentTransaction(child.getId());
-        await waitFor(element(by.text(/2 confirmations/i)))
-          .toExist()
-          .withTimeout(60_000);
-        await goBack();
-        const retainedBalance = await balanceSats();
-        await goBack();
-        await waitForWalletsList();
-
-        await element(by.id('SettingsButton')).tap();
-        await element(by.id('SecurityButton')).tap();
-        await element(by.id('EncyptedAndPasswordProtectedSwitch')).tap();
-        await element(by.id('IUnderstandButton')).tap();
-        await waitForId('PasswordInput');
-        await element(by.id('PasswordInput')).replaceText(fixturePassword);
-        await element(by.id('ConfirmPasswordInput')).replaceText(fixturePassword);
-        await element(by.id('ConfirmPasswordInput')).tapReturnKey();
-        await confirmPasswordDialog();
-        await waitFor(element(by.id('ConfirmPasswordInput')))
-          .not.toExist()
-          .withTimeout(120_000);
-        await waitForId('PlausibleDeniabilityButton');
-        // No new history can arrive during this restart/cache assertion.
-        backend.fault = 'history-timeout';
-        backend.disconnectClients();
-        await device.launchApp({
-          newInstance: true,
-          launchArgs: { detoxEnableSynchronization: 0 },
-        });
-        if (isIOS) await device.disableSynchronization();
-        await unlock('wrong-fixture-password');
-        await waitForText('Incorrect password. Please, try again.');
-        assert.equal(await dismissAlertByText('OK', 10_000, false), true);
-        await unlock(fixturePassword);
-        await waitForWalletsList();
-        await openWallet(label);
-        assert.equal(await balanceSats(), retainedBalance);
-        await openSentTransaction(child.getId()); // real native history cache survived encryption/restart
-        await goBack();
-
-        backend.fault = 'none';
-        backend.disconnectClients();
-        await element(by.id('HeaderMenuButton')).tap();
-        await element(by.text('Details')).tap();
-        await waitForId('WalletDetailsScroll');
-        await waitFor(element(by.id('DeleteWallet')))
-          .toBeVisible()
-          .whileElement(by.id('WalletDetailsScroll'))
-          .scroll(500, 'down');
-        await element(by.id('DeleteWallet')).tap();
-        assert.equal(await dismissAlertByText('Yes, delete', 10_000, false), true);
-        await typeTextIntoAlertInput(String(retainedBalance));
-        assert.equal(await dismissAlertByText('Delete', 10_000, false), true);
-        await waitForWalletsList();
-        await nativeExpect(element(by.id(label))).not.toExist();
-        await recover();
-        await openWallet(label);
-        assert.equal(await balanceSats(), retainedBalance);
-        await openSentTransaction(child.getId());
-
-        mkdirSync(artifactDirectory, { recursive: true });
-        writeFileSync(
-          path.join(artifactDirectory, 'native-receipt.json'),
-          JSON.stringify(
-            {
-              sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {
-                encoding: 'utf8',
-              }).trim(),
-              platform: device.getPlatform(),
-              format,
-              hostedNativeUi: true,
-              physicalPhone: false,
-              coldDeviceInteroperability: false,
-              checkpointAdapted: true,
-              verboseAddressLabelsAdapted: true,
-              original: original.getId(),
-              replacement: replacement.getId(),
-              child: child.getId(),
-              confirmations: 2,
-              encryptedHistoryPreserved: true,
-              deletionRecoveryPassed: true,
-              height: await backend.rpc('getblockcount'),
-            },
-            null,
-            2,
-          ) + '\n',
-        );
-      } catch (error) {
-        // Record the original failure before diagnostics/teardown can fail.
-        console.error('[native-lifecycle] original failure:', error);
-        await boundedDiagnostic(() => device.takeScreenshot('native-live-lifecycle-failure'));
-        throw error;
-      } finally {
-        // Cleanup the real backend even when Detox has lost its app connection.
-        // Re-enabling synchronization after termination targets a dead app and
-        // used to mask the original error and leave backend children running.
-        await backend.stop();
-        await boundedDiagnostic(() => device.terminateApp());
-      }
-    });
+      });
+    }
   }
 });
