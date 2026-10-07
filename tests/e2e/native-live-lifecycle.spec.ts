@@ -258,7 +258,8 @@ async function bump(kind: 'rbf' | 'cpfp', rate: number): Promise<bitcoin.Transac
   await waitFor(element(by.id(id)))
     .toBeVisible()
     .whileElement(by.id('TransactionStatusScroll'))
-    .scroll(200, 'down');
+    // Its full bounds extend under the bottom bar; start inside the viewport.
+    .scroll(200, 'down', 0.5, 0.5);
   await element(by.id(id)).tap();
   await waitForId('FeeBumpRateInput');
   const feeInput = element(by.id('FeeBumpRateInput'));

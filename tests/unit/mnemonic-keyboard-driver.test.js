@@ -43,7 +43,7 @@ beforeEach(() => {
     },
   });
   global.waitFor = () => ({
-    toBeVisible: () => ({ withTimeout: importVisible }),
+    toBeVisible: () => ({ withTimeout: importVisible, whileElement: () => ({ scroll }) }),
   });
 });
 
@@ -83,10 +83,18 @@ test('rejects a closed keyboard if Import remains hidden', async () => {
   await result;
 });
 
-test('leaves Android keyboard handling unchanged', async () => {
+test('reveals Android Import without pressing Back or demanding an iOS keyboard', async () => {
   global.device = { getPlatform: () => 'android' };
   await dismissMnemonicKeyboard();
-  unitExpect(element).not.toHaveBeenCalled();
+  unitExpect(scroll).toHaveBeenCalledWith(120, 'down', 0.9, 0.5);
+  unitExpect(doneTap).not.toHaveBeenCalled();
+  unitExpect(keyboardAbsent).not.toHaveBeenCalled();
+});
+
+test('propagates Android failure to reveal Import', async () => {
+  global.device = { getPlatform: () => 'android' };
+  scroll.mockRejectedValue(new Error('Import remains obscured'));
+  await unitExpect(dismissMnemonicKeyboard()).rejects.toThrow('Import remains obscured');
 });
 
 test('dismisses a keyboard without Done using the import form drag', async () => {
@@ -94,7 +102,7 @@ test('dismisses a keyboard without Done using the import form drag', async () =>
   const pending = dismissMnemonicKeyboard();
   await jest.advanceTimersByTimeAsync(250);
   await pending;
-  unitExpect(drag).toHaveBeenCalledWith('up', 'slow', 0.25);
+  unitExpect(drag).toHaveBeenCalledWith('up', 'slow', 0.15, 0.9, 0.25);
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(2);
   unitExpect(importVisible).toHaveBeenCalledTimes(2);
 });
@@ -104,6 +112,6 @@ test('reveals Import after dismissal by scrolling the actual form', async () => 
   const pending = dismissMnemonicKeyboard();
   await jest.advanceTimersByTimeAsync(250);
   await pending;
-  unitExpect(scroll).toHaveBeenCalledWith(120, 'down');
+  unitExpect(scroll).toHaveBeenCalledWith(120, 'down', 0.9, 0.5);
   unitExpect(drag).not.toHaveBeenCalled();
 });

@@ -136,7 +136,14 @@ export async function waitForSwitchValue(switchId, expectedValue, timeoutMs = 80
 // Use the real Done accessory or the import form's drag-to-dismiss behavior.
 // Require both the onscreen keyboard to be absent and Import to be visible.
 export async function dismissMnemonicKeyboard() {
-  if (device.getPlatform() !== 'ios') return;
+  if (device.getPlatform() !== 'ios') {
+    // replaceText does not open Android's keyboard; reveal Import without Back.
+    await waitFor(element(by.id('DoImport')))
+      .toBeVisible()
+      .whileElement(by.id('ImportWalletScroll'))
+      .scroll(120, 'down', 0.9, 0.5);
+    return;
+  }
   const deadline = Date.now() + 10000;
   let ready = false;
   while (Date.now() < deadline) {
@@ -147,7 +154,8 @@ export async function dismissMnemonicKeyboard() {
       await expect(element(by.type('UIKeyboardLayoutStar'))).not.toBeVisible();
     } catch (_) {
       // Multiline iOS inputs can lack the accessory. Exercise an actual drag.
-      await element(by.id('ImportWalletScroll')).swipe('up', 'slow', 0.25);
+      // Start above the keyboard, near the form edge outside the text input.
+      await element(by.id('ImportWalletScroll')).swipe('up', 'slow', 0.15, 0.9, 0.25);
       await sleep(250);
       continue;
     }
@@ -156,7 +164,7 @@ export async function dismissMnemonicKeyboard() {
       ready = true;
       break;
     } catch (_) {
-      await element(by.id('ImportWalletScroll')).scroll(120, 'down');
+      await element(by.id('ImportWalletScroll')).scroll(120, 'down', 0.9, 0.5);
     }
     await sleep(250);
   }

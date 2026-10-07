@@ -1,5 +1,15 @@
 # Native live lifecycle agenda
 
+## Visible gesture origins (October 6, 2026)
+
+- [x] Inspect aa1d7e8 failures: Android Import is obscured; iOS SegWit fails the keyboard-dismissal swipe after text entry, and Taproot fails the transaction scroll whose default origin is below visible bounds.
+- [x] Make Android reveal Import through the actual form before its real tap. Start iOS keyboard-dismissal gestures above the keyboard at the form edge, and transaction scrolling inside the visible viewport.
+- [x] Pass 14 targeted keyboard/navigation regression tests; targeted ESLint, typecheck and diff checks passed. Logs: /tmp/redwallet-viewport-targeted.log and /tmp/redwallet-viewport-validation-result.txt (VALIDATION_EXIT:0).
+- [ ] Pass fresh exact-source hosted software/backend and both native lifecycle flows.
+
+This correction changes only the test driver and regression coverage. Original visibility, keyboard-absence, retained input, payment, signature, output and Knots checks remain required. No Create/Broadcast retry is introduced. aa1d7e8 software and both builds passed, but both native suites failed. Complete native lifecycle and physical/cold-device interoperability remain unproven; PR40 release qualification is separate.
+
+
 Updated: 2026-10-06 08:50 UTC. Owner requested autonomous work, checked agenda and periodic reports. Latest correction/evidence is in the Keyboard submission and alert transitions section below. Fresh hosted qualification of this follow-up remains pending.
 
 Release qualification source: `61b7c3f521809b3b12cb88d5e49d1ae00d9e2cc6` (PR40). Leave its worktree and gates unchanged. This work is isolated on `test/native-live-lifecycle-20261005`.
