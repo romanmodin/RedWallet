@@ -28,6 +28,7 @@ import {
 } from './helperz';
 import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
+import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
 const native = process.env.REDWALLET_NATIVE_LIVE === '1' ? describe : describe.skip;
@@ -253,7 +254,7 @@ async function prepareNativePayment(): Promise<void> {
   }
 }
 
-async function bump(kind: 'rbf' | 'cpfp', rate: number): Promise<bitcoin.Transaction> {
+async function bump(kind: 'rbf' | 'cpfp', rate: number, parent?: bitcoin.Transaction): Promise<bitcoin.Transaction> {
   const id = kind === 'rbf' ? 'TransactionRbfBumpButton' : 'TransactionCpfpButton';
   await waitFor(element(by.id(id)))
     .toBeVisible()
@@ -286,7 +287,15 @@ async function bump(kind: 'rbf' | 'cpfp', rate: number): Promise<bitcoin.Transac
   await waitForId('FeeBumpHexInput');
   const tx = bitcoin.Transaction.fromHex(await nativeText('FeeBumpHexInput'));
   assert.ok(tx.ins.every(input => input.witness[0][input.witness[0].length - 1] === 0x21));
+  // Taproot's production review requires a second approval for a high child fee.
+  const needsApproval = kind === 'cpfp' && tx.ins[0].witness.length === 1 && cpfpNeedsApproval(parent!, tx);
   await element(by.id('FeeBumpBroadcastButton')).tap();
+  if (needsApproval) {
+    await waitFor(element(by.text('High transaction fee')))
+      .toExist()
+      .withTimeout(15_000);
+    assert.equal(await dismissAlertByText(english._.yes, 15_000, false), true);
+  }
   await waitForId('SendSuccessDone', 60_000);
   await element(by.id('SendSuccessDone')).tap();
   return tx;
@@ -319,7 +328,16 @@ native('continuous native live wallet lifecycle', () => {
           permissions: { notifications: 'NO' },
           launchArgs: { detoxEnableSynchronization: 0 },
         });
-        if (isIOS) await device.disableSynchronization();
+        if (isIOS) {
+          await device.disableSynchronization();
+        } else {
+          // Fresh installs can trigger a Quickstep ANR behind the app. Clear only
+          // that disposable launcher after launch, before checking app readiness.
+          execFileSync('adb', ['-s', device.id, 'shell', 'am', 'force-stop', 'com.android.launcher3'], {
+            timeout: 10_000,
+            stdio: 'pipe',
+          });
+        }
         await configureNative(backend);
 
         console.info('[native-lifecycle] testing cancelled recovery');
@@ -406,7 +424,7 @@ native('continuous native live wallet lifecycle', () => {
         await refresh();
         await openSentTransaction(replacement.getId());
 
-        const child = await bump('cpfp', 10);
+        const child = await bump('cpfp', 10, replacement);
         assert.ok((await backend.rpc('getrawmempool')).includes(child.getId()));
         assert.ok(child.ins.some(input => Buffer.from(input.hash).reverse().toString('hex') === replacement.getId()));
         await backend.mine(2);

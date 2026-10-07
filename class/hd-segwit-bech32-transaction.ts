@@ -141,6 +141,23 @@ export class HDSegwitBech32Transaction {
    */
   async isToUsTransaction() {
     if (!this._wallet) throw new Error('Wallet required for this method');
+    if (this._wallet.type === XbtSegwitBech32Wallet.type) {
+      // Outgoing XBT transactions can still be accelerated by spending change.
+      // Require an unspent owned output, bound to the actual parent transaction.
+      if (!this._txDecoded) await this._fetchTxhexAndDecode();
+      const transaction = this._txDecoded!;
+      const txid = transaction.getId();
+      if (this._txid && txid !== this._txid) throw new Error('Parent transaction identity mismatch');
+      return this._wallet.getUtxo().some(utxo => {
+        const output = transaction.outs[utxo.vout];
+        if (utxo.txid !== txid || !output || BigInt(utxo.value) !== output.value || !this._wallet!.weOwnAddress(utxo.address)) return false;
+        try {
+          return Buffer.from(output.script).equals(Buffer.from(bitcoin.address.toOutputScript(utxo.address)));
+        } catch {
+          return false;
+        }
+      });
+    }
     let found = false;
     for (const tx of this._wallet.getTransactions()) {
       if (tx.txid === (this._txid || this._txDecoded!.getId())) {

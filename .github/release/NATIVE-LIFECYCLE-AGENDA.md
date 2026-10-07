@@ -1,5 +1,19 @@
 # Native live lifecycle agenda
 
+## CPFP eligibility, fee approval and launcher focus (October 6, 2026)
+
+- [x] Inspect 98770e06a exact-source failures and retained traces: Android Quickstep ANR before wallet readiness; iOS SegWit hides CPFP for outgoing change; iOS Taproot waits at the real high-fee confirmation.
+- [x] Let XBT SegWit CPFP eligibility recognize an unspent owned change output, verifying parent identity, output index, amount and script. Preserve the existing BTC path.
+- [x] Derive the Taproot child fee from the retained signed parent, require the real high-fee warning when applicable, and tap its localized Yes once. No Broadcast/Create retry or approval bypass.
+- [x] Stop only the disposable Android emulator's Quickstep launcher immediately after app launch, before wallet readiness assertions. Native app errors remain failures.
+- [x] Pass 25 targeted eligibility/review tests; full lint/typecheck passed with only the inherited encryption-test warning.
+- [x] Pass full lint/typecheck and 91 unit suites: 836 passed, one inherited skip (113.507s), VALIDATION_EXIT:0. Final driver typecheck passed TSC_EXIT:0.
+- [ ] Pass fresh committed-source hosted software/backend and both native lifecycle flows.
+
+98770e06a passed 90 unit suites (825 tests, one skipped), lint/typecheck, three real Fulcrum/Knots software tests and both native builds. All seven retained backend receipts match that source and report cleanupComplete=true. Android run37557319117 failed both cases at initial window focus; device logs identify com.android.launcher3 ANR, not a demonstrated RedWallet crash. iOS run37557319055 reached original and RBF acceptance in both formats. SegWit failed looking for TransactionCpfpButton because the old net-positive test excluded outgoing change. Taproot's retained view hierarchy shows High transaction fee awaiting approval after the Broadcast tap; only two broadcasts reached the backend. No native lifecycle pass is claimed.
+
+Validation logs: /tmp/redwallet-cpfp-targeted.log, /tmp/redwallet-cpfp-lint-final.log, /tmp/redwallet-cpfp-unit-final.log, /tmp/redwallet-cpfp-validation-result.txt. Continuous native acceptance, physical-phone/cold-device interoperability and the separately reported public Android Send crash fix remain unproven. PR40 qualification/publication is separate.
+
 ## Visible gesture origins (October 6, 2026)
 
 - [x] Inspect aa1d7e8 failures: Android Import is obscured; iOS SegWit fails the keyboard-dismissal swipe after text entry, and Taproot fails the transaction scroll whose default origin is below visible bounds.
