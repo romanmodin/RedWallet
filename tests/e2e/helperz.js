@@ -146,10 +146,21 @@ export async function dismissMnemonicKeyboard() {
   }
   const deadline = Date.now() + 10000;
   let ready = false;
+  let formTapAttempted = false;
   while (Date.now() < deadline) {
     try {
       await element(by.id('DismissMnemonicKeyboard')).tap();
-    } catch (_) {}
+    } catch (_) {
+      // Multiline inputs can lack their iOS accessory. A tap on the form's
+      // noninteractive label dismisses the keyboard through handled taps.
+      if (!formTapAttempted) {
+        formTapAttempted = true;
+        try {
+          await element(by.id('ImportWalletScroll')).scrollTo('top');
+          await element(by.id('XbtImportFormat')).tap();
+        } catch {}
+      }
+    }
     try {
       await expect(element(by.type('UIKeyboardLayoutStar'))).not.toBeVisible();
     } catch (_) {
@@ -626,7 +637,11 @@ export async function typeTextIntoAlertInput(text) {
   if (device.getPlatform() === 'android') {
     await element(by.type('android.widget.EditText')).replaceText(text);
   } else {
-    await element(by.type('_UIAlertControllerTextField')).replaceText(text);
+    // iOS 26 no longer exposes the private _UIAlertControllerTextField class.
+    // Match UIKit's public field type and wait for the second prompt to mount.
+    const field = element(by.type('UITextField')).atIndex(0);
+    await waitFor(field).toExist().withTimeout(10_000);
+    await field.replaceText(text);
   }
   await sleep(1000);
 }

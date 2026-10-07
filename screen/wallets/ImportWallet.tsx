@@ -157,7 +157,7 @@ const ImportWallet = () => {
     <SafeAreaScrollView
       testID="ImportWalletScroll"
       contentContainerStyle={styles.root}
-      keyboardShouldPersistTaps="always"
+      keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       automaticallyAdjustKeyboardInsets
     >

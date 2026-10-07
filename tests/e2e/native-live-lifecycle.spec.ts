@@ -239,7 +239,19 @@ async function openSentTransaction(txid: string): Promise<void> {
   const row = element(by.id(`TransactionRow-${txid}`));
   await waitFor(row).toExist().withTimeout(60_000);
   await waitFor(row).toBeVisible().whileElement(by.id('WalletTransactionsList')).scroll(150, 'down');
-  await row.tap();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await row.tap();
+    try {
+      await waitForId('TransactionStatusScroll', 5_000);
+      break;
+    } catch (error) {
+      if (attempt === 2) throw error;
+      // A refresh can swallow a row tap. Retry only while the exact row is
+      // still on the list, before any transaction screen action is possible.
+      await nativeExpect(element(by.id('WalletTransactionsList'))).toBeVisible();
+      await nativeExpect(row).toBeVisible();
+    }
+  }
   await waitForLabel(txid, 30_000);
 }
 
@@ -272,6 +284,11 @@ async function prepareNativePayment(): Promise<void> {
 
 async function bump(kind: 'rbf' | 'cpfp', rate: number, parent?: bitcoin.Transaction): Promise<bitcoin.Transaction> {
   const id = kind === 'rbf' ? 'TransactionRbfBumpButton' : 'TransactionCpfpButton';
+  // Eligibility performs backend queries after navigation. Wait for the control
+  // to mount before a scroll can exhaust the available range.
+  await waitFor(element(by.id(id)))
+    .toExist()
+    .withTimeout(30_000);
   await waitFor(element(by.id(id)))
     .toBeVisible()
     .whileElement(by.id('TransactionStatusScroll'))
@@ -485,9 +502,13 @@ native('isolated native live wallet stages and final acceptance', () => {
             await goBack();
             await waitForWalletsList();
 
+            await waitForId('SettingsButton');
             await element(by.id('SettingsButton')).tap();
+            await waitForId('SecurityButton');
             await element(by.id('SecurityButton')).tap();
+            await waitForId('EncyptedAndPasswordProtectedSwitch');
             await element(by.id('EncyptedAndPasswordProtectedSwitch')).tap();
+            await waitForId('IUnderstandButton');
             await element(by.id('IUnderstandButton')).tap();
             await waitForId('PasswordInput');
             await element(by.id('PasswordInput')).replaceText(fixturePassword);
@@ -533,8 +554,19 @@ native('isolated native live wallet stages and final acceptance', () => {
               .toBeVisible()
               .whileElement(by.id('WalletDetailsScroll'))
               .scroll(500, 'down');
-            await element(by.id('DeleteWallet')).tap();
-            assert.equal(await dismissAlertByText('Yes, delete', 10_000, false), true);
+            let deletionConfirmed = false;
+            for (let attempt = 0; attempt < 3; attempt++) {
+              // Retry only the initial prompt opener while still on Details.
+              // Once Yes is tapped, do not repeat either deletion confirmation.
+              await waitForId('DeleteWallet');
+              await element(by.id('DeleteWallet')).tap();
+              if (await dismissAlertByText('Yes, delete', 10_000, false)) {
+                deletionConfirmed = true;
+                break;
+              }
+              await nativeExpect(element(by.id('WalletDetailsScroll'))).toBeVisible();
+            }
+            assert.equal(deletionConfirmed, true);
             await typeTextIntoAlertInput(String(retainedBalance));
             assert.equal(await dismissAlertByText('Delete', 10_000, false), true);
             await waitForWalletsList();

@@ -34,6 +34,7 @@ beforeEach(() => {
     tap: doneTap,
     swipe: drag,
     scroll,
+    scrollTo: jest.fn().mockResolvedValue(undefined),
   }));
   global.expect = control => ({
     not: { toBeVisible: keyboardAbsent },
@@ -43,7 +44,10 @@ beforeEach(() => {
     },
   });
   global.waitFor = () => ({
-    toBeVisible: () => ({ withTimeout: importVisible, whileElement: () => ({ scroll }) }),
+    toBeVisible: () => ({
+      withTimeout: importVisible,
+      whileElement: () => ({ scroll }),
+    }),
   });
 });
 
@@ -105,6 +109,14 @@ test('dismisses a keyboard without Done using the import form drag', async () =>
   await pending;
   unitExpect(drag).toHaveBeenCalledWith('up', 'slow', 0.15, 0.9, 0.25);
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(2);
+  unitExpect(importVisible).toHaveBeenCalledTimes(2);
+});
+
+test('falls back to a form tap when the multiline accessory is absent', async () => {
+  doneTap.mockRejectedValueOnce(new Error('No Done accessory')).mockResolvedValue(undefined);
+  await dismissMnemonicKeyboard();
+  unitExpect(element.mock.calls.some(([target]) => target === 'XbtImportFormat')).toBe(true);
+  unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
   unitExpect(importVisible).toHaveBeenCalledTimes(2);
 });
 

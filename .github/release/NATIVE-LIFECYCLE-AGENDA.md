@@ -197,3 +197,17 @@ All four native cleanup receipts identify 712a187 and cleanupComplete=true. Both
 - [ ] Pass new exact-source focused native qualification on both platforms, then the separately gated uninterrupted final runs.
 
 These corrections preserve payment/signature/output/mempool, TLS/checkpoint, cancellation, encryption/history and delete/recovery assertions. No signing/broadcast retry or test result waiver is introduced. Prior passes do not qualify this new source. Hosted execution remains distinct from physical-phone and cold-device interoperability; PR40 release qualification/publication stays separate.
+
+
+## Remaining focused timing and iOS prompt failures — October 7, 2026
+
+- [x] Inspect completed source 6f982018847d1d6609a4fe622bdf3162ed2a9074 runs: [Android 37581860605](https://github.com/romanmodin/RedWallet/actions/runs/37581860605), [iOS 37581860911](https://github.com/romanmodin/RedWallet/actions/runs/37581860911). Both builds and the software gate passed: 91 unit suites, 836 tests passed, one skip, three real Fulcrum/Knots software tests. Android recovery/receive/send/CPFP/encryption and iOS receive/send/CPFP passed both formats. These results qualify only that source and those focused stages.
+- [x] Inspect retained failure artifacts. The iOS SegWit RBF screenshot has Speed Up present after the driver's premature scroll failure; wait for asynchronously queried eligibility before scrolling. The Taproot encryption confirmation screenshot remains on the transaction list; retry a lost row tap only while the exact row and list remain visible.
+- [x] Wait for every encryption settings destination before tapping its next action. Preserve wrong-password rejection, correct-password unlock and retained history/balance assertions.
+- [x] Replace the obsolete private iOS alert text-field class selector with UIKit's public UITextField type and wait for the second prompt. Retry only the initial Delete prompt opener on Details; never repeat either confirmed deletion action.
+- [x] Permit ordinary background taps to dismiss the import keyboard and exercise a noninteractive form-label tap when the multiline input's accessory is absent. Still require keyboard absence, visible Import and unchanged mnemonic text. Add fallback regression coverage.
+- [x] Pass full local lint/typecheck and all nine mnemonic keyboard-driver regressions (VALIDATION_EXIT:0). Retained logs: /tmp/redwallet-remaining-final-lint.log and /tmp/redwallet-remaining-unit.log. No hosted result is inferred from local checks.
+- [ ] Commit/push and qualify the corrected source.
+- [ ] Pass all seven focused stages for both formats on both platforms on the new exact source. Only then dispatch the separately gated uninterrupted final tests.
+
+No fee/signature/output/mempool, TLS/checkpoint, cancellation, encryption/history or delete/recovery assertion is waived. Signing and broadcasting are not retried. Focused hosted simulator/emulator execution and software-backend acceptance do not establish uninterrupted native lifecycle completion, physical-phone or cold-device interoperability. PR40 release qualification and publication remain separate.
