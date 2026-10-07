@@ -225,8 +225,9 @@ export class KnotsFulcrumHarness {
       'knots',
     );
     await eventually(async () => (await this.rpc('getblockchaininfo')).chain === 'regtest');
-    // First hosted Mac wallet initialization took 22.6s in the retained receipt.
-    await this.rpc('createwallet', ['public-fixture-miner'], false, 60_000);
+    // Hosted Mac initialization exceeded 60s under parallel simulator load.
+    // Allow a bounded setup window, without retrying a timed-out mutating RPC.
+    await this.rpc('createwallet', ['public-fixture-miner'], false, 120_000);
     this.minerAddress = await this.rpc('getnewaddress', [], true);
     // Bootstrap mining is larger than ordinary RPC reads.
     // Keep it bounded; never retry a mutating timed-out RPC.

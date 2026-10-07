@@ -18,6 +18,7 @@ import {
   leaveCancelledRecovery,
   scrollUpOnHomeScreen,
   setCustomFeeRate,
+  sleep,
   tapAndTapAgainIfElementIsNotVisible,
   typeTextIntoAlertInput,
   waitForId,
@@ -127,6 +128,7 @@ async function configureNative(backend: KnotsFulcrumHarness, testRejections: boo
     .whileElement(by.id('SettingsRoot'))
     .scroll(150, 'down');
   await element(by.id('NetworkSettings')).tap();
+  await waitForId('ElectrumSettings', 15_000);
   await element(by.id('ElectrumSettings')).tap();
   await waitForId('ElectrumConnectionEnabledSwitch');
   if (await getSwitchValue('ElectrumConnectionEnabledSwitch')) await element(by.id('ElectrumConnectionEnabledSwitch')).tap();
@@ -168,9 +170,16 @@ async function configureNative(backend: KnotsFulcrumHarness, testRejections: boo
 }
 
 async function beginRecovery(): Promise<void> {
+  await waitForWalletsList();
   await scrollUpOnHomeScreen();
-  await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'ImportWallet');
+  await waitFor(element(by.id('CreateAWallet')))
+    .toBeVisible()
+    .whileElement(by.id('WalletsList'))
+    .scroll(500, 'right');
+  await element(by.id('CreateAWallet')).tap();
+  await waitForId('ImportWallet', 15_000);
   await element(by.id('ImportWallet')).tap();
+  await waitForId('ImportWalletScroll', 15_000);
   await waitFor(element(by.id('ToggleRecoveryDiscovery')))
     .toBeVisible()
     .whileElement(by.id('ImportWalletScroll'))
@@ -306,6 +315,7 @@ async function bump(kind: 'rbf' | 'cpfp', rate: number, parent?: bitcoin.Transac
 async function unlock(password: string): Promise<void> {
   await waitForId('PasswordInput');
   await element(by.id('PasswordInput')).replaceText(password);
+  await nativeExpect(element(by.id('PasswordInput'))).toHaveText(password);
   await element(by.id('PasswordInput')).tapReturnKey();
 }
 
@@ -422,6 +432,7 @@ native('isolated native live wallet stages and final acceptance', () => {
             assert.equal(await nativeText('AddressInput'), vectors.recipient);
             await prepareNativePayment();
             await element(by.id('TransactionDetailsButton')).tap();
+            await waitForId('TxhexInput', 15_000);
             original = bitcoin.Transaction.fromHex(await nativeText('TxhexInput'));
             assert.ok(original.ins.every(input => input.witness[0][input.witness[0].length - 1] === 0x21));
             assert.equal(bitcoin.address.fromOutputScript(original.outs[0].script), vectors.recipient);
@@ -496,8 +507,14 @@ native('isolated native live wallet stages and final acceptance', () => {
             });
             if (isIOS) await device.disableSynchronization();
             await unlock('wrong-fixture-password');
-            await waitForText('Incorrect password. Please, try again.');
-            assert.equal(await dismissAlertByText('OK', 10_000, false), true);
+            // UnlockWith rejects by shaking and clearing the field, then prompts again.
+            await waitFor(element(by.id('PasswordInput')))
+              .toHaveText('')
+              .withTimeout(15_000);
+            await nativeExpect(element(by.id('WalletsList'))).not.toExist();
+            // UnlockWith schedules its next password promise 500ms after rejection.
+            // Wait for that prompt after the 200ms shake/clear animation completes.
+            await sleep(750);
             await unlock(fixturePassword);
             await waitForWalletsList();
             await openWallet(label);
@@ -509,8 +526,8 @@ native('isolated native live wallet stages and final acceptance', () => {
             currentStep = 'delete and recover';
             backend.fault = 'none';
             backend.disconnectClients();
-            await element(by.id('HeaderMenuButton')).tap();
-            await element(by.text('Details')).tap();
+            await waitForId('WalletDetails', 15_000);
+            await element(by.id('WalletDetails')).tap();
             await waitForId('WalletDetailsScroll');
             await waitFor(element(by.id('DeleteWallet')))
               .toBeVisible()

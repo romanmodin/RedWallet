@@ -321,6 +321,7 @@ export default class CPFP extends Component {
     return (
       <SafeArea style={styles.explain}>
         <ScrollView
+          testID="FeeBumpScroll"
           automaticallyAdjustContentInsets
           automaticallyAdjustKeyboardInsets
           automaticallyAdjustsScrollIndicatorInsets

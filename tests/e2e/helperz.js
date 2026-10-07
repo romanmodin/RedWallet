@@ -148,7 +148,7 @@ export async function dismissMnemonicKeyboard() {
   let ready = false;
   while (Date.now() < deadline) {
     try {
-      await element(by.text('Done')).tap();
+      await element(by.id('DismissMnemonicKeyboard')).tap();
     } catch (_) {}
     try {
       await expect(element(by.type('UIKeyboardLayoutStar'))).not.toBeVisible();

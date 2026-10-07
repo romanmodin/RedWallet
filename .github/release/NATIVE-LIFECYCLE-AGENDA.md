@@ -184,3 +184,16 @@ Android [37515622521](https://github.com/romanmodin/RedWallet/actions/runs/37515
 iOS [37515622474](https://github.com/romanmodin/RedWallet/actions/runs/37515622474) failed both cases after expired TLS, wrong checkpoint and cancelled-scan assertions. Its failure screenshot shows Add Wallet still open. The trace contains two immediate Back taps followed by Close before requiring the intermediate destination screens, then a home-toolbar timeout. The correction explicitly waits for those transitions and verifies actual modal dismissal. No payment, cancellation, TLS, checkpoint, signature, output or Knots assertion is waived; Create/Broadcast are never retried.
 
 All four native cleanup receipts identify 712a187 and cleanupComplete=true. Both iOS receipts have invalidCertificateTested=true. Android evidence: /tmp/redwallet-712a187-android-evidence. iOS CRC-verified screenshot evidence: /tmp/redwallet-712a187-ios-images; traces/receipts: /tmp/redwallet-712a187-ios-traces. Full iOS evidence is downloading to /tmp/redwallet-712a187-ios-evidence. Targeted validation: /tmp/redwallet-lifecycle-modal-transition-targeted.log, TARGETED_EXIT:0. Full validation: /tmp/redwallet-lifecycle-modal-transition-full.log. This follow-up changes the test driver only. Complete native app-to-real Fulcrum-to-Knots acceptance, physical-phone/cold-device interoperability and the separately reported public Android Send crash fix remain unproven. PR40 remains separate; no publication is claimed.
+
+## Focused driver corrections (October 7 UTC / October 6 PDT)
+
+- [x] Inspect all completed focused jobs at source 5e6edbd653e1d1fc9d94bf97ec37758645c1c3fd. Android recovery/send and iOS receive passed both formats in job logs; remaining focused jobs failed. The software gate and both builds passed.
+- [x] Reveal the home carousel's Add Wallet card, tap once and wait for import destinations. Wait for Electrum settings and reviewed transaction hex before acting on newly navigated screens.
+- [x] Add CPFP's missing FeeBumpScroll identifier; use the existing WalletDetails action for deletion.
+- [x] Check the actual wrong-password rejection behavior: input clears while the wallet stays locked, then a correct password must restore the retained balance/history.
+- [x] Target the real mnemonic keyboard Done accessory by a unique identifier. Keyboard absence, Import visibility and retained input remain mandatory.
+- [x] Bound hosted Mac createwallet setup at 120 seconds without retrying the mutating RPC.
+- [x] Pass local lint/typecheck, all eight mnemonic keyboard-driver regressions and diff checks (VALIDATION_EXIT:0). Only the inherited encryption-test bitwise warning remains. Log: /tmp/redwallet-focused-corrections-validation.log.
+- [ ] Pass new exact-source focused native qualification on both platforms, then the separately gated uninterrupted final runs.
+
+These corrections preserve payment/signature/output/mempool, TLS/checkpoint, cancellation, encryption/history and delete/recovery assertions. No signing/broadcast retry or test result waiver is introduced. Prior passes do not qualify this new source. Hosted execution remains distinct from physical-phone and cold-device interoperability; PR40 release qualification/publication stays separate.

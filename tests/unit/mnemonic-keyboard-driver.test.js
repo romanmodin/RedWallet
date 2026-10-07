@@ -57,6 +57,7 @@ test('dismisses an open keyboard using the real Done tap', async () => {
   doneTap.mockResolvedValue(undefined);
   await dismissMnemonicKeyboard();
   unitExpect(doneTap).toHaveBeenCalledTimes(1);
+  unitExpect(element.mock.calls[0][0]).toBe('DismissMnemonicKeyboard');
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
   unitExpect(importVisible).toHaveBeenCalledTimes(2);
 });

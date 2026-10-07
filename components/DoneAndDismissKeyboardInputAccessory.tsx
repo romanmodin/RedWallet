@@ -28,7 +28,7 @@ export const DoneAndDismissKeyboardInputAccessory: React.FC<DoneAndDismissKeyboa
     <View style={[styles.container, styleHooks.container]}>
       <BlueButtonLink title={loc.send.input_clear} onPress={props.onClearTapped} />
       <BlueButtonLink title={loc.send.input_paste} onPress={onPasteTapped} />
-      <BlueButtonLink title={loc.send.input_done} onPress={Keyboard.dismiss} />
+      <BlueButtonLink testID="DismissMnemonicKeyboard" title={loc.send.input_done} onPress={Keyboard.dismiss} />
     </View>
   );
 
