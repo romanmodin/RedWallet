@@ -230,7 +230,11 @@ export class KnotsFulcrumHarness {
       ],
       'knots',
     );
-    await eventually(async () => (await this.rpc('getblockchaininfo')).chain === 'regtest');
+    // A cold hosted Mac launch produced no child output inside the former 30s
+    // window, while the same job's warmed launch took 18s before RPC startup.
+    // This is a read-only readiness poll; keep it bounded without retrying any
+    // signing, broadcast, mining or other mutating operation.
+    await eventually(async () => (await this.rpc('getblockchaininfo')).chain === 'regtest', 120_000);
     // Hosted Mac initialization exceeded 60s under parallel simulator load.
     // Allow a bounded setup window, without retrying a timed-out mutating RPC.
     await this.rpc('createwallet', ['public-fixture-miner'], false, 120_000);

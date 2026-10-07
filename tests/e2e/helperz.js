@@ -53,6 +53,19 @@ export async function waitForWalletsList(timeout = 120_000) {
   await waitForId('SettingsButton', timeout);
 }
 
+export async function waitForEncryptionEnabled(timeout = 120_000) {
+  // iOS can retain a dismissed secure field in the accessibility hierarchy.
+  // Assert the real destination screen there; Android also proves dismissal.
+  if (device.getPlatform() !== 'ios') {
+    await waitFor(element(by.id('ConfirmPasswordInput')))
+      .not.toExist()
+      .withTimeout(timeout);
+  }
+  await waitFor(element(by.id('PlausibleDeniabilityButton')))
+    .toBeVisible()
+    .withTimeout(timeout);
+}
+
 export async function waitForText(text, timeout = 33000) {
   const callsite = captureCallsite(waitForText);
   try {

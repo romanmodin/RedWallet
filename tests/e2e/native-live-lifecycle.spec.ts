@@ -21,6 +21,7 @@ import {
   sleep,
   tapAndTapAgainIfElementIsNotVisible,
   typeTextIntoAlertInput,
+  waitForEncryptionEnabled,
   waitForId,
   waitForKeyboardToClose,
   waitForLabel,
@@ -32,10 +33,11 @@ import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
-// The 68d iOS RBF receipt completed near 600s, then Jest timed out during
-// bounded simulator shutdown. Reserve a minute for mandatory teardown; all
-// individual action deadlines and acceptance assertions remain unchanged.
-jest.setTimeout(660_000);
+// Source 2c32's iOS Send/Taproot and RBF/SegWit cases exhausted 660s while
+// entering the shared recovery wait, so that bounded 90s assertion received no
+// time to complete. The hosted stage has a 40-minute outer bound; 900s per case
+// preserves every individual action deadline plus mandatory teardown.
+jest.setTimeout(900_000);
 
 const native = process.env.REDWALLET_NATIVE_LIVE === '1' ? describe : describe.skip;
 const focusedStages = ['recovery', 'receive', 'send', 'rbf', 'cpfp', 'encryption', 'delete'] as const;
@@ -535,10 +537,7 @@ native('isolated native live wallet stages and final acceptance', () => {
             await element(by.id('ConfirmPasswordInput')).typeText(fixturePassword);
             await element(by.id('ConfirmPasswordInput')).tapReturnKey();
             await confirmPasswordDialog();
-            await waitFor(element(by.id('ConfirmPasswordInput')))
-              .not.toExist()
-              .withTimeout(120_000);
-            await waitForId('PlausibleDeniabilityButton');
+            await waitForEncryptionEnabled();
             // No new history can arrive during this restart/cache assertion.
             backend.fault = 'history-timeout';
             backend.disconnectClients();
