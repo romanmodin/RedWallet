@@ -49,6 +49,9 @@ export type BackendReceipt = {
   blake2bHeight: number;
   binaries: Record<string, string>;
   forwardedMethods: Record<string, number>;
+  responseMethods: Record<string, number>;
+  unansweredMethods: Record<string, number>;
+  maxResponseMs: Record<string, number>;
   fundingTxids: string[];
   disconnectFaults: number;
   checkpointRequests: number;
@@ -111,6 +114,9 @@ export class KnotsFulcrumHarness {
           .map(([key, value]) => [key, createHash('sha256').update(readFileSync(value!)).digest('hex')]),
       ),
       forwardedMethods: {},
+      responseMethods: {},
+      unansweredMethods: {},
+      maxResponseMs: {},
       fundingTxids: [],
       disconnectFaults: 0,
       checkpointRequests: 0,
@@ -274,6 +280,9 @@ export class KnotsFulcrumHarness {
       this.sockets.add(upstream);
       let buffer = '';
       let responseBuffer = '';
+      // Per-connection request IDs stay in memory; receipts contain method counts
+      // and timings only, never request parameters, responses or wallet data.
+      const pending = new Map<number | string, { method: string; started: number }>();
       upstream.on('data', data => {
         responseBuffer += data.toString();
         if (responseBuffer.length > 8_000_000) return socket.destroy();
@@ -283,6 +292,14 @@ export class KnotsFulcrumHarness {
           responseBuffer = responseBuffer.slice(end + 1);
           try {
             const message = JSON.parse(line);
+            for (const reply of Array.isArray(message) ? message : [message]) {
+              const request = pending.get(reply.id);
+              if (!request) continue;
+              pending.delete(reply.id);
+              const method = request.method;
+              this.receipt.responseMethods[method] = (this.receipt.responseMethods[method] || 0) + 1;
+              this.receipt.maxResponseMs[method] = Math.max(this.receipt.maxResponseMs[method] || 0, Date.now() - request.started);
+            }
             // Regtest verbose transactions label scripts bcrt1/tb1. Translate
             // labels from the actual script bytes, leaving transaction hex and
             // amounts intact. The native application still uses bc1 addresses.
@@ -308,6 +325,10 @@ export class KnotsFulcrumHarness {
       upstream.on('close', () => socket.destroy());
       socket.on('error', () => upstream.destroy());
       socket.on('close', () => {
+        for (const { method } of pending.values()) {
+          this.receipt.unansweredMethods[method] = (this.receipt.unansweredMethods[method] || 0) + 1;
+        }
+        pending.clear();
         upstream.destroy();
         this.sockets.delete(socket);
         this.sockets.delete(upstream);
@@ -354,6 +375,10 @@ export class KnotsFulcrumHarness {
           if (this.fault === 'history-timeout' && requests.some(request => request.method === 'blockchain.scripthash.get_history'))
             continue;
           for (const request of requests) {
+            pending.set(request.id, {
+              method: request.method,
+              started: Date.now(),
+            });
             this.receipt.forwardedMethods[request.method] = (this.receipt.forwardedMethods[request.method] || 0) + 1;
           }
           upstream.write(line + '\n');

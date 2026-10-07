@@ -200,6 +200,8 @@ async function recover(): Promise<void> {
   await waitFor(element(by.id('RecoveryStopButton')))
     .not.toExist()
     .withTimeout(90_000);
+  // Removing Stop alone does not establish a complete scan.
+  await nativeExpect(element(by.text(english.wallets.recovery_incomplete))).not.toExist();
   await waitForId('RecoveryImportSelected');
   await element(by.id('RecoveryImportSelected')).tap();
   await waitForText('Your wallet has been successfully imported.', 60_000);
@@ -614,6 +616,26 @@ native('isolated native live wallet stages and final acceptance', () => {
           // Record the original failure before diagnostics/teardown can fail.
           console.error('[native-lifecycle] original failure at ' + stage + '/' + format + '/' + currentStep + ':', error);
           await boundedDiagnostic(() => device.takeScreenshot('native-live-lifecycle-failure'));
+          if (!isIOS) {
+            // App-only logcat misses system activity/backgrounding events. Keep
+            // the disposable emulator's task state before teardown changes it.
+            mkdirSync(artifactDirectory, { recursive: true });
+            for (const [name, args] of [
+              ['activity-state.txt', ['shell', 'dumpsys', 'activity', 'activities']],
+              ['activity-events.txt', ['logcat', '-b', 'events', '-d', '-t', '300']],
+            ] as const) {
+              try {
+                writeFileSync(
+                  path.join(artifactDirectory, name),
+                  execFileSync('adb', ['-s', device.id, ...args], {
+                    timeout: 5000,
+                  }),
+                );
+              } catch {
+                console.warn('[native-lifecycle] could not retain ' + name);
+              }
+            }
+          }
           throw error;
         } finally {
           // Cleanup the real backend even when Detox has lost its app connection.

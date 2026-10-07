@@ -66,13 +66,13 @@ test('dismisses an open keyboard using the real Done tap', async () => {
   unitExpect(doneTap).toHaveBeenCalledTimes(1);
   unitExpect(element.mock.calls[0][0]).toBe('DismissMnemonicKeyboard');
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
-  unitExpect(importVisible).toHaveBeenCalledTimes(2);
+  unitExpect(scroll).toHaveBeenCalledWith(120, 'down', 0.9, 0.5);
 });
 
 test('accepts a closed keyboard only when Import is visible', async () => {
   await dismissMnemonicKeyboard();
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
-  unitExpect(importVisible).toHaveBeenCalledTimes(2);
+  unitExpect(scroll).toHaveBeenCalledWith(120, 'down', 0.9, 0.5);
   unitExpect(returnKey).toHaveBeenCalledTimes(1);
 });
 
@@ -85,10 +85,9 @@ test('rejects an open keyboard when Done cannot be tapped', async () => {
 });
 
 test('rejects a closed keyboard if Import remains hidden', async () => {
-  importVisible.mockRejectedValue(new Error('Import is hidden'));
-  const result = unitExpect(dismissMnemonicKeyboard()).rejects.toThrow('within 10 seconds');
-  await jest.advanceTimersByTimeAsync(10000);
-  await result;
+  scroll.mockRejectedValue(new Error('Import is hidden'));
+  await unitExpect(dismissMnemonicKeyboard()).rejects.toThrow('Import is hidden');
+  unitExpect(returnKey).toHaveBeenCalledTimes(1);
 });
 
 test('reveals Android Import without pressing Back or demanding an iOS keyboard', async () => {
@@ -113,7 +112,7 @@ test('waits for the native Done key to dismiss without dragging the sheet', asyn
   unitExpect(returnKey).toHaveBeenCalledTimes(1);
   unitExpect(drag).not.toHaveBeenCalled();
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(2);
-  unitExpect(importVisible).toHaveBeenCalledTimes(2);
+  unitExpect(scroll).toHaveBeenCalledWith(120, 'down', 0.9, 0.5);
 });
 
 test('falls back to the native Done key when the multiline accessory is absent', async () => {
@@ -123,7 +122,7 @@ test('falls back to the native Done key when the multiline accessory is absent',
   unitExpect(returnKey).toHaveBeenCalledTimes(1);
   unitExpect(drag).not.toHaveBeenCalled();
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
-  unitExpect(importVisible).toHaveBeenCalledTimes(2);
+  unitExpect(scroll).toHaveBeenCalledWith(120, 'down', 0.9, 0.5);
 });
 
 test('reveals Import after dismissal by scrolling the actual form', async () => {
@@ -140,4 +139,20 @@ test('propagates a failed native Done action rather than dragging the sheet', as
   await unitExpect(dismissMnemonicKeyboard()).rejects.toThrow('Native Done failed');
   unitExpect(drag).not.toHaveBeenCalled();
   unitExpect(importVisible).not.toHaveBeenCalled();
+});
+
+test('does not re-tap Done while revealing Import after the keyboard has closed', async () => {
+  doneTap.mockResolvedValue(undefined);
+  scroll.mockImplementation(async () => {
+    // A retained-layout scroll can take longer than the keyboard deadline.
+    // It must finish or fail itself, without restarting keyboard dismissal.
+    await new Promise(resolve => setTimeout(resolve, 12000));
+  });
+  const pending = dismissMnemonicKeyboard();
+  await jest.advanceTimersByTimeAsync(12000);
+  await pending;
+  unitExpect(doneTap).toHaveBeenCalledTimes(1);
+  unitExpect(returnKey).not.toHaveBeenCalled();
+  unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
+  unitExpect(scroll).toHaveBeenCalledTimes(1);
 });

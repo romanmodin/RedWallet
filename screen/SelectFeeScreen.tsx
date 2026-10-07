@@ -277,6 +277,7 @@ const SelectFeeScreen = () => {
     >
       <View style={[styles.keyboardAvoidingRoot, stylesHook.keyboardAvoidingRoot]}>
         <ScrollView
+          testID="SelectFeeScroll"
           style={[styles.scrollView, stylesHook.scrollView]}
           contentContainerStyle={[stylesHook.container, styles.screenContainer]}
           keyboardShouldPersistTaps="handled"

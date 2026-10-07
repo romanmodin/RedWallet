@@ -165,20 +165,17 @@ export async function dismissMnemonicKeyboard() {
       await sleep(250);
       continue;
     }
-    try {
-      await expect(element(by.id('DoImport'))).toBeVisible();
-      ready = true;
-      break;
-    } catch (_) {
-      await element(by.id('ImportWalletScroll')).scroll(120, 'down', 0.9, 0.5);
-    }
-    await sleep(250);
+    ready = true;
+    break;
   }
   if (!ready) throw new Error('Mnemonic keyboard did not dismiss within 10 seconds');
-  // The caller must still exercise Import's real tap; no hit test is bypassed.
+  // Dismissal and revealing the button are separate UI phases. Re-tapping Done
+  // after the keyboard closes can reset scroll position and consume the deadline.
+  // Scroll the actual form until Import passes its original visibility assertion.
   await waitFor(element(by.id('DoImport')))
     .toBeVisible()
-    .withTimeout(10000);
+    .whileElement(by.id('ImportWalletScroll'))
+    .scroll(120, 'down', 0.9, 0.5);
 }
 
 // iOS replaceText can skip input callbacks, leaving the controlled field empty
@@ -520,7 +517,10 @@ export async function setCustomFeeRate(feeRate) {
   await element(by.id('chooseFee')).tap();
   await waitForId('feeCustomContainerButton');
   await element(by.id('feeCustomContainerButton')).tap();
-  await waitForId('feeCustom');
+  await waitFor(element(by.id('feeCustom')))
+    .toBeVisible()
+    .whileElement(by.id('SelectFeeScroll'))
+    .scroll(120, 'down', 0.9, 0.5);
   await element(by.id('feeCustom')).typeText(String(feeRate) + '\n');
   await waitForKeyboardToClose();
   await waitForId('chooseFee');
