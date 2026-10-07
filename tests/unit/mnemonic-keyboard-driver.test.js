@@ -11,6 +11,7 @@ const savedGlobals = {
   expect: global.expect,
 };
 let doneTap;
+let returnKey;
 let keyboardAbsent;
 let importVisible;
 let drag;
@@ -19,6 +20,7 @@ let scroll;
 beforeEach(() => {
   jest.useFakeTimers();
   doneTap = jest.fn().mockRejectedValue(new Error('No Done accessory'));
+  returnKey = jest.fn().mockResolvedValue(undefined);
   keyboardAbsent = jest.fn().mockResolvedValue(undefined);
   importVisible = jest.fn().mockResolvedValue(undefined);
   global.device = { getPlatform: () => 'ios' };
@@ -32,6 +34,7 @@ beforeEach(() => {
   element.mockImplementation(target => ({
     target,
     tap: doneTap,
+    tapReturnKey: returnKey,
     swipe: drag,
     scroll,
     scrollTo: jest.fn().mockResolvedValue(undefined),
@@ -70,7 +73,7 @@ test('accepts a closed keyboard only when Import is visible', async () => {
   await dismissMnemonicKeyboard();
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
   unitExpect(importVisible).toHaveBeenCalledTimes(2);
-  unitExpect(element.mock.calls.some(([target]) => target === 'MnemonicInput')).toBe(false);
+  unitExpect(returnKey).toHaveBeenCalledTimes(1);
 });
 
 test('rejects an open keyboard when Done cannot be tapped', async () => {
@@ -102,20 +105,23 @@ test('propagates Android failure to reveal Import', async () => {
   await unitExpect(dismissMnemonicKeyboard()).rejects.toThrow('Import remains obscured');
 });
 
-test('dismisses a keyboard without Done using the import form drag', async () => {
+test('waits for the native Done key to dismiss without dragging the sheet', async () => {
   keyboardAbsent.mockRejectedValueOnce(new Error('Keyboard visible'));
   const pending = dismissMnemonicKeyboard();
   await jest.advanceTimersByTimeAsync(250);
   await pending;
-  unitExpect(drag).toHaveBeenCalledWith('up', 'slow', 0.15, 0.9, 0.25);
+  unitExpect(returnKey).toHaveBeenCalledTimes(1);
+  unitExpect(drag).not.toHaveBeenCalled();
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(2);
   unitExpect(importVisible).toHaveBeenCalledTimes(2);
 });
 
-test('falls back to a form tap when the multiline accessory is absent', async () => {
+test('falls back to the native Done key when the multiline accessory is absent', async () => {
   doneTap.mockRejectedValueOnce(new Error('No Done accessory')).mockResolvedValue(undefined);
   await dismissMnemonicKeyboard();
-  unitExpect(element.mock.calls.some(([target]) => target === 'XbtImportFormat')).toBe(true);
+  unitExpect(element.mock.calls.some(([target]) => target === 'MnemonicInput')).toBe(true);
+  unitExpect(returnKey).toHaveBeenCalledTimes(1);
+  unitExpect(drag).not.toHaveBeenCalled();
   unitExpect(keyboardAbsent).toHaveBeenCalledTimes(1);
   unitExpect(importVisible).toHaveBeenCalledTimes(2);
 });
@@ -127,4 +133,11 @@ test('reveals Import after dismissal by scrolling the actual form', async () => 
   await pending;
   unitExpect(scroll).toHaveBeenCalledWith(120, 'down', 0.9, 0.5);
   unitExpect(drag).not.toHaveBeenCalled();
+});
+
+test('propagates a failed native Done action rather than dragging the sheet', async () => {
+  returnKey.mockRejectedValue(new Error('Native Done failed'));
+  await unitExpect(dismissMnemonicKeyboard()).rejects.toThrow('Native Done failed');
+  unitExpect(drag).not.toHaveBeenCalled();
+  unitExpect(importVisible).not.toHaveBeenCalled();
 });

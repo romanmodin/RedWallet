@@ -211,6 +211,9 @@ const ImportWallet = () => {
         onBlur={onBlur}
         onChangeText={setImportText}
         testID="MnemonicInput"
+        returnKeyType="done"
+        submitBehavior="blurAndSubmit"
+        onSubmitEditing={Keyboard.dismiss}
         inputAccessoryViewID={DoneAndDismissKeyboardInputAccessoryViewID}
       />
 

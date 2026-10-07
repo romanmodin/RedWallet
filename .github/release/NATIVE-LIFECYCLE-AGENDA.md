@@ -211,3 +211,13 @@ These corrections preserve payment/signature/output/mempool, TLS/checkpoint, can
 - [ ] Pass all seven focused stages for both formats on both platforms on the new exact source. Only then dispatch the separately gated uninterrupted final tests.
 
 No fee/signature/output/mempool, TLS/checkpoint, cancellation, encryption/history or delete/recovery assertion is waived. Signing and broadcasting are not retried. Focused hosted simulator/emulator execution and software-backend acceptance do not establish uninterrupted native lifecycle completion, physical-phone or cold-device interoperability. PR40 release qualification and publication remain separate.
+
+## Native keyboard and confirmation corrections — October 7, 07:36–07:50 PDT
+
+- [x] Verified predecessor 60962f75a: Android receive/recovery/send/RBF/CPFP/encryption pass; delete fails. iOS receive/send/RBF/CPFP pass; recovery/encryption/delete fail. No final acceptance.
+- [x] Retained iOS recovery trace identifies NSNull DetoxSync animation-untracking exception during scroll-to-top. Replace gesture fallback with the actual mnemonic keyboard Done action; field now explicitly uses blurAndSubmit. Keep keyboard-absence, Import visibility and unchanged-mnemonic checks.
+- [x] Focus secure password fields before typing, avoiding clearTextOnFocus erasing an unfocused confirmation during submission.
+- [x] Android native alert helper waits for a unique visible button without atIndex and performs one tap. Propagate uncertain tap failures; never repeat a confirmation.
+- [x] Thirteen focused keyboard/alert regressions pass; complete lint/typecheck and diff whitespace checks pass. Logs: /tmp/redwallet-dialog-unit.log and /tmp/redwallet-dialog-lint.log.
+- [ ] Hosted replacement qualification: all seven separately reset stages, both formats, both platforms. These corrections are hypotheses until hosted receipts verify them.
+- [ ] Final continuous native lifecycle only after every exact-source focused stage passes. No physical-phone/cold-device interoperability or PR40 publication claim.

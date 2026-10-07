@@ -511,8 +511,12 @@ native('isolated native live wallet stages and final acceptance', () => {
             await waitForId('IUnderstandButton');
             await element(by.id('IUnderstandButton')).tap();
             await waitForId('PasswordInput');
-            await element(by.id('PasswordInput')).replaceText(fixturePassword);
-            await element(by.id('ConfirmPasswordInput')).replaceText(fixturePassword);
+            // Both secure fields clear on focus. Focus before entering text,
+            // so submitting the confirmation cannot erase an unfocused value.
+            await element(by.id('PasswordInput')).tap();
+            await element(by.id('PasswordInput')).typeText(fixturePassword);
+            await element(by.id('ConfirmPasswordInput')).tap();
+            await element(by.id('ConfirmPasswordInput')).typeText(fixturePassword);
             await element(by.id('ConfirmPasswordInput')).tapReturnKey();
             await confirmPasswordDialog();
             await waitFor(element(by.id('ConfirmPasswordInput')))

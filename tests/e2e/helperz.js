@@ -133,7 +133,7 @@ export async function waitForSwitchValue(switchId, expectedValue, timeoutMs = 80
   rethrowWithCallsite(lastErr || new Error(`Timed out waiting for ${switchId} == ${expectedValue}`), callsite);
 }
 
-// Use the real Done accessory or the import form's drag-to-dismiss behavior.
+// Use the real Done accessory or the mnemonic field's native Done key.
 // Require both the onscreen keyboard to be absent and Import to be visible.
 export async function dismissMnemonicKeyboard() {
   if (device.getPlatform() !== 'ios') {
@@ -146,27 +146,22 @@ export async function dismissMnemonicKeyboard() {
   }
   const deadline = Date.now() + 10000;
   let ready = false;
-  let formTapAttempted = false;
+  let returnKeyAttempted = false;
   while (Date.now() < deadline) {
     try {
       await element(by.id('DismissMnemonicKeyboard')).tap();
     } catch (_) {
-      // Multiline inputs can lack their iOS accessory. A tap on the form's
-      // noninteractive label dismisses the keyboard through handled taps.
-      if (!formTapAttempted) {
-        formTapAttempted = true;
-        try {
-          await element(by.id('ImportWalletScroll')).scrollTo('top');
-          await element(by.id('XbtImportFormat')).tap();
-        } catch {}
+      // Multiline inputs can lack their iOS accessory. Submit through the real
+      // Done key; blurAndSubmit dismisses without inserting a mnemonic newline.
+      // Do not drag the modal sheet while its keyboard animation is active.
+      if (!returnKeyAttempted) {
+        returnKeyAttempted = true;
+        await element(by.id('MnemonicInput')).tapReturnKey();
       }
     }
     try {
       await expect(element(by.type('UIKeyboardLayoutStar'))).not.toBeVisible();
     } catch (_) {
-      // Multiline iOS inputs can lack the accessory. Exercise an actual drag.
-      // Start above the keyboard, near the form edge outside the text input.
-      await element(by.id('ImportWalletScroll')).swipe('up', 'slow', 0.15, 0.9, 0.25);
       await sleep(250);
       continue;
     }
@@ -429,6 +424,19 @@ export async function tapIfTextPresent(text) {
  */
 export async function dismissAlertByText(text, timeoutMs = 10000, restoreSynchronization = true) {
   const isIOS = device.getPlatform() === 'ios';
+  if (!isIOS) {
+    // Android's indexed matcher enumerates activity roots, which can miss the
+    // native dialog window. Match its unique visible button directly instead.
+    const button = element(by.text(text));
+    try {
+      await waitFor(button).toBeVisible().withTimeout(timeoutMs);
+    } catch (_) {
+      return false;
+    }
+    // A failed tap has an uncertain outcome: propagate it, never tap twice.
+    await button.tap();
+    return true;
+  }
   if (isIOS) {
     await device.disableSynchronization();
   }
