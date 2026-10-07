@@ -32,6 +32,11 @@ import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
+// The 68d iOS RBF receipt completed near 600s, then Jest timed out during
+// bounded simulator shutdown. Reserve a minute for mandatory teardown; all
+// individual action deadlines and acceptance assertions remain unchanged.
+jest.setTimeout(660_000);
+
 const native = process.env.REDWALLET_NATIVE_LIVE === '1' ? describe : describe.skip;
 const focusedStages = ['recovery', 'receive', 'send', 'rbf', 'cpfp', 'encryption', 'delete'] as const;
 type Stage = (typeof focusedStages)[number] | 'final';
@@ -211,8 +216,10 @@ async function recover(): Promise<void> {
 
 async function openWallet(label: string): Promise<void> {
   await scrollUpOnHomeScreen();
-  await tapAndTapAgainIfElementIsNotVisible(label, 'SendButton');
-  await waitForId('WalletTransactionsList');
+  // Navigate using the destination screen as the sentinel. Send mounts later
+  // while a newly imported wallet loads; do not retap its old home card then.
+  await tapAndTapAgainIfElementIsNotVisible(label, 'WalletTransactionsList');
+  await waitForId('SendButton');
 }
 
 async function refresh(): Promise<void> {
@@ -306,12 +313,17 @@ async function bump(kind: 'rbf' | 'cpfp', rate: number, parent?: bitcoin.Transac
   await feeInput.typeText(String(rate) + (device.getPlatform() === 'android' ? '\n' : ''));
   if (device.getPlatform() === 'ios') {
     await element(by.text(english.send.input_done)).tap();
+    // A closing keyboard can consume Create. Require dismissal first; never
+    // retry an uncertain signing/preparation action.
+    await waitFor(element(by.type('UIKeyboardLayoutStar')))
+      .not.toBeVisible()
+      .withTimeout(10_000);
   }
   await waitFor(feeInput).toBeVisible().withTimeout(15_000);
   assert.equal(await nativeText('FeeBumpRateInput'), String(rate));
   const create = element(by.id('FeeBumpCreateButton'));
   // Both fee forms can place Create below the keyboard or viewport.
-  await waitFor(create).toBeVisible().whileElement(by.id('FeeBumpScroll')).scroll(150, 'down');
+  await waitFor(create).toBeVisible().whileElement(by.id('FeeBumpScroll')).scroll(150, 'down', 0.5, 0.5);
   assert.equal(await nativeText('FeeBumpRateInput'), String(rate));
   await create.tap();
   await waitForId('FeeBumpHexInput');
@@ -457,6 +469,8 @@ native('isolated native live wallet stages and final acceptance', () => {
             assert.equal(bitcoin.address.fromOutputScript(original.outs[0].script), vectors.recipient);
             assert.equal(original.outs[0].value, 90_000n);
             await goBack();
+            // Require the native stack to return before the single broadcast.
+            await waitForId('ConfirmBroadcastButton');
             await element(by.id('ConfirmBroadcastButton')).tap();
             await waitForId('SendSuccessDone', 60_000);
             assert.ok((await backend.rpc('getrawmempool')).includes(original.getId()));
@@ -559,7 +573,8 @@ native('isolated native live wallet stages and final acceptance', () => {
             await waitFor(element(by.id('DeleteWallet')))
               .toBeVisible()
               .whileElement(by.id('WalletDetailsScroll'))
-              .scroll(500, 'down');
+              // Full bounds reach Android's taskbar; start inside the viewport.
+              .scroll(200, 'down', 0.5, 0.5);
             let deletionConfirmed = false;
             for (let attempt = 0; attempt < 3; attempt++) {
               // Retry only the initial prompt opener while still on Details.
