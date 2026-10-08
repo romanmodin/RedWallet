@@ -114,6 +114,7 @@ export function estimateXbtQuoteAmount(satoshis: number, quote: XbtPriceQuote): 
 
 export function formatXbtQuoteEstimate(satoshis: number, quote: XbtPriceQuote): string {
   const amount = new BigNumber(estimateXbtQuoteAmount(satoshis, quote));
-  // At most 20 decimal places: 8 satoshi places plus the 12 allowed quote places.
-  return `${amount.toFormat(Math.max(2, amount.decimalPlaces() ?? 0))} ${quote.currency}`;
+  // Round only the displayed USDC estimate; preserve exact XBT and quote arithmetic.
+  const decimals = quote.currency === 'USDC' ? 2 : Math.max(2, amount.decimalPlaces() ?? 0);
+  return `${amount.toFormat(decimals, BigNumber.ROUND_HALF_UP)} ${quote.currency}`;
 }

@@ -36,3 +36,15 @@ Source qualification must complete before a signed Android or TestFlight release
 - [ ] Merge only after those gates pass; verify identical private/public production source; use the existing protected signing and same-artifact upload workflows; assign the verified build to the existing TestFlight groups and retain Apple's processing/testing receipt.
 
 Owner authorized completion of the iOS update on October 8, 2026. This correction changes test code only. The separate lifecycle branch remains separate; no physical-phone or cold-device interoperability is claimed. A passing test run is not evidence of TestFlight availability.
+
+## USDC display and automatic market refresh — October 8, 2026
+
+- [x] Round the displayed USDC estimate to exactly two decimal places using decimal half-up rounding. Keep XBT coin amounts, transaction amounts, stored rates and underlying estimate arithmetic at their existing full precision.
+- [x] Refresh a saved NeoxEX quote on launch and on returning to the foreground, then recalculate the displayed total. Preserve explicit manual/cleared choices; coalesce concurrent refreshes; reject late responses after a newer choice or unmount; retain the last valid quote and actual trade timestamp when the exchange is unavailable.
+- [x] Pass 30 focused price/fiat-safety checks, including rounding, recalculation, foreground refresh, offline preservation and response races.
+- [x] Inspect replacement-source UI failures: Android retained the deliberately wrong password before typing the correct one; iOS retained pending native navigation while the driver held synchronization disabled. The iOS timeout hierarchy still showed the password field; the immediately following screenshot, after synchronization was restored, showed the wallet destination.
+- [x] Add three failing driver regressions, then pass all eight after clearing focused secure inputs and restoring iOS synchronization immediately after submission. Existing UI assertions, deadlines and failure propagation remain unchanged; no blind resubmission.
+- [x] Full local validation: 86 suites, 809 passing tests and one inherited skip; TypeScript and lint pass (one inherited no-bitwise warning in an untouched encryption test).
+- [ ] Complete fresh exact-source hosted qualification for this combined app/test change, then continue the guarded iOS delivery process above.
+
+The earlier test-only source mapping is superseded by these app changes. Recompute and verify the private/public production tree before signing. No updated TestFlight availability is claimed until Apple's receipts are verified.

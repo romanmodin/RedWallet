@@ -1,29 +1,38 @@
 import { element } from 'detox';
 import { confirmPasswordDialog, waitForId } from './helperz';
 
-// iOS secure keyboard animations can keep Detox busy after a return-key
-// action. Dismiss the keyboard with synchronization off, then use the dialog
-// button and bounded destination checks before restoring synchronization.
+// Keep iOS keyboard entry unsynchronized, then restore synchronization before
+// destination checks so queued native navigation work can finish.
 export async function submitStoragePassword(password, confirmation, settled) {
   const isIOS = device.getPlatform() === 'ios';
-  if (isIOS) await device.disableSynchronization();
+  let synchronizationDisabled = false;
+  if (isIOS) {
+    await device.disableSynchronization();
+    synchronizationDisabled = true;
+  }
   try {
     await waitForId('PasswordInput');
-    // Both secure inputs clear on focus. Enter text only after focusing,
-    // otherwise tapReturnKey can focus and erase an unfocused confirmation.
+    // Focus before editing (secure fields clear on focus), and explicitly clear
+    // retained input when retrying after an expected wrong-password alert.
     await element(by.id('PasswordInput')).tap();
+    await element(by.id('PasswordInput')).clearText();
     await element(by.id('PasswordInput')).typeText(password);
     if (confirmation) {
       await waitForId('ConfirmPasswordInput');
       await element(by.id('ConfirmPasswordInput')).tap();
+      await element(by.id('ConfirmPasswordInput')).clearText();
       await element(by.id('ConfirmPasswordInput')).typeText(password);
     }
     if (isIOS) {
       await element(by.id(confirmation ? 'ConfirmPasswordInput' : 'PasswordInput')).tapReturnKey();
     }
     await confirmPasswordDialog();
+    if (synchronizationDisabled) {
+      await device.enableSynchronization();
+      synchronizationDisabled = false;
+    }
     await settled();
   } finally {
-    if (isIOS) await device.enableSynchronization();
+    if (synchronizationDisabled) await device.enableSynchronization();
   }
 }

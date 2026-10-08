@@ -28,6 +28,10 @@ beforeEach(() => {
   };
   element.mockImplementation(id => ({
     tap: async () => focus(id),
+    clearText: async () => {
+      focus(id);
+      values[id] = '';
+    },
     replaceText: async text => {
       values[id] = text;
     },
@@ -89,5 +93,21 @@ test('destination failures are propagated and restore synchronization', async ()
       throw error;
     }),
   ).rejects.toBe(error);
+  expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
+});
+
+test.each(['ios', 'android'])('%s replaces a retained wrong password before another submission', async platform => {
+  global.device.getPlatform = () => platform;
+  values.PasswordInput = 'wrong-fixture';
+  focused = 'PasswordInput';
+  await submitStoragePassword('fixture-pass', false, jest.fn());
+  expect(values.PasswordInput).toBe('fixture-pass');
+  expect(confirmPasswordDialog).toHaveBeenCalledTimes(1);
+});
+
+test('restores iOS synchronization before checking the navigation destination', async () => {
+  await submitStoragePassword('fixture-pass', false, async () => {
+    expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
+  });
   expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
 });
