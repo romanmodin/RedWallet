@@ -25,3 +25,14 @@ The software wallet lifecycle runs both formats through discovery, real wallet r
 ## Release status
 
 Source qualification must complete before a signed Android or TestFlight release. Existing installed builds do not contain these changes until a subsequent native release is published.
+
+## iOS release qualification follow-up — October 8, 2026
+
+- [x] Inspect PR40 source `61b7c3f521809b3b12cb88d5e49d1ae00d9e2cc6`: unit/lint and Android pass; iOS run [37287278982](https://github.com/romanmodin/RedWallet/actions/runs/37287278982) fails the storage encryption/decryption case.
+- [x] Retained failure screenshot shows the password populated, confirmation empty, and OK disabled. Both fields use `clearTextOnFocus`; the driver previously used `replaceText` before the confirmation field received focus, then `tapReturnKey` cleared it.
+- [x] Extract the password driver for regression testing; focus each field before typing, matching the successfully exercised native lifecycle interaction. Retain every existing completion, encrypted restart, wrong-password, fake-storage and decryption assertion and deadline.
+- [x] Reproduce the confirmation-erasure failure with a secure-field focus model, then pass all five driver regressions after correction. Full local unit suite: 85 suites, 795 passing tests, one inherited skip. Full lint/typecheck passes; changed-file lint is required without added warnings before commit.
+- [ ] Qualify the replacement PR40 source with fresh unit/lint, Android UI and iOS UI gates. Lifecycle branch passes do not substitute for these release gates.
+- [ ] Merge only after those gates pass; verify identical private/public production source; use the existing protected signing and same-artifact upload workflows; assign the verified build to the existing TestFlight groups and retain Apple's processing/testing receipt.
+
+Owner authorized completion of the iOS update on October 8, 2026. This correction changes test code only. The separate lifecycle branch remains separate; no physical-phone or cold-device interoperability is claimed. A passing test run is not evidence of TestFlight availability.

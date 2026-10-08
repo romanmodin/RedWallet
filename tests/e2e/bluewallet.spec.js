@@ -24,28 +24,7 @@ import {
   waitForLabel,
 } from './helperz';
 
-// iOS secure keyboard animations can keep Detox busy after a return-key
-// action. Dismiss the keyboard with synchronization off, then use the dialog
-// button and bounded destination checks before restoring synchronization.
-async function submitStoragePassword(password, confirmation, settled) {
-  const isIOS = device.getPlatform() === 'ios';
-  if (isIOS) await device.disableSynchronization();
-  try {
-    await waitForId('PasswordInput');
-    await element(by.id('PasswordInput')).replaceText(password);
-    if (confirmation) {
-      await waitForId('ConfirmPasswordInput');
-      await element(by.id('ConfirmPasswordInput')).replaceText(password);
-    }
-    if (isIOS) {
-      await element(by.id(confirmation ? 'ConfirmPasswordInput' : 'PasswordInput')).tapReturnKey();
-    }
-    await confirmPasswordDialog();
-    await settled();
-  } finally {
-    if (isIOS) await device.enableSynchronization();
-  }
-}
+import { submitStoragePassword } from './storage-password';
 
 // if loglevel is set to `error`, this kind of logging will still get through
 console.warn = console.log = (...args) => {
