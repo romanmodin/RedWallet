@@ -293,3 +293,36 @@ No payment, signature, output, mempool, TLS/checkpoint, cancellation, encryption
 - [x] Preserve the prepared evidence-based CPFP cold-start readiness and iOS encryption destination corrections. Focused driver regression: 6/6 tests in 2 suites pass. Full lint/typecheck passes with 0 errors and 15 existing warnings. `git diff --check` passes. Logs: `/tmp/redwallet-2c32-final-lint.log`; source-2c32 send/RBF evidence under `/tmp/redwallet-2c32-ios-send-critical` and `/tmp/redwallet-2c32-ios-rbf-critical`.
 - [ ] Commit and push one replacement source, verify local/remote identity, and allow the automatic focused Android/iOS workflows to requalify the new exact source. Do not count source-2c32 passes for replacement qualification.
 - [ ] Only after software/backend and all seven focused stages pass both formats/platforms on the replacement source, check for existing final runs and dispatch the gated continuous workflows. No complete continuous lifecycle, physical-phone/cold-device interoperability, PR40 qualification, or publication is claimed.
+
+
+- [x] Replacement committed/pushed and local/remote verified at 2026-10-07 15:27 PDT: `6145d6ce3b31a3375fb7731d00d940551fbc889c`. Worktree was clean immediately after push.
+- [x] Exactly one fresh automatic [Android 37696154888](https://github.com/romanmodin/RedWallet/actions/runs/37696154888) and [iOS 37696155262](https://github.com/romanmodin/RedWallet/actions/runs/37696155262) workflow are in progress on the exact replacement SHA. Android software/build and iOS build are active; focused stages have not started. No duplicate dispatch, cancellation or final run.
+- [ ] Preserve the healthy workflows and this intentionally uncommitted post-push receipt. Verify the exact-source software gate and all seven focused stages before any gated final dispatch.
+
+
+## Exact-source 6145 focused progress and Android artifact readiness — 2026-10-07 16:21 PDT
+
+- [x] [Android 37696154888](https://github.com/romanmodin/RedWallet/actions/runs/37696154888) exact-source software/backend, build, recovery, receive, send, RBF, CPFP and delete passed. Encryption failed only because the cold emulator could not open Detox log/video files under `/sdcard`; Taproot then started on the warmed emulator and passed the real encryption lifecycle. Six of seven Android stages are accepted on source `6145d6ce3b31a3375fb7731d00d940551fbc889c`; encryption is not.
+- [x] Retained Android failure log proves `Operation not permitted` for Detox's direct `/sdcard` log/video paths before the SegWit app test began. This is an emulator artifact-recorder readiness fault, not evidence of an encryption defect.
+- [x] Prepared a bounded Android runner correction that proves the exact Detox logcat and screenrecord operations are writable, retrying at most 30 times at two-second intervals before starting the test. It does not extend, skip or weaken any wallet lifecycle assertion.
+- [x] Local verification passes: shell syntax, two artifact-readiness regressions, two encryption completion regressions, affected-file ESLint, full lint/typecheck with zero errors, and diff whitespace check.
+- [x] [iOS 37696155262](https://github.com/romanmodin/RedWallet/actions/runs/37696155262) exact-source build, receive, CPFP and encryption have passed. Recovery and send are still running; delete and RBF are queued. The CPFP and encryption corrections are therefore hosted-verified on iOS.
+- [ ] Preserve the active iOS jobs and do not push the prepared Android correction until they finish. Inspect any remaining failure evidence, then commit/push one replacement source and requalify requisite exact-source workflows.
+- [ ] Dispatch no final continuous lifecycle until software/backend and all seven focused stages pass both formats/platforms on the same source. Hosted simulator/emulator evidence does not establish physical-phone or cold-device interoperability; PR40 qualification and publication remain separate.
+
+
+### Progress receipt — 2026-10-07 17:16 PDT
+
+- [x] [iOS 37696155262](https://github.com/romanmodin/RedWallet/actions/runs/37696155262) now has exact-source build plus receive, send, CPFP, encryption, recovery and RBF success. The prior CPFP, encryption, send and RBF corrections are hosted-verified. Deletion is the only iOS stage still running.
+- [x] [Android 37696154888](https://github.com/romanmodin/RedWallet/actions/runs/37696154888) remains exact-source software/build plus six of seven focused stages successful; encryption retains the diagnosed cold-emulator artifact-recorder failure.
+- [ ] Preserve the active iOS deletion job. When it completes, inspect its receipt, run final local checks, commit/push the prepared Android artifact-readiness correction (plus only any newly evidenced fix), and requalify the replacement source. No final continuous workflow is eligible yet.
+
+
+## Completed iOS qualification and Android recorder correction — 2026-10-07 17:25 PDT
+
+- [x] All source-`6145d6ce3b31a3375fb7731d00d940551fbc889c` jobs finished before replacement. [iOS 37696155262](https://github.com/romanmodin/RedWallet/actions/runs/37696155262) build and all seven independently reset stages passed both formats. Retained deletion native receipts match the source and set deletionRecoveryPassed=true for SegWit/Taproot; both backend cleanupComplete receipts are true.
+- [x] [Android 37696154888](https://github.com/romanmodin/RedWallet/actions/runs/37696154888) software/backend, build and six stages passed. SegWit encryption failed in the cold emulator's log/video recording initialization before wallet execution; Taproot encryption then passed. Retained log: `/tmp/redwallet-6145-android-encryption.log`. iOS deletion evidence: `/tmp/redwallet-6145-ios-delete-evidence`.
+- [x] Android preflight now exercises the exact logcat/screenrecord operations and verifies both probe files before starting Detox once. It permits at most 30 readiness probes and bounds every adb call to five seconds with a one-second forced-stop grace. Persistent readiness failure exits before wallet execution. No uncertain wallet action is retried.
+- [x] Replaced source-text checks with four behavioral regressions: successful readiness and Detox exit propagation, transient log failure, persistent log failure and persistent video failure. Together with encryption completion regression, 6/6 tests in two suites pass. Shell syntax, full lint/typecheck (exit 0, zero errors, 15 existing warnings), and diff check pass. Logs: `/tmp/redwallet-artifact-focused.log`, `/tmp/redwallet-artifact-lint.log`.
+- [ ] Commit/push this bounded correction and requalify software/backend and all seven focused stages on both platforms on the replacement source. Predecessor passes do not qualify that source.
+- [ ] Final continuous native lifecycle remains gated until all exact-source prerequisites pass. Hosted simulator/emulator results do not establish physical-phone or cold-device interoperability. PR40 and publication remain separate.
