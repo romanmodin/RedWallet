@@ -31,6 +31,7 @@ import {
 import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
+import { lifecycleFormats } from '../native/lifecycle-formats';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
 // Source 2c32's iOS Send/Taproot and RBF/SegWit cases exhausted 660s while
@@ -354,28 +355,35 @@ async function unlock(password: string): Promise<void> {
 
 native('isolated native live wallet stages and final acceptance', () => {
   for (const stage of stages) {
-    for (const format of ['segwit', 'taproot'] as const) {
+    for (const format of lifecycleFormats(process.env.REDWALLET_NATIVE_FORMAT)) {
       it(stage + ' / ' + format + ' native live', async () => {
         const final = stage === 'final';
         let currentStep = 'setup';
+        const startedAt = Date.now();
+        const markStep = (step: string) => {
+          currentStep = step;
+          console.info('[native-lifecycle] ' + stage + '/' + format + ' step=' + step + ' elapsedMs=' + (Date.now() - startedAt));
+        };
         const artifactDirectory = path.join(process.cwd(), 'artifacts/native-lifecycle', device.getPlatform() + '-' + stage + '-' + format);
         const backend = new KnotsFulcrumHarness(backendOptions(artifactDirectory));
         const profile = vectors[format];
         const label = 'Imported ' + profile.typeReadable;
         const isIOS = device.getPlatform() === 'ios';
         try {
-          console.info('[native-lifecycle] starting isolated backend');
+          markStep('backend start');
           await backend.start();
-          console.info('[native-lifecycle] funding public fixtures');
+          markStep('funding');
           await backend.fundAddress(profile.receive[0], 60_000);
           await backend.fundAddress(profile.receive[1], 40_000);
-          console.info('[native-lifecycle] launching native app');
+          markStep('clear keychain');
           await device.clearKeychain();
+          markStep('launch app');
           await device.launchApp({
             delete: true,
             permissions: { notifications: 'NO' },
             launchArgs: { detoxEnableSynchronization: 0 },
           });
+          markStep('app launched');
           if (isIOS) {
             await device.disableSynchronization();
           } else {
@@ -386,10 +394,12 @@ native('isolated native live wallet stages and final acceptance', () => {
               stdio: 'pipe',
             });
           }
+          markStep('configure native');
           await configureNative(backend, final || stage === 'recovery');
+          markStep('native configured');
 
           if (final || stage === 'recovery') {
-            currentStep = 'cancelled recovery';
+            markStep('cancelled recovery');
             console.info('[native-lifecycle] testing cancelled recovery');
             // A cancelled stalled scan must not silently become an empty successful recovery.
             backend.fault = 'history-timeout';
@@ -411,13 +421,13 @@ native('isolated native live wallet stages and final acceptance', () => {
             await leaveCancelledRecovery();
             await waitForWalletsList();
           }
-          currentStep = 'funded recovery';
+          markStep('funded recovery');
           await recover();
           await openWallet(label);
           assert.equal(await balanceSats(), 100_000);
 
           if (final || stage === 'recovery') {
-            currentStep = 'server reconnect';
+            markStep('server reconnect');
             // A server reset must preserve the funded wallet until a fresh
             // authenticated connection can fetch history again.
             const beforeDisconnect = backend.receipt.disconnectFaults;
@@ -436,7 +446,7 @@ native('isolated native live wallet stages and final acceptance', () => {
             assert.equal(await balanceSats(), 100_000);
           }
           if (final || stage === 'receive') {
-            currentStep = 'receive';
+            markStep('receive');
             await element(by.id('ReceiveButton')).tap();
             await waitForId('BitcoinAddressQRCode');
             await waitForLabel(profile.receive[2]);
@@ -452,7 +462,7 @@ native('isolated native live wallet stages and final acceptance', () => {
           let child: bitcoin.Transaction | undefined;
           let retainedBalance = await balanceSats();
           if (final || !['recovery', 'receive'].includes(stage)) {
-            currentStep = 'send';
+            markStep('send');
             await element(by.id('SendButton')).tap();
             await waitForId('AddressInput');
             await element(by.id('AddressInput')).typeText(vectors.recipient + '\n');
@@ -483,7 +493,7 @@ native('isolated native live wallet stages and final acceptance', () => {
 
             replacement = original;
             if (final || stage === 'rbf') {
-              currentStep = 'rbf';
+              markStep('rbf');
               replacement = await bump('rbf', 4);
               assert.deepEqual(replacement.outs[0], original.outs[0]);
               assert.ok((await backend.rpc('getrawmempool')).includes(replacement.getId()));
@@ -494,13 +504,13 @@ native('isolated native live wallet stages and final acceptance', () => {
             }
             child = replacement;
             if (final || stage === 'cpfp') {
-              currentStep = 'cpfp';
+              markStep('cpfp');
               child = await bump('cpfp', 10, replacement);
               assert.ok((await backend.rpc('getrawmempool')).includes(child.getId()));
               assert.ok(child.ins.some(input => Buffer.from(input.hash).reverse().toString('hex') === replacement!.getId()));
             }
             if (final || stage === 'encryption' || stage === 'delete') {
-              currentStep = 'confirmation';
+              markStep('confirmation');
               if (!final) await goBack();
               await backend.mine(2);
               for (const tx of new Set([replacement, child]))
@@ -516,7 +526,7 @@ native('isolated native live wallet stages and final acceptance', () => {
             }
           }
           if (final || stage === 'encryption') {
-            currentStep = 'encryption and restart';
+            markStep('encryption and restart');
             await goBack();
             await waitForWalletsList();
 
@@ -563,7 +573,7 @@ native('isolated native live wallet stages and final acceptance', () => {
             await goBack();
           }
           if (final || stage === 'delete') {
-            currentStep = 'delete and recover';
+            markStep('delete and recover');
             backend.fault = 'none';
             backend.disconnectClients();
             await waitForId('WalletDetails', 15_000);
@@ -596,7 +606,7 @@ native('isolated native live wallet stages and final acceptance', () => {
             assert.equal(await balanceSats(), retainedBalance);
             await openSentTransaction(child!.getId());
           }
-          currentStep = 'receipt';
+          markStep('receipt');
           mkdirSync(artifactDirectory, { recursive: true });
           writeFileSync(
             path.join(artifactDirectory, 'native-receipt.json'),
@@ -655,8 +665,11 @@ native('isolated native live wallet stages and final acceptance', () => {
           // Cleanup the real backend even when Detox has lost its app connection.
           // Re-enabling synchronization after termination targets a dead app and
           // used to mask the original error and leave backend children running.
+          markStep('backend cleanup');
           await backend.stop();
+          markStep('app termination');
           await boundedDiagnostic(() => device.terminateApp());
+          markStep('complete');
         }
       });
     }

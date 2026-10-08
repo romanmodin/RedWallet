@@ -250,7 +250,7 @@ jobs:
         env:
           REDWALLET_NATIVE_LIVE: '1'
           REDWALLET_NATIVE_STAGE: ${{ matrix.stage }}
-        run: REDWALLET_BACKEND_BIN="$RUNNER_TEMP/redwallet-backend-bin" npx detox test -c ios.release tests/e2e/native-live-lifecycle.spec.ts --runTestsByPath --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location artifacts/native-lifecycle/detox-ios
+        run: REDWALLET_BACKEND_BIN="$RUNNER_TEMP/redwallet-backend-bin" python3 .github/scripts/run-native-ios-stage.py
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
