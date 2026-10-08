@@ -371,3 +371,42 @@ No payment, signature, output, mempool, TLS/checkpoint, cancellation, encryption
 - [x] The delete job repeated the cross-case hazard: Jest declared SegWit failed then immediately began Taproot while the timed-out SegWit async body/backend had no teardown receipt. The job later remained open until the 40-minute workflow limit. This reinforces the prepared process-group isolation correction; it does not establish a wallet deletion defect and the failed SegWit stage remains unaccepted.
 - [x] Retained evidence: `/tmp/redwallet-d2b-ios-delete.log`, selective receipts `/tmp/redwallet-d2b-ios-delete-evidence`, manifest/extraction log `/tmp/redwallet-d2b-delete-artifact-extract.log`, and complete verified timeout screenshot `/tmp/redwallet-d2b-ios-delete-timeout-screenshot`.
 - [ ] Commit and push the already validated isolation/timing correction, verify source identity, and allow its automatic Android/iOS focused qualification. Do not count source-d2b passes toward the replacement. No final workflow is eligible until the replacement's exact-source software and all seven stages pass both formats/platforms.
+
+
+### Replacement pushed — 2026-10-07 20:23 PDT
+
+- [x] Isolation/timing correction committed and pushed as exact source `a32dc5cbf47147c94c8d1930f6da810e9d1db2c7`; local and live remote identities match. Worktree was clean immediately after push.
+- [x] Exactly one automatic [Android 37722462018](https://github.com/romanmodin/RedWallet/actions/runs/37722462018) and [iOS 37722462067](https://github.com/romanmodin/RedWallet/actions/runs/37722462067) focused workflow appeared on this exact SHA. Android is in progress and iOS queued. No duplicate/manual dispatch, cancellation or final run.
+- [ ] Preserve these workflows and this intentionally uncommitted post-push receipt. Verify replacement software/backend plus all seven independently reset stages for both formats/platforms. Only after exact-source prerequisites pass, check for existing final workflows and dispatch the gated continuous runs.
+
+
+### Replacement qualification progress — 2026-10-07 21:10 PDT
+
+- [x] Local and live remote remain `a32dc5cbf47147c94c8d1930f6da810e9d1db2c7`. Only the intentional post-push agenda receipt is dirty; no pending implementation change.
+- [x] [Android 37722462018](https://github.com/romanmodin/RedWallet/actions/runs/37722462018) completed successfully: software/backend, build and all seven focused stages passed both formats on this exact source. Software log verifies 96 unit suites / 857 passed / one existing skipped, full lint/typecheck zero errors and 15 existing warnings, plus all three isolated real Fulcrum/Knots integration tests passed. Retained `/tmp/redwallet-a32-software.log`.
+- [x] [iOS 37722462067](https://github.com/romanmodin/RedWallet/actions/runs/37722462067) build, CPFP and encryption passed. CPFP log proves separate process execution: SegWit completed all phases in 472822ms and exited zero before Taproot began; Taproot completed in 390472ms and exited zero. Both native receipts match the exact source; both backend receipts have cleanupComplete=true and no unanswered methods. Retained `/tmp/redwallet-a32-ios-cpfp.log` and `/tmp/redwallet-a32-ios-cpfp-evidence`.
+- [ ] iOS recovery is executing its native stage; receive is preparing its simulator; send, RBF and delete remain queued. No replacement failure observed. Preserve healthy jobs and do not duplicate runs or change source.
+- [ ] After all five remaining iOS stages pass on this same source, check for existing final workflows and dispatch gated continuous Android/iOS acceptance. If any fails, inspect the new phase timing and retained evidence before correction. Software/backend and focused hosted passes remain distinct from uninterrupted native app-to-real Fulcrum-to-Knots final acceptance. Physical-phone/cold-device interoperability and PR40 publication are not established.
+
+
+### Progress receipt — 2026-10-07 21:22 PDT
+
+- [x] Local/remote source remains `a32dc5cbf47147c94c8d1930f6da810e9d1db2c7`; only intentional agenda receipts are dirty. [Android 37722462018](https://github.com/romanmodin/RedWallet/actions/runs/37722462018) remains successful for software/backend and all seven stages. Retained software log and both iOS CPFP backend receipts rechecked: exact source, cleanup complete, no unanswered methods.
+- [x] [iOS 37722462067](https://github.com/romanmodin/RedWallet/actions/runs/37722462067) receive has advanced from simulator preparation into actual native testing. Recovery continues its native stage (started 21:07:01 PDT); send, RBF and delete are queued. Build, CPFP and encryption remain passed; no completed failure observed.
+- [ ] Preserve healthy jobs. No source change, duplicate dispatch, cancellation or final run. All remaining exact-source iOS stages must pass before gated final continuous native acceptance; PR40 qualification and physical-device interoperability remain separate.
+
+
+### Progress receipt — 2026-10-07 21:50 PDT
+
+- [x] Local HEAD/live remote still a32dc5cbf47147c94c8d1930f6da810e9d1db2c7; only intentional agenda receipts dirty. Android 37722462018 remains successful for software/backend and all seven focused stages.
+- [x] iOS 37722462067 now has five focused stages successful: recovery, receive, send, CPFP and encryption. Retained /tmp/redwallet-a32-ios-send.log verifies separate SegWit and Taproot tests both passed, with backend cleanup phase reached for each.
+- [ ] iOS RBF executing native stage (started21:42:34 PDT); deletion preparing simulator (started21:48:07 PDT). No completed failure. https://github.com/romanmodin/RedWallet/actions/runs/37722462067
+- [ ] Preserve healthy work. Final continuous workflows remain gated on both remaining stages; no duplicate dispatch, source correction or cancellation. Final uninterrupted native acceptance, physical-phone/cold-device interoperability and PR40 release publication are not established by these focused results.
+
+
+### Deletion viewport correction — 2026-10-07 22:23 PDT
+
+- [x] [iOS 37722462067](https://github.com/romanmodin/RedWallet/actions/runs/37722462067) completed with six focused stages successful: recovery, receive, send, RBF, CPFP and encryption. Deletion SegWit completed all phases in 587464ms, produced an exact-source native receipt with deletionRecoveryPassed=true and backend cleanup. Deletion Taproot failed before deletion while opening the exact sent transaction: the test required the full transaction-ID accessibility label to be visible, but the ID control can sit below the initial details viewport. Taproot backend cleanup completed with no unanswered methods; no Taproot native receipt exists and the stage remains failed.
+- [x] Bounded harness correction: after selecting the exact TransactionRow by hash and reaching TransactionStatusScroll, openSentTransaction now waits for TransactionIdCopyButton, scrolls that exact control into view, then retains the full-hash accessibility-label assertion. No send, signing, broadcast or deletion action is retried; no timeout or acceptance assertion was weakened.
+- [x] Local validation: transaction-status, iOS stage-runner and native lifecycle-driver tests passed (3 suites / 20 tests); full npm lint/typecheck passed with zero errors and the same 15 existing warnings; diff whitespace check passed. Logs: /tmp/redwallet-delete-scroll-focused.log and /tmp/redwallet-delete-scroll-full-lint.log.
+- [ ] Commit and push the correction, then qualify all exact-source software/focused Android and iOS stages triggered for the replacement source. Final continuous workflows remain gated until every replacement prerequisite passes.

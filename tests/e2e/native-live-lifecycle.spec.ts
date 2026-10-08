@@ -264,6 +264,12 @@ async function openSentTransaction(txid: string): Promise<void> {
       await nativeExpect(row).toBeVisible();
     }
   }
+  // The full transaction ID is rendered near the bottom of the details
+  // scroll view. Longer Taproot details can push it below the initial viewport,
+  // so make the exact ID control visible before asserting its full label.
+  const transactionId = element(by.id('TransactionIdCopyButton'));
+  await waitFor(transactionId).toExist().withTimeout(30_000);
+  await waitFor(transactionId).toBeVisible().whileElement(by.id('TransactionStatusScroll')).scroll(200, 'down', 0.5, 0.5);
   await waitForLabel(txid, 30_000);
 }
 
