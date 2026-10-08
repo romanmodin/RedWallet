@@ -57,6 +57,13 @@ class NativeIosRunnerTest(unittest.TestCase):
             )
         return status, output.getvalue()
 
+    def test_only_delete_gets_extended_process_bound(self):
+        self.assertEqual(runner.process_timeout_seconds("delete"), 20 * 60)
+
+    def test_other_stages_retain_default_process_bound(self):
+        for stage in ("recovery", "receive", "send", "rbf", "cpfp", "encryption", "final"):
+            self.assertEqual(runner.process_timeout_seconds(stage), 18 * 60)
+
     def test_both_formats_execute_once_in_order(self):
         with tempfile.TemporaryDirectory() as directory:
             trace = Path(directory) / "trace"

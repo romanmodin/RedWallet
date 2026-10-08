@@ -246,7 +246,7 @@ jobs:
         run: node .github/scripts/prepare-native-backend.ts "$RUNNER_TEMP/redwallet-backend-bin"
 
       - name: Run native stage ${{ matrix.stage }}
-        timeout-minutes: 40
+        timeout-minutes: ${{ matrix.stage == 'delete' && 45 || 40 }}
         env:
           REDWALLET_NATIVE_LIVE: '1'
           REDWALLET_NATIVE_STAGE: ${{ matrix.stage }}

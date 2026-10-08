@@ -410,3 +410,36 @@ No payment, signature, output, mempool, TLS/checkpoint, cancellation, encryption
 - [x] Bounded harness correction: after selecting the exact TransactionRow by hash and reaching TransactionStatusScroll, openSentTransaction now waits for TransactionIdCopyButton, scrolls that exact control into view, then retains the full-hash accessibility-label assertion. No send, signing, broadcast or deletion action is retried; no timeout or acceptance assertion was weakened.
 - [x] Local validation: transaction-status, iOS stage-runner and native lifecycle-driver tests passed (3 suites / 20 tests); full npm lint/typecheck passed with zero errors and the same 15 existing warnings; diff whitespace check passed. Logs: /tmp/redwallet-delete-scroll-focused.log and /tmp/redwallet-delete-scroll-full-lint.log.
 - [ ] Commit and push the correction, then qualify all exact-source software/focused Android and iOS stages triggered for the replacement source. Final continuous workflows remain gated until every replacement prerequisite passes.
+
+
+### Replacement dispatched — 2026-10-07 22:23 PDT
+
+- [x] Committed and pushed exact source `6a17233fdc8e30105584105ad26bafd37f45c9cd` (`test: reveal transaction id before lifecycle assertion`). Local HEAD and live remote match; worktree was clean immediately after push.
+- [ ] Automatic exact-source qualification started once per platform: [Android 37732097237](https://github.com/romanmodin/RedWallet/actions/runs/37732097237) in progress; [iOS 37732097414](https://github.com/romanmodin/RedWallet/actions/runs/37732097414) queued. No duplicate dispatch. Preserve both runs and inspect first actionable failure if any.
+- [ ] Do not count a32dc5 predecessor passes for replacement qualification. Final continuous acceptance remains gated on software/backend and all seven focused stages passing both formats/platforms on 6a17233f.
+
+
+### Replacement qualification progress — 2026-10-07 23:16 PDT
+
+- [x] Local HEAD/live remote remain `6a17233fdc8e30105584105ad26bafd37f45c9cd`; only intentional post-push agenda receipts are dirty.
+- [x] [Android 37732097237](https://github.com/romanmodin/RedWallet/actions/runs/37732097237) completed successfully: build, software/backend and all seven focused stages passed both formats. Retained `/tmp/redwallet-6a-software.log` verifies full lint/typecheck zero errors / 15 existing warnings, 96 unit suites / 857 passed / one skipped, and all three isolated real Fulcrum/Knots integration tests passed. Retained `/tmp/redwallet-6a-android-delete.log` verifies deletion SegWit and Taproot both reached complete and the job passed two tests.
+- [x] [iOS 37732097414](https://github.com/romanmodin/RedWallet/actions/runs/37732097414) build, CPFP and encryption passed. Recovery and receive are executing their native stages. Send, RBF and deletion are queued for runners; no completed failure observed.
+- [ ] Preserve healthy iOS work; no duplicate/cancellation/source change. Final continuous workflows remain gated until all five remaining iOS stages pass this exact source. Focused hosted results still do not establish uninterrupted final native acceptance, physical-phone/cold-device interoperability or PR40 publication.
+
+
+### Replacement qualification progress — 2026-10-08 00:16 PDT
+
+- [x] Exact source remains `6a17233fdc8e30105584105ad26bafd37f45c9cd`; local/live remote match and only intentional agenda receipts are dirty. Android 37732097237 remains fully successful.
+- [x] [iOS 37732097414](https://github.com/romanmodin/RedWallet/actions/runs/37732097414) now has six focused stages successful on the replacement source: recovery, receive, send, RBF, CPFP and encryption.
+- [ ] iOS deletion is the only remaining focused prerequisite and is executing its native stage (started 00:06:21 PDT). No completed replacement failure observed. Preserve it; do not duplicate or cancel.
+- [ ] If deletion passes, verify exact-source receipts and check for existing finals before dispatching gated Android/iOS continuous workflows. Complete uninterrupted final native acceptance, physical-phone/cold-device interoperability and PR40 publication remain unverified.
+
+
+### iOS deletion total-bound correction — 2026-10-08 01:20 PDT
+
+- [x] [iOS 37732097414](https://github.com/romanmodin/RedWallet/actions/runs/37732097414) completed with build plus recovery, receive, send, RBF, CPFP and encryption successful on exact source `6a17233fdc8e30105584105ad26bafd37f45c9cd`. Deletion alone failed; [Android 37732097237](https://github.com/romanmodin/RedWallet/actions/runs/37732097237) remains fully successful on that predecessor source.
+- [x] Retained `/tmp/redwallet-6a-ios-delete.log` proves SegWit completed the preceding send/confirmation path, entered delete-and-recover, and presented `RecoveryResults` at the old 900000ms total case boundary. Jest then expired the case before the pending visibility expectation could resolve. The isolated runner reaped the process group at its 18-minute outer ceiling before Taproot began. Taproot then completed the same deletion/recovery code path in 435581ms with a valid native receipt and backend cleanup.
+- [x] This is an evidence-backed total-stage timing boundary, not a viewport regression or a demonstrated app deletion defect. The prior transaction-ID viewport correction worked: the failed SegWit case progressed past transaction details into deletion recovery, and Taproot passed.
+- [x] Bounded correction: only the focused deletion case gets an 18-minute Jest total bound, a 20-minute per-format iOS runner ceiling and a 45-minute two-format workflow step. Recovery, receive, send, RBF, CPFP, encryption and final retain their existing 15-minute case, 18-minute runner and 40-minute workflow bounds. No individual UI assertion, wallet action, reset boundary or acceptance condition is changed.
+- [x] Local validation passed: direct iOS runner tests 5/5; focused Jest 3 suites / 28 tests; full lint/typecheck zero errors with the same 15 existing warnings; YAML parsed successfully; diff whitespace check passed. Logs: `/tmp/redwallet-delete-bound-focused.log` and `/tmp/redwallet-delete-bound-lint.log`.
+- [ ] Commit and push this isolated correction, verify local/live remote identity, and allow exactly one automatic Android/iOS focused qualification on the replacement SHA. Do not count source-6a passes toward replacement qualification or dispatch final continuous workflows until all exact-source prerequisites pass.

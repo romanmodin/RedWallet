@@ -7,9 +7,15 @@ import sys
 import time
 
 FORMATS = ("segwit", "taproot")
-# Jest still permits 900 seconds per case. This outer bound only allows CLI
-# startup and teardown within the existing 40-minute two-format workflow step.
+# Focused cases normally retain Jest's 900-second bound. Deletion has an
+# evidence-backed 18-minute case bound because a valid recovery result arrived
+# at the old total deadline; its outer process ceiling includes CLI teardown.
 PROCESS_TIMEOUT_SECONDS = 18 * 60
+DELETE_PROCESS_TIMEOUT_SECONDS = 20 * 60
+
+
+def process_timeout_seconds(stage):
+    return DELETE_PROCESS_TIMEOUT_SECONDS if stage == "delete" else PROCESS_TIMEOUT_SECONDS
 
 
 def stop_group(process, grace_seconds):
@@ -66,8 +72,7 @@ def detox_command(wallet_format):
 
 
 if __name__ == "__main__":
-    if os.environ.get("REDWALLET_NATIVE_STAGE") not in (
-        "recovery", "receive", "send", "rbf", "cpfp", "encryption", "delete", "final"
-    ):
+    stage = os.environ.get("REDWALLET_NATIVE_STAGE")
+    if stage not in ("recovery", "receive", "send", "rbf", "cpfp", "encryption", "delete", "final"):
         sys.exit("Select one lifecycle stage before running the iOS format pair")
-    sys.exit(run_formats(detox_command, os.environ))
+    sys.exit(run_formats(detox_command, os.environ, timeout_seconds=process_timeout_seconds(stage)))

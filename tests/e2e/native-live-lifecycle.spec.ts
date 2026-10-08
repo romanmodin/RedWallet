@@ -32,13 +32,14 @@ import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { lifecycleFormats } from '../native/lifecycle-formats';
+import { lifecycleCaseTimeoutMs } from '../native/lifecycle-timeouts';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
-// Source 2c32's iOS Send/Taproot and RBF/SegWit cases exhausted 660s while
-// entering the shared recovery wait, so that bounded 90s assertion received no
-// time to complete. The hosted stage has a 40-minute outer bound; 900s per case
-// preserves every individual action deadline plus mandatory teardown.
-jest.setTimeout(900_000);
+// Focused cases retain a 15-minute default. Deletion alone gets 18 minutes
+// because an exact-source SegWit run reached RecoveryResults at the old total
+// deadline after every preceding phase succeeded. Each process runs one stage;
+// individual UI assertions and wallet actions remain unchanged.
+jest.setTimeout(lifecycleCaseTimeoutMs(process.env.REDWALLET_NATIVE_STAGE || 'final'));
 
 const native = process.env.REDWALLET_NATIVE_LIVE === '1' ? describe : describe.skip;
 const focusedStages = ['recovery', 'receive', 'send', 'rbf', 'cpfp', 'encryption', 'delete'] as const;
