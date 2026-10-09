@@ -1,17 +1,15 @@
-RedWallet transaction-history decoder hotfix
+RedWallet recovery, resilience, lifecycle and USDC refresh update
 
-Fixes "unable to decode address from output script" during refresh. Raw history outputs without addresses retain their script, value and index; P2WSH destinations are decoded correctly; coinbase history no longer queries a nonexistent parent. Existing batch-limit recovery is retained. Update and refresh the existing wallet; no re-import is needed.
+Opt-in recovery searches Native SegWit (BIP84) and Taproot (BIP86), accounts 0–2 or 0–9, receive and change branches, with 20 or 100 unused-address gaps. Spent-out history counts. Recovery reports incomplete scans on server errors or limits. Public-account imports search only that account; discovery requires your configured XBT server. No finite search guarantees every address or account.
 
-RedWallet refresh hotfix
+Optional TLS backup servers: up to five, tested before saving and verified against the XBT checkpoint. No automatic public server or plaintext downgrade. Servers see address queries; checkpoint verification is not full SPV.
 
-Fixes "Batch limit exceeded" during wallet refresh and watch-only history loading. Servers rejecting a batch are queried one item at a time on the same authenticated connection. Other errors still propagate. Update and refresh your existing wallet; no re-import is required for this fix.
+Encryption preserves transaction history; failed cache migration preserves the original storage. Deleted wallets clear their active cache. Red splash/loading and receive QR artwork replace inherited blue assets. Transaction-history and batch-limit fixes are retained.
 
-RedWallet Taproot: cold signing and fee bumping
+Fresh isolated Knots tests accepted SegWit and Taproot sends, RBF and CPFP and confirmed the resulting transactions. Software tests cover recovery, refresh, signing, encrypted restart, wrong-password rejection, deletion and recovery. Physical-device and live Fulcrum interoperability testing remain separate.
 
-BIP86 Taproot watch-only accounts can now create PSBT requests and verify returned signed PSBTs. External signing is opt-in and requires an XBT-capable signer that supports Unified SIGHASH 0x21. Signed returns are checked against the exact reviewed transaction, authenticated input amounts and scripts, and Schnorr signatures before broadcast. Return a signed PSBT; raw signed transaction hex is unsupported. Signing requests belong to the current app session; after restarting the app or replacing a request, create and sign a fresh request.
+Includes XBT Unified signing, watch-only imports and signed-PSBT cold signing. External signers must support Unified 0x21. Taproot key-path only; no annex/script paths or multisig. RBF needs sufficient change; CPFP supports one unconfirmed parent. After restart, create a fresh signing request.
 
-Raise the fee of an eligible unconfirmed outgoing transaction with RBF. Original inputs and recipient amounts stay unchanged; the extra fee comes from change. An unconfirmed received output can fund a CPFP child, with its fee calculated for the parent plus child together. Hot-wallet fee bumps show the actual fee and honor enabled biometric authentication and high-fee confirmations. Enrolled watch-only accounts return through the external PSBT signing flow.
+USDC estimates display two decimals; XBT coin amounts retain full precision. Saved NeoxEX quotes refresh on app launch and foreground return, recalculate the total, and retain the last valid quote if offline. Manual prices stay unchanged.
 
-Limitations: ordinary Bitcoin signer firmware is incompatible with XBT Unified signatures. Physical cold-device interoperability and funded physical-phone testing remain unverified. Taproot key-path signing only; no script paths, annexes or multisig. RBF requires replaceability and enough change; cancellation and adding inputs are unsupported. Descendants or stricter node policy may require a higher fee. CPFP supports one unconfirmed parent with confirmed inputs and a spendable owned output. Node acceptance and confirmation are not guaranteed.
-
-Checks include public-vector offline signing/rejection cases on the native engine and independent isolated Knots tests. Keep an offline recovery backup and verify recipient addresses and fees on the signing device.
+Update the existing app, then refresh the existing wallet.
