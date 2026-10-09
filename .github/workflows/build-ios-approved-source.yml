@@ -16,9 +16,9 @@ permissions:
   contents: read
   actions: read
 env:
-  SOURCE_COMMIT: 87bdf8512c4626aeba34005a013ef1dc2fa209d4
-  PUBLIC_SOURCE_COMMIT: 2479c4f5d7b31b2836fa1d3b3d366219bc6f1969
-  PRODUCTION_TREE_SHA256: d1d57fe1b2439a009f672f98325eb9b78deaf73f4c80c2f0d5744caad8b52c92
+  SOURCE_COMMIT: b012b8e7481833ad91c9b72bd81af59a0e5c4c41
+  PUBLIC_SOURCE_COMMIT: 2572a890cc4aa6b9eef070662ee9e9f30916c625
+  PRODUCTION_TREE_SHA256: a8e3747e14b55c76a4f4ae13824a295aa8c154fdd5db24de48f02bc8504be992
   FASTLANE_OPT_OUT_USAGE: '1'
   FASTLANE_SKIP_UPDATE_CHECK: '1'
   FASTLANE_HIDE_CHANGELOG: '1'
@@ -46,7 +46,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         fetch-depth: 0
-        ref: 87bdf8512c4626aeba34005a013ef1dc2fa209d4
+        ref: b012b8e7481833ad91c9b72bd81af59a0e5c4c41
         persist-credentials: false
         repository: romanmodin/RedWallet-native-review
         ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
@@ -238,7 +238,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         repository: romanmodin/RedWallet-native-review
-        ref: 87bdf8512c4626aeba34005a013ef1dc2fa209d4
+        ref: b012b8e7481833ad91c9b72bd81af59a0e5c4c41
         persist-credentials: false
         ssh-key: ${{ secrets.SOURCE_READONLY_DEPLOY_KEY }}
     - name: Checkout trusted verification tools
