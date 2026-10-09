@@ -130,12 +130,22 @@ describe('XBT display quotes', () => {
   it('uses exact decimal multiplication for satoshis without changing quote currencies', () => {
     const quote = createManualXbtPriceQuote('0.1', 'USDC');
     expect(estimateXbtQuoteAmount(1, quote)).toBe('0.000000001');
-    expect(formatXbtQuoteEstimate(1, quote)).toBe('0.000000001 USDC');
+    expect(formatXbtQuoteEstimate(1, quote)).toBe('0.00 USDC');
     expect(formatXbtQuoteEstimate(100000000, createManualXbtPriceQuote('1234.56', 'USD'))).toBe('1,234.56 USD');
     expect(estimateXbtQuoteAmount(123456789, createManualXbtPriceQuote('7.123456789012', 'USD'))).toBe('8.79439101751672002468');
     expect(estimateXbtQuoteAmount(0, quote)).toBe('0');
     expect(() => estimateXbtQuoteAmount(1.1, quote)).toThrow();
     expect(() => estimateXbtQuoteAmount(Number.MAX_SAFE_INTEGER + 1, quote)).toThrow();
+  });
+
+  it('rounds only USDC display to two decimals without rounding XBT or stored rates', () => {
+    const quote = createNeoxexXbtPriceQuote('123.456789', NOW);
+    expect(formatXbtQuoteEstimate(100000000, quote)).toBe('123.46 USDC');
+    expect(formatXbtQuoteEstimate(123456789, createManualXbtPriceQuote('10', 'USDC'))).toBe('12.35 USDC');
+    expect(estimateXbtQuoteAmount(123456789, createManualXbtPriceQuote('10', 'USDC'))).toBe('12.3456789');
+    expect(formatXbtQuoteEstimate(100000000, createManualXbtPriceQuote('1.005', 'USDC'))).toBe('1.01 USDC');
+    expect(formatXbtQuoteEstimate(100000000, createManualXbtPriceQuote('123.456789', 'USD'))).toBe('123.456789 USD');
+    expect(quote.pricePerXbt).toBe('123.456789');
   });
 
   it('finishes invalid initial-cache cleanup before a newer save', async () => {

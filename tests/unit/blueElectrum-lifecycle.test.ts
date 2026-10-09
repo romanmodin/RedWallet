@@ -1,3 +1,4 @@
+import DefaultPreference from 'react-native-default-preference';
 /**
  * Unit tests for the BlueElectrum connection lifecycle / state machine.
  *
@@ -587,4 +588,63 @@ describe('BlueElectrum lifecycle', () => {
       expect(client.blockchainTransaction_get).toHaveBeenCalledWith(TX_HASH, true);
     });
   });
+});
+
+describe('explicit backup server resilience', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it('tries the opted-in TLS backup after primary failure without changing the preferred server', async () => {
+    const get = DefaultPreference.get as jest.Mock;
+    const original = get.getMockImplementation()!;
+    get.mockImplementation(async (key: string) =>
+      key === BlueElectrum.ELECTRUM_BACKUP_SERVERS ? JSON.stringify([{ host: 'backup.xbt.test', ssl: 50002 }]) : original(key),
+    );
+    BlueElectrum.forceDisconnect();
+    const start = created.length;
+    const promise = BlueElectrum.ensureConnected();
+    await flush();
+    created[start].initElectrumDeferred.reject(new Error('Primary unavailable'));
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    await flush();
+    resolveLastConnect();
+    expect(await promise).toBe(true);
+    const ElectrumClient = require('electrum-client');
+    expect(ElectrumClient.mock.calls.at(-1)[3]).toBe('backup.xbt.test');
+    expect(ElectrumClient.mock.calls.at(-1)[4]).toBe('tls');
+    expect(created.at(-1)!.blockchainBlock_header).toHaveBeenCalled();
+    get.mockImplementation(original);
+    BlueElectrum.forceDisconnect();
+  });
+  it('changing backups aborts an in-flight connection', async () => {
+    BlueElectrum.forceDisconnect();
+    const promise = BlueElectrum.ensureConnected();
+    await flush();
+    const old = created.at(-1)!;
+    await BlueElectrum.setBackupServers([{ host: 'backup.xbt.test', ssl: 50002 }]);
+    old.initElectrumDeferred.resolve(['Fulcrum 1.10.0', '1.4']);
+    old.headersDeferred.resolve({ height: 1000 });
+    expect(await promise).toBe(false);
+    expect(BlueElectrum.isConnected()).toBe(false);
+    expect(old.closed).toBe(true);
+  });
+});
+
+test.each(['rpc-error', 'missing', 'malformed'])('history %s is never treated as an unused address', async failure => {
+  BlueElectrum.forceDisconnect();
+  const connect = BlueElectrum.ensureConnected();
+  await flush();
+  resolveLastConnect();
+  expect(await connect).toBe(true);
+  const client = created.at(-1)!;
+  (client as any).blockchainScripthash_getHistoryBatch = jest.fn(async (hashes: string[]) =>
+    failure === 'missing'
+      ? []
+      : hashes.map(param => ({
+          param,
+          result: failure === 'malformed' ? null : undefined,
+          ...(failure === 'rpc-error' ? { error: { code: -1, message: 'History unavailable' } } : {}),
+        })),
+  );
+  const address = bitcoin.payments.p2wpkh({ hash: Buffer.alloc(20, 1) }).address!;
+  await expect(BlueElectrum.multiGetHistoryByAddress([address])).rejects.toThrow();
+  BlueElectrum.forceDisconnect();
 });

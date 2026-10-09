@@ -1,3 +1,4 @@
+import { discoverXbtRecovery, RecoveryScanOptions } from './xbt/recovery-discovery';
 import bip38 from 'bip38';
 import wif from 'wif';
 
@@ -69,6 +70,7 @@ const startImport = (
   onPassword: (title: string, text: string) => Promise<string>,
   xbtOnly: boolean = false,
   xbtFormat: 'segwit' | 'taproot' = 'segwit',
+  recoveryOptions: RecoveryScanOptions = {},
 ): TImport => {
   // state
   let promiseResolve: (arg: TStatus) => void;
@@ -106,7 +108,7 @@ const startImport = (
   };
   const stop = () => (running = false);
 
-  async function* importGenerator() {
+  async function* importGenerator(): AsyncGenerator<{ progress?: string; wallet?: TWallet }> {
     // The plan:
     // -3. ask for password, if needed and validate it
     // -2. check if BIP38 encrypted
@@ -131,6 +133,7 @@ const startImport = (
     let password;
 
     if (xbtOnly) {
+      if (searchAccounts && offline) throw new Error(loc.wallets.recovery_offline);
       const watchOnly = new WatchOnlyWallet();
       try {
         watchOnly.setSecret(text);
@@ -141,6 +144,10 @@ const startImport = (
           watchOnly.xbt_network = true;
           watchOnly.init();
           yield { progress: 'XBT watch-only account' };
+          if (searchAccounts && watchOnly._hdWalletInstance) {
+            watchOnly._hdWalletInstance.gap_limit = recoveryOptions.gapLimit ?? 20;
+            await fetch(watchOnly, true, true);
+          }
           yield { wallet: watchOnly };
           return;
         }
@@ -155,6 +162,10 @@ const startImport = (
       if (askPassphrase) {
         password = await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message);
         xbtWallet.setPassphrase(password);
+      }
+      if (searchAccounts) {
+        yield* discoverXbtRecovery(text, password, recoveryOptions, () => running);
+        return;
       }
       yield {
         progress: xbtFormat === 'taproot' ? 'XBT BIP86 recovery' : 'XBT BIP84 recovery',

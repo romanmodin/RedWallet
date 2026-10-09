@@ -29,7 +29,7 @@ describe('XBT mnemonic wallet restoration', () => {
     const { promise } = startImport(
       mnemonic,
       false,
-      true,
+      false,
       false,
       () => {},
       () => {},

@@ -1,13 +1,7 @@
-import { fetchNeoxexPrice } from '../../blue_modules/neoxex-price';
-import {
-  XbtPriceQuote,
-  createManualXbtPriceQuote,
-  loadXbtPriceQuote,
-  saveXbtPriceQuote,
-  clearSavedXbtPriceQuote,
-} from '../../blue_modules/xbt-price';
+import { useXbtDisplayPrice } from '../../hooks/useXbtDisplayPrice';
+import type { XbtPriceQuote } from '../../blue_modules/xbt-price';
 import { normalizeXbtUnit } from '../../class/xbt/units';
-import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
 import DefaultPreference from 'react-native-default-preference';
 import { isReadClipboardAllowed, setReadClipboardAllowed } from '../../blue_modules/clipboard';
 import { getPreferredCurrency, GROUP_IO_BLUEWALLET, initCurrencyDaemon, setPreferredCurrency } from '../../blue_modules/currency';
@@ -152,8 +146,7 @@ const defaultSettingsContext: SettingsContextType = {
 export const SettingsContext = createContext<SettingsContextType>(defaultSettingsContext);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.memo(({ children }: { children: React.ReactNode }) => {
-  const [xbtPriceQuote, setXbtPriceQuote] = useState<XbtPriceQuote | null>(null);
-  const xbtPriceRevision = useRef(0);
+  const { xbtPriceQuote, saveManualXbtPriceQuote, clearXbtPriceQuote, refreshNeoxexXbtPriceQuote } = useXbtDisplayPrice();
   const [preferredFiatCurrency, setPreferredFiatCurrencyState] = useState<TFiatUnit>(FiatUnit.USD);
   const [language, setLanguage] = useState<string>('en');
   const [isHandOffUseEnabled, setIsHandOffUseEnabledState] = useState<boolean>(false);
@@ -179,9 +172,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
       }
 
       const promises: Promise<void>[] = [
-        loadXbtPriceQuote().then(quote => {
-          if (xbtPriceRevision.current === 0) setXbtPriceQuote(quote);
-        }),
         BlueElectrum.isDisabled().then(disabled => {
           setIsElectrumDisabled(disabled);
         }),
@@ -349,27 +339,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
     } catch (e) {
       console.error('Error setting totalBalancePreferredUnit:', e);
     }
-  }, []);
-
-  const saveManualXbtPriceQuote = useCallback(async (price: string, currency: string): Promise<void> => {
-    const quote = createManualXbtPriceQuote(price, currency);
-    const revision = ++xbtPriceRevision.current;
-    await saveXbtPriceQuote(quote);
-    if (revision === xbtPriceRevision.current) setXbtPriceQuote(quote);
-  }, []);
-
-  const refreshNeoxexXbtPriceQuote = useCallback(async (): Promise<void> => {
-    const revision = ++xbtPriceRevision.current;
-    const quote = await fetchNeoxexPrice();
-    if (revision !== xbtPriceRevision.current) return;
-    await saveXbtPriceQuote(quote);
-    if (revision === xbtPriceRevision.current) setXbtPriceQuote(quote);
-  }, []);
-
-  const clearXbtPriceQuote = useCallback(async (): Promise<void> => {
-    const revision = ++xbtPriceRevision.current;
-    await clearSavedXbtPriceQuote();
-    if (revision === xbtPriceRevision.current) setXbtPriceQuote(null);
   }, []);
 
   const setBlockExplorerStorage = useCallback(async (explorer: BlockExplorer): Promise<boolean> => {

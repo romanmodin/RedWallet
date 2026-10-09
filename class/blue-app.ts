@@ -217,12 +217,29 @@ export class BlueApp {
     }
   };
 
+  /** Populate the destination cache before switching encrypted storage buckets. */
+  private async copyTransactionCacheForPassword(password: string): Promise<void> {
+    const previousPassword = this.cachedPassword;
+    try {
+      this.cachedPassword = password;
+      const realm = await this.getRealmForTransactions();
+      try {
+        for (const wallet of this.wallets) this.offloadWalletToRealm(realm, wallet);
+      } finally {
+        realm.close();
+      }
+    } finally {
+      this.cachedPassword = previousPassword;
+    }
+  }
+
   encryptStorage = async (password: string): Promise<void> => {
     // assuming the storage is not yet encrypted
     await this.saveToDisk();
     let data = await this.getItem('data');
     // TODO: refactor ^^^ (should not save & load to fetch data)
 
+    await this.copyTransactionCacheForPassword(password);
     const encrypted = await encryption.encrypt(data, password);
     data = [];
     data.push(encrypted); // putting in array as we might have many buckets with storages
@@ -449,7 +466,7 @@ export class BlueApp {
 
   inflateWalletFromRealm(realm: Realm, walletToInflate: TWallet) {
     const transactions = realm.objects('WalletTransactions');
-    const transactionsForWallet = transactions.filtered(`walletid = "${walletToInflate.getID()}"`) as unknown as TRealmTransaction[];
+    const transactionsForWallet = transactions.filtered('walletid == $0', walletToInflate.getID()) as unknown as TRealmTransaction[];
     for (const tx of transactionsForWallet) {
       if (tx.internal === false) {
         if ('_hdWalletInstance' in walletToInflate && walletToInflate._hdWalletInstance) {
@@ -490,7 +507,7 @@ export class BlueApp {
     if (walletToSave._txs_by_external_index) {
       realm.write(() => {
         // cleanup all existing transactions for the wallet first
-        const walletTransactionsToDelete = realm.objects('WalletTransactions').filtered(`walletid = '${id}'`);
+        const walletTransactionsToDelete = realm.objects('WalletTransactions').filtered('walletid == $0', id);
         realm.delete(walletTransactionsToDelete);
 
         // insert new ones:
@@ -554,6 +571,15 @@ export class BlueApp {
         realm = await this.getRealmForTransactions();
       } catch (error: any) {
         presentAlert({ message: error.message });
+      }
+      if (realm) {
+        const activeIds = new Set(this.wallets.filter(wallet => typeof wallet !== 'boolean').map(wallet => wallet.getID()));
+        realm.write(() => {
+          const obsolete = Array.from(realm.objects('WalletTransactions') as Realm.Results<{ walletid: string }>).filter(
+            tx => !activeIds.has(tx.walletid),
+          );
+          realm.delete(obsolete);
+        });
       }
       for (const key of this.wallets) {
         if (typeof key === 'boolean') continue;

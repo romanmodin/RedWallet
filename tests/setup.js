@@ -425,6 +425,10 @@ jest.mock('realm', () => {
 
       delete(target) {
         if (!target) return;
+        if (Array.isArray(target)) {
+          for (const item of target) this.delete(item);
+          return;
+        }
         // Single object returned by objectForPrimaryKey (has _realmMeta)
         if (target._realmMeta) {
           const { type, pk } = target._realmMeta;
@@ -436,7 +440,7 @@ jest.mock('realm', () => {
           const store = getStore(target._type);
           const pkField = PK_FIELD[target._type];
           for (const item of target._items) {
-            const pk = pkField !== undefined ? item[pkField] : undefined;
+            const pk = pkField !== undefined ? item[pkField] : item._realmMeta?.pk;
             if (pk !== undefined) store.delete(pk);
           }
         }

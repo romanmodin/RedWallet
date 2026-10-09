@@ -1,3 +1,4 @@
+import { validateBackupServers, serverKey } from '../class/xbt/server-backups';
 import BigNumber from 'bignumber.js';
 import * as bitcoin from 'bitcoinjs-lib';
 import DefaultPreference from 'react-native-default-preference';
@@ -63,6 +64,7 @@ export type ElectrumTransaction = {
       reqSigs: number;
       type: string;
       addresses: string[];
+      address?: string;
     };
   }[];
   // Confirmation-only fields: absent on mempool (unconfirmed) responses.
@@ -82,7 +84,7 @@ type MempoolTransaction = {
   fee: number;
 };
 
-type Peer = {
+export type Peer = {
   host: string;
   ssl?: number;
   tlsCa?: string;
@@ -94,6 +96,8 @@ export const ELECTRUM_TCP_PORT = 'electrum_tcp_port';
 export const ELECTRUM_SSL_PORT = 'electrum_ssl_port';
 export const ELECTRUM_TLS_CA = 'electrum_tls_ca';
 export const ELECTRUM_SERVER_HISTORY = 'electrum_server_history';
+export const ELECTRUM_BACKUP_SERVERS = 'electrum_backup_servers';
+export const validateBackupConfiguration = validateBackupServers;
 const ELECTRUM_CONNECTION_DISABLED = 'electrum_disabled';
 // RedWallet must be configured with an XBT-compatible Electrum server.
 // Do not ship Bitcoin public peers or silently fall back to a different chain.
@@ -331,11 +335,28 @@ async function getSavedPeer(): Promise<Peer | null> {
   }
 }
 
-/** Resolve only a user-configured peer; never select a Bitcoin fallback. */
-async function pickPeer(): Promise<Peer | undefined> {
-  const savedPeer = await getSavedPeer();
-  if (savedPeer && savedPeer.host && (savedPeer.tcp || savedPeer.ssl)) return savedPeer;
-  return undefined;
+/** Backups are explicit opt-in configuration, never inferred from server history. */
+export async function getBackupServers(): Promise<Peer[]> {
+  await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
+  const raw = await DefaultPreference.get(ELECTRUM_BACKUP_SERVERS);
+  if (!raw) return [];
+  if (typeof raw !== 'string') throw new Error('Invalid backup server configuration');
+  return validateBackupServers(JSON.parse(raw));
+}
+
+export async function setBackupServers(peers: Peer[]): Promise<void> {
+  const validated = validateBackupServers(peers);
+  await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
+  await DefaultPreference.set(ELECTRUM_BACKUP_SERVERS, JSON.stringify(validated));
+  forceDisconnect();
+}
+
+async function connectionCandidates(): Promise<Peer[]> {
+  const primary = await getSavedPeer();
+  // Clearing the primary means setup is required, even if backups remain stored.
+  if (!primary) return [];
+  const backups = await getBackupServers();
+  return [primary, ...backups.filter(peer => serverKey(peer) !== serverKey(primary))];
 }
 
 function scheduleReconnectFromClient(client: typeof ElectrumClient, usingPeer: Peer, reason: string): void {
@@ -360,19 +381,32 @@ function scheduleReconnectFromClient(client: typeof ElectrumClient, usingPeer: P
   }, delay);
 }
 
+async function boundedRequest<T>(request: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      request,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Electrum request timeout')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * One connect attempt: build a fresh `ElectrumClient`, run the version handshake,
  * subscribe to headers. No retries, no UI side effects. Returns the peer used
  * (for caller-side telemetry/alerts) and whether the attempt succeeded.
  */
-async function attemptConnectOnce(): Promise<{
+async function attemptConnectOnce(usingPeer: Peer | undefined): Promise<{
   ok: boolean;
   peer?: Peer;
   missingPeer?: boolean;
 }> {
-  const usingPeer = await pickPeer();
   if (!usingPeer) return { ok: false, missingPeer: true };
-  console.log('[electrum] Using peer:', JSON.stringify(usingPeer));
+  console.log('[electrum] Using peer:', { host: usingPeer.host, port: usingPeer.ssl || usingPeer.tcp });
 
   // Drop any prior client before allocating a new one. Closing also neutralises
   // electrum-client's internal `reconnect()` loop on the old instance.
@@ -383,9 +417,10 @@ async function attemptConnectOnce(): Promise<{
     mainClient = undefined;
   }
 
+  let client: typeof ElectrumClient | undefined;
   try {
-    console.log('[electrum] begin connection:', JSON.stringify(usingPeer));
-    const client = new ElectrumClient(
+    console.log('[electrum] begin connection:', { host: usingPeer.host, port: usingPeer.ssl || usingPeer.tcp });
+    client = new ElectrumClient(
       net,
       tls,
       usingPeer.ssl || usingPeer.tcp,
@@ -403,16 +438,13 @@ async function attemptConnectOnce(): Promise<{
       scheduleReconnectFromClient(client, usingPeer, 'socket error');
     };
 
-    const ver = await Promise.race([
+    const ver = await boundedRequest<[string, string]>(
       client.initElectrum(
         { client: 'bluewallet', version: '1.4' },
-        {
-          maxRetry: 0,
-          callback: () => scheduleReconnectFromClient(client, usingPeer, 'socket close'),
-        },
+        { maxRetry: 0, callback: () => scheduleReconnectFromClient(client, usingPeer, 'socket close') },
       ),
-      new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('connect timeout')), CONNECT_ATTEMPT_TIMEOUT_MS)),
-    ]);
+      CONNECT_ATTEMPT_TIMEOUT_MS,
+    );
 
     if (mainClient !== client) {
       // Caller raced `forceDisconnect()` while we were awaiting. Bail.
@@ -425,7 +457,11 @@ async function attemptConnectOnce(): Promise<{
     if (ver && ver[0]) {
       console.log('[electrum] connected to ', ver);
       serverName = ver[0];
-      const checkpointHeader = await client.blockchainBlock_header(XBT_MAINNET_CHECKPOINT_HEIGHT);
+      const checkpointHeader = await boundedRequest<string>(
+        client.blockchainBlock_header(XBT_MAINNET_CHECKPOINT_HEIGHT),
+        CONNECT_ATTEMPT_TIMEOUT_MS,
+      );
+      if (mainClient !== client) return { ok: false, peer: usingPeer };
       if (!isXbtMainnetCheckpointHeader(checkpointHeader)) {
         throw new Error('Electrum server is not on the verified XBT mainnet checkpoint');
       }
@@ -447,7 +483,8 @@ async function attemptConnectOnce(): Promise<{
             break;
         }
       }
-      const header = await client.blockchainHeaders_subscribe();
+      const header = await boundedRequest<{ height: number }>(client.blockchainHeaders_subscribe(), CONNECT_ATTEMPT_TIMEOUT_MS);
+      if (mainClient !== client) return { ok: false, peer: usingPeer };
       if (header && header.height) {
         latestBlock = {
           height: header.height,
@@ -458,8 +495,11 @@ async function attemptConnectOnce(): Promise<{
     }
     return { ok: false, peer: usingPeer };
   } catch (e) {
-    console.log('[electrum] bad connection:', JSON.stringify(usingPeer), e);
-    if (mainClient) {
+    console.log('[electrum] connection failed:', { host: usingPeer.host, port: usingPeer.ssl || usingPeer.tcp });
+    try {
+      client?.close();
+    } catch {}
+    if (mainClient === client && mainClient) {
       try {
         mainClient.close();
       } catch {}
@@ -474,10 +514,7 @@ async function pingWithTimeout(timeoutMs: number = PING_TIMEOUT_MS): Promise<boo
   if (!mainClient) return false;
   const client = mainClient;
   try {
-    await Promise.race([
-      client.server_ping(),
-      new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('ping timeout')), timeoutMs)),
-    ]);
+    await boundedRequest(client.server_ping(), timeoutMs);
     return mainClient === client; // server replied AND client wasn't swapped while we waited
   } catch {
     return false;
@@ -550,8 +587,17 @@ export async function ensureConnected(opts: EnsureConnectedOptions = {}): Promis
 
       if (aborted('pre-loop')) return false;
       setConnectionState('connecting');
+      let candidates: Peer[];
+      try {
+        candidates = await connectionCandidates();
+      } catch {
+        if (!aborted('invalid configuration')) setConnectionState('disconnected');
+        return false;
+      }
+      if (aborted('configuration loaded')) return false;
+      const attempts = Math.max(CONNECT_MAX_ATTEMPTS, candidates.length);
 
-      for (let i = 0; i < CONNECT_MAX_ATTEMPTS; i++) {
+      for (let i = 0; i < attempts; i++) {
         if (await isDisabled()) {
           setConnectionState('disabled');
           return false;
@@ -561,7 +607,7 @@ export async function ensureConnected(opts: EnsureConnectedOptions = {}): Promis
         // back to 'disconnected' here.
         if (aborted(`attempt ${i} start`)) return false;
 
-        const { ok, peer, missingPeer } = await attemptConnectOnce();
+        const { ok, peer, missingPeer } = await attemptConnectOnce(candidates[i % candidates.length]);
         lastPeer = peer;
         if (missingPeer) break;
 
@@ -578,7 +624,7 @@ export async function ensureConnected(opts: EnsureConnectedOptions = {}): Promis
           setConnectionState('connected');
           return true;
         }
-        if (i < CONNECT_MAX_ATTEMPTS - 1) {
+        if (i < attempts - 1) {
           await new Promise(resolve => setTimeout(resolve, CONNECT_BACKOFF_MS));
         }
       }
@@ -617,6 +663,8 @@ export async function presentResetToDefaultsAlert(): Promise<boolean> {
         onPress: async () => {
           try {
             await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
+            forceDisconnect();
+            await DefaultPreference.clear(ELECTRUM_BACKUP_SERVERS);
             await DefaultPreference.clear(ELECTRUM_HOST);
             await DefaultPreference.clear(ELECTRUM_SSL_PORT);
             await DefaultPreference.clear(ELECTRUM_TLS_CA);
@@ -637,6 +685,8 @@ export async function presentResetToDefaultsAlert(): Promise<boolean> {
           try {
             await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
             await DefaultPreference.clear(ELECTRUM_SERVER_HISTORY);
+            forceDisconnect();
+            await DefaultPreference.clear(ELECTRUM_BACKUP_SERVERS);
             await DefaultPreference.clear(ELECTRUM_HOST);
             await DefaultPreference.clear(ELECTRUM_SSL_PORT);
             await DefaultPreference.clear(ELECTRUM_TLS_CA);
@@ -1020,7 +1070,11 @@ export const multiGetBalanceByAddress = async (addresses: string[], batchsize: n
       scripthash2addr[reversedHash] = addr;
     }
 
-    let balances: { param: string; result: { confirmed: number; unconfirmed: number }; error?: { code: number; message: string } }[] = [];
+    let balances: {
+      param: string;
+      result: { confirmed: number; unconfirmed: number };
+      error?: { code: number; message: string };
+    }[] = [];
 
     if (disableBatching) {
       const promises = [];
@@ -1043,7 +1097,10 @@ export const multiGetBalanceByAddress = async (addresses: string[], batchsize: n
         async () => {
           const recovered = [];
           for (const param of scripthashes) {
-            recovered.push({ param, result: await client.blockchainScripthash_getBalance(param) });
+            recovered.push({
+              param,
+              result: await client.blockchainScripthash_getBalance(param),
+            });
           }
           return recovered;
         },
@@ -1077,7 +1134,11 @@ export const multiGetUtxoByAddress = async function (addresses: string[], batchs
       scripthash2addr[reversedHash] = addr;
     }
 
-    let results: { param: string; result: any; error?: { code: number; message: string } }[] = [];
+    let results: {
+      param: string;
+      result: any;
+      error?: { code: number; message: string };
+    }[] = [];
 
     if (disableBatching) {
       // ElectrumPersonalServer doesnt support `blockchain.scripthash.listunspent`
@@ -1090,7 +1151,10 @@ export const multiGetUtxoByAddress = async function (addresses: string[], batchs
         async () => {
           const recovered = [];
           for (const param of scripthashes) {
-            recovered.push({ param, result: await client.blockchainScripthash_listunspent(param) });
+            recovered.push({
+              param,
+              result: await client.blockchainScripthash_listunspent(param),
+            });
           }
           return recovered;
         },
@@ -1137,7 +1201,11 @@ export const multiGetHistoryByAddress = async function (
       scripthash2addr[reversedHash] = addr;
     }
 
-    let results: { param: string; result: any; error?: { code: number; message: string } }[] = [];
+    let results: {
+      param: string;
+      result: any;
+      error?: { code: number; message: string };
+    }[] = [];
 
     if (disableBatching) {
       const promises = [];
@@ -1146,7 +1214,7 @@ export const multiGetHistoryByAddress = async function (
         index2scripthash[promiseIndex] = scripthashes[promiseIndex];
         promises.push(mainClient.blockchainScripthash_getHistory(scripthashes[promiseIndex]));
       }
-      const histories = await Promise.all(promises);
+      const histories = await boundedRequest(Promise.all(promises), 20000);
       for (let historyIndex = 0; historyIndex < histories.length; historyIndex++) {
         results.push({
           result: histories[historyIndex],
@@ -1155,21 +1223,31 @@ export const multiGetHistoryByAddress = async function (
       }
     } else {
       const client = mainClient;
-      results = await recoverBatchLimit(
-        () => client.blockchainScripthash_getHistoryBatch(scripthashes),
-        async () => {
-          const recovered = [];
-          for (const param of scripthashes) {
-            recovered.push({ param, result: await client.blockchainScripthash_getHistory(param) });
-          }
-          return recovered;
-        },
+      results = await boundedRequest(
+        recoverBatchLimit(
+          () => client.blockchainScripthash_getHistoryBatch(scripthashes),
+          async () => {
+            const recovered = [];
+            for (const param of scripthashes) {
+              recovered.push({
+                param,
+                result: await client.blockchainScripthash_getHistory(param),
+              });
+            }
+            return recovered;
+          },
+        ),
+        20000,
       );
     }
 
+    if (results.length !== scripthashes.length || new Set(results.map(history => history.param)).size !== scripthashes.length) {
+      throw new Error('Incomplete Electrum history response');
+    }
     for (const history of results) {
-      if (history.error) console.warn('[electrum] multiGetHistoryByAddress():', history.error);
-      ret[scripthash2addr[history.param]] = history.result || [];
+      if (history.error) throw new Error(history.error.message || 'Electrum history request failed');
+      if (!scripthash2addr[history.param] || !Array.isArray(history.result)) throw new Error('Invalid Electrum history response');
+      ret[scripthash2addr[history.param]] = history.result;
       for (const result of history.result || []) {
         if (result.tx_hash) txhashHeightCache[result.tx_hash] = result.height; // cache tx height
       }
@@ -1228,7 +1306,11 @@ export async function multiGetTransactionByTxid<T extends boolean>(
 
   const chunks = splitIntoChunks(txids, batchsize);
   for (const chunk of chunks) {
-    let results: { param: string; result: any; error?: { code: number; message: string } }[] = [];
+    let results: {
+      param: string;
+      result: any;
+      error?: { code: number; message: string };
+    }[] = [];
 
     if (disableBatching) {
       try {

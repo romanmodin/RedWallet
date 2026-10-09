@@ -24,6 +24,8 @@ import {
   waitForLabel,
 } from './helperz';
 
+import { submitStoragePassword } from './storage-password';
+
 // if loglevel is set to `error`, this kind of logging will still get through
 console.warn = console.log = (...args) => {
   let output = '';
@@ -497,27 +499,23 @@ describe('RedWallet UI Tests - no wallets', () => {
     // lets put correct passwords and encrypt the storage
     await element(by.id('EncyptedAndPasswordProtectedSwitch')).tap();
     await element(by.id('IUnderstandButton')).tap();
-    await element(by.id('PasswordInput')).replaceText('pass');
-    await element(by.id('PasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await element(by.id('ConfirmPasswordInput')).clearText();
-    await element(by.id('ConfirmPasswordInput')).replaceText('pass');
-    await element(by.id('ConfirmPasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await confirmPasswordDialog();
+    await submitStoragePassword('pass', true, async () => {
+      await waitFor(element(by.id('ConfirmPasswordInput')))
+        .not.toExist()
+        .withTimeout(120_000);
+      await waitForId('PlausibleDeniabilityButton', 120_000);
+    });
     await waitForId('PlausibleDeniabilityButton', 120_000);
     await element(by.id('PlausibleDeniabilityButton')).tap();
 
     // trying to enable plausible denability
     await element(by.id('CreateFakeStorageButton')).tap();
-    await element(by.id('PasswordInput')).replaceText('fake');
-    await element(by.id('PasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await element(by.id('ConfirmPasswordInput')).clearText();
-    await element(by.id('ConfirmPasswordInput')).replaceText('fake'); // retyping
-    await element(by.id('ConfirmPasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await confirmPasswordDialog();
+    await submitStoragePassword('fake', true, async () => {
+      await waitFor(element(by.id('ConfirmPasswordInput')))
+        .not.toExist()
+        .withTimeout(120_000);
+      await waitForWalletsList();
+    });
     if (device.getPlatform() === 'ios') {
       // FIXME: WAllets does not exists on android
       await waitForId('Wallets');
@@ -551,19 +549,20 @@ describe('RedWallet UI Tests - no wallets', () => {
     // putting FAKE storage password. should not succeed
     await element(by.id('EncyptedAndPasswordProtectedSwitch')).tap();
     await element(by.text('OK')).tap();
-    await element(by.id('PasswordInput')).replaceText('fake');
-    await element(by.id('PasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await confirmPasswordDialog();
-    await sleep(1000); // propagate
-    await element(by.text('OK')).atIndex(0).tap(); // INCORRECT PASSWORD alert
-    // correct password
-    await element(by.id('PasswordInput')).clearText();
-    await element(by.id('PasswordInput')).replaceText('pass');
-    await element(by.id('PasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await confirmPasswordDialog();
-    await sleep(1000); // propagate
+    await submitStoragePassword('fake', false, async () => {
+      await waitFor(element(by.text('Incorrect password. Please, try again.')))
+        .toBeVisible()
+        .withTimeout(30_000);
+    });
+    if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss incorrect-password alert');
+    // The rejected password must leave the real wallet protected.
+    await waitForId('PasswordInput');
+    await submitStoragePassword('pass', false, async () => {
+      await waitFor(element(by.id('PasswordInput')))
+        .not.toExist()
+        .withTimeout(120_000);
+      await waitForWalletsList();
+    });
 
     // relaunch app
     await device.launchApp({ newInstance: true });

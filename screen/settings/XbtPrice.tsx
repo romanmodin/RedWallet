@@ -102,7 +102,8 @@ const XbtPrice: React.FC = () => {
       <SettingsSection title="Market price">
         <View style={settingsCardContent}>
           <SettingsFootnote>
-            Refresh the latest reported XBT/USDC trade from NeoxEX. The quote currency is USDC. Prices update only when you refresh.
+            Refresh the latest reported XBT/USDC trade from NeoxEX. The quote currency is USDC. Saved NeoxEX quotes refresh when the app
+            opens or returns to the foreground. Manual prices stay unchanged.
           </SettingsFootnote>
           <View style={styles.button}>
             <Button testID="RefreshNeoxexXbtPrice" onPress={refresh} title="Refresh from NeoxEX" disabled={isWorking} />
