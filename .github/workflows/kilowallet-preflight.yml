@@ -1,0 +1,57 @@
+name: Kilowallet Apple release preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Read only Kilowallet Apple application and bundle records
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        shell: python
+        run: |
+          import base64, json, os, pathlib, re, subprocess, tempfile, time, urllib.request, urllib.error
+          if os.environ.get('TEAM_ID') != 'PPG9C98EY9':
+              raise SystemExit('Unexpected Apple team; stop before using credentials')
+          credential = json.loads(os.environ.pop('APP_STORE_CONNECT_API_KEY_CONTENT'))
+          key = credential['key']
+          if credential.get('is_key_content_base64'): key = base64.b64decode(key, validate=True).decode()
+          kid, issuer = credential['key_id'], credential['issuer_id']
+          if not re.fullmatch(r'[A-Z0-9]{10}', kid) or not re.fullmatch(r'[a-fA-F0-9-]{36}', issuer):
+              raise SystemExit('Invalid credential metadata')
+          def b64(b): return base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+          now = int(time.time())
+          unsigned = '.'.join(b64(json.dumps(v, separators=(',', ':')).encode()) for v in [
+              {'alg':'ES256','kid':kid,'typ':'JWT'},
+              {'iss':issuer,'iat':now-30,'exp':now+300,'aud':'appstoreconnect-v1'}])
+          with tempfile.TemporaryDirectory(prefix='kilowallet-api-') as d:
+              kp = pathlib.Path(d)/'key.p8'; kp.write_text(key); kp.chmod(0o600)
+              signature = subprocess.check_output(['openssl','dgst','-sha256','-sign',str(kp)], input=unsigned.encode(), stderr=subprocess.DEVNULL)
+          if signature[0] != 0x30 or signature[2] != 2: raise SystemExit('Invalid signature encoding')
+          n = signature[3]; r = int.from_bytes(signature[4:4+n], 'big'); at = 4+n
+          if signature[at] != 2: raise SystemExit('Invalid signature encoding')
+          n = signature[at+1]; s = int.from_bytes(signature[at+2:at+2+n], 'big')
+          token = unsigned + '.' + b64(r.to_bytes(32,'big') + s.to_bytes(32,'big'))
+          report = {'team_id':'PPG9C98EY9','observed_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'mode':'read-only'}
+          for kind, field in [('apps','bundleId'),('bundleIds','identifier')]:
+              url = 'https://api.appstoreconnect.apple.com/v1/' + kind + '?filter%5B' + field + '%5D=com.kilombino.kilowallet&limit=10'
+              request = urllib.request.Request(url, headers={'Authorization':'Bearer '+token})
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response: body=json.load(response)
+                  report[kind] = [{'id':v['id'], **{k:v.get('attributes',{}).get(k) for k in ['name',field]}} for v in body.get('data',[])]
+              except urllib.error.HTTPError as e:
+                  report[kind] = {'http_status':e.code}
+          print(json.dumps(report,indent=2))
+          pathlib.Path('kilowallet-apple-preflight.json').write_text(json.dumps(report,indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: kilowallet-apple-preflight
+          path: kilowallet-apple-preflight.json
+          retention-days: 7
