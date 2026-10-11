@@ -1,0 +1,11 @@
+RedWallet is a self-custody XBT wallet. Create or recover supported wallets and connect to your own compatible Fulcrum server.
+
+• SegWit and Taproot wallet support.
+• Opt-in account recovery with independent receive and change discovery, including spent-out history. Adjust discovery gaps and account limits; incomplete scans are identified.
+• Configure up to five optional authenticated TLS backup servers, with checkpoint checks and bounded connection waits.
+• View transaction history and a USDC balance estimate using NeoxEX price data. USDC totals display two decimal places; XBT amounts retain their coin precision. Price data refreshes when the app opens or returns to the foreground.
+• Password-protected wallet storage, with transaction-history preservation during encryption and safeguards for failed migration and deleted-wallet caches.
+
+A compatible server must be configured. Price estimates depend on external market data and are not an execution quote. Back up your recovery information securely.
+
+RedWallet builds on the open-source BlueWallet project. See the repository for license and attribution details.

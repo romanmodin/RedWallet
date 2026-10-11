@@ -1,0 +1,1 @@
+XBT,wallet,SegWit,Taproot,self-custody,Fulcrum

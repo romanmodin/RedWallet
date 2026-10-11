@@ -1,0 +1,7 @@
+Adds opt-in BIP84/BIP86 account recovery, independent receive/change discovery including spent-out history, adjustable scan limits and incomplete-scan handling.
+
+Adds optional TLS backup servers, checkpoint checks and bounded waits. Preserves transaction history during encryption, protects data on failed migration, and clears deleted-wallet caches.
+
+Updates startup, loading and receive QR branding. USDC totals now use two decimal places, with NeoxEX price refresh on opening or returning to the app. XBT precision is unchanged.
+
+SegWit/Taproot, Unified signing, cold-signing flows, RBF/CPFP and earlier transaction/batch fixes are retained capabilities. Physical cold-device interoperability remains unverified pending completion of the separate cold wallet.

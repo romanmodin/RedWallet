@@ -1,0 +1,14 @@
+{
+  "source": "bf2a9c802560242e10683c54b750547107dc8b2e",
+  "metadataLengths": {
+    "name.txt": 9,
+    "subtitle.txt": 23,
+    "keywords.txt": 46,
+    "promotional_text.txt": 116,
+    "description.txt": 1124,
+    "release_notes.txt": 762
+  },
+  "limitsPassed": true,
+  "uploaded": false,
+  "submitted": false
+}
