@@ -21,3 +21,6 @@ Hosted native lifecycle tests exercise an app against real Fulcrum/Knots service
 
 ## Attribution
 Retain BlueWallet MIT license notices and applicable dependency notices. This package makes no claim of affiliation or endorsement.
+
+## Preliminary privacy source inspection
+At source bf2a9c802560242e10683c54b750547107dc8b2e, blue_modules/analytics.ts disables remote analytics/crash reporting; error logging is local console output. blue_modules/neoxex-price.ts contacts the public NeoxEX trade endpoint. The iOS privacy manifest declares no tracking and an empty collected-data list, plus required-reason APIs. These are partial observations, not a completed dependency/network audit or approved App Privacy answers. Server and price-provider requests still require disclosure review.
