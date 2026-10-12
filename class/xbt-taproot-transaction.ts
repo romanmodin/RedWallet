@@ -5,6 +5,7 @@ import { WatchOnlyWallet } from './wallets/watch-only-wallet';
 import { CreateTransactionUtxo } from './wallets/types';
 import { parseVerifiedParentTransaction } from './xbt/verified-transaction';
 import { buildUnsignedTransaction } from './xbt/unified-psbt';
+import { collectCpfpPackage, cpfpChildFee } from './xbt/cpfp-package';
 
 export type TaprootFeeWallet = XbtTaprootWallet | (WatchOnlyWallet & { _hdWalletInstance: XbtTaprootWallet });
 
@@ -138,28 +139,31 @@ export class XbtTaprootTransaction {
     if ((await this.getRemoteConfirmationsNum()) !== 0) throw new Error('Parent is already confirmed');
     await this.wallet.fetchUtxo();
     if (!(await this.isToUsTransaction())) throw new Error('No spendable wallet output remains in this transaction');
-    const { transaction, fee: parentFee } = await this.getInfo();
-    // Package pricing is limited to one unconfirmed parent; unknown ancestors must not underprice the child.
-    const ids = transaction.ins.map(input => Buffer.from(input.hash).reverse().toString('hex'));
-    const parents = await BlueElectrum.multiGetTransactionByTxid([...new Set(ids)], true);
-    if (
-      ids.some(
-        id => parents[id]?.txid !== id || !Number.isSafeInteger(parents[id]?.confirmations) || (parents[id]?.confirmations ?? 0) <= 0,
-      )
-    ) {
-      throw new Error('CPFP currently requires the parent to have confirmed inputs');
-    }
+    const { transaction, ancestors } = await collectCpfpPackage(this.txid);
     const utxos = this.wallet.getUtxo(true).filter(utxo => utxo.txid === this.txid);
+    if (
+      !utxos.length ||
+      utxos.some(utxo => {
+        const output = transaction.outs[utxo.vout];
+        return (
+          !output ||
+          output.value !== BigInt(utxo.value) ||
+          !Buffer.from(output.script).equals(Buffer.from(bitcoin.address.toOutputScript(utxo.address))) ||
+          !this.wallet.weOwnAddress(utxo.address)
+        );
+      })
+    )
+      throw new Error('CPFP wallet outputs do not match the parent');
     const address = await this.wallet.getChangeAddressAsync();
     let childRate = 1;
     for (let attempt = 0; attempt < 8; attempt++) {
       const result = this.wallet.createTransaction(utxos, [{ address }], childRate, address);
       const priced = result.tx ?? buildUnsignedTransaction(result.psbt);
       if (!result.tx) priced.ins.forEach((_, index) => priced.setWitness(index, [Buffer.alloc(65)]));
-      const targetFee = Math.ceil((transaction.virtualSize() + priced.virtualSize()) * feeRate);
+      const targetFee = cpfpChildFee(ancestors, priced.virtualSize(), feeRate);
       if (priced.outs.length !== 1 || priced.outs[0].value < 330n) throw new Error('CPFP output would be dust');
-      if (parentFee + result.fee >= targetFee) return result;
-      childRate = Math.max(childRate + 1 / priced.virtualSize(), (targetFee - parentFee) / priced.virtualSize());
+      if (result.fee >= targetFee) return result;
+      childRate = Math.max(childRate + 1 / priced.virtualSize(), targetFee / priced.virtualSize());
     }
     throw new Error('Cannot reach the requested package fee rate');
   }

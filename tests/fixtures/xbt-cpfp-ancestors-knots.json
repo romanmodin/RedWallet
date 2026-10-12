@@ -1,0 +1,51 @@
+{
+  "chain": "regtest",
+  "networkactive": false,
+  "connections": 0,
+  "receipts": [
+    {
+      "format": "segwit",
+      "ancestorCount": 4,
+      "childTxid": "f7e2a9fc3959fba941f882171957a8ce46d8e1d5cc273496ac28c0d756965e27",
+      "totalFee": 6598,
+      "totalSize": 649,
+      "acceptance": {
+        "txid": "f7e2a9fc3959fba941f882171957a8ce46d8e1d5cc273496ac28c0d756965e27",
+        "wtxid": "10aae70c427ca5d463289c3ee70e5661fb17998253536d5a2b7b35ec632caca1",
+        "usage": 608,
+        "allowed": true,
+        "vsize": 110,
+        "fees": {
+          "base": 0.00006048,
+          "effective-feerate": 0.00054981,
+          "effective-includes": [
+            "10aae70c427ca5d463289c3ee70e5661fb17998253536d5a2b7b35ec632caca1"
+          ]
+        }
+      },
+      "mined": true
+    },
+    {
+      "format": "taproot",
+      "ancestorCount": 4,
+      "childTxid": "5571f7540f7b6ce8383a105f01a621594e7b390de72557710a4d57570b5b0587",
+      "totalFee": 6708,
+      "totalSize": 660,
+      "acceptance": {
+        "txid": "5571f7540f7b6ce8383a105f01a621594e7b390de72557710a4d57570b5b0587",
+        "wtxid": "f957533737860d2827a5bba57dc63f2b8126ff2286393b3c9f075298abe73279",
+        "usage": 528,
+        "allowed": true,
+        "vsize": 112,
+        "fees": {
+          "base": 0.00006153,
+          "effective-feerate": 0.00054937,
+          "effective-includes": [
+            "f957533737860d2827a5bba57dc63f2b8126ff2286393b3c9f075298abe73279"
+          ]
+        }
+      },
+      "mined": true
+    }
+  ]
+}
