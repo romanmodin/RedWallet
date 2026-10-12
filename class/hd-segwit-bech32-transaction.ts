@@ -9,6 +9,7 @@ import { SegwitBech32Wallet } from './wallets/segwit-bech32-wallet';
 import { CreateTransactionUtxo } from './wallets/types.ts';
 import { CoinSelectOutput, CoinSelectReturnInput } from 'coinselect';
 import { isUint8Array, uint8ArrayToHex } from '../blue_modules/uint8array-extras';
+import { collectCpfpPackage, cpfpChildFee } from './xbt/cpfp-package';
 
 /**
  * Represents transaction of a BIP84 wallet.
@@ -364,7 +365,9 @@ export class HDSegwitBech32Transaction {
     if (targets.length === 0) {
       // looks like this was cancelled tx with single change output, so it wasnt included in `this.getInfo()` targets
       // so we add output paying ourselves:
-      targets.push({ address: this._wallet._getInternalAddressByIndex(this._wallet.next_free_change_address_index) });
+      targets.push({
+        address: this._wallet._getInternalAddressByIndex(this._wallet.next_free_change_address_index),
+      });
       // not checking emptiness on purpose: it could unpredictably generate too far address because of unconfirmed tx.
     }
 
@@ -383,7 +386,42 @@ export class HDSegwitBech32Transaction {
    * @param newFeerate {number} sat/byte
    * @returns {Promise<{outputs: Array, tx: Transaction, inputs: Array, fee: Number}>}
    */
+  private async createXbtCPFP(newFeerate: number) {
+    const wallet = this._wallet!;
+    if (!Number.isFinite(newFeerate) || newFeerate <= 0) throw new Error('Invalid package fee rate');
+    const txid = this._txid ?? this._txDecoded!.getId();
+    const { transaction, ancestors } = await collectCpfpPackage(txid);
+    await wallet.fetchUtxo();
+    const utxos = wallet.getUtxo(true).filter(utxo => utxo.txid === txid);
+    if (
+      !utxos.length ||
+      utxos.some(utxo => {
+        const output = transaction.outs[utxo.vout];
+        return (
+          !output ||
+          output.value !== BigInt(utxo.value) ||
+          !Buffer.from(output.script).equals(Buffer.from(bitcoin.address.toOutputScript(utxo.address))) ||
+          !wallet.weOwnAddress(utxo.address)
+        );
+      })
+    )
+      throw new Error('No verified spendable CPFP wallet outputs');
+    const address = await wallet.getChangeAddressAsync();
+    let childRate = 1;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const result = wallet.createTransaction(utxos, [{ address }], childRate, address, HDSegwitBech32Wallet.defaultRBFSequence);
+      if (!result.tx) throw new Error('Signed XBT SegWit CPFP transaction required');
+      if (result.tx.outs.length !== 1 || result.tx.outs[0].value < 294n) throw new Error('CPFP output would be dust');
+      const size = result.tx.virtualSize();
+      const required = cpfpChildFee(ancestors, size, newFeerate);
+      if (result.fee >= required) return result;
+      childRate = Math.max(childRate + 1 / size, required / size);
+    }
+    throw new Error('Cannot reach the requested package fee rate');
+  }
+
   async createCPFPbumpFee(newFeerate: number) {
+    if (this._wallet?.type === XbtSegwitBech32Wallet.type) return this.createXbtCPFP(newFeerate);
     if (!this._wallet) throw new Error('Wallet required for this method');
     if (!this._remoteTx) await this._fetchRemoteTx();
 

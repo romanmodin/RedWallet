@@ -10,6 +10,12 @@ import knotsAcceptance from '../fixtures/xbt-knots-regtest-acceptance.json';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({
   multiGetTransactionByTxid: jest.fn(),
+  createCpfpTransactionReader: () => async (id: string) => {
+    const api = require('../../blue_modules/BlueElectrum');
+    const verbose = (await api.multiGetTransactionByTxid([id], true))[id];
+    const hex = (await api.multiGetTransactionByTxid([id], false))[id];
+    return { ...verbose, hex };
+  },
   multiGetUtxoByAddress: jest.fn(),
   multiGetHistoryByAddress: jest.fn(),
   estimateCurrentBlockheight: jest.fn(),
@@ -63,8 +69,17 @@ describe('XBT wallet transaction flow', () => {
     const wallet = createWalletWithParent([{ coinbase: '03e8ab0e' }], 1);
     const address = wallet._getExternalAddressByIndex(0);
     wallet._balances_by_external_index[0] = { c: 100_000, u: 0 };
-    const utxo = { txid: fundingTxid, vout: 0, address, value: 100_000, confirmations: 99_999, height: utxoHeight };
-    (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({ [address]: [utxo] });
+    const utxo = {
+      txid: fundingTxid,
+      vout: 0,
+      address,
+      value: 100_000,
+      confirmations: 99_999,
+      height: utxoHeight,
+    };
+    (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({
+      [address]: [utxo],
+    });
     (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
       [address]: [{ tx_hash: fundingTxid, height: historyHeight }],
     });
@@ -97,7 +112,9 @@ describe('XBT wallet transaction flow', () => {
         { value: 0, n: 1, scriptPubKey: { addresses: [] } },
       ],
     };
-    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({ [address]: [{ tx_hash: txid, height: 100 }] });
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
+      [address]: [{ tx_hash: txid, height: 100 }],
+    });
     const fetch = (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockClear().mockImplementation(async (txids: string[]) => {
       if (txids.includes(coinbaseTxid)) throw new Error('Coinbase null outpoint must not be queried');
       return txids.includes(txid) ? { [txid]: decoded } : {};
@@ -307,7 +324,13 @@ describe('XBT wallet transaction flow', () => {
 
   it('filters and rejects a UTXO that exaggerates its coinbase parent confirmations', () => {
     const wallet = createWalletWithParent([{ coinbase: '03e8ab0e' }], 1);
-    const utxo = { txid: fundingTxid, vout: 0, address: wallet._getExternalAddressByIndex(0), value: 100_000, confirmations: 6480 };
+    const utxo = {
+      txid: fundingTxid,
+      vout: 0,
+      address: wallet._getExternalAddressByIndex(0),
+      value: 100_000,
+      confirmations: 6480,
+    };
     wallet._utxo = [utxo];
     expect(wallet.getUtxo()).toEqual([]);
     expect(() =>
@@ -372,6 +395,7 @@ describe('XBT wallet transaction flow', () => {
       },
     ] as any);
     const remote = {
+      txid: original.getId(),
       confirmations: 0,
       vout: original.outs.map((output, n) => ({
         n,
@@ -381,18 +405,40 @@ describe('XBT wallet transaction flow', () => {
         },
       })),
     };
-    (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (txids: string[]) =>
+    (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (txids: string[], verbose: boolean) =>
       Object.fromEntries(
         txids.map(txid => [
           txid,
-          txid === fundingTxid
-            ? {
-                vout: [{ value: 0.001, scriptPubKey: { address: source } }],
-              }
-            : remote,
+          !verbose
+            ? txid === fundingTxid
+              ? parent.rawHex
+              : original.toHex()
+            : txid === fundingTxid
+              ? {
+                  txid: fundingTxid,
+                  confirmations: 100,
+                  vout: [{ value: 0.001, scriptPubKey: { address: source } }],
+                }
+              : remote,
         ]),
       ),
     );
+    wallet._utxo = original.outs.flatMap((output, vout) => {
+      const address = bitcoin.address.fromOutputScript(output.script);
+      return wallet.weOwnAddress(address)
+        ? [
+            {
+              txid: original.getId(),
+              vout,
+              address,
+              value: Number(output.value),
+              height: 0,
+              confirmations: 0,
+            },
+          ]
+        : [];
+    });
+    jest.spyOn(wallet, 'fetchUtxo').mockResolvedValue();
     const helper = new HDSegwitBech32Transaction(original.toHex(), null, wallet);
     expect(await helper.isSequenceReplaceable()).toBe(true);
     const replacement =

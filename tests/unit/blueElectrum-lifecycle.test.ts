@@ -138,6 +138,48 @@ describe('BlueElectrum lifecycle', () => {
     presentAlertMock.mockClear();
   });
 
+  describe('CPFP fresh transaction reader', () => {
+    beforeEach(async () => {
+      const connected = BlueElectrum.ensureConnected();
+      await flush();
+      resolveLastConnect();
+      expect(await connected).toBe(true);
+    });
+
+    it('reads current verbose data on every call without using the transaction cache', async () => {
+      const client = created[0];
+      const read = BlueElectrum.createCpfpTransactionReader();
+      client.blockchainTransaction_get.mockResolvedValueOnce({ txid: 'test', confirmations: 5 });
+      client.blockchainTransaction_get.mockResolvedValueOnce({ txid: 'test', confirmations: 0 });
+      expect(await read('test')).toEqual({ txid: 'test', confirmations: 5 });
+      expect(await read('test')).toEqual({ txid: 'test', confirmations: 0 });
+      expect(client.blockchainTransaction_get.mock.calls).toEqual([
+        ['test', true],
+        ['test', true],
+      ]);
+    });
+
+    it('rejects an in-flight reply after a disconnect and does not retry it', async () => {
+      const pending = deferred<unknown>();
+      const client = created[0];
+      client.blockchainTransaction_get.mockReturnValue(pending.promise);
+      const read = BlueElectrum.createCpfpTransactionReader();
+      const result = read('test');
+      BlueElectrum.forceDisconnect();
+      pending.resolve({ txid: 'test', confirmations: 0 });
+      await expect(result).rejects.toThrow('connection changed');
+      await expect(read('test')).rejects.toThrow('connection changed');
+      expect(client.blockchainTransaction_get).toHaveBeenCalledTimes(1);
+    });
+
+    it('propagates unavailable verbose data instead of silently falling back', async () => {
+      const client = created[0];
+      client.blockchainTransaction_get.mockRejectedValue(new Error('verbose unsupported'));
+      await expect(BlueElectrum.createCpfpTransactionReader()('test')).rejects.toThrow('verbose unsupported');
+      expect(client.blockchainTransaction_get).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('server batch-limit recovery', () => {
     const address = bitcoin.address.fromOutputScript(Buffer.from('0014' + '11'.repeat(20), 'hex'));
     const txid = 'ab'.repeat(32);

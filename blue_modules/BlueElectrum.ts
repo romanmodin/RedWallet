@@ -406,7 +406,10 @@ async function attemptConnectOnce(usingPeer: Peer | undefined): Promise<{
   missingPeer?: boolean;
 }> {
   if (!usingPeer) return { ok: false, missingPeer: true };
-  console.log('[electrum] Using peer:', { host: usingPeer.host, port: usingPeer.ssl || usingPeer.tcp });
+  console.log('[electrum] Using peer:', {
+    host: usingPeer.host,
+    port: usingPeer.ssl || usingPeer.tcp,
+  });
 
   // Drop any prior client before allocating a new one. Closing also neutralises
   // electrum-client's internal `reconnect()` loop on the old instance.
@@ -419,7 +422,10 @@ async function attemptConnectOnce(usingPeer: Peer | undefined): Promise<{
 
   let client: typeof ElectrumClient | undefined;
   try {
-    console.log('[electrum] begin connection:', { host: usingPeer.host, port: usingPeer.ssl || usingPeer.tcp });
+    console.log('[electrum] begin connection:', {
+      host: usingPeer.host,
+      port: usingPeer.ssl || usingPeer.tcp,
+    });
     client = new ElectrumClient(
       net,
       tls,
@@ -441,7 +447,10 @@ async function attemptConnectOnce(usingPeer: Peer | undefined): Promise<{
     const ver = await boundedRequest<[string, string]>(
       client.initElectrum(
         { client: 'bluewallet', version: '1.4' },
-        { maxRetry: 0, callback: () => scheduleReconnectFromClient(client, usingPeer, 'socket close') },
+        {
+          maxRetry: 0,
+          callback: () => scheduleReconnectFromClient(client, usingPeer, 'socket close'),
+        },
       ),
       CONNECT_ATTEMPT_TIMEOUT_MS,
     );
@@ -495,7 +504,10 @@ async function attemptConnectOnce(usingPeer: Peer | undefined): Promise<{
     }
     return { ok: false, peer: usingPeer };
   } catch (e) {
-    console.log('[electrum] connection failed:', { host: usingPeer.host, port: usingPeer.ssl || usingPeer.tcp });
+    console.log('[electrum] connection failed:', {
+      host: usingPeer.host,
+      port: usingPeer.ssl || usingPeer.tcp,
+    });
     try {
       client?.close();
     } catch {}
@@ -1260,6 +1272,25 @@ export const multiGetHistoryByAddress = async function (
 
   return ret;
 };
+
+/**
+ * Fresh, connection-bound verbose reads for CPFP graph discovery. Never use the
+ * confirmed transaction cache or raw-only fallback to decide confirmation state.
+ */
+export function createCpfpTransactionReader() {
+  const client = mainClient;
+  const generation = disconnectGeneration;
+  if (!client) throw new Error('Electrum client is not connected');
+  return async (txid: string): Promise<unknown> => {
+    const assertCurrent = () => {
+      if (client !== mainClient || generation !== disconnectGeneration) throw new Error('Electrum connection changed during CPFP');
+    };
+    assertCurrent();
+    const result = await client.blockchainTransaction_get(txid, true);
+    assertCurrent();
+    return result;
+  };
+}
 
 // if verbose === true ? Record<string, ElectrumTransaction> : Record<string, string>
 type MultiGetTransactionByTxidResult<T extends boolean> = T extends true ? Record<string, ElectrumTransaction> : Record<string, string>;
