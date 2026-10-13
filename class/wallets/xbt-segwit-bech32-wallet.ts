@@ -170,7 +170,27 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
       psbt.updateInput(index, { sighashType: SIGHASH_ALL_UNIFIED, nonWitnessUtxo: Buffer.from(parents.get(id)!, 'hex') });
       return utxo;
     });
-    plan.outputs.forEach(output => psbt.addOutput(output));
+    plan.outputs.forEach(output => {
+      let address: string;
+      try {
+        address = bitcoin.address.fromOutputScript(output.script);
+      } catch {
+        psbt.addOutput(output);
+        return;
+      }
+      if (!this.addressIsChange(address)) {
+        psbt.addOutput(output);
+        return;
+      }
+      const path = this._getDerivationPathByAddress(address);
+      const pubkey = this._getPubkeyByAddress(address);
+      if (!path || !pubkey) throw new Error('Replacement change derivation is unavailable');
+      const derivedScript = bitcoin.payments.p2wpkh({ pubkey }).output;
+      if (!derivedScript || !Buffer.from(derivedScript).equals(Buffer.from(output.script))) {
+        throw new Error('Replacement change derivation does not match output');
+      }
+      psbt.addOutput({ ...output, bip32Derivation: [{ masterFingerprint: fingerprint, path, pubkey }] });
+    });
     const result: CreateTransactionResult = {
       inputs,
       outputs: plan.outputs.map(output => ({ value: Number(output.value) })),

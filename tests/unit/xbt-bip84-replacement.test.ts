@@ -93,3 +93,33 @@ it('refuses to build from an unknown original', () => {
   const { wallet, original } = fixture();
   expect(() => wallet.createAuthenticatedRBFTransaction(original.getId(), 3)).toThrow('known unconfirmed');
 });
+
+it.each([0, 1, 0x123, 0xffffffff])('provides signer-verifiable change metadata for fingerprint %s', fingerprint => {
+  const { wallet, original, parent } = fixture();
+  jest.spyOn(wallet, 'getTransactions').mockReturnValue([
+    { txid: parent.getId(), rawHex: parent.toHex(), confirmations: 100 },
+    { txid: original.getId(), rawHex: original.toHex(), confirmations: 0 },
+  ] as any);
+  const result = wallet.createAuthenticatedRBFTransaction(original.getId(), 3, true, fingerprint);
+  expect(result.psbt.data.outputs[0].bip32Derivation).toBeUndefined();
+  const derivation = result.psbt.data.outputs[1].bip32Derivation![0];
+  expect(derivation.path).toBe("m/84'/0'/0'/1/0");
+  const expectedFingerprint = Buffer.alloc(4);
+  expectedFingerprint.writeUInt32LE(fingerprint);
+  expect(Buffer.from(derivation.masterFingerprint)).toEqual(expectedFingerprint);
+  expect(bitcoin.payments.p2wpkh({ pubkey: derivation.pubkey }).output).toEqual(result.psbt.txOutputs[1].script);
+});
+
+it('rejects change metadata whose public key does not match the output script', () => {
+  const { wallet, original, parent } = fixture();
+  jest.spyOn(wallet, 'getTransactions').mockReturnValue([
+    { txid: parent.getId(), rawHex: parent.toHex(), confirmations: 100 },
+    { txid: original.getId(), rawHex: original.toHex(), confirmations: 0 },
+  ] as any);
+  const getPublicKey = wallet._getPubkeyByAddress.bind(wallet);
+  const source = wallet._getExternalAddressByIndex(0);
+  jest
+    .spyOn(wallet, '_getPubkeyByAddress')
+    .mockImplementation(address => (wallet.addressIsChange(address) ? getPublicKey(source) : getPublicKey(address)));
+  expect(() => wallet.createAuthenticatedRBFTransaction(original.getId(), 3, true)).toThrow('does not match output');
+});
