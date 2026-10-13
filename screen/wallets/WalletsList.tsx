@@ -1,4 +1,6 @@
 import React, { useCallback, useContext, useEffect, useReducer, useRef, useMemo } from 'react';
+import ArtworkSkinSurface from '../../components/ArtworkSkinSurface';
+import { useArtworkSkin } from '../../blue_modules/artwork-skin';
 import { useFocusEffect, useIsFocused, useRoute, RouteProp } from '@react-navigation/native';
 import { Alert, findNodeHandle, Image, InteractionManager, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { getClipboardContent } from '../../blue_modules/clipboard';
@@ -114,7 +116,9 @@ const WalletsList: React.FC = () => {
   const { registerTransactionsHandler, unregisterTransactionsHandler } = useMenuElements();
   const { wallets, getTransactions, refreshAllWalletTransactions } = useStorage();
   const { isTotalBalanceEnabled, isElectrumDisabled } = useSettings();
-  const { width, fontScale } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
+  const artworkSkin = useArtworkSkin();
+  const artworkHeroHeight = artworkSkin && !isLarge ? Math.round(Math.min(150, height * 0.14)) : 0;
   const insets = useSafeAreaInsets();
   const carouselHeight = getWalletCarouselHeight(fontScale);
   const transactionItemHeight = Math.round(TX_ROW_BASE_HEIGHT * fontScale);
@@ -130,10 +134,10 @@ const WalletsList: React.FC = () => {
 
   const stylesHook = StyleSheet.create({
     walletsListWrapper: {
-      backgroundColor: colors.brandingColor,
+      backgroundColor: artworkSkin ? 'transparent' : colors.brandingColor,
     },
     listHeaderBack: {
-      backgroundColor: colors.background,
+      backgroundColor: artworkSkin ? 'transparent' : colors.background,
       paddingTop: sizeClass === SizeClass.Large ? 8 : 0,
       minHeight: sectionHeaderHeight,
     },
@@ -518,7 +522,7 @@ const WalletsList: React.FC = () => {
         // On large screens: only transaction items, no carousel
         return {
           length: transactionItemHeight,
-          offset: transactionItemHeight * index,
+          offset: artworkHeroHeight + transactionItemHeight * index,
           index,
         };
       } else {
@@ -527,7 +531,7 @@ const WalletsList: React.FC = () => {
         if (index === 0) {
           return {
             length: carouselHeight,
-            offset: 0,
+            offset: artworkHeroHeight,
             index,
           };
         }
@@ -540,18 +544,20 @@ const WalletsList: React.FC = () => {
         const transactionIndex = index - 1; // Adjust index to account for carousel
         return {
           length: transactionItemHeight,
-          offset: carouselHeight + headerHeight + transactionItemHeight * transactionIndex,
+          offset: artworkHeroHeight + carouselHeight + headerHeight + transactionItemHeight * transactionIndex,
           index,
         };
       }
     },
-    [sizeClass, getSectionHeaderHeight, carouselHeight, transactionItemHeight],
+    [sizeClass, getSectionHeaderHeight, carouselHeight, transactionItemHeight, artworkHeroHeight],
   );
 
   return (
-    <>
+    <ArtworkSkinSurface active={artworkSkin}>
       <SafeAreaSectionList<any | string, SectionData>
         testID="Wallets"
+        style={artworkSkin ? artworkStyles.transparent : undefined}
+        ListHeaderComponent={artworkHeroHeight ? <View pointerEvents="none" style={{ height: artworkHeroHeight }} /> : null}
         renderItem={renderSectionItem}
         keyExtractor={sectionListKeyExtractor}
         renderSectionHeader={renderSectionHeader}
@@ -568,11 +574,13 @@ const WalletsList: React.FC = () => {
         {...refreshProps}
       />
       {renderScanButton()}
-    </>
+    </ArtworkSkinSurface>
   );
 };
 
 export default WalletsList;
+
+const artworkStyles = StyleSheet.create({ transparent: { backgroundColor: 'transparent' } });
 
 const styles = StyleSheet.create({
   listHeaderBack: {
