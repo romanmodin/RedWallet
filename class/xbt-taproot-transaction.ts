@@ -149,7 +149,7 @@ export class XbtTaprootTransaction {
     ) {
       throw new Error('CPFP currently requires the parent to have confirmed inputs');
     }
-    const utxos = this.wallet.getUtxo(true).filter(utxo => utxo.txid === this.txid);
+    const utxos = this.wallet.getUtxo().filter(utxo => utxo.txid === this.txid);
     const address = await this.wallet.getChangeAddressAsync();
     let childRate = 1;
     for (let attempt = 0; attempt < 8; attempt++) {

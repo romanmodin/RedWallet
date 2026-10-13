@@ -226,6 +226,30 @@ describe('Taproot fee bumping', () => {
     history.find(tx => tx.txid === max.getId()).confirmations = 1;
     await expect(controller.createRBFbumpFee(3)).rejects.toThrow('unconfirmed');
   });
+  it.each([false, true])('excludes a frozen output from mixed CPFP inputs (cold=%s)', async external => {
+    const { cold, watch, original } = fixture();
+    const wallet = external ? watch : cold;
+    const hd = external ? watch._hdWalletInstance! : cold;
+    hd._utxo = original.outs.map((output, vout) => ({
+      txid: original.getId(),
+      vout,
+      value: Number(output.value),
+      address: bitcoin.address.fromOutputScript(output.script),
+      height: 0,
+      confirmations: 0,
+    }));
+    hd.setUTXOMetadata(original.getId(), 0, { frozen: true });
+    jest.spyOn(wallet, 'fetchUtxo').mockResolvedValue();
+    const controller = new XbtTaprootTransaction(null, original.getId(), wallet as any);
+    const result = await controller.createCPFPbumpFee(10);
+    const child = result.tx ?? buildUnsignedTransaction(result.psbt);
+    expect(child.ins).toHaveLength(1);
+    expect(child.ins[0].index).toBe(1);
+    expect(Buffer.from(child.ins[0].hash).reverse().toString('hex')).toBe(original.getId());
+    hd.setUTXOMetadata(original.getId(), 1, { frozen: true });
+    await expect(controller.createCPFPbumpFee(10)).rejects.toThrow('No spendable wallet output');
+  });
+
   it.each([false, true])('prices CPFP to the whole two-transaction package (cold=%s)', async external => {
     const { cold, watch, original, history, sign } = fixture();
     const wallet = external ? watch : cold;
