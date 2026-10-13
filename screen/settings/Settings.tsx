@@ -1,4 +1,5 @@
 import React, { useMemo, useLayoutEffect, useCallback, useState } from 'react';
+import ArtworkSkinToggle from '../../components/ArtworkSkinToggle';
 import { View, StyleSheet, Linking, Image } from 'react-native';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import loc from '../../loc';
@@ -135,6 +136,7 @@ const Settings = () => {
           bottomDivider={false}
         />
       </SettingsSection>
+      <ArtworkSkinToggle />
     </SettingsScrollView>
   );
 };
