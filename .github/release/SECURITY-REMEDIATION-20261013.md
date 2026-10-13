@@ -25,3 +25,8 @@ Physical cold signing remains dependent on completion of the separate cold-walle
 
 ## Local verification
 Four focused suites /35 tests passed after updating expected containment behavior. Earlier full unit run:86 suites passed, one lifecycle suite failed only because it expected now-disabled SegWit fee actions; that suite is included in the successful focused rerun. Full lint passed with one inherited encryption no-bitwise warning; final changed lifecycle test ESLint and TypeScript passed. Full exact-source CI and hosted native checks remain required.
+
+## Authenticated BIP84 replacement planner (development only)
+Added a pure planner with no decoded-server JSON input. It hashes original and parent raw bytes, verifies original P2WPKH Unified signatures and input ownership, preserves output scripts/recipient values, funds increases only from P2WPKH change above294sats, and requires original fee plus conservative incremental relay cost. Worst-case signature size is used for fee estimation. The planner is not yet connected to transaction construction, fee-review UI or broadcast; BIP84 containment remains active. Node policy may require a greater incremental relay rate than the1sat/vB baseline. Do not present this module as restored RBF support.
+
+Next: construct/sign from the exact planned inputs/outputs; bind decoded output and actual fee approval to the resulting bytes; retain watch-only session checks; run adversarial native and isolated Knots replacement acceptance before restoring capability.
