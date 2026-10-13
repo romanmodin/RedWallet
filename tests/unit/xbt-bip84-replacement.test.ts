@@ -1,3 +1,5 @@
+import ecc from '../../blue_modules/noble_ecc';
+import { assertSignedUnifiedTransactionMatchesPsbt } from '../../class/xbt/unified-psbt';
 import * as bitcoin from 'bitcoinjs-lib';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { planBip84Replacement } from '../../class/xbt/bip84-replacement';
@@ -24,7 +26,7 @@ function fixture() {
   const isChange = (script: Uint8Array) => wallet.addressIsChange(bitcoin.address.fromOutputScript(script));
   const expectedTxid = original.getId();
   const plan = (raw = original.toHex(), rate = 3) => planBip84Replacement(expectedTxid, raw, parents, rate, owns, isChange);
-  return { original, parent, parents, plan, owns, isChange };
+  return { wallet, original, parent, parents, plan, owns, isChange };
 }
 
 it('preserves recipients and pays the increase only from change above dust', () => {
@@ -61,4 +63,33 @@ it('rejects falsified parent amounts', () => {
 it.each([1, 10000, NaN, Infinity, -1])('refuses insufficient increment, insufficient change or invalid rate %s', rate => {
   const { plan } = fixture();
   expect(() => plan(undefined, rate)).toThrow();
+});
+
+it.each([false, true])('constructs the exact authenticated replacement (unsigned=%s)', unsigned => {
+  const { wallet, original, parent, plan } = fixture();
+  jest.spyOn(wallet, 'getTransactions').mockReturnValue([
+    { txid: parent.getId(), rawHex: parent.toHex(), confirmations: 100 },
+    { txid: original.getId(), rawHex: original.toHex(), confirmations: 0 },
+  ] as any);
+  const expected = plan();
+  const result = wallet.createAuthenticatedRBFTransaction(original.getId(), 3, unsigned, 1);
+  expect(result.fee).toBe(expected.fee);
+  expect(result.psbt.txOutputs.map(output => ({ script: output.script, value: output.value }))).toEqual(expected.outputs);
+  expect(result.psbt.txInputs[0].sequence).toBe(original.ins[0].sequence);
+  if (unsigned) {
+    expect(Buffer.from(result.psbt.data.inputs[0].bip32Derivation![0].masterFingerprint).toString('hex')).toBe('01000000');
+    expect(result.tx).toBeUndefined();
+  } else {
+    const reviewed = wallet.createAuthenticatedRBFTransaction(original.getId(), 3, true).psbt;
+    expect(() =>
+      assertSignedUnifiedTransactionMatchesPsbt(result.tx!.toHex(), reviewed, (key, digest, sig) => ecc.verify(digest, key, sig)),
+    ).not.toThrow();
+    expect(result.tx!.ins[0].witness[0].at(-1)).toBe(0x21);
+    expect(result.tx!.outs[0]).toEqual(original.outs[0]);
+  }
+  expect(wallet.allowRBF()).toBe(false);
+});
+it('refuses to build from an unknown original', () => {
+  const { wallet, original } = fixture();
+  expect(() => wallet.createAuthenticatedRBFTransaction(original.getId(), 3)).toThrow('known unconfirmed');
 });
