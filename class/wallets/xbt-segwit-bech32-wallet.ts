@@ -23,6 +23,11 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
   public readonly segwitType = 'p2wpkh';
   static readonly derivationPath = "m/84'/0'/0'";
 
+  // Fee actions remain disabled until authenticated BIP84 replacement and fee review land.
+  allowRBF() {
+    return false;
+  }
+
   allowPayJoin() {
     return false;
   }
