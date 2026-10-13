@@ -325,6 +325,18 @@ export class WatchOnlyWallet extends LegacyWallet {
     return result;
   }
 
+  /** Staged BIP84 builder: fee-action UI remains disabled pending native/node qualification. */
+  createAuthenticatedRBFTransaction(txid: string, feeRate: number) {
+    approvedExternalTransactions.delete(this);
+    pendingSigningRequests.delete(this);
+    if (!this.allowSend() || !(this._hdWalletInstance instanceof XbtSegwitBech32Wallet)) {
+      throw new Error('Enable an XBT-compatible BIP84 external signer first');
+    }
+    const result = this._hdWalletInstance.createAuthenticatedRBFTransaction(txid, feeRate, true, this.getMasterFingerprint());
+    pendingSigningRequests.set(this, result.psbt.toBase64());
+    return result;
+  }
+
   createRBFTransaction(...args: Parameters<XbtTaprootWallet['createRBFTransaction']>) {
     approvedExternalTransactions.delete(this);
     pendingSigningRequests.delete(this);
