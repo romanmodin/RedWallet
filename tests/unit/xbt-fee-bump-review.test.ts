@@ -1,3 +1,4 @@
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import * as bitcoin from 'bitcoinjs-lib';
 import CPFP from '../../screen/transactions/CPFP';
 import RBFBumpFee from '../../screen/transactions/RBFBumpFee';
@@ -146,4 +147,34 @@ it.each([
   expect(screen.state.stage).toBe(1);
   expect(reviewState.txhex).toBeUndefined();
   expect(broadcast).not.toHaveBeenCalled();
+});
+
+it('prepares decoded BIP84 output and fee review but blocks its disabled broadcast path', async () => {
+  const { screen, transaction } = reviewScreen();
+  const wallet = new XbtSegwitBech32Wallet();
+  wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+  const broadcast = jest.spyOn(wallet, 'broadcastTx').mockResolvedValue(true);
+  Object.assign(screen.state, { wallet });
+  screen.reviewFeeBump({ tx: transaction, fee: 123 });
+  expect((screen.state as any).feeSats).toBe(123);
+  expect((screen.state as any).reviewedOutputs[0].valueSats).toBe('50000');
+  expect((screen.state as any).reviewedOutputs[0].address).toBe(bitcoin.address.fromOutputScript(transaction.outs[0].script));
+  screen.broadcast();
+  await flush();
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+});
+
+it('blocks a stale BIP84 fee screen before inspection or transaction construction', async () => {
+  const { screen } = reviewScreen(20_000, 0, false, RBFBumpFee);
+  const wallet = new XbtSegwitBech32Wallet();
+  const history = jest.spyOn(wallet, 'getTransactions');
+  const createRBFbumpFee = jest.fn();
+  Object.assign(screen.state, { wallet, tx: { createRBFbumpFee }, newFeeRate: '20', feeRate: 1 });
+  await (screen as RBFBumpFee).checkPossibilityOfRBFBumpFee();
+  await (screen as RBFBumpFee).createTransaction();
+  expect(history).not.toHaveBeenCalled();
+  expect(createRBFbumpFee).not.toHaveBeenCalled();
+  expect(screen.state).toMatchObject({ nonReplaceable: true, isLoading: false });
+  expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
 });

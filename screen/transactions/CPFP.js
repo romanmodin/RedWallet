@@ -82,8 +82,17 @@ export default class CPFP extends Component {
     };
   }
 
+  requiresXbtFeeReview() {
+    const wallet = this.state.wallet;
+    return (
+      isXbtTaprootWallet(wallet) ||
+      wallet?.type === XbtSegwitBech32Wallet.type ||
+      (wallet instanceof WatchOnlyWallet && wallet._hdWalletInstance?.type === XbtSegwitBech32Wallet.type)
+    );
+  }
+
   reviewFeeBump(result) {
-    if (!isXbtTaprootWallet(this.state.wallet)) return;
+    if (!this.requiresXbtFeeReview()) return;
     if (!result.tx) throw new Error('A signed fee bump is required');
     const recipients = result.tx.outs.filter(output => {
       try {
@@ -99,13 +108,23 @@ export default class CPFP extends Component {
     // Validate the numeric review even when the fee does not trigger a warning.
     requiresHighFeeApproval(review);
     this.feeReview = review;
-    this.setState({ feeSats: result.fee, actualFeeRate: feeRate });
+    const reviewedOutputs = result.tx.outs.map(output => {
+      let address;
+      try {
+        address = bitcoin.address.fromOutputScript(output.script);
+      } catch {
+        address = `Script: ${Buffer.from(output.script).toString('hex')}`;
+      }
+      return { address, valueSats: output.value.toString(), change: this.state.wallet.addressIsChange(address) };
+    });
+    this.setState({ feeSats: result.fee, actualFeeRate: feeRate, reviewedOutputs });
   }
 
   broadcast = () => {
     this.setState({ isLoading: true }, async () => {
       try {
-        if (isXbtTaprootWallet(this.state.wallet)) {
+        if (this.requiresXbtFeeReview()) {
+          if (!this.state.wallet.allowRBF()) throw new Error('Fee actions are disabled for this wallet');
           if ((await this.context.getItem('Biometrics')) && !(await unlockWithBiometrics())) {
             this.setState({ isLoading: false });
             return;
@@ -255,6 +274,9 @@ export default class CPFP extends Component {
           {this.state.feeSats !== undefined && (
             <BlueText>{`Fee: ${this.state.feeSats} sats (${this.state.actualFeeRate.toFixed(2)} sats/vB)`}</BlueText>
           )}
+          {this.state.reviewedOutputs?.map((output, index) => (
+            <BlueText key={index}>{`${output.change ? 'Change' : 'Recipient'}: ${output.address} — ${output.valueSats} sats`}</BlueText>
+          ))}
           <BlueText style={styles.hex}>{loc.send.create_this_is_hex}</BlueText>
           <TextInput style={styles.hexInput} height={112} multiline editable value={this.state.txhex} />
 

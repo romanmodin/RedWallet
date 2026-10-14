@@ -40,6 +40,9 @@ export default class RBFBumpFee extends CPFP {
   }
 
   async checkPossibilityOfRBFBumpFee() {
+    if (this.requiresXbtFeeReview() && !this.state.wallet.allowRBF()) {
+      return this.setState({ nonReplaceable: true, isLoading: false });
+    }
     let tx;
     if (isXbtTaprootWallet(this.state.wallet)) {
       tx = new XbtTaprootTransaction(null, this.state.txid, this.state.wallet);
@@ -70,6 +73,10 @@ export default class RBFBumpFee extends CPFP {
   }
 
   async createTransaction() {
+    if (this.requiresXbtFeeReview() && !this.state.wallet.allowRBF()) {
+      this.setState({ nonReplaceable: true, isLoading: false });
+      return;
+    }
     const newFeeRate = parseInt(this.state.newFeeRate, 10);
     if (newFeeRate > this.state.feeRate) {
       /** @type {HDSegwitBech32Transaction} */
