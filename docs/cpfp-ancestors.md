@@ -1,6 +1,6 @@
 # XBT CPFP with multiple unconfirmed ancestors
 
-The XBT SegWit and Taproot helpers discover the selected transaction's unconfirmed ancestors before constructing a child. Taproot retains both hot and reviewed external signed-PSBT paths. SegWit retains its hot-signing path. Bitcoin wallet behavior is unchanged.
+The XBT Taproot helper discovers the selected transaction's unconfirmed ancestors before constructing a child, retaining both hot and reviewed external signed-PSBT paths. XBT SegWit fee actions remain disabled by the security containment; ordinary sends and receives remain available. Bitcoin wallet behavior is unchanged. Frozen outputs are excluded from child construction.
 
 Raw transactions are checked against their requested transaction IDs. Fees use verified raw prevouts, not server-reported amounts. Fresh verbose reads use one captured Electrum client, bypass the confirmed-transaction cache, and reject connection changes. Servers without verbose transaction support cannot use this feature.
 
@@ -26,3 +26,7 @@ npx jest --runInBand tests/integration/xbt-cpfp-ancestors.test.ts
 ```
 
 The binaries must support BLAKE2b regtest activation and XBT Unified signatures. Physical cold-signer interoperability is not established by software-fixture tests.
+
+## Security reconciliation (2026-10-18)
+
+The earlier SegWit integration receipt is historical, not current enabled functionality. BIP84 entry points reject before network reads or signing. Unknown server confirmation status remains unverified; ancestor counts and sizes are bounded, and the Taproot review must show the actual total fee and require the existing high-fee approval. Native qualification is required on this reconciled source before merge or release.

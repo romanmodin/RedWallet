@@ -174,23 +174,32 @@ test.each(['segwit', 'taproot'] as const)(
         ? new XbtTaprootTransaction(null, id, wallet as XbtTaprootWallet)
         : new HDSegwitBech32Transaction(null, id, wallet as XbtSegwitBech32Wallet);
     const controller = controllerFor(original.tx!.getId());
-    const replacement = await controller.createRBFbumpFee(3);
-    expect(replacement.tx).toBeDefined();
-    expect(replacement.tx!.outs[0]).toEqual(original.tx!.outs[0]);
-    expect(await wallet.broadcastTx(replacement.tx!.toHex())).toBe(true);
-    await wallet.fetchBalance();
-    await wallet.fetchTransactions();
-    await wallet.fetchUtxo();
-    expect(wallet.getTransactions().some(tx => tx.txid === original.tx!.getId())).toBe(false);
-    const childController = controllerFor(replacement.tx!.getId());
-    const child = await childController.createCPFPbumpFee(10);
-    expect(child.tx).toBeDefined();
-    expect(await wallet.broadcastTx(child.tx!.toHex())).toBe(true);
+    let finalTransaction = original.tx!;
+    if (format === 'segwit') {
+      const before = records.size;
+      await expect(controller.createRBFbumpFee(3)).rejects.toThrow('temporarily disabled');
+      await expect(controller.createCPFPbumpFee(10)).rejects.toThrow('temporarily disabled');
+      expect(records.size).toBe(before);
+    } else {
+      const replacement = await controller.createRBFbumpFee(3);
+      expect(replacement.tx).toBeDefined();
+      expect(replacement.tx!.outs[0]).toEqual(original.tx!.outs[0]);
+      expect(await wallet.broadcastTx(replacement.tx!.toHex())).toBe(true);
+      await wallet.fetchBalance();
+      await wallet.fetchTransactions();
+      await wallet.fetchUtxo();
+      expect(wallet.getTransactions().some(tx => tx.txid === original.tx!.getId())).toBe(false);
+      const childController = controllerFor(replacement.tx!.getId());
+      const child = await childController.createCPFPbumpFee(10);
+      expect(child.tx).toBeDefined();
+      expect(await wallet.broadcastTx(child.tx!.toHex())).toBe(true);
+      finalTransaction = child.tx!;
+    }
     for (const record of records.values()) record.confirmations = 1;
     await wallet.fetchBalance();
     await wallet.fetchTransactions();
     await wallet.fetchUtxo();
-    expect(wallet.getTransactions().some(tx => tx.txid === child.tx!.getId() && tx.confirmations === 1)).toBe(true);
+    expect(wallet.getTransactions().some(tx => tx.txid === finalTransaction.getId() && tx.confirmations === 1)).toBe(true);
     const storage = new BlueApp();
     storage.wallets.push(wallet);
     let cacheOpens = 0;

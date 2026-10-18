@@ -362,7 +362,7 @@ describe('XBT wallet transaction flow', () => {
     expect(tx!.ins[0].witness[0].at(-1)).toBe(0x21);
   });
 
-  it.each(['bump', 'cancel', 'cpfp'])('fee %s dispatches through the XBT signer with 0x21 signatures', async action => {
+  it.each(['bump', 'cancel', 'cpfp'])('fee %s is contained after a valid ordinary XBT send', async action => {
     const wallet = createWalletWithParent([{ txid: ordinaryTxid, vout: 0 }], 100);
     const recipient = new XbtSegwitBech32Wallet();
     recipient.setSecret(mnemonic);
@@ -441,41 +441,30 @@ describe('XBT wallet transaction flow', () => {
     jest.spyOn(wallet, 'fetchUtxo').mockResolvedValue();
     const helper = new HDSegwitBech32Transaction(original.toHex(), null, wallet);
     expect(await helper.isSequenceReplaceable()).toBe(true);
-    const replacement =
-      action === 'bump'
-        ? await helper.createRBFbumpFee(3)
-        : action === 'cancel'
-          ? await helper.createRBFcancelTx(3)
-          : await helper.createCPFPbumpFee(5);
-    expect(replacement.tx!.getId()).not.toBe(original.getId());
-    const spentOutputs = replacement.tx!.ins.map(input => {
-      const txid = Buffer.from(input.hash).reverse().toString('hex');
-      if (txid === fundingTxid)
-        return {
-          value: 100_000n,
-          script: bitcoin.address.toOutputScript(source),
-        };
-      expect(txid).toBe(original.getId());
-      return original.outs[input.index];
-    });
-    replacement.tx!.ins.forEach((input, index) => {
+    // Ordinary sends retain valid Unified signatures; only the unsafe fee workflow is blocked.
+    original.ins.forEach((input, index) => {
       const [signature, publicKey] = input.witness;
       expect(signature.at(-1)).toBe(0x21);
       const scriptCode = bitcoin.payments.p2pkh({
         hash: bitcoin.crypto.hash160(publicKey),
       }).output!;
-      const digest = unifiedSegwitV0SighashAll(replacement.tx!, index, spentOutputs, scriptCode);
+      const digest = unifiedSegwitV0SighashAll(
+        original,
+        index,
+        [{ value: 100_000n, script: bitcoin.address.toOutputScript(source) }],
+        scriptCode,
+      );
       expect(ecc.verify(digest, publicKey, derSignatureToCompact(Buffer.from(signature.subarray(0, -1))))).toBe(true);
     });
-    if (action === 'bump')
-      expect(
-        replacement.tx!.outs.some(
-          output => output.value === 50_000n && Buffer.from(output.script).equals(Buffer.from(bitcoin.address.toOutputScript(destination))),
-        ),
-      ).toBe(true);
-    expect(replacement.tx!.ins.every(input => input.sequence < 0xfffffffe)).toBe(true);
-    if (action !== 'cpfp')
-      expect(replacement.fee).toBeGreaterThan(100_000 - original.outs.reduce((sum, output) => sum + Number(output.value), 0));
+    const sign = jest.spyOn(wallet, 'createTransaction');
+    const fetch = (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockClear();
+    // Even plausible server JSON must not reach the signer until the replacement path is hardened.
+    remote.vout[0].scriptPubKey.address = change;
+    const attempt =
+      action === 'bump' ? helper.createRBFbumpFee(3) : action === 'cancel' ? helper.createRBFcancelTx(3) : helper.createCPFPbumpFee(5);
+    await expect(attempt).rejects.toThrow('XBT SegWit fee bumping is temporarily disabled');
+    expect(sign).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('refuses to sign an immature coinbase input', () => {

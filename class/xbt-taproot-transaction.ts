@@ -140,7 +140,7 @@ export class XbtTaprootTransaction {
     await this.wallet.fetchUtxo();
     if (!(await this.isToUsTransaction())) throw new Error('No spendable wallet output remains in this transaction');
     const { transaction, ancestors } = await collectCpfpPackage(this.txid);
-    const utxos = this.wallet.getUtxo(true).filter(utxo => utxo.txid === this.txid);
+    const utxos = this.wallet.getUtxo().filter(utxo => utxo.txid === this.txid);
     if (
       !utxos.length ||
       utxos.some(utxo => {

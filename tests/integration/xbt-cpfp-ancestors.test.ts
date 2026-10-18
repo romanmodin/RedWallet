@@ -18,7 +18,7 @@ jest.mock('../../blue_modules/BlueElectrum', () => ({
 const isolated = process.env.XBT_CPFP_NODE && process.env.XBT_CPFP_CLI ? it : it.skip;
 
 isolated(
-  'mines branching multi-ancestor CPFP for SegWit and Taproot using real XBT Knots policy',
+  'contains SegWit fee actions and mines branching Taproot CPFP using real XBT Knots policy',
   async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'redwallet-cpfp-isolated-'));
     let node: ChildProcess | undefined;
@@ -145,6 +145,18 @@ isolated(
           format === 'segwit'
             ? new HDSegwitBech32Transaction(parent.tx!.toHex(), parent.tx!.getId(), wallet as XbtSegwitBech32Wallet)
             : new XbtTaprootTransaction(parent.tx!.toHex(), parent.tx!.getId(), wallet as XbtTaprootWallet);
+        if (format === 'segwit') {
+          const before = rpc('getrawmempool');
+          const sign = jest.spyOn(wallet, 'createTransaction');
+          await expect(helper.createCPFPbumpFee(10)).rejects.toThrow('temporarily disabled');
+          expect(sign).not.toHaveBeenCalled();
+          expect(rpc('getrawmempool')).toEqual(before);
+          rpc('generatetoaddress', 1, miner);
+          expect(rpc('getrawtransaction', parent.tx!.getId(), true).confirmations).toBe(1);
+          receipts.push({ format, feeActionContained: true, ordinaryTransactionsMined: true });
+          sign.mockRestore();
+          continue;
+        }
         const child = await helper.createCPFPbumpFee(10);
         const acceptance = accepted(child.tx!);
         const entry = rpc('getmempoolentry', child.tx!.getId());
