@@ -311,6 +311,9 @@ export class HDSegwitBech32Transaction {
    * @returns {Promise<{outputs: Array, tx: Transaction, inputs: Array, fee: Number}>}
    */
   async createRBFcancelTx(newFeerate: any) {
+    if (this._wallet?.type === XbtSegwitBech32Wallet.type) {
+      throw new Error('XBT SegWit fee bumping is temporarily disabled pending authenticated transaction and fee review');
+    }
     if (!this._wallet) throw new Error('Wallet required for this method');
     if (!this._remoteTx) await this._fetchRemoteTx();
 
@@ -349,6 +352,9 @@ export class HDSegwitBech32Transaction {
    * @returns {Promise<{outputs: Array, tx: Transaction, inputs: Array, fee: Number}>}
    */
   async createRBFbumpFee(newFeerate: number) {
+    if (this._wallet?.type === XbtSegwitBech32Wallet.type) {
+      throw new Error('XBT SegWit fee bumping is temporarily disabled pending authenticated transaction and fee review');
+    }
     if (!this._wallet) throw new Error('Wallet required for this method');
     if (!this._remoteTx) await this._fetchRemoteTx();
 
@@ -384,6 +390,9 @@ export class HDSegwitBech32Transaction {
    * @returns {Promise<{outputs: Array, tx: Transaction, inputs: Array, fee: Number}>}
    */
   async createCPFPbumpFee(newFeerate: number) {
+    if (this._wallet?.type === XbtSegwitBech32Wallet.type) {
+      throw new Error('XBT SegWit fee bumping is temporarily disabled pending authenticated transaction and fee review');
+    }
     if (!this._wallet) throw new Error('Wallet required for this method');
     if (!this._remoteTx) await this._fetchRemoteTx();
 
