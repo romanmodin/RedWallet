@@ -1,4 +1,5 @@
-import React, { memo, useCallback, useMemo, useRef } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useContext } from 'react';
+import { ArtworkSurfaceContext } from './ArtworkSkinSurface';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { Animated, Easing, Linking, Pressable, Text, TextStyle, ViewStyle, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -126,7 +127,8 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   onPress: customOnPress,
   disableNavigation = false,
 }: TransactionListItemProps) => {
-  const { colors } = useTheme();
+  const { colors, dark } = useTheme();
+  const artworkSurface = useContext(ArtworkSurfaceContext);
   const { navigate } = useExtendedNavigation<NavigationProps>();
   const { txMetadata, counterpartyMetadata, wallets } = useStorage();
   const { language } = useSettings();
@@ -135,10 +137,10 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   const { fontScale } = useWindowDimensions();
   const containerStyle = useMemo(
     () => ({
-      backgroundColor: colors.background,
+      backgroundColor: artworkSurface ? (dark ? 'rgba(0,0,0,0.48)' : 'rgba(255,255,255,0.68)') : colors.background,
       borderBottomColor: colors.lightBorder,
     }),
-    [colors.background, colors.lightBorder],
+    [colors.background, colors.lightBorder, artworkSurface, dark],
   );
 
   const combinedStyle = useMemo(() => [containerStyle, style], [containerStyle, style]);
