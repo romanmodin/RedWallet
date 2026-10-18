@@ -3,16 +3,13 @@ import ecc from '../../blue_modules/noble_ecc';
 import { parseVerifiedParentTransaction } from './verified-transaction';
 import { assertSignedUnifiedTransactionMatchesPsbt } from './unified-psbt';
 
-/** Pure replacement planner. Server-decoded addresses, values and fees are never inputs. */
-export function planBip84Replacement(
+/** Authenticate original signatures and prevouts before exposing any fee information. */
+export function inspectBip84Original(
   txid: string,
   raw: string,
   parents: ReadonlyMap<string, string>,
-  feeRate: number,
   ownsInput: (script: Uint8Array) => boolean,
-  isChange: (script: Uint8Array) => boolean,
 ) {
-  if (!Number.isFinite(feeRate) || feeRate <= 0) throw new Error('Invalid replacement fee rate');
   const original = parseVerifiedParentTransaction(txid, raw);
   if (!original.ins.length || original.isCoinbase() || !original.ins.some(input => input.sequence < 0xfffffffe)) {
     throw new Error('Original does not support replacement');
@@ -35,7 +32,12 @@ export function planBip84Replacement(
       throw new Error('Original input is not owned P2WPKH');
     }
     inputValue += output.value;
-    expected.addInput({ hash: id, index: input.index, sequence: input.sequence, witnessUtxo: output });
+    expected.addInput({
+      hash: id,
+      index: input.index,
+      sequence: input.sequence,
+      witnessUtxo: output,
+    });
   });
   original.outs.forEach(output => expected.addOutput(output));
   // Verifies every 0x21 signature against all raw-verified input amounts and scripts.
@@ -46,6 +48,22 @@ export function planBip84Replacement(
   // Worst-case DER signature plus sighash and compressed public key; actual signed size may be smaller.
   priced.ins.forEach((_, index) => priced.setWitness(index, [Buffer.alloc(73), Buffer.alloc(33)]));
   const vsize = priced.virtualSize();
+  return { original, oldFee: Number(oldFee), maximumVsize: vsize };
+}
+
+/** Server-decoded addresses, values and fees are never inputs. */
+export function planBip84Replacement(
+  txid: string,
+  raw: string,
+  parents: ReadonlyMap<string, string>,
+  feeRate: number,
+  ownsInput: (script: Uint8Array) => boolean,
+  isChange: (script: Uint8Array) => boolean,
+) {
+  if (!Number.isFinite(feeRate) || feeRate <= 0) throw new Error('Invalid replacement fee rate');
+  const inspected = inspectBip84Original(txid, raw, parents, ownsInput);
+  const { original, maximumVsize: vsize } = inspected;
+  const oldFee = BigInt(inspected.oldFee);
   const requestedFee = Math.ceil(vsize * feeRate);
   if (!Number.isSafeInteger(requestedFee)) throw new Error('Replacement fee exceeds safe range');
   const fee = BigInt(requestedFee);

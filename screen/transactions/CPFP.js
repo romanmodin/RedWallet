@@ -82,6 +82,10 @@ export default class CPFP extends Component {
     };
   }
 
+  feeActionAllowed() {
+    return this.state.wallet.allowRBF();
+  }
+
   requiresXbtFeeReview() {
     const wallet = this.state.wallet;
     return (
@@ -104,7 +108,12 @@ export default class CPFP extends Component {
     const recipientValue = recipients.reduce((sum, output) => sum + output.value, 0n);
     const amountSats = Number(recipientValue || result.tx.outs.reduce((sum, output) => sum + output.value, 0n));
     const feeRate = result.fee / result.tx.virtualSize();
-    const review = { feeSats: result.fee, feeRate, amountSats, hex: result.tx.toHex() };
+    const review = {
+      feeSats: result.fee,
+      feeRate,
+      amountSats,
+      hex: result.tx.toHex(),
+    };
     // Validate the numeric review even when the fee does not trigger a warning.
     requiresHighFeeApproval(review);
     this.feeReview = review;
@@ -115,16 +124,24 @@ export default class CPFP extends Component {
       } catch {
         address = `Script: ${Buffer.from(output.script).toString('hex')}`;
       }
-      return { address, valueSats: output.value.toString(), change: this.state.wallet.addressIsChange(address) };
+      return {
+        address,
+        valueSats: output.value.toString(),
+        change: this.state.wallet.addressIsChange(address),
+      };
     });
-    this.setState({ feeSats: result.fee, actualFeeRate: feeRate, reviewedOutputs });
+    this.setState({
+      feeSats: result.fee,
+      actualFeeRate: feeRate,
+      reviewedOutputs,
+    });
   }
 
   broadcast = () => {
     this.setState({ isLoading: true }, async () => {
       try {
         if (this.requiresXbtFeeReview()) {
-          if (!this.state.wallet.allowRBF()) throw new Error('Fee actions are disabled for this wallet');
+          if (!this.feeActionAllowed()) throw new Error('Fee actions are disabled for this wallet');
           if ((await this.context.getItem('Biometrics')) && !(await unlockWithBiometrics())) {
             this.setState({ isLoading: false });
             return;

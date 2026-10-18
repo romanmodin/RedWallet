@@ -1,4 +1,4 @@
-import { planBip84Replacement } from '../xbt/bip84-replacement';
+import { inspectBip84Original, planBip84Replacement } from '../xbt/bip84-replacement';
 import { CreateTransactionResult } from './types';
 import { ECPairFactory } from 'ecpair';
 
@@ -28,6 +28,26 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
   // Fee actions remain disabled until authenticated BIP84 replacement and fee review land.
   allowRBF() {
     return false;
+  }
+
+  // Separate from legacy RBF/cancel/CPFP; stays off until native/node qualification.
+  allowAuthenticatedRBF() {
+    return false;
+  }
+
+  getAuthenticatedRBFInfo(txid: string) {
+    const history = this.getTransactions();
+    const known = history.find(transaction => transaction.txid === txid);
+    if (!known?.rawHex || known.confirmations !== 0) throw new Error('Replacement requires a known unconfirmed transaction');
+    const parents = new Map<string, string>();
+    history.forEach(transaction => {
+      if (transaction.rawHex) parents.set(transaction.txid, transaction.rawHex);
+    });
+    const result = inspectBip84Original(txid, known.rawHex, parents, script => this.weOwnAddress(bitcoin.address.fromOutputScript(script)));
+    return {
+      ...result,
+      feeRate: result.oldFee / result.original.virtualSize(),
+    };
   }
 
   allowPayJoin() {
@@ -165,9 +185,17 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
         throw new Error('XBT coinbase outputs require 6480 confirmations before spending');
       }
       const address = bitcoin.address.fromOutputScript(output.script);
-      const utxo = { txid: id, vout: input.index, address, value: Number(output.value) };
+      const utxo = {
+        txid: id,
+        vout: input.index,
+        address,
+        value: Number(output.value),
+      };
       this._addPsbtInput(psbt, utxo, input.sequence, fingerprint);
-      psbt.updateInput(index, { sighashType: SIGHASH_ALL_UNIFIED, nonWitnessUtxo: Buffer.from(parents.get(id)!, 'hex') });
+      psbt.updateInput(index, {
+        sighashType: SIGHASH_ALL_UNIFIED,
+        nonWitnessUtxo: Buffer.from(parents.get(id)!, 'hex'),
+      });
       return utxo;
     });
     plan.outputs.forEach(output => {
@@ -189,7 +217,10 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
       if (!derivedScript || !Buffer.from(derivedScript).equals(Buffer.from(output.script))) {
         throw new Error('Replacement change derivation does not match output');
       }
-      psbt.addOutput({ ...output, bip32Derivation: [{ masterFingerprint: fingerprint, path, pubkey }] });
+      psbt.addOutput({
+        ...output,
+        bip32Derivation: [{ masterFingerprint: fingerprint, path, pubkey }],
+      });
     });
     const result: CreateTransactionResult = {
       inputs,
@@ -202,7 +233,10 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
       const wif = this._getWifForAddress(input.address);
       if (!wif) throw new Error('Replacement input key is unavailable');
       const key = ECPair.fromWIF(wif);
-      signUnifiedP2wpkhInput(psbt, index, { publicKey: key.publicKey, sign: digest => key.sign(Buffer.from(digest)) });
+      signUnifiedP2wpkhInput(psbt, index, {
+        publicKey: key.publicKey,
+        sign: digest => key.sign(Buffer.from(digest)),
+      });
       finalizeUnifiedP2wpkhInput(psbt, index, key.publicKey, (publicKey, digest, signature) => ecc.verify(digest, publicKey, signature));
     });
     result.tx = psbt.extractTransaction();

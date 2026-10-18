@@ -1,8 +1,13 @@
+import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import { XbtBip84Transaction } from '../../class/xbt-bip84-transaction';
+
 import ecc from '../../blue_modules/noble_ecc';
 import { assertSignedUnifiedTransactionMatchesPsbt } from '../../class/xbt/unified-psbt';
 import * as bitcoin from 'bitcoinjs-lib';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
-import { planBip84Replacement } from '../../class/xbt/bip84-replacement';
+import { inspectBip84Original, planBip84Replacement } from '../../class/xbt/bip84-replacement';
+
+jest.mock('../../blue_modules/BlueElectrum', () => ({ multiGetTransactionByTxid: jest.fn() }));
 
 function fixture() {
   const wallet = new XbtSegwitBech32Wallet();
@@ -122,4 +127,63 @@ it('rejects change metadata whose public key does not match the output script', 
     .spyOn(wallet, '_getPubkeyByAddress')
     .mockImplementation(address => (wallet.addressIsChange(address) ? getPublicKey(source) : getPublicKey(address)));
   expect(() => wallet.createAuthenticatedRBFTransaction(original.getId(), 3, true)).toThrow('does not match output');
+});
+
+function enabledFixture() {
+  const f = fixture();
+  jest.spyOn(f.wallet, 'allowAuthenticatedRBF').mockReturnValue(true);
+  jest.spyOn(f.wallet, 'getTransactions').mockReturnValue([
+    { txid: f.parent.getId(), rawHex: f.parent.toHex(), confirmations: 100 },
+    { txid: f.original.getId(), rawHex: f.original.toHex(), confirmations: 0 },
+  ] as any);
+  const adapter = new XbtBip84Transaction(f.original.getId(), f.wallet);
+  return { ...f, adapter };
+}
+
+it('ignores malicious server recipients, amounts and fees when signing a replacement', async () => {
+  const { original, adapter } = enabledFixture();
+  (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockResolvedValue({
+    [original.getId()]: {
+      txid: original.getId(),
+      confirmations: 0,
+      fee: 0,
+      vout: [{ value: 99999, scriptPubKey: { address: 'attacker' } }],
+    },
+  });
+  const result = await adapter.createRBFbumpFee(3);
+  expect(result.tx!.outs[0]).toEqual(original.outs[0]);
+  expect(result.tx!.outs[1].value).toBeLessThan(original.outs[1].value);
+  expect(result.tx!.outs[1].value).toBeGreaterThanOrEqual(294n);
+  expect(result.tx!.ins[0].witness[0].at(-1)).toBe(0x21);
+});
+
+it.each([1, -1, 0.5, Number.NaN])('refuses remote confirmation state %s before signing', async confirmations => {
+  const { wallet, original, adapter } = enabledFixture();
+  const sign = jest.spyOn(wallet, 'createAuthenticatedRBFTransaction');
+  (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockResolvedValue({
+    [original.getId()]: { txid: original.getId(), confirmations },
+  });
+  await expect(adapter.createRBFbumpFee(3)).rejects.toThrow();
+  expect(sign).not.toHaveBeenCalled();
+});
+
+it('rechecks local transaction state after the asynchronous remote check', async () => {
+  const { wallet, original, adapter, parent } = enabledFixture();
+  const sign = jest.spyOn(wallet, 'createAuthenticatedRBFTransaction');
+  (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async () => {
+    jest.spyOn(wallet, 'getTransactions').mockReturnValue([
+      { txid: parent.getId(), rawHex: parent.toHex(), confirmations: 100 },
+      { txid: original.getId(), rawHex: original.toHex(), confirmations: 1 },
+    ] as any);
+    return { [original.getId()]: { txid: original.getId(), confirmations: 0 } };
+  });
+  await expect(adapter.createRBFbumpFee(3)).rejects.toThrow('known unconfirmed');
+  expect(sign).not.toHaveBeenCalled();
+});
+
+it('authenticates signatures before reporting original fee information', () => {
+  const { original, parents, owns } = fixture();
+  const txid = original.getId();
+  original.ins[0].witness[0][10] = (original.ins[0].witness[0][10] + 1) % 256;
+  expect(() => inspectBip84Original(txid, original.toHex(), parents, owns)).toThrow();
 });

@@ -178,3 +178,43 @@ it('blocks a stale BIP84 fee screen before inspection or transaction constructio
   expect(screen.state).toMatchObject({ nonReplaceable: true, isLoading: false });
   expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
 });
+
+it('permits only the separately enabled BIP84 RBF review; CPFP stays blocked', async () => {
+  const wallet = new XbtSegwitBech32Wallet();
+  wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+  jest.spyOn(wallet, 'allowAuthenticatedRBF').mockReturnValue(true);
+  const broadcast = jest.spyOn(wallet, 'broadcastTx').mockResolvedValue(true);
+  for (const Screen of [CPFP, RBFBumpFee]) {
+    const { screen, transaction } = reviewScreen(500, 0, false, Screen);
+    Object.assign(screen.state, { wallet });
+    screen.reviewFeeBump({ tx: transaction, fee: 500 });
+    screen.broadcast();
+    await flush();
+    if (Screen === CPFP) expect(broadcast).not.toHaveBeenCalled();
+    else expect(broadcast).toHaveBeenCalledWith(transaction.toHex());
+  }
+  expect(wallet.allowRBF()).toBe(false);
+});
+
+it('requires high-fee approval on the separately enabled BIP84 replacement route', async () => {
+  const { screen, transaction } = reviewScreen(500, 0, false, RBFBumpFee);
+  const wallet = new XbtSegwitBech32Wallet();
+  wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+  jest.spyOn(wallet, 'allowAuthenticatedRBF').mockReturnValue(true);
+  const broadcast = jest.spyOn(wallet, 'broadcastTx').mockResolvedValue(true);
+  Object.assign(screen.state, { wallet });
+  screen.reviewFeeBump({ tx: transaction, fee: 20000 });
+  (confirm as jest.Mock).mockResolvedValue(false);
+  screen.broadcast();
+  await flush();
+  expect(confirm).toHaveBeenCalledWith('High transaction fee', expect.stringContaining('20000 sats'));
+  expect(broadcast).not.toHaveBeenCalled();
+});
+
+it.each(['10junk', 'Infinity', '-2', ''])('rejects malformed RBF fee rate %s before building', async newFeeRate => {
+  const { screen } = reviewScreen(500, 0, false, RBFBumpFee);
+  const createRBFbumpFee = jest.fn();
+  Object.assign(screen.state, { newFeeRate, feeRate: 1, tx: { createRBFbumpFee } });
+  await screen.createTransaction();
+  expect(createRBFbumpFee).not.toHaveBeenCalled();
+});

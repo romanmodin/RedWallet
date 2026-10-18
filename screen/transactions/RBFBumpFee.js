@@ -1,3 +1,4 @@
+import { canUseAuthenticatedBip84Rbf, XbtBip84Transaction } from '../../class/xbt-bip84-transaction';
 import { isXbtTaprootWallet, XbtTaprootTransaction } from '../../class/xbt-taproot-transaction';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
@@ -25,6 +26,10 @@ const styles = StyleSheet.create({
 export default class RBFBumpFee extends CPFP {
   static contextType = StorageContext;
 
+  feeActionAllowed() {
+    return canUseAuthenticatedBip84Rbf(this.state.wallet) || super.feeActionAllowed();
+  }
+
   async componentDidMount() {
     console.log('transactions/RBFBumpFee - componentDidMount');
     this.setState({
@@ -40,11 +45,13 @@ export default class RBFBumpFee extends CPFP {
   }
 
   async checkPossibilityOfRBFBumpFee() {
-    if (this.requiresXbtFeeReview() && !this.state.wallet.allowRBF()) {
+    if (this.requiresXbtFeeReview() && !this.feeActionAllowed()) {
       return this.setState({ nonReplaceable: true, isLoading: false });
     }
     let tx;
-    if (isXbtTaprootWallet(this.state.wallet)) {
+    if (canUseAuthenticatedBip84Rbf(this.state.wallet)) {
+      tx = new XbtBip84Transaction(this.state.txid, this.state.wallet);
+    } else if (isXbtTaprootWallet(this.state.wallet)) {
       tx = new XbtTaprootTransaction(null, this.state.txid, this.state.wallet);
     } else if (isWatchOnlySegwitBech32(this.state.wallet)) {
       tx = new HDSegwitBech32Transaction(
@@ -73,12 +80,12 @@ export default class RBFBumpFee extends CPFP {
   }
 
   async createTransaction() {
-    if (this.requiresXbtFeeReview() && !this.state.wallet.allowRBF()) {
+    if (this.requiresXbtFeeReview() && !this.feeActionAllowed()) {
       this.setState({ nonReplaceable: true, isLoading: false });
       return;
     }
-    const newFeeRate = parseInt(this.state.newFeeRate, 10);
-    if (newFeeRate > this.state.feeRate) {
+    const newFeeRate = Number(this.state.newFeeRate);
+    if (Number.isFinite(newFeeRate) && newFeeRate > this.state.feeRate) {
       /** @type {HDSegwitBech32Transaction} */
       const tx = this.state.tx;
       this.setState({ isLoading: true });
