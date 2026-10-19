@@ -258,6 +258,13 @@ jobs:
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl spawn booted notifyutil -p com.apple.Accessibility.ReduceMotionStatusDidChange
 
+      - name: Verify artwork and read-only pool discovery
+        timeout-minutes: 10
+        env:
+          REDWALLET_VISUAL_SMOKE: '1'
+        run: |
+          npm run e2e:test:ios-release -- tests/e2e/artwork-discovery.spec.js --runTestsByPath --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --artifacts-location ./artifacts/appearance-detox
+
       - name: Run detox tests
         timeout-minutes: 90
         env:

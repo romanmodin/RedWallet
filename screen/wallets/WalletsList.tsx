@@ -118,7 +118,7 @@ const WalletsList: React.FC = () => {
   const { isTotalBalanceEnabled, isElectrumDisabled } = useSettings();
   const { width, height, fontScale } = useWindowDimensions();
   const artworkSkin = useArtworkSkin();
-  const artworkHeroHeight = artworkSkin && !isLarge ? Math.round(Math.min(150, height * 0.14)) : 0;
+  const artworkHeroHeight = artworkSkin && !isLarge ? Math.round(Math.min(240, height * 0.26)) : 0;
   const insets = useSafeAreaInsets();
   const carouselHeight = getWalletCarouselHeight(fontScale);
   const transactionItemHeight = Math.round(TX_ROW_BASE_HEIGHT * fontScale);

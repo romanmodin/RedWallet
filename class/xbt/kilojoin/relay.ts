@@ -12,8 +12,18 @@ export class KilojoinRelay {
   private sequence = Promise.resolve();
   private readonly acknowledgements = new Map<
     string,
-    { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
+    {
+      resolve(): void;
+      reject(error: Error): void;
+      timer: ReturnType<typeof setTimeout>;
+    }
   >();
+
+  private discovery?: {
+    resolve(): void;
+    reject(error: Error): void;
+    timer: ReturnType<typeof setTimeout>;
+  };
 
   private subscription?: string;
   private subscriptionGeneration = 0;
@@ -85,12 +95,28 @@ export class KilojoinRelay {
     this.send(['REQ', this.subscription, { kinds: [2023], authors, '#p': recipients, since, limit: 256 }]);
   }
 
-  discoverPools(since: number): void {
-    if (!Number.isSafeInteger(since) || since < 0) throw new Error('Invalid discovery time');
+  discoverPools(since: number): Promise<void> {
+    if (!Number.isSafeInteger(since) || since < 0) return Promise.reject(new Error('Invalid discovery time'));
+    if (this.discovery) return Promise.reject(new Error('Pool search already in progress'));
     if (this.subscription) this.send(['CLOSE', this.subscription]);
     this.subscriptionKind = 32022;
     this.subscription = `kilojoin-pools-${++this.subscriptionGeneration}`;
-    this.send(['REQ', this.subscription, { kinds: [32022], '#t': ['kilojoin'], '#network': ['blake2b'], since, limit: 256 }]);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.onError(new Error('Pool search timed out. Try again.'));
+        this.close();
+      }, 15000);
+      this.discovery = { resolve, reject, timer };
+      try {
+        // Nostr indexes only single-letter tags. The live relay rejects
+        // #network; parsePool validates the signed network locally instead.
+        this.send(['REQ', this.subscription, { kinds: [32022], '#t': ['kilojoin'], since, limit: 256 }]);
+      } catch (error) {
+        clearTimeout(timer);
+        this.discovery = undefined;
+        reject(error);
+      }
+    });
   }
 
   publish(event: NostrEvent): Promise<void> {
@@ -129,6 +155,22 @@ export class KilojoinRelay {
       this.acknowledgements.delete(message[1]);
       if (message[2] === true) pending.resolve();
       else pending.reject(new Error('Relay rejected publication'));
+    } else if (message[0] === 'CLOSED' && this.subscription && message[1] === this.subscription) {
+      this.onError(new Error('Relay rejected the subscription. Try again.'));
+      this.close();
+    } else if (message[0] === 'NOTICE' && this.discovery) {
+      this.onError(new Error('Relay could not complete the pool search. Try again.'));
+      this.close();
+    } else if (message[0] === 'EOSE' && this.discovery && message[1] === this.subscription) {
+      const pending = this.discovery;
+      const subscription = this.subscription;
+      // Finish only after the preceding signed announcements were processed.
+      this.sequence = this.sequence.then(() => {
+        if (this.closed || this.subscription !== subscription || this.discovery !== pending) return;
+        clearTimeout(pending.timer);
+        this.discovery = undefined;
+        pending.resolve();
+      });
     } else if (message[0] === 'EVENT' && this.subscription && message[1] === this.subscription && message.length === 3) {
       const event = message[2] as NostrEvent;
       if (!verifyEvent(event) || event.kind !== this.subscriptionKind) return;
@@ -161,6 +203,11 @@ export class KilojoinRelay {
       pending.reject(new Error('Relay connection closed'));
     }
     this.acknowledgements.clear();
+    if (this.discovery) {
+      clearTimeout(this.discovery.timer);
+      this.discovery.reject(new Error('Pool search did not complete. Try again.'));
+      this.discovery = undefined;
+    }
     this.socket?.close();
   }
 }
