@@ -151,6 +151,8 @@ export async function upload(
   images,
   put = fetch,
   report = { images: [] },
+  approvedImages = IMAGES,
+  filePrefix = "redwallet-imessage",
 ) {
   const app = (await api("GET", "/v1/apps/" + APP_ID)).data;
   check(
@@ -177,7 +179,7 @@ export async function upload(
   );
   for (const image of images) {
     check(
-      IMAGES.some(
+      approvedImages.some(
         (x) =>
           x.file === image.file &&
           x.sha256 === image.sha256 &&
@@ -216,7 +218,8 @@ export async function upload(
       await api("GET", "/v1/appScreenshotSets/" + setId + "/appScreenshots")
     ).data;
     const name =
-      "redwallet-imessage-" +
+      filePrefix +
+      "-" +
       image.family +
       "-" +
       image.sha256.slice(0, 12) +
