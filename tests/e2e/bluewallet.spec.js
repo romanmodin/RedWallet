@@ -236,7 +236,15 @@ describe('RedWallet UI Tests - no wallets', () => {
     await element(by.text('OK')).tap();
     await goBack();
 
-    // IsItMyAddress
+    // Returning from the keyboard-bearing Broadcast screen can leave Tools
+    // scrolled under the iOS large-title header. Restore the list before tapping:
+    // the retained failure screenshot showed this row behind the glass header.
+    await waitForId('SettingsToolsRoot');
+    await element(by.id('SettingsToolsRoot')).scrollTo('top');
+    await waitForId('CoinjoinExperimental');
+    await waitForId('IsItMyAddress');
+
+    // IsItMyAddress: retain the destination and address-ownership assertions.
     await element(by.id('IsItMyAddress')).tap();
     await waitForId('AddressInput');
     await element(by.id('AddressInput')).replaceText('bc1q063ctu6jhe5k4v8ka99qac8rcm2tzjjnuktyrl');
