@@ -30,7 +30,10 @@ Implemented:
 Validation includes upstream transaction/NIP44/ownership/RFC9474 vectors; simulated
 fully encrypted P2WPKH and P2TR rounds; native adapter mocks; wallet-key test signing;
 failed storage, concurrency, restart, tampering, fee and ordinary send/RBF regressions.
-These tests are not an actual Kotlin peer round, live node acceptance or device review.
+The pinned Kotlin CoinjoinTx/crypto code additionally verified RedWallet raw transactions
+and signatures for P2WPKH/P2TR; RedWallet verified Kotlin-produced signatures in return.
+See tests/native/kilojoin for the reproducible standalone harness and source hashes.
+This is not a full Kotlin PoolSession round, live node acceptance or device review.
 
 Remaining release gates:
 1. Connect and exercise native adapters through the final live UI: pool discovery,

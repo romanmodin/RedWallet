@@ -81,3 +81,18 @@ test('app storage propagates a persistence failure to CoinJoin and does not rele
     fail.mockRestore();
   }
 });
+
+test('strict storage verifies persisted wallet bytes before reporting success', async () => {
+  const app = new BlueApp();
+  app.wallets = [new XbtSegwitBech32Wallet()];
+  const mocks = [
+    jest.spyOn(app, 'getRealmForTransactions').mockResolvedValue(undefined as never),
+    jest.spyOn(app, 'setItem').mockResolvedValue(undefined),
+    jest.spyOn(app, 'getItem').mockResolvedValue('old wallet bytes'),
+  ];
+  try {
+    await expect(app.saveToDisk(true)).rejects.toThrow('persistence verification');
+  } finally {
+    mocks.forEach(mock => mock.mockRestore());
+  }
+});

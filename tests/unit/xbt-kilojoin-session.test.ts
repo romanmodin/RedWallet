@@ -133,6 +133,13 @@ test.each(['p2wpkh', 'p2tr'] as const)(
     expect(() => f.session.completedTransaction()).toThrow('count');
     await f.receive({ type: 'sig', outpoint: outpoint(f.rawSeats[1].coin), sig: peerSignature }, false, pool);
     const tx = Transaction.fromHex(f.session.completedTransaction());
+    if (process.env.KILOJOIN_INTEROP_OUTPUT) {
+      // Explicit standalone interoperability harness; no files written in normal unit runs.
+      require('fs').appendFileSync(
+        process.env.KILOJOIN_INTEROP_OUTPUT,
+        [type, tx.getId(), tx.toHex(), ...tx.ins.map(i => Buffer.from(i.witness[0]).toString('hex'))].join('\t') + '\n',
+      );
+    }
     expect(tx.getId()).toBe(f.session.reviewed().reviewedId);
     expect(tx.ins.every(i => i.witness.length > 0)).toBe(true);
     await f.session.cancel();
