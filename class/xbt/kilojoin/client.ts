@@ -8,6 +8,7 @@ import { parseVerifiedParentTransaction } from '../verified-transaction';
 import { NostrEvent } from './crypto';
 import { changeMessage, LIVE_JOIN_ENABLED, parsePool, Terms } from './protocol';
 import { KilojoinRelay, publishIsolated } from './relay';
+import { relayFailureMessage } from './relay-error';
 import { Journal, Round } from './round';
 import { Coin, change, ownershipMessage } from './transaction';
 import { MixingWallet, nativeEntropy, observeCoins, walletSigner } from './wallet-adapter';
@@ -128,8 +129,16 @@ export class MixingClient {
     );
     const store = app.createKilojoinJournalStore(wallet),
       start = clock();
-    const round = await Round.join(wallet.getID(), terms.id, config.selected, Math.min(terms.timeout + 1500, start + 7200), start, store);
-    const vault = new SessionVault(wallet.getID(), terms.id);
+    const round = await Round.join(
+      wallet.getID(),
+      terms.id,
+      config.selected,
+      Math.min(terms.timeout + 1500, start + 7200),
+      start,
+      store,
+      joinPub,
+    );
+    const vault = new SessionVault(wallet.getID(), terms.id, joinPub);
     // Subscribe to the direct welcome first; pool history is unreadable until its key arrives.
     const subscribe = () =>
       session.snapshot().phase === 'joining'
@@ -155,7 +164,7 @@ export class MixingClient {
         }
         client?.update();
       },
-      () => client?.fail('Relay message or connection failed. Coins remain reserved until the round is resolved.'),
+      error => client?.fail(relayFailureMessage(error)),
     );
     const session = new ParticipantSession(terms, seat, joinSecret, mixScript, config.maxFee, round, {
       now: clock,
