@@ -22,11 +22,13 @@ final class StickerCapture: XCTestCase {
         return nil
     }
 
-    private func waitForPanel(_ app: XCUIApplication) {
-        // Retained 39236628098 evidence shows Apple's sticker panel loading asynchronously.
-        // Wait for that observed spinner, rather than searching an unfinished hierarchy.
+    private func waitForPanel(_ app: XCUIApplication, expectedLabels: [String] = []) {
+        // Run 39314081327 retained an empty iPad popover with no spinner.
+        // Absence of a spinner alone is not readiness: menu transitions must expose
+        // an expected next control before the unchanged 15-second deadline.
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             !app.activityIndicators.allElementsBoundByIndex.contains { $0.exists && $0.isHittable }
+                && (expectedLabels.isEmpty || expectedLabels.contains { self.visible(app, $0) != nil })
         }, object: nil)
         let result = XCTWaiter.wait(for: [ready], timeout: 15)
         if result != .completed { record(app, "messages-panel-still-loading") }
@@ -69,7 +71,7 @@ final class StickerCapture: XCTestCase {
                 if let control = visible(messages, label) {
                     used.insert(label)
                     control.tap()
-                    waitForPanel(messages)
+                    waitForPanel(messages, expectedLabels: ["BlueWallet"] + labels.filter { !used.contains($0) })
                     record(messages, "messages-menu-" + String(step))
                     advanced = true
                     break
