@@ -29,5 +29,20 @@
       "existingWarnings": 19
     },
     "newHostedQualification": "pending"
+  },
+  "followUp": {
+    "verifiedAt": "2026-10-19T15:03:11.263111+00:00",
+    "source": "2e2236f1f69b9793a7c7f27436104702fdfa4177",
+    "run": "https://github.com/romanmodin/RedWallet/actions/runs/39268942193",
+    "job": 118122662536,
+    "conclusion": "failure",
+    "artifact": {
+      "id": 12195309967,
+      "sha256": "655646b3a128d8a4992cd6b04bab1d67f2e2a31283ebe80d9c4cf7e0d07663fb"
+    },
+    "observed": "Detox acknowledged setOrientation at14:55:23.496Z. Native iOS log then reported _UIOrientationRequestAction timeout at14:55:25.103Z. Surface stayed402x874 before and after capture; raw PNG unchanged. Full native suites skipped. Current portrait screenshot inspected and correctly framed; landscape is not approved.",
+    "driverEvidence": "Detox20.51.4 calls requestGeometryUpdate and acknowledges after0.4s without checking error/completion. AppleSimUtils.boot returns immediately for an already-booted device before opening Simulator; workflow pre-boots and used --headless.",
+    "correction": "Explicitly open Simulator for the selected disposable device before launch and run the visual smoke without --headless. Keep all native bounds checks,15second deadline,portrait/landscape/return portrait and live discovery mandatory. Persist failed native bounds sidecars too.",
+    "status": "Candidate environment correction; fresh hosted execution must prove it. No claim of successful rotation yet. No production source changes."
   }
 }

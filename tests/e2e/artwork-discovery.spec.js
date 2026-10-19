@@ -20,17 +20,20 @@ const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface') => {
     const png = fs.readFileSync(file);
     const after = await element(by.id(surfaceId)).getAttributes();
     evidence = nativeCaptureEvidence(png, before, after, orientation);
-    if (matchesNativeOrientation(evidence)) {
-      fs.copyFileSync(file, path.join(directory, name + '.png'));
-      fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, ...evidence }, null, 2) + '\n');
-      return;
-    }
+    // Retain the last observed native state on failure as well as success.
+    fs.copyFileSync(file, path.join(directory, name + '.png'));
+    fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, ...evidence }, null, 2) + '\n');
+    if (matchesNativeOrientation(evidence)) return;
     await new Promise(resolve => setTimeout(resolve, 500));
   } while (Date.now() < deadline);
   throw new Error(`Native ${orientation} surface never settled: ${JSON.stringify(evidence)}`);
 };
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
+    // CI pre-boots the simulator. Detox returns early for an already-booted
+    // device, so explicitly attach Simulator before asking UIKit to rotate.
+    // A setOrientation acknowledgement alone is not evidence of rotation.
+    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id]);
     await device.clearKeychain();
     // Detox 20 has no setAppearance API. Set the selected disposable simulator
     // through Apple's native command before launching the app.
