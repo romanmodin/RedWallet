@@ -22,7 +22,7 @@ const SettingsTools: React.FC = () => {
   };
 
   return (
-    <SettingsScrollView>
+    <SettingsScrollView testID="SettingsToolsRoot">
       <SettingsSection>
         <SettingsListItem
           title="CoinJoin — Experimental"
