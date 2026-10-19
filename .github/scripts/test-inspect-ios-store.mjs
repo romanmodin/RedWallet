@@ -181,3 +181,25 @@ test("wrong app and duplicate versions fail before reading review contacts", asy
     /exactly one/,
   );
 });
+
+test("retains safe processing errors and checksums without signed delivery URLs", async () => {
+  const f = fixture();
+  const a = f["/v1/appScreenshotSets/set-id/appScreenshots"].data[0].attributes;
+  a.sourceFileChecksum = "abc";
+  a.assetDeliveryState = {
+    state: "FAILED",
+    errors: [
+      {
+        code: "IMAGE_INVALID_DIMENSIONS",
+        description:
+          "Image dimensions invalid. https://upload.apple.com/private",
+      },
+    ],
+  };
+  const result = await inspect(async (path) => structuredClone(f[path]));
+  const image = result.localizations[0].screenshots[0].images[0];
+  assert.equal(image.state, "FAILED");
+  assert.equal(image.checksum, "abc");
+  assert.equal(image.processingErrors[0].code, "IMAGE_INVALID_DIMENSIONS");
+  assert.equal(JSON.stringify(result).includes("upload.apple.com"), false);
+});
