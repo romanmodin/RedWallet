@@ -208,6 +208,12 @@ export class MixingClient {
   }
 
   async approve(commitment: string): Promise<void> {
+    const reviewed = this.round.snapshot();
+    if (reviewed.commitment === commitment && reviewed.reviewedHex) {
+      // A peer may broadcast after receiving our signature. Keep output roles through restart.
+      this.recordOutputRoles(Transaction.fromHex(reviewed.reviewedHex));
+      await BlueApp.getInstance().saveToDisk(true);
+    }
     await this.session.signApproved(commitment, walletSigner(this.wallet, this.round));
     this.update();
   }
@@ -215,9 +221,34 @@ export class MixingClient {
   async broadcast(): Promise<void> {
     if (this.closed) throw new Error('Client closed');
     const raw = this.session.completedTransaction();
+    // Save output roles before broadcasting. Notes can be edited without losing this history.
+    this.recordOutputRoles(Transaction.fromHex(raw));
+    await BlueApp.getInstance().saveToDisk(true);
     if (!(await this.wallet.broadcastTx(raw))) throw new Error('Backend did not accept the transaction');
     this.broadcastId = Transaction.fromHex(raw).getId();
     this.update();
+  }
+
+  private recordOutputRoles(tx: Transaction): void {
+    const id = tx.getId();
+    tx.outs.forEach((output, index) => {
+      let outputAddress: string;
+      try {
+        outputAddress = address.fromOutputScript(output.script);
+      } catch {
+        return;
+      }
+      const role = outputAddress === this.mixAddress ? 'mixed' : outputAddress === this.changeAddress ? 'change' : undefined;
+      if (!role) return;
+      const existing = this.wallet.getUTXOMetadata(id, index);
+      this.wallet.setUTXOMetadata(id, index, {
+        coinjoin: { version: 1, role, txid: id },
+        ...(role === 'change' ? { frozen: true } : {}),
+        ...(!existing.memo
+          ? { memo: role === 'mixed' ? 'CoinJoin output · Kilojoin' : 'CoinJoin change · frozen to avoid recombination' }
+          : {}),
+      });
+    });
   }
 
   async checkConfirmation(): Promise<boolean> {
@@ -239,18 +270,7 @@ export class MixingClient {
       entries[0].height > tip
     )
       return false;
-    // Keep change frozen to prevent immediate recombination with equal-denomination output.
-    for (let index = 0; index < tx.outs.length; index++) {
-      let a: string;
-      try {
-        a = address.fromOutputScript(tx.outs[index].script);
-      } catch {
-        continue;
-      }
-      if (a === this.mixAddress) this.wallet.setUTXOMetadata(id, index, { memo: 'CoinJoin output · Kilojoin' });
-      if (a === this.changeAddress)
-        this.wallet.setUTXOMetadata(id, index, { memo: 'CoinJoin change · frozen to avoid recombination', frozen: true });
-    }
+    this.recordOutputRoles(tx);
     await this.round.confirm(id, tip - entries[0].height + 1);
     this.broadcastId = id;
     this.update();

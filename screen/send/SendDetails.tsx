@@ -1,5 +1,7 @@
 import { isXbtTaprootWallet } from '../../class/xbt-taproot-transaction';
 import { confirmXbtPayment } from '../../class/xbt/payment-warning';
+import { approvePrivacySelection, selectPrivacyCoins } from '../../class/xbt/coin-privacy';
+import confirmCoinPrivacy from '../../components/confirmCoinPrivacy';
 import { getPayjoinUrl, supportsPayjoin } from '../../class/payjoin-policy';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { XBT_PROFILE } from '../../class/xbt/profile';
@@ -406,7 +408,7 @@ const SendDetails = () => {
       let flag = false;
       while (true) {
         try {
-          const { fee } = wallet.coinselect(lutxo, targets, opt.fee);
+          const { fee } = selectPrivacyCoins(wallet, lutxo, targets, opt.fee, !utxos);
           newFeePrecalc[opt.key] = fee;
           break;
         } catch (e: any) {
@@ -676,7 +678,7 @@ const SendDetails = () => {
     const change = await getChangeAddressAsync();
     assert(change, 'Could not get change address');
     const requestedSatPerByte = Number(feeRate);
-    const lutxo: CreateTransactionUtxo[] = utxos || (wallet?.getUtxo() ?? []);
+    let lutxo: CreateTransactionUtxo[] = utxos || (wallet?.getUtxo() ?? []);
     console.log({ requestedSatPerByte, lutxo: lutxo.length });
 
     const targets: CreateTransactionTarget[] = [];
@@ -701,6 +703,16 @@ const SendDetails = () => {
 
     const targetsOrig = JSON.parse(JSON.stringify(targets));
     // preserving original since it will be mutated
+
+    // Select before signing, using the same fee rules as the wallet. Approval is never cached.
+    const selection = selectPrivacyCoins(wallet, lutxo, targets, requestedSatPerByte, !utxos);
+    if (!(await approvePrivacySelection(wallet, selection.coins, confirmCoinPrivacy))) {
+      setIsLoading(false);
+      handleCoinControl();
+      return;
+    }
+    // Passing only the reviewed selection prevents the signing path from adding other categories.
+    lutxo = selection.coins;
 
     // without forcing `HDSegwitBech32Wallet` i had a weird ts error, complaining about last argument (fp)
     const { tx, outputs, psbt, fee } = (wallet as HDSegwitBech32Wallet)?.createTransaction(
@@ -1731,6 +1743,7 @@ const SendDetails = () => {
             </View>
           </Pressable>
           {renderCustomFeeWarning()}
+          {!utxos && <Text style={stylesHook.feeLabel}>{loc.cc.privacy_auto_selection}</Text>}
           {renderCreateButton()}
         </View>
       </ScrollView>

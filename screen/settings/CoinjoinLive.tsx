@@ -3,6 +3,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SettingsScrollView, SettingsFootnote } from '../../components/SettingsSection';
 import Button from '../../components/Button';
+import CoinPrivacyBadge from '../../components/CoinPrivacyBadge';
+import confirmCoinPrivacy from '../../components/confirmCoinPrivacy';
+import { approvePrivacySelection, coinPrivacyStatus, suggestCoinjoinCoins } from '../../class/xbt/coin-privacy';
+import loc from '../../loc';
 import { useTheme } from '../../components/themes';
 import { useStorage } from '../../hooks/context/useStorage';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
@@ -122,6 +126,14 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const estimate = pool && selected.length ? feeShare(pool.terms.fee_rate, remainder !== 0, selected.length, pool.terms.script) : 0;
   const start = async () => {
     if (!pool || !wallet) throw new Error('Select a wallet and pool');
+    if (
+      !(await approvePrivacySelection(
+        wallet,
+        coins.filter(c => selected.includes(`${c.txid}:${c.vout}`)),
+        confirmCoinPrivacy,
+      ))
+    )
+      return;
     const created = await MixingClient.join({
       experimentalAcknowledged,
       poolEvent: pool.event,
@@ -242,16 +254,34 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             {!!pool && (
               <View style={card}>
                 <Text style={text}>Choose confirmed coins · up to {pool.terms.max_inputs}</Text>
+                <Button
+                  testID="CoinjoinSuggestCoins"
+                  title={loc.cc.privacy_suggest}
+                  disabled={busy || !wallet}
+                  onPress={() =>
+                    run(async () => {
+                      if (!wallet) return;
+                      const suggestion = suggestCoinjoinCoins(wallet, coins, pool.terms, Number(maxFee));
+                      setSelected(suggestion.map(coin => `${coin.txid}:${coin.vout}`));
+                    })
+                  }
+                />
+                <SettingsFootnote>{loc.cc.privacy_suggest_note}</SettingsFootnote>
                 {coins.map(c => {
                   const id = `${c.txid}:${c.vout}`;
-                  return pick(
-                    `${c.value.toLocaleString()} sats · ${c.txid.slice(0, 8)}…:${c.vout}`,
-                    selected.includes(id),
-                    () =>
-                      setSelected(old =>
-                        old.includes(id) ? old.filter(x => x !== id) : old.length < pool.terms.max_inputs ? [...old, id] : old,
-                      ),
-                    id,
+                  return (
+                    <View key={id}>
+                      {pick(
+                        `${c.value.toLocaleString()} sats · ${c.txid.slice(0, 8)}…:${c.vout}`,
+                        selected.includes(id),
+                        () =>
+                          setSelected(old =>
+                            old.includes(id) ? old.filter(x => x !== id) : old.length < pool.terms.max_inputs ? [...old, id] : old,
+                          ),
+                        id,
+                      )}
+                      {wallet && <CoinPrivacyBadge status={coinPrivacyStatus(wallet, c)} />}
+                    </View>
                   );
                 })}
                 <Text style={text}>Selected: {total.toLocaleString()} sats</Text>

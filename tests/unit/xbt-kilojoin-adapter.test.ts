@@ -18,6 +18,7 @@ jest.mock('../../blue_modules/BlueElectrum', () => ({
 }));
 const ECPair = ECPairFactory(ecc);
 afterEach(() => jest.restoreAllMocks());
+
 function fixture(Wallet = XbtSegwitBech32Wallet as typeof XbtSegwitBech32Wallet | typeof XbtTaprootWallet) {
   const wallet = new Wallet();
   wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
@@ -39,6 +40,51 @@ function fixture(Wallet = XbtSegwitBech32Wallet as typeof XbtSegwitBech32Wallet 
   (BlueElectrum.getReportedBlockTip as jest.Mock).mockResolvedValue(105);
   return { wallet, coin, raw, a };
 }
+test.each(['approve', 'broadcast'] as const)(
+  'persists exact output roles before %s and refuses to proceed if saving fails',
+  async action => {
+    const { wallet } = fixture();
+    const mixAddress = wallet._getExternalAddressByIndex(1),
+      changeAddress = wallet._getInternalAddressByIndex(0);
+    const tx = new Transaction();
+    tx.addInput(Buffer.alloc(32, 7), 0);
+    tx.addOutput(address.toOutputScript(mixAddress), 10000n);
+    tx.addOutput(address.toOutputScript(changeAddress), 5000n);
+    tx.addOutput(Buffer.from('0014' + '55'.repeat(20), 'hex'), 10000n);
+    const id = tx.getId();
+    wallet.setUTXOMetadata(id, 0, { memo: 'My note', frozen: true });
+    const journal = { walletId: wallet.getID(), commitment: 'approved', reviewedHex: tx.toHex() };
+    const session = { snapshot: () => ({}), signApproved: jest.fn(async () => {}), completedTransaction: () => tx.toHex() };
+    const client: MixingClient = Reflect.construct(MixingClient, [
+      {},
+      wallet,
+      session,
+      { snapshot: () => journal },
+      {},
+      mixAddress,
+      changeAddress,
+      () => {},
+    ]);
+    const broadcast = jest.spyOn(wallet, 'broadcastTx').mockResolvedValue(true);
+    const save = jest.spyOn(BlueApp.getInstance(), 'saveToDisk').mockImplementation(async () => {
+      expect(wallet.getUTXOMetadata(id, 0)).toMatchObject({ coinjoin: { role: 'mixed', txid: id }, memo: 'My note', frozen: true });
+      expect(wallet.getUTXOMetadata(id, 1)).toMatchObject({ coinjoin: { role: 'change', txid: id }, frozen: true });
+      expect(wallet.getUTXOMetadata(id, 2).coinjoin).toBeUndefined();
+      expect(session.signApproved).not.toHaveBeenCalled();
+      expect(broadcast).not.toHaveBeenCalled();
+      throw new Error('Storage unavailable');
+    });
+    const proceed = () => (action === 'approve' ? client.approve('approved') : client.broadcast());
+    await expect(proceed()).rejects.toThrow('Storage unavailable');
+    expect(session.signApproved).not.toHaveBeenCalled();
+    expect(broadcast).not.toHaveBeenCalled();
+    save.mockResolvedValue(undefined);
+    await proceed();
+    expect(save).toHaveBeenCalledWith(true);
+    expect(action === 'approve' ? session.signApproved : broadcast).toHaveBeenCalledTimes(1);
+  },
+);
+
 test('backend adapter verifies raw parent and corroborates confirmed unspent height', async () => {
   const f = fixture();
   expect((await observeCoins([f.coin], () => 1000)).get(outpoint(f.coin))).toMatchObject({ unspent: true, checkedAt: 1000 });

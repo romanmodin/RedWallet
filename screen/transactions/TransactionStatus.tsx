@@ -26,6 +26,8 @@ import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
 import BlueText from '../../components/BlueText';
 import { HDSegwitBech32Transaction } from '../../class/hd-segwit-bech32-transaction';
 import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
+import CoinPrivacyBadge from '../../components/CoinPrivacyBadge';
+import { coinPrivacyStatus, readCoinPrivacyRecord } from '../../class/xbt/coin-privacy';
 import { Transaction, TWallet } from '../../class/wallets/types';
 import presentAlert from '../../components/Alert';
 import { BlueLoading } from '../../components/BlueLoading';
@@ -1333,6 +1335,25 @@ const TransactionStatus: React.FC = () => {
             </View>
           </View>
         )}
+
+        {wallet &&
+          tx.hash &&
+          Object.entries(wallet._utxoMetadata ?? {})
+            .filter(([key, meta]) => key.startsWith(`${tx.hash}:`) && readCoinPrivacyRecord(meta?.coinjoin, tx.hash))
+            .map(([key, meta]) => {
+              const vout = Number(key.split(':')[1]);
+              return (
+                <View key={key} style={[styles.detailRow, stylesHook.detailRow]}>
+                  <BlueText style={[styles.detailLabel, stylesHook.detailLabel]}>
+                    {loc.formatString(loc.cc.privacy_output, { number: vout })}
+                  </BlueText>
+                  <CoinPrivacyBadge
+                    status={coinPrivacyStatus(wallet, { txid: tx.hash, vout, confirmations: parsedConfirmations })}
+                    frozen={meta.frozen}
+                  />
+                </View>
+              );
+            })}
 
         {/* Note/Memo */}
         <View style={[styles.detailRow, styles.detailRowLast, stylesHook.detailRow, scaledStyles.detailRow]}>
