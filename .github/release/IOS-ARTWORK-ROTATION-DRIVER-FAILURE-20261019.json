@@ -1,0 +1,33 @@
+{
+  "verifiedAt": "2026-10-19T14:21:43.147Z",
+  "source": "16293fbc271ab4d0a4f293ca8739f2899c586e91",
+  "run": "https://github.com/romanmodin/RedWallet/actions/runs/39262993428",
+  "job": 118100620183,
+  "conclusion": "failure",
+  "artifact": {
+    "id": 12193458042,
+    "sha256": "8f379a44f2f56afcace9bec78b60c0b8d629d1542d0545c8262eeb3dfa4c90d2"
+  },
+  "failure": "Native landscape capture never settled: 1206x2622",
+  "inspection": "Retained raw screenshot visibly contains a rotated landscape layout inside a portrait-dimension framebuffer. App rotation occurred; PNG-dimension assumption was incorrect. Full native suites were skipped, so this run does not qualify.",
+  "correction": "Use native UIKit elementBounds before and after each unmodified capture, retaining both raw PNG and bounds/hash sidecar. Keep portrait, landscape, return-to-portrait, live discovery, all full tests and 15-second bound. Require fresh exact-source gates and human inspection.",
+  "productionChanged": false,
+  "correctionValidation": {
+    "at": "2026-10-19T14:26:14.260612+00:00",
+    "focused": {
+      "suites": 2,
+      "testsPassed": 15
+    },
+    "unit": {
+      "suites": 110,
+      "testsPassed": 1023,
+      "inheritedSkipped": 1
+    },
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "existingWarnings": 19
+    },
+    "newHostedQualification": "pending"
+  }
+}

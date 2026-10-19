@@ -2,30 +2,32 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { element, waitFor } from 'detox';
+import { nativeCaptureEvidence, matchesNativeOrientation } from './native-capture-helper';
 import { getSwitchValue, goBack, helperCreateWallet, scrollUpOnHomeScreen, waitForId, waitForWalletsList } from './helperz';
 
 const smoke = process.env.REDWALLET_VISUAL_SMOKE === '1' ? describe : describe.skip;
-const capture = async (name, orientation) => {
+const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface') => {
   const directory = path.resolve('artifacts/appearance-discovery');
   fs.mkdirSync(directory, { recursive: true });
   const deadline = Date.now() + 15000;
-  let dimensions = '';
-  // setOrientation can return before the simulator has rendered the rotation.
-  // Do not approve a second portrait frame as landscape evidence.
+  let evidence;
+  // simctl captures the physical framebuffer in portrait pixel coordinates even
+  // when UIKit has rotated. Assert the actual native surface bounds, retain the
+  // unmodified screenshot, and require human visual inspection of both views.
   do {
+    const before = await element(by.id(surfaceId)).getAttributes();
     const file = await device.takeScreenshot(name);
     const png = fs.readFileSync(file);
-    if (png.length < 24 || png.toString('ascii', 12, 16) !== 'IHDR') throw new Error('Invalid native PNG capture');
-    const width = png.readUInt32BE(16),
-      height = png.readUInt32BE(20);
-    dimensions = `${width}x${height}`;
-    if (orientation === 'landscape' ? width > height : height > width) {
+    const after = await element(by.id(surfaceId)).getAttributes();
+    evidence = nativeCaptureEvidence(png, before, after, orientation);
+    if (matchesNativeOrientation(evidence)) {
       fs.copyFileSync(file, path.join(directory, name + '.png'));
+      fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, ...evidence }, null, 2) + '\n');
       return;
     }
     await new Promise(resolve => setTimeout(resolve, 500));
   } while (Date.now() < deadline);
-  throw new Error(`Native ${orientation} capture never settled: ${dimensions}`);
+  throw new Error(`Native ${orientation} surface never settled: ${JSON.stringify(evidence)}`);
 };
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
@@ -91,7 +93,7 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       }
       if (!status.includes('Listening for updates.') && !status.includes('Connected. No compatible open pools'))
         throw new Error('Pool search never completed: ' + status);
-      await capture('03-pool-discovery', 'portrait');
+      await capture('03-pool-discovery', 'portrait', 'CoinjoinLiveScreen');
       console.log('Native read-only pool discovery:', status);
     } finally {
       await device.enableSynchronization();
