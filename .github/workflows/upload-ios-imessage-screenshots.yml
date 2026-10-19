@@ -60,22 +60,26 @@ jobs:
           from pathlib import Path
           repo='romanmodin/RedWallet'
           def api(path):return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/{path}']))
-          run=api('actions/runs/39238585772')
-          assert run['head_sha']=='f1484c06d031d486fee4d62a578a7ca55c58738c'
+          run=api('actions/runs/39319942381')
+          assert run['head_sha']=='8dcf0afc23afa997031aab0fa78b63e6fc312248'
           assert run['path']=='.github/workflows/capture-ios-imessage-screenshots.yml'
           assert run['repository']['full_name']==repo and run['head_repository']['full_name']==repo
           assert run['run_attempt']==1 and run['status']=='completed' and run['conclusion']=='success'
           images=[
-            (12181535198,'8757053a6280c3954efbb29c9550656ec25db024ec03f563f85299996e47d3f0','attachments/EC17A186-E684-49CF-95FE-CD68093AC648.png','iphone.png','ed3a6d94e6f2bbcfea25f9337679e35345e224b5bbeef269a31e9707a652883c'),
-            (12181135725,'faa4e2a24b65729c4ffc5c5e543ba0d7f8da49fe5bca7acd52ee3515ad554cd8','attachments/C739FBE6-3FD4-4714-86C5-E860C9B2662A.png','ipad.png','caeee68897099b0902bef1547b0ca0acf2445439c3a1037e3ca843247211dc37')]
+            (12223530880,'3a90681cecac1fcebb817dc835310950b64066ba90f94d45588935de5164a367','attachments/A9E7D90C-EAB4-4552-9656-F25B937F1022.png','iphone.png','75b55afb7a12efc7f1867e49a4fed598c6ccdffeab646e8aa0d1a693ee038c94'),
+            (12222031804,'43e68c71aa2831f951f8cabfadeff73e6128bc629ff8c50775850ac125e932e2','attachments/7445E927-EB69-4DF0-B9BF-62011B8BB801.png','ipad.png','caeee68897099b0902bef1547b0ca0acf2445439c3a1037e3ca843247211dc37')]
           root=Path('verified-imessage');root.mkdir()
           for aid,archive_hash,name,target,image_hash in images:
             meta=api(f'actions/artifacts/{aid}')
-            assert not meta['expired'] and meta['workflow_run']['id']==39238585772 and meta['digest']=='sha256:'+archive_hash
+            assert not meta['expired'] and meta['workflow_run']['id']==39319942381 and meta['digest']=='sha256:'+archive_hash
             data=subprocess.check_output(['gh','api',f'repos/{repo}/actions/artifacts/{aid}/zip'])
             assert hashlib.sha256(data).hexdigest()==archive_hash
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
               assert archive.namelist().count(name)==1
+              provenance=json.loads(archive.read('provenance.json'))
+              assert provenance['sourceCommit']=='9f627fb87b4b6cc28cddcf6ad45e2edc721551a8'
+              assert provenance['simulatorArtifactRun']=='39297579842' and provenance['freshSimulator'] and not provenance['messagesSent']
+              assert any(e['bundleId']=='com.romanmodin.redwallet.Stickers' for e in provenance['extensions'])
               image=archive.read(name)
             assert hashlib.sha256(image).hexdigest()==image_hash
             (root/target).write_bytes(image)

@@ -1,0 +1,28 @@
+{
+  "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+  "captureRunId": 39319942381,
+  "captureHead": "8dcf0afc23afa997031aab0fa78b63e6fc312248",
+  "captureAttempt": 1,
+  "captureConclusion": "success",
+  "visualReview": "Both actual 8-second native frames reviewed 2026-10-19: all six inherited stickers rendered, no loading panel or sent messages. RGB PNGs retained at original dimensions without editing.",
+  "images": [
+    {
+      "family": "iphone",
+      "artifactId": 12223530880,
+      "archiveSha256": "3a90681cecac1fcebb817dc835310950b64066ba90f94d45588935de5164a367",
+      "member": "attachments/A9E7D90C-EAB4-4552-9656-F25B937F1022.png",
+      "sha256": "75b55afb7a12efc7f1867e49a4fed598c6ccdffeab646e8aa0d1a693ee038c94",
+      "width": 1320,
+      "height": 2868
+    },
+    {
+      "family": "ipad",
+      "artifactId": 12222031804,
+      "archiveSha256": "43e68c71aa2831f951f8cabfadeff73e6128bc629ff8c50775850ac125e932e2",
+      "member": "attachments/7445E927-EB69-4DF0-B9BF-62011B8BB801.png",
+      "sha256": "caeee68897099b0902bef1547b0ca0acf2445439c3a1037e3ca843247211dc37",
+      "width": 2064,
+      "height": 2752
+    }
+  ]
+}

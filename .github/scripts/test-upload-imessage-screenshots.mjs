@@ -94,7 +94,7 @@ test("reuse requires an unambiguous completed image with the exact checksum", ()
     /processing review/,
   );
 });
-test("client cannot change builds, submit reviews, delete assets, or follow arbitrary API paths", async () => {
+test("client cannot change builds, submit reviews, delete unreviewed assets, or follow arbitrary API paths", async () => {
   let calls = 0;
   const api = client("fake", async () => {
     calls++;
@@ -118,4 +118,53 @@ test("wrong app identity stops before any Apple mutation", async () => {
   };
   await assert.rejects(upload(api, []), /Wrong Apple app/);
   assert.deepEqual(calls, ["GET"]);
+});
+
+test("failed screenshot cleanup requires its exact observed checksum, rejection code and a completed replacement", async () => {
+  const { retireRejected, REJECTED_ID } = await import(
+    "./upload-imessage-screenshots.mjs"
+  );
+  let removed = false;
+  const old = {
+    id: REJECTED_ID,
+    attributes: {
+      sourceFileChecksum: "259aeed4ed85d52aaa888fb0b55f4747",
+      assetDeliveryState: {
+        state: "FAILED",
+        errors: [{ code: "SPEC_MISMATCH" }],
+      },
+    },
+  };
+  let shots = [old];
+  const api = async (method, path) => {
+    if (method === "DELETE") {
+      assert.equal(path, "/v1/appScreenshots/" + REJECTED_ID);
+      removed = true;
+      shots = shots.filter((x) => x.id !== REJECTED_ID);
+      return {};
+    }
+    if (path.endsWith("/appScreenshotSets"))
+      return {
+        data: [
+          {
+            id: "set",
+            attributes: { screenshotDisplayType: "IMESSAGE_APP_IPHONE_67" },
+          },
+        ],
+      };
+    return { data: shots };
+  };
+  await assert.rejects(retireRejected(api), /not complete/);
+  assert.equal(removed, false);
+  shots.push({
+    id: "replacement",
+    attributes: { assetDeliveryState: { state: "COMPLETE" } },
+  });
+  old.attributes.sourceFileChecksum = "different";
+  await assert.rejects(retireRejected(api), /changed/);
+  assert.equal(removed, false);
+  old.attributes.sourceFileChecksum = "259aeed4ed85d52aaa888fb0b55f4747";
+  assert.equal(await retireRejected(api), true);
+  assert.equal(removed, true);
+  assert.equal(await retireRejected(api), false);
 });
