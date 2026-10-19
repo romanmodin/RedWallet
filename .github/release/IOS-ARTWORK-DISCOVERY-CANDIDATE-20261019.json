@@ -1,0 +1,28 @@
+{
+  "sourceCommit": "3f713566dcd0de5208c70d821e6aa2ae1604150b",
+  "productionTreeSha256": "60a3da7ddf0aafedabc8880ef79e218c63c66bf7498eda310d4eac3cae92ff11",
+  "productionPathCount": 985,
+  "status": "AWAITING_NATIVE_QUALIFICATION_AND_VISUAL_REVIEW",
+  "requiredRuns": {
+    "ci": 39240576715,
+    "ios": 39240576756,
+    "fundedIos": 39240575042
+  },
+  "softwareTests": {
+    "suites": 109,
+    "passed": 1020,
+    "inheritedSkipped": 1,
+    "lint": "passed"
+  },
+  "readOnlyRelayProbe": {
+    "observedAt": "2026-10-19T10:50:13.498Z",
+    "compatiblePools": 3,
+    "joined": false
+  },
+  "fixes": [
+    "Measured centered artwork frame",
+    "Indexed relay search with local signed network validation",
+    "Visible progress, results, empty state and retry errors"
+  ],
+  "uploaded": false
+}
