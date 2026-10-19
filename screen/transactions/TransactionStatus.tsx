@@ -1,3 +1,4 @@
+import { canUseAuthenticatedBip84Rbf, XbtBip84Transaction } from '../../class/xbt-bip84-transaction';
 import { isXbtTaprootWallet, XbtTaprootTransaction } from '../../class/xbt-taproot-transaction';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
@@ -713,12 +714,14 @@ const TransactionStatus: React.FC = () => {
     if (!wallet || !tx?.hash) {
       return setIsRBFBumpFeePossible(ButtonStatus.Unknown);
     }
-    if (!wallet?.allowRBF()) {
+    if (!wallet.allowRBF() && !canUseAuthenticatedBip84Rbf(wallet)) {
       return setIsRBFBumpFeePossible(ButtonStatus.NotPossible);
     }
 
-    let rbfTx: HDSegwitBech32Transaction | XbtTaprootTransaction;
-    if (isXbtTaprootWallet(wallet)) {
+    let rbfTx: HDSegwitBech32Transaction | XbtTaprootTransaction | XbtBip84Transaction;
+    if (canUseAuthenticatedBip84Rbf(wallet)) {
+      rbfTx = new XbtBip84Transaction(tx.hash, wallet);
+    } else if (isXbtTaprootWallet(wallet)) {
       rbfTx = new XbtTaprootTransaction(null, tx.hash, wallet);
     } else if (isWatchOnlySegwitBech32(wallet)) {
       rbfTx = new HDSegwitBech32Transaction(null, tx.hash, wallet._hdWalletInstance);
@@ -1096,7 +1099,7 @@ const TransactionStatus: React.FC = () => {
   }
 
   return (
-    <SafeAreaScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaScrollView testID="TransactionStatusScroll" contentContainerStyle={styles.scrollContent}>
       {/* Value Section */}
       <View style={styles.valueCard}>
         <View style={styles.valueContent}>
@@ -1154,6 +1157,7 @@ const TransactionStatus: React.FC = () => {
                 <View style={styles.stateButtons}>
                   {isRBFBumpFeePossible === ButtonStatus.Possible && (
                     <TouchableOpacity
+                      testID="TransactionRbfBumpButton"
                       onPress={() => navigateToRBF('RBFBumpFee', tx, wallet)}
                       style={[styles.speedUpButton, stylesHook.speedUpButton]}
                       accessibilityRole="button"

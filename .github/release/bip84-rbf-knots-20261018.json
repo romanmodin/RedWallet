@@ -1,0 +1,55 @@
+{
+  "chain": "regtest",
+  "networkactive": false,
+  "connections": 0,
+  "receipts": [
+    {
+      "format": "BIP84",
+      "originalAcceptance": {
+        "txid": "7220395e51b13f62b94df368578b8479af4e21baf74f39ffa2beaaafcb305e5d",
+        "wtxid": "7761002f0fb6482c627d330ef1b4cc9ec55d87721b88d8b48bfd731aa530d738",
+        "usage": 656,
+        "allowed": true,
+        "vsize": 141,
+        "fees": {
+          "base": 1.46e-06,
+          "effective-feerate": 1.035e-05,
+          "effective-includes": [
+            "7761002f0fb6482c627d330ef1b4cc9ec55d87721b88d8b48bfd731aa530d738"
+          ]
+        }
+      },
+      "replacementAcceptance": {
+        "txid": "2d1e62fe5f4ffb455fc82192e76135d72ea11c444b3096678d44069744ff360d",
+        "wtxid": "b8f43ecf521ee7333686ebcdf68343551ab4e766fa0395a43d441ef4f2815a3b",
+        "usage": 656,
+        "allowed": true,
+        "vsize": 141,
+        "fees": {
+          "base": 1.41e-05,
+          "effective-feerate": 0.0001,
+          "effective-includes": [
+            "b8f43ecf521ee7333686ebcdf68343551ab4e766fa0395a43d441ef4f2815a3b"
+          ]
+        }
+      },
+      "originalHex": "020000000001016b5a48647cceaa9868e86add5cf6b976257bbe16bedfb5a772c9a68b33e6e31f0000000000fdffffff0220a10700000000001600149c90f934ea51fa0f6504177043e0908da69299838ea00700000000001600143e34985dca6fddc9fb369940e4c7d8e2873f529c02483045022100da329afcf6252f3ffed1b6b09a10b9214a0008625c20e7546c4f75940116a52e02201e5b86f7c5a3811ef06689190cf3eb472ca2aa3d2a8b2bc791bd9e2a5362d65721210330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c00000000",
+      "replacementHex": "020000000001016b5a48647cceaa9868e86add5cf6b976257bbe16bedfb5a772c9a68b33e6e31f0000000000fdffffff0220a10700000000001600149c90f934ea51fa0f6504177043e0908da69299839e9b0700000000001600143e34985dca6fddc9fb369940e4c7d8e2873f529c02473044022046e4f43e829f043bc37b9c128aa1fa2d9d54745cb045925715027201cbd069480220097a64827e3d906a59e97e19c468cceff5c0b031274f8328cf5d96adbb8935b921210330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c00000000",
+      "fundingHex": "02000000012414c7a454829c7a6f6c5d4635a525c4e42824e60de2cb07107d44eeb04082a8000000006a4730440220686f2ecaf20a871160db40da14baac5f39f1085b32f0bc23fead1927e43bd1ef02203a1228c5035aff0d1c9d3428fdf8986169920a90942af6145d5bc3db9ccf98d92121020e8a8fda236ffade9c82d0ba1214adb3894074e922cc94fd74a3de212748d921fdffffff0240420f0000000000160014c0cebcd6c3d3ca8c75dc5ec62ebe55330ef910e2e2aef629010000001976a9145b5b1bc601c664e2743c770680f8d3a4d93c8a3688ac97000000",
+      "originalFee": 146,
+      "replacementFee": 1410,
+      "originalTxid": "7220395e51b13f62b94df368578b8479af4e21baf74f39ffa2beaaafcb305e5d",
+      "replacementTxid": "2d1e62fe5f4ffb455fc82192e76135d72ea11c444b3096678d44069744ff360d",
+      "recipientPreserved": true,
+      "changeAboveDust": true,
+      "insufficientIncrementRejected": true,
+      "mined": true
+    }
+  ],
+  "verifiedAt": "2026-10-18T23:43:48.192741+00:00",
+  "scope": "Public software fixture, disposable zero-peer regtest; not native UI or physical-device qualification",
+  "nodeAsset": {
+    "url": "https://github.com/bitcoinknots/bitcoin/releases/download/v29.4.2.knots20260508/bitcoin-29.4.2.knots20260508-x86_64-linux-gnu.tar.gz",
+    "sha256": "b59d0445a317e21a03dc29425db3aba79b27d5125230b1a2b1dce62e120827c5"
+  }
+}

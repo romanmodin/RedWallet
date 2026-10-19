@@ -832,6 +832,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
   return (
     <View style={[styles.flex, { backgroundColor: WalletGradient.headerColorFor(wallet.type) }]} testID="TransactionsListView">
       <FlatList<Transaction>
+        testID="WalletTransactionsList"
         ref={flatListRef}
         style={styles.flatList}
         getItemLayout={getItemLayout}
