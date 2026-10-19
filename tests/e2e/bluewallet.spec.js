@@ -24,7 +24,7 @@ import {
   waitForLabel,
 } from './helperz';
 
-import { submitStoragePassword } from './storage-password';
+import { enterUnlockPassword, submitStoragePassword } from './storage-password';
 
 // if loglevel is set to `error`, this kind of logging will still get through
 console.warn = console.log = (...args) => {
@@ -384,7 +384,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     await sleep(1000); // wait for shake animation and retry
 
     // correct password
-    await element(by.id('PasswordInput')).typeText('qqq\n');
+    await enterUnlockPassword('qqq');
     await waitForKeyboardToClose();
     await waitForWalletsList();
 
@@ -452,7 +452,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     // relaunch app
     await device.launchApp({ newInstance: true });
     await waitForId('PasswordInput');
-    await element(by.id('PasswordInput')).typeText('qqq\n');
+    await enterUnlockPassword('qqq');
     await waitForKeyboardToClose();
     await waitForWalletsList();
 
@@ -462,7 +462,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     // relaunch app
     await device.launchApp({ newInstance: true });
     await waitForId('PasswordInput');
-    await element(by.id('PasswordInput')).typeText('passwordForFakeStorage\n');
+    await enterUnlockPassword('passwordForFakeStorage');
     await waitForKeyboardToClose();
     await waitForWalletsList();
 
@@ -540,7 +540,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     await device.launchApp({ newInstance: true });
     //
     await waitForId('PasswordInput');
-    await element(by.id('PasswordInput')).typeText('pass\n');
+    await enterUnlockPassword('pass');
     await waitForKeyboardToClose();
     await waitForWalletsList();
 

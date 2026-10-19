@@ -5,11 +5,27 @@ import { element, waitFor } from 'detox';
 import { getSwitchValue, goBack, helperCreateWallet, scrollUpOnHomeScreen, waitForId, waitForWalletsList } from './helperz';
 
 const smoke = process.env.REDWALLET_VISUAL_SMOKE === '1' ? describe : describe.skip;
-const capture = async name => {
-  const file = await device.takeScreenshot(name);
+const capture = async (name, orientation) => {
   const directory = path.resolve('artifacts/appearance-discovery');
   fs.mkdirSync(directory, { recursive: true });
-  fs.copyFileSync(file, path.join(directory, name + '.png'));
+  const deadline = Date.now() + 15000;
+  let dimensions = '';
+  // setOrientation can return before the simulator has rendered the rotation.
+  // Do not approve a second portrait frame as landscape evidence.
+  do {
+    const file = await device.takeScreenshot(name);
+    const png = fs.readFileSync(file);
+    if (png.length < 24 || png.toString('ascii', 12, 16) !== 'IHDR') throw new Error('Invalid native PNG capture');
+    const width = png.readUInt32BE(16),
+      height = png.readUInt32BE(20);
+    dimensions = `${width}x${height}`;
+    if (orientation === 'landscape' ? width > height : height > width) {
+      fs.copyFileSync(file, path.join(directory, name + '.png'));
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+  } while (Date.now() < deadline);
+  throw new Error(`Native ${orientation} capture never settled: ${dimensions}`);
 };
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
@@ -42,10 +58,13 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await goBack();
     await waitForWalletsList();
     await scrollUpOnHomeScreen();
-    await capture('01-helmet-portrait');
+    await capture('01-helmet-portrait', 'portrait');
     await device.setOrientation('landscape');
-    await capture('02-helmet-landscape');
+    await waitForWalletsList();
+    await capture('02-helmet-landscape', 'landscape');
     await device.setOrientation('portrait');
+    await waitForWalletsList();
+    await capture('02b-helmet-return-portrait', 'portrait');
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('Tools')))
       .toBeVisible()
@@ -72,7 +91,7 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       }
       if (!status.includes('Listening for updates.') && !status.includes('Connected. No compatible open pools'))
         throw new Error('Pool search never completed: ' + status);
-      await capture('03-pool-discovery');
+      await capture('03-pool-discovery', 'portrait');
       console.log('Native read-only pool discovery:', status);
     } finally {
       await device.enableSynchronization();
