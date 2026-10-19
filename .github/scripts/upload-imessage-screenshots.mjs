@@ -108,12 +108,54 @@ export function existing(images, fileName, checksum) {
   );
   return matches[0];
 }
+export const REJECTED_ID = "adc00019-654f-8a97-8013-067affad4b58";
+export async function retireRejected(api) {
+  const sets = (
+    await api(
+      "GET",
+      "/v1/appStoreVersionLocalizations/" + LOCALE_ID + "/appScreenshotSets",
+    )
+  ).data.filter(
+    (s) => s.attributes?.screenshotDisplayType === "IMESSAGE_APP_IPHONE_67",
+  );
+  check(sets.length === 1, "Unexpected iMessage screenshot set");
+  const setId = id(sets[0].id);
+  const path = "/v1/appScreenshotSets/" + setId + "/appScreenshots";
+  const shots = (await api("GET", path)).data;
+  const rejected = shots.find((s) => s.id === REJECTED_ID);
+  if (!rejected) return false;
+  check(
+    rejected.attributes?.sourceFileChecksum ===
+      "259aeed4ed85d52aaa888fb0b55f4747" &&
+      rejected.attributes.assetDeliveryState?.state === "FAILED" &&
+      rejected.attributes.assetDeliveryState.errors?.some(
+        (e) => e.code === "SPEC_MISMATCH",
+      ),
+    "Rejected asset changed; preserve for review",
+  );
+  check(
+    shots.some(
+      (s) =>
+        s.id !== REJECTED_ID &&
+        s.attributes?.assetDeliveryState?.state === "COMPLETE",
+    ),
+    "Replacement iMessage screenshot not complete",
+  );
+  await api("DELETE", "/v1/appScreenshots/" + REJECTED_ID);
+  check(
+    !(await api("GET", path)).data.some((s) => s.id === REJECTED_ID),
+    "Rejected asset removal not confirmed",
+  );
+  return true;
+}
+
 export function client(token, request = fetch) {
   return async (method, path, payload) => {
     const get =
       /^\/v1\/(?:apps\/6817118871|appStoreVersions\/[A-Za-z0-9-]+(?:\/appStoreVersionLocalizations)?|appStoreVersionLocalizations\/[A-Za-z0-9-]+\/appScreenshotSets|appScreenshotSets\/[A-Za-z0-9-]+\/appScreenshots|appScreenshots\/[A-Za-z0-9-]+)$/;
     check(
       (method === "GET" && get.test(path)) ||
+        (method === "DELETE" && path === "/v1/appScreenshots/" + REJECTED_ID) ||
         (method === "POST" &&
           ["/v1/appScreenshotSets", "/v1/appScreenshots"].includes(path)) ||
         (method === "PATCH" &&
@@ -141,6 +183,7 @@ export function client(token, request = fetch) {
       ...(payload ? { body: JSON.stringify(payload) } : {}),
     });
     check(r.ok, "Apple screenshot request failed");
+    if (r.status === 204) return {};
     const result = await r.json();
     check(!result.links?.next, "Incomplete Apple screenshot response");
     return result;
@@ -177,6 +220,14 @@ export async function upload(
     locales.some((x) => x.id === LOCALE_ID && x.attributes?.locale === "en-US"),
     "Wrong localization",
   );
+  if (filePrefix === "redwallet-imessage") {
+    check(
+      images.some(
+        (i) => i.family === "iphone" && i.width === 1320 && i.height === 2868,
+      ),
+      "Reviewed large-display screenshot required",
+    );
+  }
   for (const image of images) {
     check(
       approvedImages.some(
@@ -305,6 +356,9 @@ export async function upload(
       check(Date.now() < deadline, "Apple screenshot processing still pending");
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
+  }
+  if (filePrefix === "redwallet-imessage") {
+    report.retiredRejectedScreenshot = await retireRejected(api);
   }
   return report;
 }
