@@ -802,6 +802,29 @@ export const getBalanceByAddress = async function (address: string): Promise<{ c
   }
 };
 
+/** A read-only, bounded snapshot reader. Never reconnects, changes providers or opens an alert. */
+export function createChainFreshnessReader() {
+  const client = mainClient;
+  if (!client || connState !== 'connected') throw new Error('Electrum unavailable');
+  const assertCurrent = () => {
+    if (client !== mainClient || connState !== 'connected') throw new Error('Electrum provider changed');
+  };
+  return {
+    assertCurrent,
+    async tip(): Promise<{ height: number }> {
+      const result = await boundedRequest<{ height: number }>(client.blockchainHeaders_subscribe(), 8000);
+      assertCurrent();
+      return result;
+    },
+    async header(height: number): Promise<string> {
+      const result = await boundedRequest<string>(client.blockchainBlock_header(height), 8000);
+      assertCurrent();
+      if (!/^[0-9a-f]{328}$/i.test(result)) throw new Error('Invalid XBT header');
+      return result;
+    },
+  };
+}
+
 export const getConfig = async function () {
   if (!mainClient) {
     return {
