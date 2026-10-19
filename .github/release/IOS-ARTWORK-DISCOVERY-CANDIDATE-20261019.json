@@ -1,28 +1,32 @@
 {
-  "sourceCommit": "2df7aa9afe69e6453e899d29be2fd9f4618f9263",
+  "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
   "productionTreeSha256": "60a3da7ddf0aafedabc8880ef79e218c63c66bf7498eda310d4eac3cae92ff11",
   "productionPathCount": 985,
   "status": "AWAITING_NATIVE_QUALIFICATION_AND_VISUAL_REVIEW",
   "requiredRuns": {
-    "ci": 39274677453,
-    "ios": 39274677570,
-    "fundedIos": 39274783897
+    "ci": 39297579896,
+    "ios": 39297579842,
+    "fundedIos": 39297639315
   },
   "softwareTests": {
     "status": "pending",
-    "runId": 39274677453,
+    "runId": 39297579896,
     "localValidation": {
-      "suites": 110,
-      "passed": 1023,
+      "suites": 111,
+      "passed": 1030,
       "inheritedSkipped": 1,
       "lintErrors": 0,
       "existingWarnings": 19,
-      "sourceCommit": "2e2236f1f69b9793a7c7f27436104702fdfa4177"
+      "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8"
     },
     "focusedCaptureTests": {
       "suites": 2,
       "passed": 11,
       "scope": "native capture helper and storage password driver; ESLint on changed smoke/helper passed"
+    },
+    "focusedKeyboardTests": {
+      "passed": 7,
+      "scope": "bounded Done dismissal helper; no wallet action retry"
     }
   },
   "readOnlyRelayProbe": {
@@ -37,16 +41,25 @@
   ],
   "uploaded": false,
   "nativeVisualReview": {
-    "sourceCommit": "af7710de8b2c527060b57f4224d6777381762e8b",
-    "runId": 39248046525,
-    "artifactId": 12191525105,
-    "portrait": "visually inspected and approved",
+    "sourceCommit": "2df7aa9afe69e6453e899d29be2fd9f4618f9263",
+    "runId": 39274677570,
+    "artifactId": 12203748697,
+    "artifactSha256": "456382d2607297eb6c6d419c63c20c22e58063aa5d75a0c4b331936519d41967",
+    "inspectedAt": "2026-10-19T17:52:00Z",
+    "portrait": "Inspected: centered helmet, readable empty wallet; 402x874 native bounds",
+    "landscape": "Inspected: rotated landscape UIKit content, framed helmet; 874x402 native bounds despite portrait framebuffer",
+    "returnPortrait": "Inspected: restored centered helmet and 402x874 bounds",
     "poolDiscovery": {
       "compatiblePools": 2,
+      "denominationsSats": [
+        1000000,
+        20000000
+      ],
       "joined": false,
-      "imageSha256": "d3fb559361cceef4e6b16c574a855a7137c1db99c5201d69d2383910290117b0"
+      "imageSha256": "60485f13fadf7a5031991a50cdb216ada5b9a65965b1dd010faa1de692a956ef"
     },
-    "landscape": "Pending fresh qualification. On2e2236 iOS timed out the geometry update despite Detox acknowledgement;402x874nativebounds and unchangedPNG correctly failed. Test now attaches Simulator explicitly; all orientation assertions remain mandatory."
+    "qualifiesReplacement": false,
+    "replacementReview": "Fresh exact-source 9f native captures and gates still required"
   },
   "protocolReview": {
     "protocolVersion": 3,
@@ -55,23 +68,21 @@
     "result": "v3 already implemented; discovery filter corrected"
   },
   "previousGateResults": {
-    "sourceCommit": "2e2236f1f69b9793a7c7f27436104702fdfa4177",
+    "sourceCommit": "2df7aa9afe69e6453e899d29be2fd9f4618f9263",
     "ci": {
-      "runId": 39268942125,
+      "runId": 39274677453,
       "conclusion": "success"
     },
-    "fundedIos": {
-      "runId": 39268990880,
-      "conclusion": "success",
-      "artifactId": 12197296008,
-      "artifactSha256": "0da7a2a907c76a4ecfc26212373f322d3be9a02b4f4554894b870864b470a0e2"
-    },
     "ios": {
-      "runId": 39268942193,
+      "runId": 39274677570,
+      "conclusion": "success",
+      "artifactId": 12203748697
+    },
+    "fundedIos": {
+      "runId": 39274783897,
       "conclusion": "failure",
-      "artifactId": 12195309967,
-      "artifactSha256": "655646b3a128d8a4992cd6b04bab1d67f2e2a31283ebe80d9c4cf7e0d07663fb",
-      "cause": "Native iOS orientation request timed out; full native suite skipped"
+      "cause": "Fee keyboard remained visible before replacement preparation",
+      "artifactId": 12198542981
     },
     "qualifiesReplacement": false
   }

@@ -5,12 +5,12 @@ permissions:
   contents: read
   actions: read
 env:
-  SOURCE_COMMIT: 2df7aa9afe69e6453e899d29be2fd9f4618f9263
-  PUBLIC_SOURCE_COMMIT: 2df7aa9afe69e6453e899d29be2fd9f4618f9263
+  SOURCE_COMMIT: 9f627fb87b4b6cc28cddcf6ad45e2edc721551a8
+  PUBLIC_SOURCE_COMMIT: 9f627fb87b4b6cc28cddcf6ad45e2edc721551a8
   PRODUCTION_TREE_SHA256: 60a3da7ddf0aafedabc8880ef79e218c63c66bf7498eda310d4eac3cae92ff11
-  CI_RUN_ID: '39274677453'
-  IOS_RUN_ID: '39274677570'
-  FUNDED_IOS_RUN_ID: '39274783897'
+  CI_RUN_ID: '39297579896'
+  IOS_RUN_ID: '39297579842'
+  FUNDED_IOS_RUN_ID: '39297639315'
 jobs:
   capture:
     if: github.ref == 'refs/heads/main'
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout pinned app
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
-          ref: 2df7aa9afe69e6453e899d29be2fd9f4618f9263
+          ref: 9f627fb87b4b6cc28cddcf6ad45e2edc721551a8
           persist-credentials: false
       - name: Checkout capture and verification tools
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
