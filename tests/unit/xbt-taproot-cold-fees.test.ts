@@ -12,6 +12,12 @@ import startImport from '../../class/wallet-import';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({
   multiGetTransactionByTxid: jest.fn(),
+  createCpfpTransactionReader: () => async (id: string) => {
+    const api = require('../../blue_modules/BlueElectrum');
+    const verbose = (await api.multiGetTransactionByTxid([id], true))[id];
+    const hex = (await api.multiGetTransactionByTxid([id], false))[id];
+    return { ...verbose, hex };
+  },
   getTransactionsByAddress: jest.fn().mockResolvedValue([]),
 }));
 const ECPair = ECPairFactory(ecc);
@@ -26,13 +32,24 @@ function fixture() {
   watch.init();
   watch.setUseWithHardwareWalletEnabled(true);
   const parent = new bitcoin.Transaction();
-  parent.addInput(Buffer.alloc(32, 1), 0);
+  const funding = new bitcoin.Transaction();
+  funding.addInput(Buffer.alloc(32, 1), 0);
+  funding.addOutput(bitcoin.address.toOutputScript(cold._getExternalAddressByIndex(0)), 100_100n);
+  parent.addInput(Buffer.from(funding.getId(), 'hex').reverse(), 0);
   const address = cold._getExternalAddressByIndex(0);
   parent.addOutput(bitcoin.address.toOutputScript(address), 100_000n);
   const history: any[] = [{ txid: parent.getId(), rawHex: parent.toHex(), confirmations: 100 }];
   jest.spyOn(cold, 'getTransactions').mockImplementation(() => history);
   jest.spyOn(watch._hdWalletInstance!, 'getTransactions').mockImplementation(() => history);
-  const utxos = [{ txid: parent.getId(), vout: 0, address, value: 100_000, confirmations: 100 }];
+  const utxos = [
+    {
+      txid: parent.getId(),
+      vout: 0,
+      address,
+      value: 100_000,
+      confirmations: 100,
+    },
+  ];
   const change = cold._getInternalAddressByIndex(0);
   const targets = [{ address: cold._getExternalAddressByIndex(1), value: 50_000 }];
   const request = watch.createTransaction(utxos, targets, 1, change).psbt;
@@ -50,30 +67,60 @@ function fixture() {
           spent.map(out => out.value),
           1,
         );
-        result.data.updateInput(index, { tapKeySig: Buffer.concat([key.signSchnorr!(digest), Buffer.from([0x21])]) });
+        result.data.updateInput(index, {
+          tapKeySig: Buffer.concat([key.signSchnorr!(digest), Buffer.from([0x21])]),
+        });
       } else {
-        signUnifiedTaprootInput(result, index, { publicKey: key.publicKey.subarray(1), sign: digest => key.signSchnorr!(digest) });
+        signUnifiedTaprootInput(result, index, {
+          publicKey: key.publicKey.subarray(1),
+          sign: digest => key.signSchnorr!(digest),
+        });
       }
       if (finalize) finalizeUnifiedTaprootInput(result, index, verify);
     });
     return result;
   };
   const original = cold.createTransaction(utxos, targets, 1, change).tx!;
-  history.push({ txid: original.getId(), rawHex: original.toHex(), confirmations: 0, value: -50_000 });
+  history.push({
+    txid: original.getId(),
+    rawHex: original.toHex(),
+    confirmations: 0,
+    value: -50_000,
+  });
   const mockRemote = () => {
     (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (ids: string[], verbose: boolean) =>
       Object.fromEntries(
         ids.map(id => [
           id,
           verbose
-            ? { txid: id, confirmations: history.find(tx => tx.txid === id)?.confirmations ?? 100 }
+            ? {
+                txid: id,
+                confirmations: history.find(tx => tx.txid === id)?.confirmations ?? 100,
+              }
             : history.find(tx => tx.txid === id)?.rawHex,
         ]),
       ),
     );
   };
+  history.push({
+    txid: funding.getId(),
+    rawHex: funding.toHex(),
+    confirmations: 100,
+  });
   mockRemote();
-  return { cold, watch, parent, history, utxos, change, targets, request, original, sign, mockRemote };
+  return {
+    cold,
+    watch,
+    parent,
+    history,
+    utxos,
+    change,
+    targets,
+    request,
+    original,
+    sign,
+    mockRemote,
+  };
 }
 
 describe('Taproot cold signing', () => {
@@ -118,7 +165,10 @@ describe('Taproot cold signing', () => {
     altered.setVersion(request.version);
     altered.addInput({ ...request.txInputs[0], ...request.data.inputs[0] });
     request.txOutputs.forEach((output, index) =>
-      altered.addOutput({ script: output.script, value: output.value - BigInt(index === 0 ? 1 : 0) }),
+      altered.addOutput({
+        script: output.script,
+        value: output.value - BigInt(index === 0 ? 1 : 0),
+      }),
     );
     expect(() => watch.combinePsbt(request, sign(altered))).toThrow();
   });
@@ -214,7 +264,11 @@ describe('Taproot fee bumping', () => {
     const { cold, utxos, targets, change, history } = fixture();
     for (const sequence of [0xfffffffe, 0xffffffff]) {
       const transaction = cold.createTransaction(utxos, targets, 1, change, sequence).tx!;
-      history.push({ txid: transaction.getId(), rawHex: transaction.toHex(), confirmations: 0 });
+      history.push({
+        txid: transaction.getId(),
+        rawHex: transaction.toHex(),
+        confirmations: 0,
+      });
       const controller = new XbtTaprootTransaction(null, transaction.getId(), cold);
       expect(await controller.isSequenceReplaceable()).toBe(false);
       await expect(controller.createRBFbumpFee(3)).rejects.toThrow();
@@ -271,6 +325,11 @@ describe('Taproot fee bumping', () => {
     expect(child.outs).toHaveLength(1);
     expect(wallet.addressIsChange(bitcoin.address.fromOutputScript(child.outs[0].script))).toBe(true);
     history[0].confirmations = 0;
-    await expect(controller.createCPFPbumpFee(10)).rejects.toThrow('confirmed inputs');
+    const chainedResult = await controller.createCPFPbumpFee(10);
+    const chainedChild = external ? watch.combinePsbt(chainedResult.psbt, sign(chainedResult.psbt)) : chainedResult.tx!;
+    const ancestor = bitcoin.Transaction.fromHex(history[0].rawHex);
+    expect(
+      (100 + info.fee + chainedResult.fee) / (ancestor.virtualSize() + original.virtualSize() + chainedChild.virtualSize()),
+    ).toBeGreaterThanOrEqual(10);
   });
 });

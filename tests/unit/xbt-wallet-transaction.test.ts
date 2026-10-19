@@ -10,6 +10,12 @@ import knotsAcceptance from '../fixtures/xbt-knots-regtest-acceptance.json';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({
   multiGetTransactionByTxid: jest.fn(),
+  createCpfpTransactionReader: () => async (id: string) => {
+    const api = require('../../blue_modules/BlueElectrum');
+    const verbose = (await api.multiGetTransactionByTxid([id], true))[id];
+    const hex = (await api.multiGetTransactionByTxid([id], false))[id];
+    return { ...verbose, hex };
+  },
   multiGetUtxoByAddress: jest.fn(),
   multiGetHistoryByAddress: jest.fn(),
   estimateCurrentBlockheight: jest.fn(),
@@ -389,6 +395,7 @@ describe('XBT wallet transaction flow', () => {
       },
     ] as any);
     const remote = {
+      txid: original.getId(),
       confirmations: 0,
       vout: original.outs.map((output, n) => ({
         n,
@@ -398,18 +405,40 @@ describe('XBT wallet transaction flow', () => {
         },
       })),
     };
-    (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (txids: string[]) =>
+    (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (txids: string[], verbose: boolean) =>
       Object.fromEntries(
         txids.map(txid => [
           txid,
-          txid === fundingTxid
-            ? {
-                vout: [{ value: 0.001, scriptPubKey: { address: source } }],
-              }
-            : remote,
+          !verbose
+            ? txid === fundingTxid
+              ? parent.rawHex
+              : original.toHex()
+            : txid === fundingTxid
+              ? {
+                  txid: fundingTxid,
+                  confirmations: 100,
+                  vout: [{ value: 0.001, scriptPubKey: { address: source } }],
+                }
+              : remote,
         ]),
       ),
     );
+    wallet._utxo = original.outs.flatMap((output, vout) => {
+      const address = bitcoin.address.fromOutputScript(output.script);
+      return wallet.weOwnAddress(address)
+        ? [
+            {
+              txid: original.getId(),
+              vout,
+              address,
+              value: Number(output.value),
+              height: 0,
+              confirmations: 0,
+            },
+          ]
+        : [];
+    });
+    jest.spyOn(wallet, 'fetchUtxo').mockResolvedValue();
     const helper = new HDSegwitBech32Transaction(original.toHex(), null, wallet);
     expect(await helper.isSequenceReplaceable()).toBe(true);
     // Ordinary sends retain valid Unified signatures; only the unsafe fee workflow is blocked.

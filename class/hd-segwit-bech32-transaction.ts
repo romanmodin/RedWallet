@@ -370,7 +370,9 @@ export class HDSegwitBech32Transaction {
     if (targets.length === 0) {
       // looks like this was cancelled tx with single change output, so it wasnt included in `this.getInfo()` targets
       // so we add output paying ourselves:
-      targets.push({ address: this._wallet._getInternalAddressByIndex(this._wallet.next_free_change_address_index) });
+      targets.push({
+        address: this._wallet._getInternalAddressByIndex(this._wallet.next_free_change_address_index),
+      });
       // not checking emptiness on purpose: it could unpredictably generate too far address because of unconfirmed tx.
     }
 

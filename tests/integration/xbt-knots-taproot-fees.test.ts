@@ -11,6 +11,12 @@ import { signUnifiedTaprootInput } from '../../class/xbt/unified-taproot-psbt';
 
 jest.mock('../../blue_modules/BlueElectrum', () => ({
   multiGetTransactionByTxid: jest.fn(),
+  createCpfpTransactionReader: () => async (id: string) => {
+    const api = require('../../blue_modules/BlueElectrum');
+    const verbose = (await api.multiGetTransactionByTxid([id], true))[id];
+    const hex = (await api.multiGetTransactionByTxid([id], false))[id];
+    return { ...verbose, hex };
+  },
   getTransactionsByAddress: jest.fn().mockResolvedValue([]),
 }));
 const testBridge = process.env.XBT_KNOTS_FIXTURE ? it : it.skip;
@@ -32,7 +38,11 @@ testBridge('exports cold signed original, replacement and CPFP transactions for 
     const transaction = bitcoin.Transaction.fromHex(funding.rawTx);
     expect(transaction.isCoinbase()).toBe(false);
     expect(funding.confirmations).toBeGreaterThan(0);
-    return { txid: transaction.getId(), rawHex: funding.rawTx, confirmations: funding.confirmations };
+    return {
+      txid: transaction.getId(),
+      rawHex: funding.rawTx,
+      confirmations: funding.confirmations,
+    };
   });
   jest.spyOn(watch._hdWalletInstance!, 'getTransactions').mockImplementation(() => history);
   const utxos = [60_000, 40_000].map((value, index) => {
@@ -41,7 +51,15 @@ testBridge('exports cold signed original, replacement and CPFP transactions for 
     const matches = history.flatMap(parent =>
       bitcoin.Transaction.fromHex(parent.rawHex).outs.flatMap((output, vout) =>
         output.value === BigInt(value) && script.equals(Buffer.from(output.script))
-          ? [{ txid: parent.txid, vout, value, address, confirmations: parent.confirmations }]
+          ? [
+              {
+                txid: parent.txid,
+                vout,
+                value,
+                address,
+                confirmations: parent.confirmations,
+              },
+            ]
           : [],
       ),
     );
@@ -55,7 +73,10 @@ testBridge('exports cold signed original, replacement and CPFP transactions for 
       expect(input.nonWitnessUtxo).toBeDefined();
       const address = bitcoin.address.fromOutputScript(input.witnessUtxo!.script);
       const key = ECPair.fromWIF(cold._getWifForAddress(address)!).tweak(bitcoin.crypto.taggedHash('TapTweak', input.tapInternalKey!));
-      signUnifiedTaprootInput(returned, index, { publicKey: key.publicKey.subarray(1), sign: digest => key.signSchnorr!(digest) });
+      signUnifiedTaprootInput(returned, index, {
+        publicKey: key.publicKey.subarray(1),
+        sign: digest => key.signSchnorr!(digest),
+      });
     });
     return watch.combinePsbt(request.toBase64(), returned.toBase64());
   };
@@ -66,13 +87,21 @@ testBridge('exports cold signed original, replacement and CPFP transactions for 
     watch._getInternalAddressByIndex(0),
   );
   const original = externalSign(originalResult.psbt);
-  history.push({ txid: original.getId(), rawHex: original.toHex(), confirmations: 0, value: -90_000 });
+  history.push({
+    txid: original.getId(),
+    rawHex: original.toHex(),
+    confirmations: 0,
+    value: -90_000,
+  });
   (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (ids: string[], verbose: boolean) =>
     Object.fromEntries(
       ids.map(id => [
         id,
         verbose
-          ? { txid: id, confirmations: history.find(tx => tx.txid === id)?.confirmations }
+          ? {
+              txid: id,
+              confirmations: history.find(tx => tx.txid === id)?.confirmations,
+            }
           : history.find(tx => tx.txid === id)?.rawHex,
       ]),
     ),
@@ -101,9 +130,24 @@ testBridge('exports cold signed original, replacement and CPFP transactions for 
       {
         chain: fixture.chain,
         height: fixture.height,
-        original: { hex: original.toHex(), txid: original.getId(), fee: originalResult.fee, vsize: original.virtualSize() },
-        replacement: { hex: replacement.toHex(), txid: replacement.getId(), fee: replacementResult.fee, vsize: replacement.virtualSize() },
-        cpfp: { hex: child.toHex(), txid: child.getId(), fee: childResult.fee, vsize: child.virtualSize() },
+        original: {
+          hex: original.toHex(),
+          txid: original.getId(),
+          fee: originalResult.fee,
+          vsize: original.virtualSize(),
+        },
+        replacement: {
+          hex: replacement.toHex(),
+          txid: replacement.getId(),
+          fee: replacementResult.fee,
+          vsize: replacement.virtualSize(),
+        },
+        cpfp: {
+          hex: child.toHex(),
+          txid: child.getId(),
+          fee: childResult.fee,
+          vsize: child.virtualSize(),
+        },
         negative: { changedOutput: mutation.toHex() },
       },
       null,
