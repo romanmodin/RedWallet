@@ -8,7 +8,7 @@ import Button from '../../components/Button';
 import { change, feeShare } from '../../class/xbt/kilojoin/transaction';
 
 /** Offline preview. Deliberately has no wallet, relay, signing or broadcast dependencies. */
-const CoinjoinExperimental: React.FC = () => {
+export const CoinjoinPreview: React.FC = () => {
   const { colors } = useTheme();
   const [selected, setSelected] = useState(50000);
   const [reviewing, setReviewing] = useState(false);
@@ -28,9 +28,7 @@ const CoinjoinExperimental: React.FC = () => {
     <SettingsScrollView testID="CoinjoinExperimentalScreen">
       <View style={styles.content}>
         <Text style={styles.badge}>Experimental</Text>
-        <SettingsFootnote testID="CoinjoinOfflineNotice">
-          Offline preview · Sample coins only. Live joining is not enabled.
-        </SettingsFootnote>
+        <SettingsFootnote testID="CoinjoinOfflineNotice">Offline preview · Sample coins only. No real coins are used.</SettingsFootnote>
         <Text style={[styles.heading, { color: colors.foregroundColor }]}>{reviewing ? 'Review sample round' : 'Join a pool'}</Text>
         <SettingsFootnote>Combine transactions with other participants. You approve the transaction before signing.</SettingsFootnote>
         <View style={cardStyle}>
@@ -95,5 +93,26 @@ const styles = StyleSheet.create({
   link: { color: '#D3263E', paddingVertical: 12, fontSize: 17, fontWeight: '600' },
   credit: { textAlign: 'center', marginTop: 12 },
 });
-const CoinjoinEntry: React.FC = () => (LIVE_JOIN_ENABLED ? <CoinjoinLive /> : <CoinjoinExperimental />);
+const CoinjoinEntry: React.FC = () => {
+  const { colors } = useTheme();
+  const [mode, setMode] = useState<'entry' | 'sample' | 'live'>('entry');
+  if (mode === 'live' && LIVE_JOIN_ENABLED) return <CoinjoinLive experimentalAcknowledged />;
+  if (mode === 'sample') return <CoinjoinPreview />;
+  return (
+    <SettingsScrollView testID="CoinjoinEntryScreen">
+      <View style={styles.content}>
+        <Text style={styles.badge}>Experimental · Testing</Text>
+        <Text style={[styles.heading, { color: colors.foregroundColor }]}>CoinJoin</Text>
+        <SettingsFootnote>
+          CoinJoin is still being tested. Use small amounts you can afford to lose. If a signed round is interrupted, its coins may remain
+          reserved until resolved.
+        </SettingsFootnote>
+        <SettingsFootnote>You choose coins, review the exact fee and approve signing. Nothing starts automatically.</SettingsFootnote>
+        {LIVE_JOIN_ENABLED && <Button title="Try experimental CoinJoin" testID="CoinjoinOptIn" onPress={() => setMode('live')} />}
+        <Button title="Try sample coins first" testID="CoinjoinSample" onPress={() => setMode('sample')} />
+        <SettingsFootnote>Powered by Kilojoin · by Kilombino</SettingsFootnote>
+      </View>
+    </SettingsScrollView>
+  );
+};
 export default CoinjoinEntry;

@@ -20,6 +20,12 @@ jest.mock('../../blue_modules/BlueElectrum', () => ({
   multiGetBalanceByAddress: jest.fn(),
   multiGetUtxoByAddress: jest.fn(),
   multiGetTransactionByTxid: jest.fn(),
+  createCpfpTransactionReader: () => async (id: string) => {
+    const api = require('../../blue_modules/BlueElectrum');
+    const verbose = (await api.multiGetTransactionByTxid([id], true))[id];
+    const hex = (await api.multiGetTransactionByTxid([id], false))[id];
+    return { ...verbose, hex };
+  },
   getReportedBlockTip: jest.fn().mockResolvedValue(200),
   estimateCurrentBlockheight: jest.fn().mockReturnValue(200),
   broadcastV2: jest.fn(),
@@ -67,7 +73,10 @@ test.each(['segwit', 'taproot'] as const)(
                   return parent && addressOf(parent.raw.outs[input.index]?.script) === address;
                 }),
             )
-            .map(([tx_hash, record]) => ({ tx_hash, height: record.confirmations ? 200 - record.confirmations + 1 : 0 })),
+            .map(([tx_hash, record]) => ({
+              tx_hash,
+              height: record.confirmations ? 200 - record.confirmations + 1 : 0,
+            })),
         ]),
       ),
     );
@@ -113,7 +122,16 @@ test.each(['segwit', 'taproot'] as const)(
           .map(id => {
             const record = records.get(id)!;
             const decoded = BlueElectrum.txhexToElectrumTransaction(record.raw.toHex());
-            return [id, verbose ? { ...decoded, rawHex: record.raw.toHex(), confirmations: record.confirmations } : record.raw.toHex()];
+            return [
+              id,
+              verbose
+                ? {
+                    ...decoded,
+                    rawHex: record.raw.toHex(),
+                    confirmations: record.confirmations,
+                  }
+                : record.raw.toHex(),
+            ];
           }),
       ),
     );

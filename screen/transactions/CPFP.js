@@ -6,7 +6,7 @@ import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import { isXbtTaprootWallet, XbtTaprootTransaction } from '../../class/xbt-taproot-transaction';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import React, { Component } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Platform } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import PropTypes from 'prop-types';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
@@ -82,8 +82,21 @@ export default class CPFP extends Component {
     };
   }
 
+  feeActionAllowed() {
+    return this.state.wallet.allowRBF();
+  }
+
+  requiresXbtFeeReview() {
+    const wallet = this.state.wallet;
+    return (
+      isXbtTaprootWallet(wallet) ||
+      wallet?.type === XbtSegwitBech32Wallet.type ||
+      (wallet instanceof WatchOnlyWallet && wallet._hdWalletInstance?.type === XbtSegwitBech32Wallet.type)
+    );
+  }
+
   reviewFeeBump(result) {
-    if (!isXbtTaprootWallet(this.state.wallet)) return;
+    if (!this.requiresXbtFeeReview()) return;
     if (!result.tx) throw new Error('A signed fee bump is required');
     const recipients = result.tx.outs.filter(output => {
       try {
@@ -95,18 +108,54 @@ export default class CPFP extends Component {
     const recipientValue = recipients.reduce((sum, output) => sum + output.value, 0n);
     const amountSats = Number(recipientValue || result.tx.outs.reduce((sum, output) => sum + output.value, 0n));
     const feeRate = result.fee / result.tx.virtualSize();
-    const review = { feeSats: result.fee, feeRate, amountSats, hex: result.tx.toHex() };
+    const review = {
+      feeSats: result.fee,
+      feeRate,
+      amountSats,
+      hex: result.tx.toHex(),
+    };
     // Validate the numeric review even when the fee does not trigger a warning.
     requiresHighFeeApproval(review);
     this.feeReview = review;
-    this.setState({ feeSats: result.fee, actualFeeRate: feeRate });
+    const reviewedOutputs = result.tx.outs.map(output => {
+      let address;
+      try {
+        address = bitcoin.address.fromOutputScript(output.script);
+      } catch {
+        address = `Script: ${Buffer.from(output.script).toString('hex')}`;
+      }
+      return {
+        address,
+        valueSats: output.value.toString(),
+        change: this.state.wallet.addressIsChange(address),
+      };
+    });
+    this.setState({
+      feeSats: result.fee,
+      actualFeeRate: feeRate,
+      reviewedOutputs,
+    });
+  }
+
+  async isBiometricUseEnabled() {
+    try {
+      return !!(await this.context.getItem('Biometrics'));
+    } catch (error) {
+      // Native secure storage rejects an unset preference on fresh installs.
+      // Other storage failures must still prevent broadcasting.
+      const missingAndroid = Platform.OS === 'android' && error.message?.endsWith('"message":Biometrics has not been set}');
+      const missingIos = Platform.OS === 'ios' && error.message === '{"message":"key does not present"}';
+      if (error.code === '404' && (missingAndroid || missingIos)) return false;
+      throw error;
+    }
   }
 
   broadcast = () => {
     this.setState({ isLoading: true }, async () => {
       try {
-        if (isXbtTaprootWallet(this.state.wallet)) {
-          if ((await this.context.getItem('Biometrics')) && !(await unlockWithBiometrics())) {
+        if (this.requiresXbtFeeReview()) {
+          if (!this.feeActionAllowed()) throw new Error('Fee actions are disabled for this wallet');
+          if ((await this.isBiometricUseEnabled()) && !(await unlockWithBiometrics())) {
             this.setState({ isLoading: false });
             return;
           }
@@ -240,6 +289,7 @@ export default class CPFP extends Component {
           <BlueSpacing />
           <Button
             disabled={this.state.newFeeRate <= this.state.feeRate}
+            testID="FeeBumpCreateButton"
             onPress={() => this.createTransaction()}
             title={loc.transactions.cpfp_create}
           />
@@ -250,20 +300,31 @@ export default class CPFP extends Component {
 
   renderStage2() {
     return (
-      <View style={styles.root}>
+      <ScrollView testID="FeeBumpReviewScroll" contentContainerStyle={styles.root}>
         <BlueCard style={styles.center}>
           {this.state.feeSats !== undefined && (
-            <BlueText>{`Fee: ${this.state.feeSats} sats (${this.state.actualFeeRate.toFixed(2)} sats/vB)`}</BlueText>
+            <BlueText testID="FeeBumpFeeSummary">{`Fee: ${this.state.feeSats} sats (${this.state.actualFeeRate.toFixed(2)} sats/vB)`}</BlueText>
           )}
+          {this.state.reviewedOutputs?.map((output, index) => (
+            <BlueText
+              testID={`FeeBumpOutput${index}`}
+              key={index}
+            >{`${output.change ? 'Change' : 'Recipient'}: ${output.address} — ${output.valueSats} sats`}</BlueText>
+          ))}
           <BlueText style={styles.hex}>{loc.send.create_this_is_hex}</BlueText>
-          <TextInput style={styles.hexInput} height={112} multiline editable value={this.state.txhex} />
+          <TextInput testID="FeeBumpHexInput" style={styles.hexInput} height={112} multiline editable value={this.state.txhex} />
 
           <TouchableOpacity accessibilityRole="button" style={styles.action} onPress={() => Clipboard.setString(this.state.txhex)}>
             <Text style={styles.actionText}>{loc.send.create_copy}</Text>
           </TouchableOpacity>
-          <Button disabled={this.context.isElectrumDisabled} onPress={this.broadcast} title={loc.send.confirm_sendNow} />
+          <Button
+            testID="FeeBumpBroadcastButton"
+            disabled={this.context.isElectrumDisabled}
+            onPress={this.broadcast}
+            title={loc.send.confirm_sendNow}
+          />
         </BlueCard>
-      </View>
+      </ScrollView>
     );
   }
 

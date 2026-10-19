@@ -167,7 +167,7 @@ describe('Kilojoin adversarial boundaries', () => {
     expect(() => protocol.parsePool(sign({ ...terms, creator: terms.public_key }), 1791400000)).toThrow();
     expect(() => protocol.parsePool(sign({ ...terms, fee_rate: NaN }), 1791400000)).toThrow();
   });
-  test('live joining remains gated', () => expect(protocol.LIVE_JOIN_ENABLED).toBe(false));
+  test('experimental participation is available for explicit opt-in', () => expect(protocol.LIVE_JOIN_ENABLED).toBe(true));
 });
 
 describe('offline round lifecycle', () => {

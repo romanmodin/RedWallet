@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import * as bitcoin from 'bitcoinjs-lib';
 import CPFP from '../../screen/transactions/CPFP';
 import RBFBumpFee from '../../screen/transactions/RBFBumpFee';
@@ -146,4 +148,104 @@ it.each([
   expect(screen.state.stage).toBe(1);
   expect(reviewState.txhex).toBeUndefined();
   expect(broadcast).not.toHaveBeenCalled();
+});
+
+it('prepares decoded BIP84 output and fee review but blocks its disabled broadcast path', async () => {
+  const { screen, transaction } = reviewScreen();
+  const wallet = new XbtSegwitBech32Wallet();
+  wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+  const broadcast = jest.spyOn(wallet, 'broadcastTx').mockResolvedValue(true);
+  Object.assign(screen.state, { wallet });
+  screen.reviewFeeBump({ tx: transaction, fee: 123 });
+  expect((screen.state as any).feeSats).toBe(123);
+  expect((screen.state as any).reviewedOutputs[0].valueSats).toBe('50000');
+  expect((screen.state as any).reviewedOutputs[0].address).toBe(bitcoin.address.fromOutputScript(transaction.outs[0].script));
+  screen.broadcast();
+  await flush();
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+});
+
+it('blocks a stale BIP84 fee screen before inspection or transaction construction', async () => {
+  const { screen } = reviewScreen(20_000, 0, false, RBFBumpFee);
+  const wallet = new XbtSegwitBech32Wallet();
+  jest.spyOn(wallet, 'allowAuthenticatedRBF').mockReturnValue(false);
+  const history = jest.spyOn(wallet, 'getTransactions');
+  const createRBFbumpFee = jest.fn();
+  Object.assign(screen.state, { wallet, tx: { createRBFbumpFee }, newFeeRate: '20', feeRate: 1 });
+  await (screen as RBFBumpFee).checkPossibilityOfRBFBumpFee();
+  await (screen as RBFBumpFee).createTransaction();
+  expect(history).not.toHaveBeenCalled();
+  expect(createRBFbumpFee).not.toHaveBeenCalled();
+  expect(screen.state).toMatchObject({ nonReplaceable: true, isLoading: false });
+  expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+});
+
+it('permits only the separately enabled BIP84 RBF review; CPFP stays blocked', async () => {
+  const wallet = new XbtSegwitBech32Wallet();
+  wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+  jest.spyOn(wallet, 'allowAuthenticatedRBF').mockReturnValue(true);
+  const broadcast = jest.spyOn(wallet, 'broadcastTx').mockResolvedValue(true);
+  for (const Screen of [CPFP, RBFBumpFee]) {
+    const { screen, transaction } = reviewScreen(500, 0, false, Screen);
+    Object.assign(screen.state, { wallet });
+    screen.reviewFeeBump({ tx: transaction, fee: 500 });
+    screen.broadcast();
+    await flush();
+    if (Screen === CPFP) expect(broadcast).not.toHaveBeenCalled();
+    else expect(broadcast).toHaveBeenCalledWith(transaction.toHex());
+  }
+  expect(wallet.allowRBF()).toBe(false);
+});
+
+it('requires high-fee approval on the separately enabled BIP84 replacement route', async () => {
+  const { screen, transaction } = reviewScreen(500, 0, false, RBFBumpFee);
+  const wallet = new XbtSegwitBech32Wallet();
+  wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+  jest.spyOn(wallet, 'allowAuthenticatedRBF').mockReturnValue(true);
+  const broadcast = jest.spyOn(wallet, 'broadcastTx').mockResolvedValue(true);
+  Object.assign(screen.state, { wallet });
+  screen.reviewFeeBump({ tx: transaction, fee: 20000 });
+  (confirm as jest.Mock).mockResolvedValue(false);
+  screen.broadcast();
+  await flush();
+  expect(confirm).toHaveBeenCalledWith('High transaction fee', expect.stringContaining('20000 sats'));
+  expect(broadcast).not.toHaveBeenCalled();
+});
+
+it.each(['10junk', 'Infinity', '-2', ''])('rejects malformed RBF fee rate %s before building', async newFeeRate => {
+  const { screen } = reviewScreen(500, 0, false, RBFBumpFee);
+  const createRBFbumpFee = jest.fn();
+  Object.assign(screen.state, { newFeeRate, feeRate: 1, tx: { createRBFbumpFee } });
+  await screen.createTransaction();
+  expect(createRBFbumpFee).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['android', '{"code":404,"api-level":35,"message":Biometrics has not been set}'],
+  ['ios', '{"message":"key does not present"}'],
+] as const)('permits a reviewed fee bump with an unset %s biometric preference', async (platform, message) => {
+  Platform.OS = platform;
+  const { screen, broadcast, transaction, storage } = reviewScreen(200, 90_000);
+  storage.getItem.mockRejectedValue(Object.assign(new Error(message), { code: '404' }));
+  screen.broadcast();
+  await flush();
+  expect(unlockWithBiometrics).not.toHaveBeenCalled();
+  expect(broadcast).toHaveBeenCalledWith(transaction.toHex());
+  expect(screen.onSuccessBroadcast).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  ['1', 'Keystore cannot be unlocked'],
+  ['404', 'An unrelated key has not been set'],
+  ['404', 'Biometrics storage is corrupted'],
+])('keeps storage failure %s/%s as a broadcast gate', async (code, message) => {
+  Platform.OS = 'android';
+  const { screen, broadcast, storage } = reviewScreen(200, 90_000);
+  storage.getItem.mockRejectedValue(Object.assign(new Error(message), { code }));
+  screen.broadcast();
+  await flush();
+  expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(screen.state.isLoading).toBe(false);
 });

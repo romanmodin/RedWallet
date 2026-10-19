@@ -36,7 +36,7 @@ function fixture() {
   const key = ECPair.fromWIF(cold._getWifForAddress(address)!);
   const signed = request.clone();
   signUnifiedP2wpkhInput(signed, 0, key);
-  return { watch, request, signed, key, utxos, targets, change };
+  return { watch, request, signed, key, utxos, targets, change, funding };
 }
 
 describe('XBT external signing', () => {
@@ -102,4 +102,65 @@ describe('XBT external signing', () => {
     expect(restored._hdWalletInstance).toBeInstanceOf(XbtSegwitBech32Wallet);
     expect(restored._hdWalletInstance!.getSecret()).not.toBe(mnemonic);
   });
+});
+
+function replacementFixture() {
+  const state = fixture();
+  const original = state.watch.combinePsbt(state.request, state.signed);
+  jest.spyOn(state.watch._hdWalletInstance!, 'getTransactions').mockReturnValue([
+    { txid: state.funding.getId(), rawHex: state.funding.toHex(), confirmations: 100 },
+    { txid: original.getId(), rawHex: original.toHex(), confirmations: 0 },
+  ] as any);
+  return { ...state, original };
+}
+
+it('verifies an externally signed replacement and invalidates previous broadcast approval', async () => {
+  const { watch, original, key } = replacementFixture();
+  const broadcast = jest.spyOn(watch._hdWalletInstance!, 'broadcastTx').mockResolvedValue(true);
+  const replacement = watch.createAuthenticatedRBFTransaction(original.getId(), 3);
+  expect(replacement.tx).toBeUndefined();
+  expect(watch.allowRBF()).toBe(false);
+  await expect(watch.broadcastTx(original.toHex())).rejects.toThrow('verified signing request');
+  expect(broadcast).not.toHaveBeenCalled();
+  const signed = replacement.psbt.clone();
+  signUnifiedP2wpkhInput(signed, 0, key);
+  const verified = watch.combinePsbt(replacement.psbt, signed);
+  expect(verified.outs[0]).toEqual(original.outs[0]);
+  await expect(watch.broadcastTx(verified.toHex())).resolves.toBe(true);
+  expect(broadcast).toHaveBeenCalledWith(verified.toHex());
+});
+it('rejects signatures for a superseded replacement request', () => {
+  const { watch, original, key } = replacementFixture();
+  const first = watch.createAuthenticatedRBFTransaction(original.getId(), 3).psbt;
+  const signed = first.clone();
+  signUnifiedP2wpkhInput(signed, 0, key);
+  watch.createAuthenticatedRBFTransaction(original.getId(), 4);
+  expect(() => watch.combinePsbt(first, signed)).toThrow('current reviewed signing request');
+});
+it('clears the previous signing session even when replacement construction fails', async () => {
+  const { watch, original, request, signed } = replacementFixture();
+  const broadcast = jest.spyOn(watch._hdWalletInstance!, 'broadcastTx').mockResolvedValue(true);
+  expect(() => watch.createAuthenticatedRBFTransaction('00'.repeat(32), 3)).toThrow('known unconfirmed');
+  expect(() => watch.combinePsbt(request, signed)).toThrow('current reviewed signing request');
+  await expect(watch.broadcastTx(original.toHex())).rejects.toThrow('verified signing request');
+  expect(broadcast).not.toHaveBeenCalled();
+});
+it('requires explicit enrollment for the replacement builder', () => {
+  const { watch, original } = replacementFixture();
+  watch.xbt_signer_enabled = false;
+  expect(() => watch.createAuthenticatedRBFTransaction(original.getId(), 3)).toThrow('Enable');
+});
+
+it('rejects replacement outputs changed by an external signer without authorizing broadcast', async () => {
+  const { watch, original } = replacementFixture();
+  const request = watch.createAuthenticatedRBFTransaction(original.getId(), 3).psbt;
+  const altered = new bitcoin.Psbt();
+  altered.setVersion(request.version);
+  altered.setLocktime(request.locktime);
+  request.txInputs.forEach((input, index) => altered.addInput({ ...input, ...request.data.inputs[index] }));
+  request.txOutputs.forEach((output, index) => altered.addOutput({ script: output.script, value: output.value - (index === 0 ? 1n : 0n) }));
+  const broadcast = jest.spyOn(watch._hdWalletInstance!, 'broadcastTx').mockResolvedValue(true);
+  expect(() => watch.combinePsbt(request, altered)).toThrow();
+  await expect(watch.broadcastTx(original.toHex())).rejects.toThrow('verified signing request');
+  expect(broadcast).not.toHaveBeenCalled();
 });

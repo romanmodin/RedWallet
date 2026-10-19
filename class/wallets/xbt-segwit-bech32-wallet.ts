@@ -1,5 +1,7 @@
 import { Journal } from '../xbt/kilojoin/round';
 import { assertUnreserved, reservedCoins } from '../xbt/kilojoin/wallet-store';
+import { inspectBip84Original, planBip84Replacement } from '../xbt/bip84-replacement';
+import { CreateTransactionResult } from './types';
 import { ECPairFactory } from 'ecpair';
 
 import ecc from '../../blue_modules/noble_ecc';
@@ -30,6 +32,26 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
   // Fee actions remain disabled until authenticated BIP84 replacement and fee review land.
   allowRBF() {
     return false;
+  }
+
+  // Authenticated replacement is separate from the blocked legacy cancel/CPFP paths.
+  allowAuthenticatedRBF() {
+    return true;
+  }
+
+  getAuthenticatedRBFInfo(txid: string) {
+    const history = this.getTransactions();
+    const known = history.find(transaction => transaction.txid === txid);
+    if (!known?.rawHex || known.confirmations !== 0) throw new Error('Replacement requires a known unconfirmed transaction');
+    const parents = new Map<string, string>();
+    history.forEach(transaction => {
+      if (transaction.rawHex) parents.set(transaction.txid, transaction.rawHex);
+    });
+    const result = inspectBip84Original(txid, known.rawHex, parents, script => this.weOwnAddress(bitcoin.address.fromOutputScript(script)));
+    return {
+      ...result,
+      feeRate: result.oldFee / result.original.virtualSize(),
+    };
   }
 
   allowPayJoin() {
@@ -134,6 +156,105 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
       if (coinbase && !isMatureXbtCoinbase(confirmations)) return [];
       return [{ ...utxo, coinbase, confirmations }];
     });
+  }
+
+  /** Construct only the authenticated plan; legacy fee routes remain disabled. */
+  createAuthenticatedRBFTransaction(txid: string, feeRate: number, skipSigning = false, masterFingerprint = 0): CreateTransactionResult {
+    const history = new Map(this.getTransactions().map(transaction => [transaction.txid, transaction]));
+    const known = history.get(txid);
+    if (!known?.rawHex || known.confirmations !== 0) throw new Error('Replacement requires a known unconfirmed transaction');
+    const parents = new Map<string, string>();
+    history.forEach((transaction, id) => {
+      if (transaction.rawHex) parents.set(id, transaction.rawHex);
+    });
+    const plan = planBip84Replacement(
+      txid,
+      known.rawHex,
+      parents,
+      feeRate,
+      script => this.weOwnAddress(bitcoin.address.fromOutputScript(script)),
+      script => {
+        try {
+          return this.addressIsChange(bitcoin.address.fromOutputScript(script));
+        } catch {
+          return false;
+        }
+      },
+    );
+    assertUnreserved(
+      this,
+      plan.original.ins.map(input => ({ txid: Buffer.from(input.hash).reverse().toString('hex'), vout: input.index })),
+    );
+    const psbt = new bitcoin.Psbt();
+    psbt.setVersion(plan.original.version);
+    psbt.setLocktime(plan.original.locktime);
+    const fingerprint = Buffer.alloc(4);
+    fingerprint.writeUInt32LE(masterFingerprint);
+    const inputs = plan.original.ins.map((input, index) => {
+      const id = Buffer.from(input.hash).reverse().toString('hex');
+      const parent = parseVerifiedParentTransaction(id, parents.get(id)!);
+      const output = parent.outs[input.index];
+      if (output.value > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Input amount exceeds safe range');
+      if (parent.isCoinbase() && !isMatureXbtCoinbase(history.get(id)?.confirmations)) {
+        throw new Error('XBT coinbase outputs require 6480 confirmations before spending');
+      }
+      const address = bitcoin.address.fromOutputScript(output.script);
+      const utxo = {
+        txid: id,
+        vout: input.index,
+        address,
+        value: Number(output.value),
+      };
+      this._addPsbtInput(psbt, utxo, input.sequence, fingerprint);
+      psbt.updateInput(index, {
+        sighashType: SIGHASH_ALL_UNIFIED,
+        nonWitnessUtxo: Buffer.from(parents.get(id)!, 'hex'),
+      });
+      return utxo;
+    });
+    plan.outputs.forEach(output => {
+      let address: string;
+      try {
+        address = bitcoin.address.fromOutputScript(output.script);
+      } catch {
+        psbt.addOutput(output);
+        return;
+      }
+      if (!this.addressIsChange(address)) {
+        psbt.addOutput(output);
+        return;
+      }
+      const path = this._getDerivationPathByAddress(address);
+      const pubkey = this._getPubkeyByAddress(address);
+      if (!path || !pubkey) throw new Error('Replacement change derivation is unavailable');
+      const derivedScript = bitcoin.payments.p2wpkh({ pubkey }).output;
+      if (!derivedScript || !Buffer.from(derivedScript).equals(Buffer.from(output.script))) {
+        throw new Error('Replacement change derivation does not match output');
+      }
+      psbt.addOutput({
+        ...output,
+        bip32Derivation: [{ masterFingerprint: fingerprint, path, pubkey }],
+      });
+    });
+    const result: CreateTransactionResult = {
+      inputs,
+      outputs: plan.outputs.map(output => ({ value: Number(output.value) })),
+      fee: plan.fee,
+      psbt,
+    };
+    if (skipSigning) return result;
+    inputs.forEach((input, index) => {
+      const wif = this._getWifForAddress(input.address);
+      if (!wif) throw new Error('Replacement input key is unavailable');
+      const key = ECPair.fromWIF(wif);
+      signUnifiedP2wpkhInput(psbt, index, {
+        publicKey: key.publicKey,
+        sign: digest => key.sign(Buffer.from(digest)),
+      });
+      finalizeUnifiedP2wpkhInput(psbt, index, key.publicKey, (publicKey, digest, signature) => ecc.verify(digest, publicKey, signature));
+    });
+    result.tx = psbt.extractTransaction();
+    return result;
   }
 
   createTransaction(...args: Parameters<AbstractHDElectrumWallet['createTransaction']>) {

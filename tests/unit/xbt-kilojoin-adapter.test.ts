@@ -101,8 +101,8 @@ test.each([XbtSegwitBech32Wallet, XbtTaprootWallet])(
   },
 );
 
-test('native client release gate rejects joining before reading wallet keys or opening sockets', async () => {
-  await expect(MixingClient.join({} as never)).rejects.toThrow('not enabled');
+test('native client requires experimental acknowledgment before reading wallet keys or opening sockets', async () => {
+  await expect(MixingClient.join({} as never)).rejects.toThrow('acknowledgment required');
 });
 
 test('recovered signed rounds retain locks until corroborated confirmation and freeze recovered outputs', async () => {

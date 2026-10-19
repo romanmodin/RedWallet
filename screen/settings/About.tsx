@@ -80,6 +80,22 @@ const About: React.FC = () => {
       </SettingsSection>
 
       <SettingsSection>
+        <SettingsListItem
+          title="Privacy Policy"
+          testID="RedWalletPrivacyPolicy"
+          chevron
+          onPress={() => Linking.openURL('https://github.com/romanmodin/RedWallet/blob/main/docs/PRIVACY.md')}
+        />
+        <SettingsListItem
+          title="RedWallet Support"
+          testID="RedWalletSupport"
+          chevron
+          onPress={() => Linking.openURL('https://github.com/romanmodin/RedWallet/issues')}
+          bottomDivider={false}
+        />
+      </SettingsSection>
+
+      <SettingsSection>
         <View style={styles.builtWithContent}>
           <BlueTextCentered>{loc.settings.about_awesome} 👍</BlueTextCentered>
           <BlueSpacing20 />

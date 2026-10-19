@@ -1,4 +1,6 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
+import { useTheme } from '../../components/themes';
 
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import loc from '../../loc';
@@ -6,6 +8,7 @@ import { SettingsSection, SettingsListItem, SettingsScrollView } from '../../com
 
 const SettingsTools: React.FC = () => {
   const navigation = useExtendedNavigation();
+  const { dark } = useTheme();
   const navigateToIsItMyAddress = () => {
     navigation.navigate('IsItMyAddress');
   };
@@ -23,7 +26,9 @@ const SettingsTools: React.FC = () => {
       <SettingsSection>
         <SettingsListItem
           title="CoinJoin — Experimental"
-          subtitle="Offline preview with sample coins"
+          subtitle="Opt-in mixing · Still in testing"
+          titleStyle={dark ? styles.experimentalDark : styles.experimentalLight}
+          containerStyle={styles.experimentalRow}
           iconName="tools"
           onPress={() => navigation.navigate('CoinjoinExperimental')}
           testID="CoinjoinExperimental"
@@ -56,4 +61,9 @@ const SettingsTools: React.FC = () => {
   );
 };
 
+const styles = StyleSheet.create({
+  experimentalDark: { color: '#D9A53A' },
+  experimentalLight: { color: '#805500' },
+  experimentalRow: { borderLeftWidth: 3, borderLeftColor: '#D9A53A' },
+});
 export default SettingsTools;

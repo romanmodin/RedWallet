@@ -1,7 +1,11 @@
 # Kilojoin experimental integration
 
-Status: participant implementation and native adapters under test. The app route remains
-an **offline sample preview**, not a live mixing client. LIVE_JOIN_ENABLED is false.
+Status: opt-in experimental participation in the main app under Settings > Tools.
+The user authorized inclusion as a visibly experimental feature on October 18, 2026.
+An amber Testing label, explicit entry acknowledgment and per-transaction signing
+confirmation distinguish participation from the separately available offline sample.
+LIVE_JOIN_ENABLED is true; client joins also require experimentalAcknowledged=true.
+This is experimental distribution, not a claim of complete device qualification.
 
 Pinned upstream: Kilombino/kilowallet v1.1.6, commit
 `06e1ac9a346bd810db1749ca0b1048d0da980c35`.
@@ -25,7 +29,7 @@ Implemented:
 - Restart recovery aborts unsigned rounds and retains signed/uncertain reservations.
   It deliberately does not automatically resume signing after restart.
 - Native app controls and orchestration for pool discovery, wallet/coin selection,
-  review/approval, broadcast and independent confirmation; disabled by the release gate.
+  review/approval, broadcast and independent confirmation after explicit opt-in.
 - Confirmed output labels and frozen change; restart confirmation freezes recovered
   outputs instead of guessing their privacy role.
 - Native backend adapter verifies raw parents, matching unspent/history heights and
@@ -45,10 +49,10 @@ types and rejected corrupted signatures. Real loopback WebSocket tests additiona
 separate output connections, and obsolete subscription frames. These do not
 constitute native device review.
 
-Remaining release gates:
+Remaining qualification work (not represented as completed):
 1. Device qualification of the implemented live UI/orchestrator: pool discovery,
    wallet/coin selection, exact review, explicit signing/broadcast, confirmation and
-   conservative restart recovery. The release gate still shows only the offline preview.
+   conservative restart recovery. The sample preview remains available without accessing a wallet.
 2. Device review of mixed/change labels: confirmed change is frozen; conservatively
    recovered outputs are all frozen until the user reviews and unfreezes them.
 3. Combine the passing Kotlin-peer and disposable-node harnesses with real WebSocket
@@ -58,6 +62,9 @@ Remaining release gates:
 5. Native iOS/Android/device validation and bounded mobile RSA performance review.
    JS BigInt blind-RSA operations are not claimed to be constant-time.
 
-Latest local checks: 18 suites / 144 tests passed; full TypeScript check passed.
+Previous isolated-branch checks: 18 suites / 144 tests passed. Combined-source checks
+are recorded in the PR and exact-source CI, including the new SegWit RBF reservation regression.
 No mainnet transactions or relay connections are performed by unit tests.
-Do not enable live mixing merely by flipping the feature constant.
+Main iOS signing still requires the existing exact-source unit/lint, general iOS and
+funded BIP84 gates. The user approved experimental availability, not removal of
+transaction validation, durable reservations or signing confirmations.

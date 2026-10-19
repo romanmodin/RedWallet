@@ -150,6 +150,7 @@ const ReplaceFeeSuggestions: React.FC<ReplaceFeeSuggestionsProps> = ({ onFeeSele
         </View>
         <View style={[styles.buttonContent, styles.customFeeInputContainer]}>
           <TextInput
+            testID="FeeBumpRateInput"
             onChangeText={handleCustomFeeChange}
             keyboardType="numeric"
             value={customFeeValue}

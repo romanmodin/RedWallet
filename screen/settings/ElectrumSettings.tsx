@@ -1,3 +1,4 @@
+import ChainReferenceSettings from '../../components/ChainReferenceSettings';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Keyboard, Platform, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -592,6 +593,7 @@ const ElectrumSettings: React.FC = () => {
             />
           ))}
         </SettingsSection>
+        <ChainReferenceSettings />
         <SettingsSection title={loc.settings.electrum_preferred_server}>
           <View style={settingsCardContent}>
             <SettingsFootnote>

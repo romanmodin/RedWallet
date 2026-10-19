@@ -2,7 +2,8 @@
 import { hex, mac, utf8Hash, verifyEvent, NostrEvent } from './crypto';
 import { publicKey } from './blind-rsa';
 import { Coin, outpoint } from './transaction';
-export const LIVE_JOIN_ENABLED = false;
+// Experimental participation is opt-in in the main app; each join also requires explicit acknowledgment.
+export const LIVE_JOIN_ENABLED = true;
 export const PROTOCOL_VERSION = 3;
 export const RELAY = 'wss://relay.kilombino.com';
 export type Terms = {

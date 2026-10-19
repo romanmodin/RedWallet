@@ -1,4 +1,5 @@
 import React, { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ChainFreshnessIndicator, { useChainFreshness } from '../components/ChainFreshnessIndicator';
 import { Animated, AppState, View, Platform, Text, StyleSheet, Pressable, Image } from 'react-native';
 import type { NativeStackHeaderItem, NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { createEllipsisHeaderMenuOptions } from '../components/headerMenuOptions';
@@ -160,6 +161,7 @@ const DetailViewStackScreensStack = () => {
   const navigation = useExtendedNavigation();
   const { walletTransactionUpdateStatus } = useStorage();
   const { isElectrumDisabled } = useSettings();
+  const chainFreshness = useChainFreshness(isElectrumDisabled);
   const { sizeClass } = useSizeClass();
   const [electrumConnected, setElectrumConnected] = useState<boolean | null>(null);
 
@@ -264,6 +266,7 @@ const DetailViewStackScreensStack = () => {
     const showUpdating = !isElectrumDisabled && isUpdating;
 
     const renderHeaderLeft = () => {
+      if (!showOffline) return React.createElement(ChainFreshnessIndicator, chainFreshness);
       if (showOffline) {
         const offlineBg = theme.dark ? theme.colors.darkGray : '#000000';
         return React.createElement(OfflineModePill, { onPress: navigateToElectrumSettings, backgroundColor: offlineBg });
@@ -345,6 +348,7 @@ const DetailViewStackScreensStack = () => {
     };
   }, [
     RightBarButtons,
+    chainFreshness,
     sizeClass,
     theme.colors.customHeader,
     theme.colors.headerProminentButtonBackgroundColor,

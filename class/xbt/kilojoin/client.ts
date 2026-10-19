@@ -1,4 +1,4 @@
-/** Native orchestration. Kept behind the release gate until live/device qualification. */
+/** Native experimental orchestration. Requires explicit opt-in; never signs automatically. */
 import { address, Transaction } from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
 import ecc from '../../../blue_modules/noble_ecc';
@@ -51,6 +51,7 @@ export class MixingClient {
 
   static async join(config: Parameters<typeof MixingClient.start>[0]): Promise<MixingClient> {
     if (!LIVE_JOIN_ENABLED) throw new Error('Live CoinJoin is not enabled');
+    if (config.experimentalAcknowledged !== true) throw new Error('Experimental CoinJoin acknowledgment required');
     if (joining.has(config.wallet)) throw new Error('Wallet is already joining a round');
     joining.add(config.wallet);
     try {
@@ -62,6 +63,7 @@ export class MixingClient {
 
   private static async start(config: {
     poolEvent: NostrEvent;
+    experimentalAcknowledged: boolean;
     wallet: MixingWallet;
     selected: string[];
     maxFee: number;
@@ -69,6 +71,7 @@ export class MixingClient {
     onUpdate(view: ClientView): void;
   }): Promise<MixingClient> {
     if (!LIVE_JOIN_ENABLED) throw new Error('Live CoinJoin is not enabled');
+    if (config.experimentalAcknowledged !== true) throw new Error('Experimental CoinJoin acknowledgment required');
     const app = BlueApp.getInstance(),
       wallet = config.wallet,
       terms = parsePool(config.poolEvent, clock());

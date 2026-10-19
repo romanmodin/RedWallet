@@ -16,7 +16,7 @@ import { change, feeShare } from '../../class/xbt/kilojoin/transaction';
 import { Utxo } from '../../class/wallets/types';
 
 /** Live route is unreachable while release validation is incomplete. */
-export default function CoinjoinLive() {
+export default function CoinjoinLive({ experimentalAcknowledged = false }: { experimentalAcknowledged?: boolean }) {
   const { colors } = useTheme(),
     { wallets } = useStorage();
   const choices = wallets.filter((w): w is MixingWallet => w instanceof XbtSegwitBech32Wallet || w instanceof XbtTaprootWallet);
@@ -93,6 +93,7 @@ export default function CoinjoinLive() {
   const start = async () => {
     if (!pool || !wallet) throw new Error('Select a wallet and pool');
     const created = await MixingClient.join({
+      experimentalAcknowledged,
       poolEvent: pool.event,
       wallet,
       selected,
@@ -333,7 +334,15 @@ export default function CoinjoinLive() {
 const styles = StyleSheet.create({
   content: { padding: 20, gap: 16 },
   title: { fontSize: 30, fontWeight: '700' },
-  badge: { color: '#D9A53A', fontWeight: '600' },
+  badge: {
+    color: '#F3C15D',
+    backgroundColor: '#392B12',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    fontWeight: '600',
+  },
   card: { borderRadius: 18, padding: 18, gap: 10 },
   choice: { paddingVertical: 12 },
   input: { borderWidth: 1, borderColor: '#777', borderRadius: 10, padding: 12 },

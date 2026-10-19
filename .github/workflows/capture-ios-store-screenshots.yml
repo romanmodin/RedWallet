@@ -1,0 +1,119 @@
+name: Capture approved iOS App Store screenshots
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+env:
+  SOURCE_COMMIT: dece41b5ebeed892b66c5fb3b8e1ba32dc07b8df
+  PUBLIC_SOURCE_COMMIT: dece41b5ebeed892b66c5fb3b8e1ba32dc07b8df
+  PRODUCTION_TREE_SHA256: b087c9351883771dec81d0425bb27564c2f16b0d853f7745942f5b4503e594a3
+  CI_RUN_ID: '39182714947'
+  IOS_RUN_ID: '39182714863'
+  FUNDED_IOS_RUN_ID: '39182714902'
+jobs:
+  capture:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [iphone, ipad]
+    steps:
+      - name: Checkout pinned app
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: dece41b5ebeed892b66c5fb3b8e1ba32dc07b8df
+          persist-credentials: false
+      - name: Checkout capture and verification tools
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          path: .reviewed-orchestration
+          persist-credentials: false
+      - name: Verify source and qualification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I .reviewed-orchestration/.github/scripts/verify-production-source.py --source-commit "$SOURCE_COMMIT" --public-commit "$PUBLIC_SOURCE_COMMIT" --expected-hash "$PRODUCTION_TREE_SHA256"
+          python3 -I .reviewed-orchestration/.github/scripts/verify-ios-release-gates.py
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install test dependencies
+        run: npm ci
+      - name: Install simulator controls
+        run: |
+          brew tap wix/brew
+          brew trust wix/brew
+          brew install applesimutils
+      - name: Download qualified simulator artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: bluewallet-ios-app
+          run-id: ${{ env.IOS_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Restore app and capture driver
+        run: |
+          mkdir -p ios/build/Build/Products/Release-iphonesimulator
+          tar -xzf BlueWallet.app.tar.gz -C ios/build/Build/Products/Release-iphonesimulator
+          cp .reviewed-orchestration/tests/e2e/appstore-screenshots.spec.js tests/e2e/
+      - name: Prepare screenshot simulator
+        env:
+          STORE_FAMILY: ${{ matrix.family }}
+        run: |
+          python3 - <<'PY'
+          import json,os,subprocess
+          def sim(*args):
+              return subprocess.check_output(['xcrun','simctl',*args],text=True)
+          types=json.loads(sim('list','devicetypes','--json'))['devicetypes']
+          family=os.environ['STORE_FAMILY']
+          candidates=[d for d in types if (d['name']=='iPhone 17 Pro Max' if family=='iphone' else d['name'].startswith('iPad Pro 13-inch'))]
+          if not candidates:
+              raise SystemExit('Required App Store device type is unavailable; do not resize another device screenshot')
+          device=candidates[-1]
+          runtimes=[r for r in json.loads(sim('list','runtimes','--json'))['runtimes'] if r['isAvailable'] and r['name'].startswith('iOS ')]
+          runtime=max(runtimes,key=lambda r:tuple(int(n) for n in r['version'].split('.')))
+          devices=json.loads(sim('list','devices','available','--json'))['devices'].get(runtime['identifier'],[])
+          matching=[d for d in devices if d.get('deviceTypeIdentifier')==device['identifier']]
+          udid=matching[0]['udid'] if matching else sim('create','RedWallet Store Screenshots',device['identifier'],runtime['identifier']).strip()
+          subprocess.run(['xcrun','simctl','boot',udid],check=False)
+          subprocess.run(['xcrun','simctl','bootstatus',udid,'-b'],check=True)
+          subprocess.run(['xcrun','simctl','status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100'],check=True)
+          with open(os.environ['GITHUB_ENV'],'a') as out:
+              out.write('STORE_DEVICE_NAME='+device['name']+'\nSTORE_RUNTIME='+runtime['name']+'\n')
+          print('Capture device:',device['name'],runtime['name'])
+          PY
+      - name: Capture actual native screens
+        env:
+          REDWALLET_STORE_SCREENSHOTS: '1'
+        run: |
+          npm run e2e:test:ios-release -- tests/e2e/appstore-screenshots.spec.js --runTestsByPath --device-name "$STORE_DEVICE_NAME" --take-screenshots manual --record-videos none --record-logs none --capture-view-hierarchy disabled --headless --retries 0 --artifacts-location ./artifacts/capture
+      - name: Record screenshot provenance
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,struct
+          from pathlib import Path
+          files=sorted(Path('artifacts/app-store').glob('*.png'))
+          if len(files)!=4:
+              raise SystemExit('Expected all four screenshot frames')
+          images=[]
+          for p in files:
+              data=p.read_bytes()
+              if data[:8]!=b'\x89PNG\r\n\x1a\n':
+                  raise SystemExit('Screenshot is not a PNG')
+              w,h=struct.unpack('>II',data[16:24])
+              images.append({'file':p.name,'sha256':hashlib.sha256(data).hexdigest(),'width':w,'height':h})
+          receipt={'sourceCommit':os.environ['SOURCE_COMMIT'],'simulatorArtifactRun':os.environ['IOS_RUN_ID'],'device':os.environ['STORE_DEVICE_NAME'],'runtime':os.environ['STORE_RUNTIME'],'images':images,'demoWallet':'new empty disposable wallet','balancesFabricated':False,'physicalDeviceTest':False}
+          Path('artifacts/app-store/provenance.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          print(json.dumps(receipt,indent=2))
+          PY
+      - name: Save reviewable screenshots
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: app-store-screenshots-${{ matrix.family }}
+          path: artifacts/app-store/
+          if-no-files-found: error
+          retention-days: 30

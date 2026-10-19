@@ -51,7 +51,7 @@ test('live controls select coins but require an explicit confirmation before sig
   jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
   jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([{ txid: '11'.repeat(32), vout: 0, value: 50000 } as never]);
   const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-  const screen = render(<CoinjoinLive />);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
   await act(async () => {
     fireEvent.press(screen.getByText('○ Test wallet'));
   });
@@ -63,7 +63,9 @@ test('live controls select coins but require an explicit confirmation before sig
   await act(async () => {
     fireEvent.press(screen.getByText('Join pool and reserve coins'));
   });
-  expect(mockJoin).toHaveBeenCalledWith(expect.objectContaining({ selected: ['11'.repeat(32) + ':0'], maxFee: 1000 }));
+  expect(mockJoin).toHaveBeenCalledWith(
+    expect.objectContaining({ selected: ['11'.repeat(32) + ':0'], maxFee: 1000, experimentalAcknowledged: true }),
+  );
   fireEvent.press(screen.getByText('Review and sign'));
   expect(mockApprove).not.toHaveBeenCalled();
   const buttons = prompt.mock.calls[0][2]!;
