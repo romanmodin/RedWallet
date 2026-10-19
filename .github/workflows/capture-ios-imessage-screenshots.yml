@@ -52,12 +52,33 @@ jobs:
           name: bluewallet-ios-app
           run-id: ${{ env.IOS_RUN_ID }}
           github-token: ${{ github.token }}
-      - name: Prepare disposable simulator and unchanged app
-        env:
-          STORE_FAMILY: ${{ matrix.family }}
+      - name: Restore simulator app and compile its qualified sticker extension
         run: |
           mkdir -p artifacts/imessage simulator-app
           tar -xzf BlueWallet.app.tar.gz -C simulator-app
+          set -o pipefail
+          xcodebuild -project ios/BlueWallet.xcodeproj -target Stickers -configuration Release -sdk iphonesimulator SYMROOT="$PWD/sticker-build" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee artifacts/imessage/sticker-build.log
+          python3 - <<'PY'
+          import json,plistlib,shutil
+          from pathlib import Path
+          apps=list(Path('simulator-app').glob('*.app'))
+          assert len(apps)==1
+          app=apps[0]
+          extension=Path('sticker-build/Release-iphonesimulator/Stickers.appex')
+          assert extension.is_dir(), 'Qualified sticker target must build successfully'
+          ai=plistlib.loads((app/'Info.plist').read_bytes())
+          ei=plistlib.loads((extension/'Info.plist').read_bytes())
+          assert ei['CFBundleIdentifier']==ai['CFBundleIdentifier']+'.Stickers'
+          assert ei['NSExtension']['NSExtensionPointIdentifier']=='com.apple.message-payload-provider'
+          (app/'PlugIns').mkdir(exist_ok=True)
+          assert not (app/'PlugIns'/'Stickers.appex').exists(), 'Do not overwrite an unexpected extension'
+          shutil.copytree(extension,app/'PlugIns'/'Stickers.appex')
+          print('Restored omitted simulator sticker extension from the exact qualified source')
+          PY
+      - name: Prepare disposable simulator and qualified app plus extension
+        env:
+          STORE_FAMILY: ${{ matrix.family }}
+        run: |
           python3 - <<'PY'
           import json,os,plistlib,subprocess
           from pathlib import Path
@@ -85,7 +106,7 @@ jobs:
               records.append({'name':info.get('CFBundleDisplayName'),'bundleId':info.get('CFBundleIdentifier'),'extensionPoint':info.get('NSExtension',{}).get('NSExtensionPointIdentifier')})
           assert any(r['extensionPoint']=='com.apple.message-payload-provider' for r in records)
           subprocess.run(['xcrun','simctl','install',udid,str(app)],check=True)
-          receipt={'sourceCommit':os.environ['SOURCE_COMMIT'],'simulatorArtifactRun':os.environ['IOS_RUN_ID'],'device':device['name'],'runtime':runtime['name'],'extensions':records,'captureStatus':'DIAGNOSTIC_ONLY','freshSimulator':True,'messagesSent':False,'physicalDeviceTest':False}
+          receipt={'sourceCommit':os.environ['SOURCE_COMMIT'],'simulatorArtifactRun':os.environ['IOS_RUN_ID'],'device':device['name'],'runtime':runtime['name'],'extensions':records,'captureStatus':'DIAGNOSTIC_ONLY','extensionBuild':'Stickers target compiled from exact source; omitted by general simulator CI','freshSimulator':True,'messagesSent':False,'physicalDeviceTest':False}
           Path('artifacts/imessage/provenance.json').write_text(json.dumps(receipt,indent=2)+'\n')
           print(json.dumps(receipt,indent=2))
           with open(os.environ['GITHUB_ENV'],'a') as out:
