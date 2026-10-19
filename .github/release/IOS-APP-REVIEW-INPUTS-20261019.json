@@ -1,0 +1,40 @@
+{
+  "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+  "build": "1792439689",
+  "version": "8.0.1",
+  "appleBuildId": "8f82931c-2a19-43cb-b15b-93182f029ae5",
+  "receipts": [
+    {
+      "runId": 39312792179,
+      "head": "2e48763dfe0b1dd90763c47323143af527bd8148",
+      "artifactId": 12220032028,
+      "archiveSha256": "741e37b7d0711cafc4993b82926b09f15ebdf50389e224f500d8d90398e36222",
+      "member": "ios-ipa-verification.json",
+      "sha256": "92b5e49cc3f6e23fbfc75aba03cfe47b025958ff1fbcc0a94250a9334061b499"
+    },
+    {
+      "runId": 39325724147,
+      "head": "dbbc3d5c1e1c77d483cb20a8de074d351b8d59b5",
+      "artifactId": 12221918812,
+      "archiveSha256": "93a427ee0af34ff489cc368bb19ccd649f591c44efbc13250e10a9b434c53b3f",
+      "member": "testflight-beta-verification.json",
+      "sha256": "b5c627a862ef5a2c87939000b8fd6c2689366bbc086f03b89b207e40227e394d"
+    },
+    {
+      "runId": 39318465990,
+      "head": "2a75085cb930609501d0362afa1e0b48aee8e9ed",
+      "artifactId": 12219810127,
+      "archiveSha256": "66b67589a4c52286f6366aa8562048f40be5ff58acc57dd5a40969fcb50b7955",
+      "member": "store-screenshot-receipt.json",
+      "sha256": "24a55e9a63e93c172904d9be06d7f7c29f863afea1b7a6de2a37169ffbd33b11"
+    },
+    {
+      "runId": 39330552821,
+      "head": "687c297eb466e890bee940e73901c6cc160d9014",
+      "artifactId": 12224825464,
+      "archiveSha256": "15c1f4bd28a3abbd70812c0646dfadb2df79d22b29606d5358290809d5ad4b11",
+      "member": "imessage-upload-receipt.json",
+      "sha256": "faadf6141de70a91eeda2313290f56eff2392b04c9ccbf075405dd357fcc9586"
+    }
+  ]
+}
