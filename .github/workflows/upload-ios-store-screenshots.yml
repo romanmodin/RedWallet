@@ -1,0 +1,105 @@
+name: Replace reviewed iOS App Store screenshots
+"on":
+  pull_request:
+    paths:
+      - ".github/scripts/upload-imessage-screenshots.mjs"
+      - ".github/scripts/upload-store-screenshots.mjs"
+      - ".github/scripts/test-upload-store-screenshots.mjs"
+      - ".github/scripts/normalize-store-png.py"
+      - ".github/scripts/test-normalize-store-png.py"
+      - ".github/release/IOS-STORE-SCREENSHOTS-20261019.json"
+      - ".github/workflows/upload-ios-store-screenshots.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: redwallet-main-screenshot-upload
+  cancel-in-progress: false
+env:
+  SOURCE_COMMIT: 9f627fb87b4b6cc28cddcf6ad45e2edc721551a8
+  CI_RUN_ID: "39297579896"
+  IOS_RUN_ID: "39297579842"
+  FUNDED_IOS_RUN_ID: "39297639315"
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - run: node --test .github/scripts/test-upload-imessage-screenshots.mjs .github/scripts/test-upload-store-screenshots.mjs
+      - run: python3 .github/scripts/test-normalize-store-png.py
+  upload:
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Verify exact-source release gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I .github/scripts/verify-ios-release-gates.py
+      - name: Download the reviewed native capture bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import subprocess,json,hashlib,zipfile,io,runpy
+          from pathlib import Path
+          repo='romanmodin/RedWallet'
+          normalize=runpy.run_path('.github/scripts/normalize-store-png.py')['normalize_png']
+          def api(path):return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/{path}']))
+          m=json.loads(Path('.github/release/IOS-STORE-SCREENSHOTS-20261019.json').read_text())
+          assert m['sourceCommit']=='9f627fb87b4b6cc28cddcf6ad45e2edc721551a8' and m['visuallyReviewed'] is True
+          assert m['captureRunId']==39312798717 and len(m['images'])==8
+          r=api(f"actions/runs/{m['captureRunId']}")
+          assert r['head_sha']=='2e48763dfe0b1dd90763c47323143af527bd8148' and r['path']=='.github/workflows/capture-ios-store-screenshots.yml'
+          assert r['repository']['full_name']==repo and r['head_repository']['full_name']==repo and r['head_branch']=='main'
+          assert r['run_attempt']==1 and r['status']=='completed' and r['conclusion']=='success'
+          for artifact in m['artifacts']:
+              family=artifact['family'];assert family in ('iphone','ipad')
+              meta=api(f"actions/artifacts/{artifact['id']}")
+              assert not meta['expired'] and meta['workflow_run']['id']==m['captureRunId']
+              assert meta['name']=='app-store-screenshots-'+family and meta['digest']=='sha256:'+artifact['sha256']
+              data=subprocess.check_output(['gh','api',f"repos/{repo}/actions/artifacts/{artifact['id']}/zip"])
+              assert hashlib.sha256(data).hexdigest()==artifact['sha256']
+              archive=zipfile.ZipFile(io.BytesIO(data))
+              provenance=json.loads(archive.read('provenance.json'))
+              assert provenance['sourceCommit']==m['sourceCommit'] and provenance['simulatorArtifactRun']=='39297579842'
+              assert provenance['balancesFabricated'] is False and provenance['demoWallet']=='new empty disposable wallet'
+              images=[image for image in m['images'] if image['family']==family];assert len(images)==4
+              for image in images:
+                  member=Path(image['file']).name
+                  assert image['file']==family+'/'+member and member in ['01-wallet.png','02-receive.png','03-optional-artwork.png','04-recovery-options.png']
+                  assert archive.namelist().count(member)==1
+                  proof=[i for i in provenance['images'] if i['file']==member];assert len(proof)==1
+                  assert proof[0]['sha256']==image['rawSha256'] and all(proof[0][k]==image[k] for k in ['width','height'])
+                  raw=archive.read(member);assert hashlib.sha256(raw).hexdigest()==image['rawSha256']
+                  content=normalize(raw);assert hashlib.sha256(content).hexdigest()==image['sha256']
+                  target=Path('verified-store')/family/member;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(content)
+          PY
+      - name: Upload reviewed replacements and retire only superseded assets
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: node .github/scripts/upload-store-screenshots.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: store-screenshot-receipt
+          path: store-screenshot-receipt.json
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,61 @@
+{
+  "ipaSha256": "1f35c12670d95c54dd7f960b9b9b7d09b12fda8ff7d7ca64e3003998f8784dd0",
+  "bundles": [
+    {
+      "bundleId": "com.romanmodin.redwallet",
+      "version": "8.0.1",
+      "build": "1792439689",
+      "architectures": ["arm64"],
+      "profileExpires": "2027-09-28T21:32:14"
+    },
+    {
+      "bundleId": "com.romanmodin.redwallet.Stickers",
+      "version": "8.0.1",
+      "build": "1792439689",
+      "architectures": ["arm64"],
+      "profileExpires": "2027-09-28T21:32:14"
+    }
+  ],
+  "signatureVerification": "passed",
+  "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+  "publicRepository": "https://github.com/romanmodin/RedWallet",
+  "publicSourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+  "productionTreeSha256": "60a3da7ddf0aafedabc8880ef79e218c63c66bf7498eda310d4eac3cae92ff11",
+  "productionPathCount": 985,
+  "sourceMappingVerification": "passed",
+  "treeDefinition": "git ls-tree -r COMMIT, excluding .github/, tests/, fastlane/metadata/, zapstore.yaml and *.md; includes mode, object ID, path and trailing newline",
+  "binaryReproducibilityVerified": false,
+  "qualification": {
+    "verifiedAt": "2026-10-19T19:47:17.552313+00:00",
+    "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+    "gates": [
+      {
+        "id": 39297579896,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/39297579896",
+        "workflow": ".github/workflows/ci.yml",
+        "source": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 39297579842,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/39297579842",
+        "workflow": ".github/workflows/e2e-ios.yml",
+        "source": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 39297639315,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/39297639315",
+        "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
+        "source": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+        "conclusion": "success",
+        "runAttempt": 1
+      }
+    ],
+    "androidQualified": false
+  },
+  "orchestrationCommit": "2e48763dfe0b1dd90763c47323143af527bd8148",
+  "sourceRunId": "39312792179"
+}

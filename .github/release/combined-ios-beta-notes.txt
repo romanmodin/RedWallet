@@ -1,4 +1,7 @@
-RedWallet XBT 8.0.1 — combined iOS update
+RedWallet XBT 8.0.1 — artwork and CoinJoin discovery fixes
+
+- Corrected optional artwork framing in portrait and landscape.
+- Fixed KiloJoin v3 pool discovery, with visible search progress, compatible-pool results, empty results and connection errors. Finding pools does not join a round or reserve coins.
 
 - Optional artwork skin, with the standard red appearance retained by default. In Settings, double-tap the logo to toggle the artwork.
 - USDC totals display two decimal places. XBT amounts retain coin precision. The optional NeoxEX display quote refreshes when the app opens/resumes.
