@@ -1,24 +1,25 @@
-name: Assign verified Taproot TestFlight beta
+name: Assign verified combined iOS TestFlight beta
 "on":
   pull_request:
     paths:
       - ".github/scripts/distribute-ios-beta.rb"
       - ".github/scripts/test-distribute-ios-beta.rb"
       - ".github/scripts/verify-uploaded-beta.py"
-      - ".github/release/taproot-beta-notes.txt"
+      - ".github/scripts/verify-ios-release-gates.py"
+      - ".github/release/combined-ios-beta-notes.txt"
       - ".github/workflows/distribute-ios-beta.yml"
   workflow_dispatch:
     inputs:
       upload_run_id:
-        description: Reviewed completed upload run for Taproot cold signing and fee bump build 1791526289
+        description: Reviewed completed combined iOS upload run for build 1792401003
         required: true
         type: string
-        default: "37893452659"
+        default: "39222335480"
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: verified-taproot-beta-assignment
+  group: verified-combined-ios-beta-assignment
   cancel-in-progress: false
 env:
   FASTLANE_OPT_OUT_USAGE: "1"
@@ -52,7 +53,7 @@ jobs:
     env:
       UPLOAD_RUN_ID: ${{ inputs.upload_run_id }}
       UPLOAD_RECEIPT_PATH: ${{ github.workspace }}/upload-receipt/ios-ipa-verification.json
-      BETA_NOTES_PATH: ${{ github.workspace }}/.github/release/taproot-beta-notes.txt
+      BETA_NOTES_PATH: ${{ github.workspace }}/.github/release/combined-ios-beta-notes.txt
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:

@@ -1,45 +1,64 @@
 #!/usr/bin/env python3
-"""Verify the immutable uploaded candidate and its completed native gates."""
+"""Verify the immutable uploaded candidate and its completed iOS gates."""
 import json
 import os
+import runpy
 import subprocess
 from pathlib import Path
 
 REPO = 'romanmodin/RedWallet'
-PUBLIC = '2572a890cc4aa6b9eef070662ee9e9f30916c625'
-ORCHESTRATION = 'dd58f1027ae2d4b34a4d7eff54c8bdb7c575a484'
-UPLOAD_RUN = '37893452659'
+PUBLIC = '0e36e37ad797b13b711d2606b52ac70ea52e873f'
+ORCHESTRATION = '5403dd29ebf2dc78b3b6b8431b6b75ad97fbd0c5'
+UPLOAD_RUN = '39222335480'
+
+
+def api(path):
+    return json.loads(subprocess.check_output(['gh', 'api', path]))
+
 
 def run(run_id, expected_head, expected_path):
-    data = json.loads(subprocess.check_output(['gh', 'api', f'repos/{REPO}/actions/runs/{run_id}']))
+    data = api(f'repos/{REPO}/actions/runs/{run_id}')
     assert data['repository']['full_name'] == REPO and data['head_repository']['full_name'] == REPO, 'Wrong repository'
     assert data['head_sha'] == expected_head and data['path'] == expected_path, 'Wrong source/workflow'
     assert data['status'] == 'completed' and data['conclusion'] == 'success', 'Required run did not pass'
     return data
 
+
 assert os.environ['UPLOAD_RUN_ID'] == UPLOAD_RUN, 'Only the reviewed upload run is authorized'
 upload = run(UPLOAD_RUN, ORCHESTRATION, '.github/workflows/build-ios-approved-source.yml')
 assert upload['event'] == 'workflow_dispatch' and upload['head_branch'] == 'main', 'Wrong release event'
-# Run-level success cannot substitute for an actual successful upload job.
-jobs = json.loads(subprocess.check_output(['gh', 'api', f'repos/{REPO}/actions/runs/{UPLOAD_RUN}/jobs?per_page=100']))['jobs']
-assert any(j['name'] == 'testflight-upload' and j['conclusion'] == 'success' for j in jobs), 'Upload job did not pass'
-for rid in ['37795349200', '37795348924', '37795349143']:
-    data = json.loads(subprocess.check_output(['gh', 'api', f'repos/{REPO}/actions/runs/{rid}']))
-    assert data['repository']['full_name'] == REPO and data['head_repository']['full_name'] == REPO
-    assert data['head_sha'] == PUBLIC and data['status'] == 'completed' and data['conclusion'] == 'success', 'Native/unit gate did not pass'
+assert upload['run_attempt'] == 1, 'A replacement upload attempt requires fresh receipt review'
+# A successful workflow cannot substitute for both actual build and upload jobs.
+jobs = api(f"repos/{REPO}/actions/runs/{UPLOAD_RUN}/attempts/{upload['run_attempt']}/jobs?per_page=100")['jobs']
+for required in ('build', 'testflight-upload'):
+    assert any(j['name'] == required and j['status'] == 'completed' and j['conclusion'] == 'success' for j in jobs), 'Required release job did not pass'
+
+# Reuse the release verifier so older attempts, different workflows, and skipped
+# required jobs cannot qualify the candidate for tester delivery.
+verifier = runpy.run_path(str(Path(__file__).with_name('verify-ios-release-gates.py')))
+gate_receipts = []
+for rid, (_, workflow, required_jobs) in zip(
+    ('39206955313', '39206955356', '39206955341'), verifier['GATES']
+):
+    gate = api(f'repos/{REPO}/actions/runs/{rid}')
+    gate_jobs = api(f"repos/{REPO}/actions/runs/{rid}/attempts/{gate['run_attempt']}/jobs?per_page=100")['jobs']
+    gate_receipts.append(verifier['validate_gate'](gate, gate_jobs, PUBLIC, workflow, required_jobs))
+
 receipt = json.loads(Path(os.environ['UPLOAD_RECEIPT_PATH']).read_text())
 expected = {
-    'ipaSha256': 'e1dd2053fb26b5bcccbedfb2177b46d0dc7131b3bc543a61255f12d51a8e4ebb',
+    'ipaSha256': '51709825f93f4287eff276e92151924cadf32e80d124994b90e1e114a93ba0e7',
     'publicSourceCommit': PUBLIC,
-    'sourceCommit': 'b012b8e7481833ad91c9b72bd81af59a0e5c4c41',
+    'sourceCommit': PUBLIC,
     'orchestrationCommit': ORCHESTRATION,
-    'productionTreeSha256': 'a8e3747e14b55c76a4f4ae13824a295aa8c154fdd5db24de48f02bc8504be992',
-    'productionPathCount': 948,
+    'productionTreeSha256': '4fe2b1a5a4619f002d7b7cc19781d7fcee5b182f16de19cb831e63f172893f63',
+    'productionPathCount': 985,
     'signatureVerification': 'passed',
     'sourceMappingVerification': 'passed'
 }
 assert all(receipt.get(k) == v for k, v in expected.items()), 'Uploaded package receipt does not match'
+assert receipt['qualification']['sourceCommit'] == PUBLIC
+assert receipt['qualification']['gates'] == gate_receipts, 'Package qualification differs from current gate attempts'
 bundles = receipt['bundles']
 assert len(bundles) == 2 and {b['bundleId'] for b in bundles} == {'com.romanmodin.redwallet', 'com.romanmodin.redwallet.Stickers'}
-assert all(b['version'] == '8.0.1' and b['build'] == '1791526289' and b['architectures'] == ['arm64'] for b in bundles), 'Wrong iPhone package'
-print('PASS: uploaded IPA, exact production source, and completed native/unit gates verified')
+assert all(b['version'] == '8.0.1' and b['build'] == '1792401003' and b['architectures'] == ['arm64'] for b in bundles), 'Wrong iPhone package'
+print('PASS: uploaded IPA, exact production source, and completed iOS/software gates verified')
