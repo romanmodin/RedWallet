@@ -1,4 +1,5 @@
 import { XBT_PROFILE } from '../../class/xbt/profile';
+import { dismissSendSuccess } from '../../helpers/dismiss-send-success';
 import React, { useEffect } from 'react';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import BigNumber from 'bignumber.js';
@@ -38,8 +39,7 @@ const Success = () => {
   });
 
   const onDonePressed = () => {
-    // Close SendDetails modal stack and return to the underlying wallet view.
-    navigation.getParent()?.goBack();
+    dismissSendSuccess(navigation);
   };
 
   useEffect(() => {
