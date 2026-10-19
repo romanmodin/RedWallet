@@ -133,21 +133,13 @@ export async function waitForSwitchValue(switchId, expectedValue, timeoutMs = 80
   rethrowWithCallsite(lastErr || new Error(`Timed out waiting for ${switchId} == ${expectedValue}`), callsite);
 }
 
-// iOS keeps the multiline import field focused after replaceText. Dismiss
-// its keyboard through the same Done accessory used on a phone before tapping
-// Import; do not bypass Detox visibility checks or alter the recovery assertions.
+// The native lifecycle driver verifies real keyboard dismissal and Import
+// visibility. Reuse it for iOS imports; the older text-only Done lookup fails
+// when iOS renders the multiline accessory without that accessible text.
 export async function dismissMnemonicKeyboard() {
   if (device.getPlatform() !== 'ios') return;
-  await element(by.id('MnemonicInput')).tap();
-  await waitFor(element(by.text('Done')))
-    .toBeVisible()
-    .withTimeout(10000);
-  await element(by.text('Done')).tap();
-  // Rounded button corners are clipped by the wrapper. Use Detox's normal
-  // visibility threshold before exercising its real tap action.
-  await waitFor(element(by.id('DoImport')))
-    .toBeVisible()
-    .withTimeout(10000);
+  const { dismissMnemonicKeyboard: dismissNativeMnemonicKeyboard } = require('./lifecycle-helperz');
+  await dismissNativeMnemonicKeyboard();
 }
 
 // iOS replaceText can skip input callbacks, leaving the controlled field empty
