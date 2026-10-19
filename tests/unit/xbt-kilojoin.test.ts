@@ -188,6 +188,28 @@ describe('offline round lifecycle', () => {
     await r.confirm(snapshot.reviewedId!, 1);
     expect(r.snapshot().reserved).toHaveLength(0);
   });
+  test('restart retains signed reservations, removes stale approval and rejects damaged journals', async () => {
+    const r = await start();
+    const reviewed = await r.review(makePlan(), review(), 2);
+    await r.approve(reviewed.commitment!, 3);
+    const aborted = await Round.restore(r.snapshot(), 'test-wallet', 200, { save: async () => {} });
+    expect(aborted.snapshot().phase).toBe('aborted');
+    await r.beforeSigning(reviewed.commitment!, 4);
+    const recovered = await Round.restore(r.snapshot(), 'test-wallet', 200, { save: async () => {} });
+    expect(recovered.snapshot().phase).toBe('uncertain');
+    expect(recovered.snapshot().reserved).toEqual(r.snapshot().reserved);
+    await expect(
+      Round.restore({ ...r.snapshot(), reviewedId: 'ff'.repeat(32) }, 'test-wallet', 200, { save: async () => {} }),
+    ).rejects.toThrow('commitment');
+    await expect(Round.restore(r.snapshot(), 'other-wallet', 200, { save: async () => {} })).rejects.toThrow('wallet');
+    await expect(
+      Round.restore(r.snapshot(), 'test-wallet', 200, {
+        save: async () => {
+          throw new Error('disk full');
+        },
+      }),
+    ).rejects.toThrow('disk full');
+  });
   test('unsigned cancellation releases reservation; expired approval is rejected', async () => {
     const r = await start();
     const s = await r.review(makePlan(), review(), 2);

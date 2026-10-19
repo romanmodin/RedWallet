@@ -2,6 +2,7 @@
  * A signed round stays reserved even on cancellation: peers can retain our signature.
  * The future wallet adapter must persist this journal before every external side effect.
  */
+import { Transaction } from 'bitcoinjs-lib';
 import { Plan, Review, outpoint, review } from './transaction';
 import { utf8Hash } from './crypto';
 export type Phase = 'joined' | 'review' | 'approved' | 'signed' | 'uncertain' | 'aborted' | 'complete';
@@ -22,6 +23,49 @@ export interface JournalStore {
   save(journal: Journal): Promise<void>;
 }
 const clone = (j: Journal): Journal => ({ ...j, reserved: [...j.reserved] });
+/** Validate persisted data before it can influence spending or recovery. */
+export function validateJournal(value: unknown): Journal {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid round journal');
+  const j = value as Journal;
+  if (
+    j.version !== 1 ||
+    typeof j.walletId !== 'string' ||
+    !j.walletId ||
+    typeof j.poolId !== 'string' ||
+    !/^[0-9a-f]{16,64}$/.test(j.poolId) ||
+    !['joined', 'review', 'approved', 'signed', 'uncertain', 'aborted', 'complete'].includes(j.phase) ||
+    !Number.isSafeInteger(j.deadline) ||
+    j.deadline < 1 ||
+    !Array.isArray(j.reserved) ||
+    j.reserved.length > 10 ||
+    new Set(j.reserved).size !== j.reserved.length ||
+    j.reserved.some(s => typeof s !== 'string' || !/^[0-9a-f]{64}:(0|[1-9][0-9]{0,9})$/.test(s) || Number(s.split(':')[1]) > 0xffffffff)
+  )
+    throw new Error('Invalid round journal');
+  const terminal = ['aborted', 'complete'].includes(j.phase);
+  if (terminal ? j.reserved.length !== 0 : j.reserved.length === 0) throw new Error('Invalid journal reservation');
+  if (['review', 'approved', 'signed', 'uncertain', 'complete'].includes(j.phase)) {
+    if (
+      typeof j.reviewedHex !== 'string' ||
+      j.reviewedHex.length > 200000 ||
+      !/^(?:[0-9a-f]{2})+$/.test(j.reviewedHex) ||
+      !Number.isSafeInteger(j.myFee) ||
+      j.myFee! < 0
+    )
+      throw new Error('Invalid journal review');
+    const tx = Transaction.fromHex(j.reviewedHex);
+    if (
+      tx.getId() !== j.reviewedId ||
+      tx.hasWitnesses() ||
+      tx.ins.some(i => i.script.length > 0) ||
+      j.commitment !== utf8Hash(`${j.walletId}|${j.poolId}|${j.reviewedHex}|${j.myFee}`).toString('hex')
+    )
+      throw new Error('Invalid journal commitment');
+    const inputs = new Set(tx.ins.map(i => `${Buffer.from(i.hash).reverse().toString('hex')}:${i.index}`));
+    if (j.reserved.some(id => !inputs.has(id))) throw new Error('Journal inputs changed');
+  }
+  return clone(j);
+}
 export class Round {
   private journal: Journal;
   private busy = false;
@@ -61,6 +105,19 @@ export class Round {
       reserved: [...selected],
       deadline,
     };
+    await store.save(clone(journal));
+    return new Round(journal, store);
+  }
+
+  static async restore(value: unknown, walletId: string, now: number, store: JournalStore): Promise<Round> {
+    const journal = validateJournal(value);
+    if (journal.walletId !== walletId || !Number.isSafeInteger(now) || now < 0) throw new Error('Wrong journal wallet/time');
+    // A restart never retains approval. Signed or possibly shared inputs remain locked.
+    if (['signed', 'uncertain'].includes(journal.phase)) journal.phase = 'uncertain';
+    else if (!['complete', 'aborted'].includes(journal.phase)) {
+      journal.phase = 'aborted';
+      journal.reserved = [];
+    }
     await store.save(clone(journal));
     return new Round(journal, store);
   }

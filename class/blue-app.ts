@@ -1,3 +1,4 @@
+import { WalletJournalStore } from './xbt/kilojoin/wallet-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sha256 } from '@noble/hashes/sha256';
 import DefaultPreference from 'react-native-default-preference';
@@ -551,7 +552,15 @@ export class BlueApp {
    *
    * @returns {Promise} Result of storage save
    */
-  async saveToDisk(): Promise<void> {
+  createKilojoinJournalStore(wallet: XbtSegwitBech32Wallet | XbtTaprootWallet): WalletJournalStore {
+    if (!this.wallets.includes(wallet)) throw new Error('CoinJoin wallet is not in active storage');
+    return new WalletJournalStore(wallet, async () => {
+      if (!this.wallets.includes(wallet)) throw new Error('CoinJoin wallet was removed');
+      await this.saveToDisk(true);
+    });
+  }
+
+  async saveToDisk(throwOnError = false): Promise<void> {
     if (this.storageLoadBlocked) throw new UnsupportedWalletStorageError();
     if (savingInProgress) {
       console.warn('saveToDisk is in progress');
@@ -560,7 +569,7 @@ export class BlueApp {
           message: 'Critical error. Last actions were not saved',
         }); // should never happen
       await new Promise(resolve => setTimeout(resolve, 1000 * savingInProgress)); // sleep
-      return this.saveToDisk();
+      return this.saveToDisk(throwOnError);
     }
     savingInProgress = 1;
 
@@ -570,6 +579,7 @@ export class BlueApp {
       try {
         realm = await this.getRealmForTransactions();
       } catch (error: any) {
+        if (throwOnError) throw error;
         presentAlert({ message: error.message });
       }
       if (realm) {
@@ -620,6 +630,7 @@ export class BlueApp {
         buckets = JSON.parse(buckets);
         const newData: string[] = []; // serialized buckets
         let num = 0;
+        let matchedActiveBucket = false;
         for (const bucket of buckets) {
           let decrypted;
           // if we had `usedBucketNum` during loadFromDisk(), no point to try to decode each bucket to find the one we
@@ -641,14 +652,17 @@ export class BlueApp {
           } else {
             // decrypted ok, this is our bucket
             // we serialize our object's data, encrypt it, and add it to buckets
+            matchedActiveBucket = true;
             newData.push(await encryption.encrypt(JSON.stringify(data), this.cachedPassword));
           }
         }
 
+        if (throwOnError && !matchedActiveBucket) throw new Error('Active encrypted wallet bucket not found');
         data = newData;
       }
 
       await this.setItem('data', JSON.stringify(data));
+      if (throwOnError && (await this.getItem('data')) !== JSON.stringify(data)) throw new Error('Wallet persistence verification failed');
       await this.setItem(BlueApp.FLAG_ENCRYPTED, this.cachedPassword ? '1' : '');
 
       // now, backing up same data in realm:
@@ -657,6 +671,7 @@ export class BlueApp {
       this.saveToRealmKeyValue(realmkeyValue, BlueApp.FLAG_ENCRYPTED, this.cachedPassword ? '1' : '');
       realmkeyValue.close();
     } catch (error: any) {
+      if (throwOnError) throw error;
       console.error('save to disk exception:', error.message);
       presentAlert({ message: 'save to disk exception: ' + error.message });
       if (error.message.includes('Realm file decryption failed')) {

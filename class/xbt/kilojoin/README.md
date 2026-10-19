@@ -1,51 +1,48 @@
 # Kilojoin experimental integration
 
-Status: offline compatibility foundation and app preview. **Not a working live mixing client.**
+Status: participant implementation and native adapters under test. The app route remains
+an **offline sample preview**, not a live mixing client. LIVE_JOIN_ENABLED is false.
 
 Pinned upstream: Kilombino/kilowallet v1.1.6, commit
 `06e1ac9a346bd810db1749ca0b1048d0da980c35`.
 Original author: Kilombino. Adapted files retain Apache-2.0 terms; see
-UPSTREAM-LICENSE and UPSTREAM-NOTICE. RedWallet adaptations use its existing
-Noble and bitcoinjs cryptographic implementations, unlike upstream's standalone primitives.
+UPSTREAM-LICENSE and UPSTREAM-NOTICE. RedWallet uses existing Noble and bitcoinjs
+cryptographic implementations, unlike upstream's standalone primitives.
 
 Implemented:
-- NIP-01 event validation/signing and NIP-44 v2 encryption, authenticated decoding,
-  bounded parsing and explicit entropy inputs.
-- Kilojoin v3 pool validation, ownership proofs and protocol commitments.
-- Participant message boundary: creator/member authority separation, authenticated
-  decryption, recipient checks, bounded replay cache and stale-message rejection.
-- Roster validation: ownership proofs, sequence checks, exact own-seat commitment,
-  duplicate input/identity rejection and fresh independently supplied chain observations.
-  These modules are not yet connected to a live session or backend adapter.
-- Client-side RFC9474 randomized SHA384 RSA blind signatures; no RSA key generation
-  or coordinator private-key implementation.
-- Canonical P2WPKH/P2TR transaction assembly, XBT 0x21 digests, signature verification,
-  independently supplied prevout checks and per-user fee/change review.
-- Offline lifecycle with explicit review approval and durable-write-before-signing
-  boundary. Signed cancellation retains coin reservations.
-- Settings > Tools > CoinJoin — Experimental: sample-only interactive preview.
-  It has no wallet key, network, relay, signing or broadcasting dependencies.
+- NIP-01 validation/signing, NIP-44 v2 encryption and bounded authenticated routing.
+- Creator/member authority separation, event replay/freshness and roster sequence checks.
+- Ownership proofs, immutable own-seat commitments, duplicate/unselected input rejection.
+- RFC9474 SHA384-PSS randomized blind output registration and verification.
+- Participant welcome, roster, voting, closing, blinded output hand-in, review, explicit
+  approval, verified signature collection and canonical transaction assembly.
+- P2WPKH/P2TR XBT 0x21 signatures, exact fee/change review and backend revalidation.
+- Bounded relay queue, publication acknowledgments/timeouts and separate output socket.
+- Session encryption using XChaCha20-Poly1305 with a device-only native Keychain key.
+- Durable wallet reservations, strict persistence error propagation/readback, and
+  prevention of reserved-input spends through XBT send/RBF builders.
+- Restart recovery aborts unsigned rounds and retains signed/uncertain reservations.
+  It deliberately does not automatically resume signing after restart.
+- Native backend adapter verifies raw parents, matching unspent/history heights and
+  coinbase maturity. This experimental adapter requires confirmed coins.
+- Wallet signer checks persisted approval, exact transaction and reservation ownership.
 
-Validation: upstream P2WPKH raw transaction/txid/signatures, NIP44 event and ciphertext,
-fee/ownership commitments, RFC9474 blinding/finalization vector, malformed/changed
-inputs and fees, journal failures, cancellation behavior and preview UI.
-Current targeted validation: 6 suites / 54 tests pass; full TypeScript check passes.
-These vectors do not prove a complete v3 round works across wallets.
+Validation includes upstream transaction/NIP44/ownership/RFC9474 vectors; simulated
+fully encrypted P2WPKH and P2TR rounds; native adapter mocks; wallet-key test signing;
+failed storage, concurrency, restart, tampering, fee and ordinary send/RBF regressions.
+These tests are not an actual Kotlin peer round, live node acceptance or device review.
 
 Remaining release gates:
-1. Authenticated v3 participant transport/state machine (welcome, roster, votes,
-   blinded output exchange, signature collection, duplicate/replay protection).
-2. Chain-backed roster validation and transaction revalidation immediately before
-   signing, including rejection of additional unselected coins owned by our wallet.
-3. Wallet-wide persistent coin reservations, encrypted session secrets, restart
-   recovery, mixed/change labeling and coin-selection isolation. The offline journal
-   interface is not yet wired into storage or the ordinary send/CPFP paths.
-4. Network privacy design: separate output connection/identity does not itself hide
-   IP addresses from a relay. Do not promise unlinkability or anonymity.
-5. Native entropy integration, bounded crypto scheduling and mobile performance review.
+1. Connect and exercise native adapters through the final live UI: pool discovery,
+   selected-wallet/coin controls, review, connection/error/recovery status, explicit
+   broadcast and independently confirmed completion. Current UI stays sample-only.
+2. Mixed/change output labeling and ordinary coin-selection isolation after completion.
+3. Full v3 rounds with the pinned actual Kotlin peer and disposable XBT regtest node,
+   including relay disconnects, restart, late signatures and P2TR interoperability.
+4. Review network privacy: separate output identity/connection does not hide IPs from
+   the relay or address queries from the configured backend. Do not promise anonymity.
+5. Native iOS/Android/device validation and bounded mobile RSA performance review.
    JS BigInt blind-RSA operations are not claimed to be constant-time.
-6. Regtest rounds against the actual Kotlin peer, including failures and P2TR vectors;
-   native iOS/Android build and device review; small-value private beta only afterward.
 
-LIVE_JOIN_ENABLED remains false. No mainnet transactions or relay connections are
-performed by tests. Do not enable this merely by flipping the constant.
+No mainnet transactions or relay connections are performed by unit tests.
+Do not enable live mixing merely by flipping the feature constant.
