@@ -1,4 +1,4 @@
-import { element } from 'detox';
+import { element, waitFor } from 'detox';
 import { confirmPasswordDialog, waitForId } from './helperz';
 
 // Keep iOS keyboard entry unsynchronized, then restore synchronization before
@@ -35,4 +35,16 @@ export async function submitStoragePassword(password, confirmation, settled) {
   } finally {
     if (synchronizationDisabled) await device.enableSynchronization();
   }
+}
+
+// On a freshly relaunched iOS secure field, typing the password and newline in
+// one action can submit a partial value. Verify the complete fixture password
+// before sending Return; callers still assert the actual unlocked wallet.
+export async function enterUnlockPassword(password) {
+  await waitForId('PasswordInput');
+  const input = element(by.id('PasswordInput'));
+  await input.tap();
+  await input.replaceText(password);
+  await waitFor(input).toHaveText(password).withTimeout(5000);
+  await input.tapReturnKey();
 }

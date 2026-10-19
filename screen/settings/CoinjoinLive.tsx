@@ -15,13 +15,14 @@ import { NostrEvent } from '../../class/xbt/kilojoin/crypto';
 import { change, feeShare } from '../../class/xbt/kilojoin/transaction';
 import { Utxo } from '../../class/wallets/types';
 
-/** Live route is unreachable while release validation is incomplete. */
+/** Experimental live route; joining requires the entry acknowledgment. */
 export default function CoinjoinLive({ experimentalAcknowledged = false }: { experimentalAcknowledged?: boolean }) {
   const { colors } = useTheme(),
     { wallets } = useStorage();
   const choices = wallets.filter((w): w is MixingWallet => w instanceof XbtSegwitBech32Wallet || w instanceof XbtTaprootWallet);
   const [wallet, setWallet] = useState<MixingWallet>();
   const [pools, setPools] = useState<Record<string, { terms: Readonly<Terms>; event: NostrEvent }>>({});
+  const [searchState, setSearchState] = useState<'idle' | 'connecting' | 'searching' | 'ready' | 'failed'>('idle');
   const [poolId, setPoolId] = useState(''),
     [coins, setCoins] = useState<Utxo[]>([]),
     [selected, setSelected] = useState<string[]>([]);
@@ -34,14 +35,14 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const client = useRef<MixingClient | undefined>(undefined),
     discovery = useRef<KilojoinRelay | undefined>(undefined),
     mounted = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
       mounted.current = false;
       discovery.current?.close();
       client.current?.close().catch(() => {});
-    },
-    [],
-  );
+    };
+  }, []);
   const run = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
@@ -59,23 +60,49 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     discovery.current?.close();
     setPools({});
     setPoolId('');
+    setSearchState('connecting');
     const relay = new KilojoinRelay(
       async event => {
         try {
           const terms = parsePool(event, Math.floor(Date.now() / 1000));
-          if (mounted.current)
+          if (mounted.current && discovery.current === relay)
             setPools(old => (old[terms.id]?.event.created_at > event.created_at ? old : { ...old, [terms.id]: { terms, event } }));
         } catch {
-          /* Invalid, stale or unsupported pools are not listed. */
+          // A newer closed/expired announcement withdraws a previously listed
+          // pool, but another publisher cannot remove it.
+          if (mounted.current && discovery.current === relay)
+            setPools(old =>
+              Object.fromEntries(
+                Object.entries(old).filter(
+                  ([, p]) =>
+                    !(
+                      p.event.pubkey === event.pubkey &&
+                      p.event.created_at <= event.created_at &&
+                      event.tags.some(tag => tag[0] === 'd' && tag[1] === p.terms.id)
+                    ),
+                ),
+              ),
+            );
         }
       },
       () => {
-        if (mounted.current) setError('Pool discovery disconnected. Refresh to try again.');
+        if (mounted.current && discovery.current === relay) setSearchState('failed');
       },
     );
     discovery.current = relay;
-    await relay.connect();
-    relay.discoverPools(Math.floor(Date.now() / 1000) - 2100);
+    try {
+      await relay.connect();
+      if (!mounted.current || discovery.current !== relay) return;
+      setSearchState('searching');
+      await relay.discoverPools(Math.floor(Date.now() / 1000) - 2100);
+      if (mounted.current && discovery.current === relay) setSearchState('ready');
+    } catch (e) {
+      relay.close();
+      if (mounted.current && discovery.current === relay) {
+        setSearchState('failed');
+        throw e;
+      }
+    }
   };
   const chooseWallet = async (chosen: MixingWallet) => {
     setWallet(chosen);
@@ -85,7 +112,10 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     await chosen.fetchUtxo();
     if (mounted.current) setCoins(chosen.getUtxo());
   };
-  const pool = pools[poolId],
+  const visiblePools = Object.values(pools).filter(
+    p => p.terms.timeout > Math.floor(Date.now() / 1000) && (!wallet || p.terms.script === wallet.segwitType),
+  );
+  const pool = visiblePools.find(p => p.terms.id === poolId),
     total = coins.filter(c => selected.includes(`${c.txid}:${c.vout}`)).reduce((n, c) => n + c.value, 0);
   const remainder =
     pool && selected.length ? change(total, pool.terms.denomination, pool.terms.fee_rate, selected.length, pool.terms.script) : null;
@@ -171,21 +201,34 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                   />
                 </View>
               ))}
-            <Button title="Find pools" disabled={busy} onPress={() => run(refreshPools)} />
+            <Button
+              testID="CoinjoinFindPools"
+              title={searchState === 'connecting' || searchState === 'searching' ? 'Searching for pools…' : 'Find pools'}
+              disabled={busy}
+              onPress={() => run(refreshPools)}
+            />
+            <Text testID="CoinjoinPoolSearchStatus" accessibilityLiveRegion="polite" style={text}>
+              {searchState === 'idle' && 'Find open Kilojoin v3 pools on relay.kilombino.com.'}
+              {searchState === 'connecting' && 'Connecting to relay.kilombino.com…'}
+              {searchState === 'searching' && 'Connected. Checking open pools…'}
+              {searchState === 'failed' && 'Pool search failed or disconnected. Tap Find pools to retry.'}
+              {searchState === 'ready' &&
+                (visiblePools.length
+                  ? `${visiblePools.length} compatible open pool${visiblePools.length === 1 ? '' : 's'} found. Listening for updates.`
+                  : 'Connected. No compatible open pools right now. A Kilowallet participant must create one; you can search again.')}
+            </Text>
             <View style={card}>
-              {Object.values(pools)
-                .filter(p => !wallet || p.terms.script === wallet.segwitType)
-                .map(p =>
-                  pick(
-                    `${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}`,
-                    poolId === p.terms.id,
-                    () => {
-                      setPoolId(p.terms.id);
-                      setSelected([]);
-                    },
-                    p.terms.id,
-                  ),
-                )}
+              {visiblePools.map(p =>
+                pick(
+                  `${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}`,
+                  poolId === p.terms.id,
+                  () => {
+                    setPoolId(p.terms.id);
+                    setSelected([]);
+                  },
+                  p.terms.id,
+                ),
+              )}
             </View>
             {!!pool?.terms.private && (
               <TextInput
@@ -272,7 +315,10 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                     `Your fee is ${journal!.myFee} sats. Once signed, cancellation cannot release these coins until the transaction is resolved.`,
                     [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Sign transaction', onPress: () => run(() => client.current!.approve(commitment)) },
+                      {
+                        text: 'Sign transaction',
+                        onPress: () => run(() => client.current!.approve(commitment)),
+                      },
                     ],
                   );
                 }}

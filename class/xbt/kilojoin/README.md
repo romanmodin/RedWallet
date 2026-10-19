@@ -68,3 +68,22 @@ No mainnet transactions or relay connections are performed by unit tests.
 Main iOS signing still requires the existing exact-source unit/lint, general iOS and
 funded BIP84 gates. The user approved experimental availability, not removal of
 transaction validation, durable reservations or signing confirmations.
+
+## Protocol v3 cross-check, 2026-10-19
+
+Compared with Kilombino/kilojoin `docs/PROTOCOL.md` section 11 at upstream commit
+`7a5037fc9ba517a92c66a8f8b89765f407a92b2c` (Kilojoin 0.7.0). This integration
+already requires version 3 announcements; it is not limited to v1/v2 pools.
+The implementation includes the separate creator identity and RSA public key,
+creator-authenticated pool control messages, seat HMACs, per-seat ownership and
+chain checks, RFC9474 blind output registration, a fresh output key and connection,
+and the inherited P2WPKH/P2TR transaction rules. The interoperability harness above
+uses Kilowallet 1.1.6, which includes this v3 protocol.
+
+The pool-list defect was an unsupported multi-letter Nostr filter (`#network`)
+rejected by the deployed relay. Discovery now requests indexed `#t`/kind filters
+and validates the signed network and v3 terms locally. The iPhone simulator smoke
+on source `af7710de8b2c527060b57f4224d6777381762e8b` visibly returned two compatible
+open pools (Actions run `39248046525`). This proves discovery, not real-fund round
+completion. The full release gate for that run failed in the separate unlock test;
+experimental limitations and all signing/release gates above remain in force.
