@@ -1,3 +1,5 @@
+import { LIVE_JOIN_ENABLED } from '../../class/xbt/kilojoin/protocol';
+import CoinjoinLive from './CoinjoinLive';
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { SettingsScrollView, SettingsFootnote } from '../../components/SettingsSection';
@@ -93,4 +95,5 @@ const styles = StyleSheet.create({
   link: { color: '#D3263E', paddingVertical: 12, fontSize: 17, fontWeight: '600' },
   credit: { textAlign: 'center', marginTop: 12 },
 });
-export default CoinjoinExperimental;
+const CoinjoinEntry: React.FC = () => (LIVE_JOIN_ENABLED ? <CoinjoinLive /> : <CoinjoinExperimental />);
+export default CoinjoinEntry;

@@ -16,6 +16,7 @@ export class KilojoinRelay {
   >();
 
   private subscription?: string;
+  private subscriptionKind = 2023;
   constructor(
     private readonly onEvent: (event: NostrEvent) => Promise<void>,
     private readonly onError: (error: Error) => void,
@@ -46,10 +47,12 @@ export class KilojoinRelay {
         resolve();
       };
       socket.onerror = () => {
+        if (!this.closed) this.onError(new Error('Relay connection error'));
         clearTimeout(timer);
         this.close();
       };
       socket.onclose = () => {
+        if (!this.closed) this.onError(new Error('Relay disconnected'));
         clearTimeout(timer);
         this.close();
       };
@@ -76,8 +79,17 @@ export class KilojoinRelay {
     authors.forEach(key => hex(key, 32));
     recipients.forEach(key => hex(key, 32));
     if (this.subscription) this.send(['CLOSE', this.subscription]);
+    this.subscriptionKind = 2023;
     this.subscription = 'kilojoin-participant';
     this.send(['REQ', this.subscription, { kinds: [2023], authors, '#p': recipients, since, limit: 256 }]);
+  }
+
+  discoverPools(since: number): void {
+    if (!Number.isSafeInteger(since) || since < 0) throw new Error('Invalid discovery time');
+    if (this.subscription) this.send(['CLOSE', this.subscription]);
+    this.subscriptionKind = 32022;
+    this.subscription = 'kilojoin-pools';
+    this.send(['REQ', this.subscription, { kinds: [32022], '#t': ['kilojoin'], '#network': ['blake2b'], since, limit: 256 }]);
   }
 
   publish(event: NostrEvent): Promise<void> {
@@ -118,7 +130,7 @@ export class KilojoinRelay {
       else pending.reject(new Error('Relay rejected publication'));
     } else if (message[0] === 'EVENT' && this.subscription && message[1] === this.subscription && message.length === 3) {
       const event = message[2] as NostrEvent;
-      if (!verifyEvent(event) || event.kind !== 2023) return;
+      if (!verifyEvent(event) || event.kind !== this.subscriptionKind) return;
       if (this.queued >= 256) {
         this.onError(new Error('Relay message queue exceeded'));
         this.close();

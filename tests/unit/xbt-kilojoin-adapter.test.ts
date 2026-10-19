@@ -1,9 +1,11 @@
+import { BlueApp } from '../../class/blue-app';
+import { MixingClient, recoverWalletRounds, confirmRecoveredRound } from '../../class/xbt/kilojoin/client';
 import { address, Transaction } from 'bitcoinjs-lib';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { observeCoins, walletSigner } from '../../class/xbt/kilojoin/wallet-adapter';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
-import { Coin, coinScript, outpoint, plan, verifySignature } from '../../class/xbt/kilojoin/transaction';
+import { Coin, coinScript, outpoint, plan, verifySignature, transaction, digest } from '../../class/xbt/kilojoin/transaction';
 import { Round } from '../../class/xbt/kilojoin/round';
 import { WalletJournalStore } from '../../class/xbt/kilojoin/wallet-store';
 import { ECPairFactory } from 'ecpair';
@@ -98,3 +100,73 @@ test.each([XbtSegwitBech32Wallet, XbtTaprootWallet])(
     await expect(signer(p, [other])).rejects.toThrow();
   },
 );
+
+test('native client release gate rejects joining before reading wallet keys or opening sockets', async () => {
+  await expect(MixingClient.join({} as never)).rejects.toThrow('not enabled');
+});
+
+test('recovered signed rounds retain locks until corroborated confirmation and freeze recovered outputs', async () => {
+  const { wallet, coin, a } = fixture(),
+    store = new WalletJournalStore(wallet, async () => {});
+  const app = BlueApp.getInstance(),
+    previousWallets = app.wallets;
+  app.wallets = [wallet];
+  const save = jest.spyOn(app, 'saveToDisk').mockResolvedValue(undefined);
+  try {
+    const mixed = address.toOutputScript(wallet._getExternalAddressByIndex(1));
+    const changeScript = address.toOutputScript(wallet._getInternalAddressByIndex(0));
+    const other = { ...coin, txid: '22'.repeat(32) };
+    const p = plan(
+      [coin, other],
+      [Buffer.from(mixed).toString('hex'), '0014' + '33'.repeat(20)],
+      [
+        { script: Buffer.from(changeScript).toString('hex'), value: 39729 },
+        { script: '0014' + '44'.repeat(20), value: 39729 },
+      ],
+      10000,
+    );
+    const round = await Round.join(wallet.getID(), 'ab'.repeat(8), [outpoint(coin)], 10000, 1, store);
+    const reviewed = await round.review(
+      p,
+      {
+        mine: [coin],
+        mixScript: Buffer.from(mixed).toString('hex'),
+        changeScript: Buffer.from(changeScript).toString('hex'),
+        maxFee: 400,
+        feeRate: 2,
+        seatInputs: [1, 1],
+        verified: new Map([coin, other].map(c => [outpoint(c), { value: c.value, script: coinScript(c).toString('hex') }])),
+      },
+      2,
+    );
+    await round.approve(reviewed.commitment!, 3);
+    await round.beforeSigning(reviewed.commitment!, 4);
+    expect((await recoverWalletRounds(wallet))[0].phase).toBe('uncertain');
+    const signed = transaction(p),
+      key = ECPair.fromWIF(wallet._getWifForAddress(a)!);
+    p.coins.forEach((c, i) =>
+      signed.setWitness(i, [Buffer.concat([ecc.signDER(digest(p, i), key.privateKey!), Buffer.from([0x21])]), key.publicKey]),
+    );
+    const id = signed.getId(),
+      addresses = [address.fromOutputScript(mixed), address.fromOutputScript(changeScript)];
+    (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockResolvedValue({ [id]: signed.toHex() });
+    (BlueElectrum.getReportedBlockTip as jest.Mock).mockResolvedValue(205);
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue(
+      Object.fromEntries(addresses.map((addr, i) => [addr, [{ tx_hash: id, height: 200 + i }]])),
+    );
+    await expect(confirmRecoveredRound(wallet, 'ab'.repeat(8))).resolves.toBe(false);
+    expect(wallet._kilojoinJournals!['ab'.repeat(8)].reserved).toHaveLength(1);
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue(
+      Object.fromEntries(addresses.map(addr => [addr, [{ tx_hash: id, height: 200 }]])),
+    );
+    await expect(confirmRecoveredRound(wallet, 'ab'.repeat(8))).resolves.toBe(true);
+    expect(wallet._kilojoinJournals!['ab'.repeat(8)].reserved).toHaveLength(0);
+    p.outputs.forEach((o, index) => {
+      if (addresses.includes(address.fromOutputScript(Buffer.from(o.script, 'hex'))))
+        expect(wallet.getUTXOMetadata(id, index).frozen).toBe(true);
+    });
+  } finally {
+    save.mockRestore();
+    app.wallets = previousWallets;
+  }
+});

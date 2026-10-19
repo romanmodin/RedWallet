@@ -4,7 +4,7 @@ import { crypto as bitcoinCrypto, Transaction } from 'bitcoinjs-lib';
 import ecc from '../../blue_modules/noble_ecc';
 import { ParticipantSession, SessionEnvironment } from '../../class/xbt/kilojoin/session';
 import { Round } from '../../class/xbt/kilojoin/round';
-import { Terms, tokenHash } from '../../class/xbt/kilojoin/protocol';
+import { Terms, tokenHash, changeMessage } from '../../class/xbt/kilojoin/protocol';
 import { Coin, coinScript, digest, outpoint, ownershipMessage, Plan } from '../../class/xbt/kilojoin/transaction';
 import { parseSeat } from '../../class/xbt/kilojoin/roster';
 import { conversationKey, decrypt, encrypt, NostrEvent, signEvent } from '../../class/xbt/kilojoin/crypto';
@@ -111,7 +111,7 @@ async function fixture(type: Coin['type'] = 'p2wpkh') {
     const tweaked = ECPair.fromPrivateKey(key).tweak(bitcoinCrypto.taggedHash('TapTweak', internal));
     return Buffer.concat([tweaked.signSchnorr!(digest(p, index)), Buffer.from([0x21])]).toString('hex');
   };
-  return { session, round, env, advance, receive, published, signature, rawSeats };
+  return { session, round, env, advance, receive, published, signature, rawSeats, terms };
 }
 test.each(['p2wpkh', 'p2tr'] as const)(
   'encrypted %s participant round verifies blind output, explicit approval and all signatures',
@@ -167,4 +167,21 @@ test('wrong displayed commitment and peer tx claims cannot authorize or confirm 
   await f.receive({ type: 'tx', txid: f.session.reviewed().reviewedId }, false, pool);
   expect(f.round.snapshot().phase).toBe('review');
   expect(f.round.snapshot().reserved).toHaveLength(1);
+});
+
+test('welcome arriving before publication acknowledgment waits for the join action', async () => {
+  const f = await fixture();
+  let welcome: Promise<void> | undefined;
+  f.env.publish = async () => {
+    welcome = f.receive({ type: 'welcome', pool_secret: pool.toString('hex'), token: 'ab'.repeat(16), seq: 1 }, true);
+    await Promise.resolve();
+    expect(f.session.snapshot().phase).toBe('joining');
+  };
+  const own = f.rawSeats[0];
+  const proof = Buffer.from(ecc.signDER(changeMessage(f.terms.id, [own.coin], own.change_script, own.change_value), secret(1))).toString(
+    'hex',
+  );
+  await f.session.sendJoin(proof);
+  await welcome;
+  expect(f.session.snapshot().phase).toBe('open');
 });

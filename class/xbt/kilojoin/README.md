@@ -23,6 +23,10 @@ Implemented:
   prevention of reserved-input spends through XBT send/RBF builders.
 - Restart recovery aborts unsigned rounds and retains signed/uncertain reservations.
   It deliberately does not automatically resume signing after restart.
+- Native app controls and orchestration for pool discovery, wallet/coin selection,
+  review/approval, broadcast and independent confirmation; disabled by the release gate.
+- Confirmed output labels and frozen change; restart confirmation freezes recovered
+  outputs instead of guessing their privacy role.
 - Native backend adapter verifies raw parents, matching unspent/history heights and
   coinbase maturity. This experimental adapter requires confirmed coins.
 - Wallet signer checks persisted approval, exact transaction and reservation ownership.
@@ -36,10 +40,11 @@ See tests/native/kilojoin for the reproducible standalone harness and source has
 This is not a full Kotlin PoolSession round, live node acceptance or device review.
 
 Remaining release gates:
-1. Connect and exercise native adapters through the final live UI: pool discovery,
-   selected-wallet/coin controls, review, connection/error/recovery status, explicit
-   broadcast and independently confirmed completion. Current UI stays sample-only.
-2. Mixed/change output labeling and ordinary coin-selection isolation after completion.
+1. Device qualification of the implemented live UI/orchestrator: pool discovery,
+   wallet/coin selection, exact review, explicit signing/broadcast, confirmation and
+   conservative restart recovery. The release gate still shows only the offline preview.
+2. Device review of mixed/change labels: confirmed change is frozen; conservatively
+   recovered outputs are all frozen until the user reviews and unfreezes them.
 3. Full v3 rounds with the pinned actual Kotlin peer and disposable XBT regtest node,
    including relay disconnects, restart, late signatures and P2TR interoperability.
 4. Review network privacy: separate output identity/connection does not hide IPs from
@@ -47,5 +52,6 @@ Remaining release gates:
 5. Native iOS/Android/device validation and bounded mobile RSA performance review.
    JS BigInt blind-RSA operations are not claimed to be constant-time.
 
+Latest local checks: 17 suites / 140 tests passed; full TypeScript check passed.
 No mainnet transactions or relay connections are performed by unit tests.
 Do not enable live mixing merely by flipping the feature constant.

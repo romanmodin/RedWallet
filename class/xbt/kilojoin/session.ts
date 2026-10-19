@@ -50,6 +50,7 @@ export class ParticipantSession {
   private readonly terms: Readonly<Terms>;
   private readonly seat: Seat;
   private busy = false;
+  private idle: Promise<void> = Promise.resolve();
   constructor(
     terms: Readonly<Terms>,
     seat: Seat,
@@ -134,10 +135,15 @@ export class ParticipantSession {
   private async exclusive<T>(action: () => Promise<T>): Promise<T> {
     if (this.busy) throw new Error('Session action pending');
     this.busy = true;
+    let release!: () => void;
+    this.idle = new Promise(resolve => {
+      release = resolve;
+    });
     try {
       return await action();
     } finally {
       this.busy = false;
+      release();
     }
   }
 
@@ -198,6 +204,8 @@ export class ParticipantSession {
   }
 
   async receive(event: NostrEvent): Promise<void> {
+    // A welcome can arrive before the relay acknowledges our join publication.
+    await this.idle;
     return this.exclusive(async () => {
       const message = this.inbox.receive(event, this.env.now()),
         body = message.body;
