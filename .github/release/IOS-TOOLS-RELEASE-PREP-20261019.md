@@ -1,17 +1,16 @@
-# iOS Tools correction release preparation — October 19, 2026
+# Qualified combined iOS release orchestration — October 19, 2026
 
-This is preparation only. Native qualification is still running; do not merge or dispatch the release until the three exact-source gates pass and PR56 is merged.
-
-Frozen replacement application source: 823470d7fae4b7d12d3bc3e90e242f528a8ce80f.
+Frozen application source: 0e36e37ad797b13b711d2606b52ac70ea52e873f.
 Production mapping: 985 paths, SHA256 4fe2b1a5a4619f002d7b7cc19781d7fcee5b182f16de19cb831e63f172893f63.
 
-The replacement adds a Tools scroll-view test identifier and restores the test scroll position before tapping the address checker. It preserves all destination/ownership assertions and the main-app amber, opt-in experimental CoinJoin behavior. PR55 screenshot capture correction remains included.
+The existing gate verifier confirmed all required current-attempt jobs on this exact source at 2026-10-19 08:20:15Z. Receipt: IOS-COMBINED-QUALIFICATION-20261019.json.
 
-Required exact-source gates:
-- CI https://github.com/romanmodin/RedWallet/actions/runs/39200157454
-- General iOS https://github.com/romanmodin/RedWallet/actions/runs/39200157445
-- Funded BIP84 iOS https://github.com/romanmodin/RedWallet/actions/runs/39200157419
+- CI: https://github.com/romanmodin/RedWallet/actions/runs/39206955313
+- General iOS: https://github.com/romanmodin/RedWallet/actions/runs/39206955356
+- Funded BIP84 iOS: https://github.com/romanmodin/RedWallet/actions/runs/39206955341
 
-Both release workflows are repinned to these runs and this source. The existing gate verifier, environment approvals, signing/upload checks, encrypted package handling and screenshot provenance remain unchanged. The older ad776 general iOS gate failed and cannot qualify this release.
+PR58 merged at 08:20:35Z as 119783c880c26474a6b93444594e4ecdf596225e and includes PR56. The candidate retains the Tools navigation correction and adds bounded read-only recovery observations. All original incomplete-scan, import, balance, fee review and transaction assertions remain. Main-app amber, opt-in experimental CoinJoin and PR55 screenshot capture correction remain included.
 
-After qualification, verify the production mapping, merge PR56 with its exact-head guard, then merge this orchestration preparation. Check for duplicate runs before dispatching protected signing/upload and actual screenshot capture. Update distribution pins only from the verified new upload receipt. Select the correct new build, verify existing reviewer notes before adding CoinJoin detail, and publish the privacy policy URL for this source before App Review submission. Apple authentication still needs a stable session; no new release or submission is claimed here.
+Both release workflows now pin this qualified source and these three runs. Environment protections, exact-source verification, signing/upload checks, encrypted IPA handling and screenshot provenance are unchanged. Older-source passes do not qualify this candidate. Hosted checks do not establish physical-phone, ColdWallet or full native CoinJoin/recovery interoperability.
+
+After merging this orchestration, verify main's production mapping and check for duplicate runs before dispatching protected signing/upload and actual screenshot capture. Update distribution pins only from the verified new upload receipt and Apple processing result. Inspect fresh empty-wallet screenshots before upload. Check saved reviewer notes and the privacy policy URL after stable Apple authentication, then select the correct new build and submit App Review. No new upload, delivery or Apple submission is claimed by this source qualification receipt.
