@@ -1,26 +1,28 @@
 {
-  "sourceCommit": "2e2236f1f69b9793a7c7f27436104702fdfa4177",
+  "sourceCommit": "2df7aa9afe69e6453e899d29be2fd9f4618f9263",
   "productionTreeSha256": "60a3da7ddf0aafedabc8880ef79e218c63c66bf7498eda310d4eac3cae92ff11",
   "productionPathCount": 985,
   "status": "AWAITING_NATIVE_QUALIFICATION_AND_VISUAL_REVIEW",
   "requiredRuns": {
-    "ci": 39268942125,
-    "ios": 39268942193,
-    "fundedIos": 39268990880
+    "ci": 39274677453,
+    "ios": 39274677570,
+    "fundedIos": 39274783897
   },
   "softwareTests": {
     "status": "pending",
-    "runId": 39268942125,
+    "runId": 39274677453,
     "localValidation": {
       "suites": 110,
       "passed": 1023,
       "inheritedSkipped": 1,
       "lintErrors": 0,
-      "existingWarnings": 19
+      "existingWarnings": 19,
+      "sourceCommit": "2e2236f1f69b9793a7c7f27436104702fdfa4177"
     },
     "focusedCaptureTests": {
       "suites": 2,
-      "passed": 15
+      "passed": 11,
+      "scope": "native capture helper and storage password driver; ESLint on changed smoke/helper passed"
     }
   },
   "readOnlyRelayProbe": {
@@ -44,7 +46,7 @@
       "joined": false,
       "imageSha256": "d3fb559361cceef4e6b16c574a855a7137c1db99c5201d69d2383910290117b0"
     },
-    "landscape": "Fresh qualification pending. The 16293 native landscape image contains rotated UI in a portrait framebuffer; test now asserts native view bounds and retains unmodified PNG plus sidecar."
+    "landscape": "Pending fresh qualification. On2e2236 iOS timed out the geometry update despite Detox acknowledgement;402x874nativebounds and unchangedPNG correctly failed. Test now attaches Simulator explicitly; all orientation assertions remain mandatory."
   },
   "protocolReview": {
     "protocolVersion": 3,
@@ -53,20 +55,23 @@
     "result": "v3 already implemented; discovery filter corrected"
   },
   "previousGateResults": {
-    "sourceCommit": "16293fbc271ab4d0a4f293ca8739f2899c586e91",
+    "sourceCommit": "2e2236f1f69b9793a7c7f27436104702fdfa4177",
     "ci": {
-      "runId": 39262993463,
+      "runId": 39268942125,
       "conclusion": "success"
     },
     "fundedIos": {
-      "runId": 39263056527,
-      "conclusion": "success"
+      "runId": 39268990880,
+      "conclusion": "success",
+      "artifactId": 12197296008,
+      "artifactSha256": "0da7a2a907c76a4ecfc26212373f322d3be9a02b4f4554894b870864b470a0e2"
     },
     "ios": {
-      "runId": 39262993428,
+      "runId": 39268942193,
       "conclusion": "failure",
-      "artifactId": 12193458042,
-      "cause": "Incorrect PNG-pixel orientation assumption; full native suite skipped"
+      "artifactId": 12195309967,
+      "artifactSha256": "655646b3a128d8a4992cd6b04bab1d67f2e2a31283ebe80d9c4cf7e0d07663fb",
+      "cause": "Native iOS orientation request timed out; full native suite skipped"
     },
     "qualifiesReplacement": false
   }
