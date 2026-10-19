@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-19T11:51:00Z",
+  "sourceCommit": "3f713566dcd0de5208c70d821e6aa2ae1604150b",
+  "runId": 39240576756,
+  "runUrl": "https://github.com/romanmodin/RedWallet/actions/runs/39240576756",
+  "jobId": 118033299580,
+  "failedStep": "Verify artwork and read-only pool discovery",
+  "firstActionableFailure": "TypeError: device.setAppearance is not a function",
+  "classification": "test-driver API incompatibility with installed Detox 20.51.4; failure occurred before app launch and visual assertions",
+  "retainedArtifact": {
+    "id": 12183781916,
+    "name": "e2e-ios-videos",
+    "sha256": "0346f4aaf7e9a8521c7afbf565e7103d6f848edc1096dd1661d94b8009c0f01e"
+  },
+  "correction": "Use xcrun simctl ui for appearance on the exact Detox-selected disposable simulator. All visual/discovery assertions and full subsequent suites are unchanged.",
+  "nativeVisualApproval": false,
+  "releaseQualified": false,
+  "localValidation": {
+    "unitSuitesPassed": 109,
+    "testsPassed": 1020,
+    "inheritedSkippedTests": 1,
+    "typecheck": "passed",
+    "lintErrors": 0,
+    "existingLintWarnings": 19,
+    "unitLogSha256": "89d494389d08cc89da20b1a9fc2cd484b9d3580309049296c4ff6980818d4812",
+    "lintLogSha256": "b66dea0fb0eb559e50613adc99c6c3bfa104e8edea9b3fe8cf0910e3b2d91bec"
+  }
+}

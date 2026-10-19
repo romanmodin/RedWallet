@@ -1,0 +1,26 @@
+{
+  "source": "2df7aa9afe69e6453e899d29be2fd9f4618f9263",
+  "run": 39274783897,
+  "job": 118141119739,
+  "artifact": 12198542981,
+  "sha256": "af8848e80ae0ee7dcfc9d99ede84f2067859634465a9a72774df9ee823858594",
+  "first_failure": "Keyboard remained visible after acknowledged Done tap; failed NOT TOBEVISIBLE with original 10-second timeout before FeeBumpCreateButton.",
+  "evidence": "Downloaded archive hash verified; native-live-lifecycle-failure.png actually viewed; fee input 25 and keyboard/Done still visible. Detox trace tap 15:34:04.703\u201315:34:07.754, visibility failure15:34:26.574Z.",
+  "classification": "Observed UI dismissal failure. Test-driver correction candidate; underlying intermittent UI cause not proven. No evidence of transaction-signing failure because preparation not reached.",
+  "correction": "At most one further idempotent Done tap only after completed keyboard-visibility timeout and positive keyboard visibility; original total10s deadline retained; all fee/recipient/signature/broadcast assertions unchanged.",
+  "qualification": "Pending fresh exact-source hosted tests. Never count old passes as replacement qualification.",
+  "localValidation": {
+    "focusedTestsPassed": 7,
+    "unitSuitesPassed": 111,
+    "unitTestsPassed": 1030,
+    "inheritedSkipped": 1,
+    "typecheck": "passed",
+    "lintErrors": 0,
+    "lintExistingWarnings": 19,
+    "logs": [
+      "/tmp/redwallet-fee-keyboard-focused.log",
+      "/tmp/redwallet-fee-keyboard-unit.log",
+      "/tmp/redwallet-fee-keyboard-lint-final.log"
+    ]
+  }
+}

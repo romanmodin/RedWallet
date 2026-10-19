@@ -4,11 +4,19 @@ import DefaultPreference from 'react-native-default-preference';
 import { isArtworkDoubleTap, loadArtworkSkin, toggleArtworkSkin, useArtworkSkin, ARTWORK_SKIN_KEY } from '../../blue_modules/artwork-skin';
 import ArtworkSkinToggle from '../../components/ArtworkSkinToggle';
 import ArtworkSkinSurface from '../../components/ArtworkSkinSurface';
-import { Text } from 'react-native';
-jest.mock('react-native-default-preference', () => ({ setName: jest.fn(), get: jest.fn(), set: jest.fn() }));
-jest.mock('../../blue_modules/currency', () => ({ GROUP_IO_BLUEWALLET: 'group' }));
+import { StyleSheet, Text } from 'react-native';
+jest.mock('react-native-default-preference', () => ({
+  setName: jest.fn(),
+  get: jest.fn(),
+  set: jest.fn(),
+}));
+jest.mock('../../blue_modules/currency', () => ({
+  GROUP_IO_BLUEWALLET: 'group',
+}));
 
-jest.mock('../../components/themes', () => ({ useTheme: () => ({ colors: { alternativeTextColor: '#999' } }) }));
+jest.mock('../../components/themes', () => ({
+  useTheme: () => ({ colors: { alternativeTextColor: '#999' } }),
+}));
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -84,7 +92,11 @@ it('retains wallet content and renders no artwork when disabled', () => {
     </ArtworkSkinSurface>,
   );
   expect(screen.getByText('Receive address')).toBeTruthy();
-  expect(screen.getByTestId('ArtworkSkinBackground', { includeHiddenElements: true })).toBeTruthy();
+  expect(
+    screen.getByTestId('ArtworkSkinBackground', {
+      includeHiddenElements: true,
+    }),
+  ).toBeTruthy();
 });
 
 it('single-tapping the logo never enables the skin', async () => {
@@ -115,4 +127,42 @@ it('a double-tap toggles on and a second double-tap restores default', async () 
   expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'disabled');
   screen.unmount();
   jest.restoreAllMocks();
+});
+
+it.each([
+  [390, 740],
+  [430, 850],
+  [700, 390],
+  [320, 900],
+])('constrains artwork to its measured %s x %s surface without intrinsic image dimensions', (width, height) => {
+  const screen = render(
+    <ArtworkSkinSurface active>
+      <Text>Wallet content</Text>
+    </ArtworkSkinSurface>,
+  );
+  fireEvent(screen.getByTestId('ArtworkSkinSurface'), 'layout', {
+    nativeEvent: { layout: { width, height } },
+  });
+  const image = screen.getByTestId('ArtworkSkinBackground', {
+    includeHiddenElements: true,
+  });
+  const style = StyleSheet.flatten(image.props.style);
+  expect(style.width).toBe(width);
+  expect(style.height).toBe(Math.min(height, width * 1.15));
+  expect(style.top).toBe(0);
+  expect(style.left).toBe(0);
+  // The central helmet fits in the crop instead of scaling to a full tall screen.
+  const scale = Math.max(style.width / 1757, style.height / 969);
+  expect(600 * scale).toBeLessThanOrEqual(width);
+  expect(screen.getByText('Wallet content')).toBeTruthy();
+  fireEvent(screen.getByTestId('ArtworkSkinSurface'), 'layout', {
+    nativeEvent: { layout: { width: height, height: width } },
+  });
+  expect(
+    StyleSheet.flatten(
+      screen.getByTestId('ArtworkSkinBackground', {
+        includeHiddenElements: true,
+      }).props.style,
+    ).width,
+  ).toBe(height);
 });

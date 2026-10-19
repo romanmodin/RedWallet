@@ -33,6 +33,7 @@ import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { lifecycleFormats } from '../native/lifecycle-formats';
 import { observeNativeCondition } from '../native/observe-native-condition';
+import { dismissFeeKeyboard } from '../native/dismiss-fee-keyboard';
 import { lifecycleCaseTimeoutMs } from '../native/lifecycle-timeouts';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
@@ -336,12 +337,15 @@ async function bump(
   await feeInput.clearText();
   await feeInput.typeText(String(rate) + (device.getPlatform() === 'android' ? '\n' : ''));
   if (device.getPlatform() === 'ios') {
-    await element(by.text(english.send.input_done)).tap();
-    // A closing keyboard can consume Create. Require dismissal first; never
-    // retry an uncertain signing/preparation action.
-    await waitFor(element(by.type('UIKeyboardLayoutStar')))
-      .not.toBeVisible()
-      .withTimeout(10_000);
+    // A retained iOS trace acknowledged Done but left the keyboard open.
+    // Retry only that harmless action after observing the keyboard; retain the
+    // original deadline and never retry Create or any signing/broadcast action.
+    const keyboard = element(by.type('UIKeyboardLayoutStar'));
+    await dismissFeeKeyboard({
+      tapDone: () => element(by.text(english.send.input_done)).tap(),
+      assertKeyboardVisible: () => nativeExpect(keyboard).toBeVisible(),
+      waitClosed: timeoutMs => waitFor(keyboard).not.toBeVisible().withTimeout(timeoutMs),
+    });
   }
   await waitFor(feeInput).toBeVisible().withTimeout(15_000);
   assert.equal(await nativeText('FeeBumpRateInput'), String(rate));
