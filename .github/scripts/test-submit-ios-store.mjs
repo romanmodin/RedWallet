@@ -238,7 +238,7 @@ test("submission receipts must belong to the exact signed release and both revie
   const message = {
     ...identity,
     status: "SCREENSHOTS_COMPLETE",
-    captureRunId: 123,
+    captureRunId: 39319942381,
     images: ["iphone", "ipad"].map((family) => ({
       family,
       id: "message-" + family,

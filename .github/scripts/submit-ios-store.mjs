@@ -70,8 +70,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots) {
       messageShots.version === VERSION &&
       messageShots.appStoreVersionId === VERSION_ID &&
       messageShots.sourceCommit === SOURCE &&
-      Number.isSafeInteger(messageShots.captureRunId) &&
-      messageShots.captureRunId > 0 &&
+      messageShots.captureRunId === 39319942381 &&
       messageShots.status === "SCREENSHOTS_COMPLETE" &&
       messageShots.images.length === 2 &&
       messageShots.images.every((i) => i.state === "COMPLETE"),
