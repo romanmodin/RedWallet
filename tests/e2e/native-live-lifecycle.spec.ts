@@ -32,6 +32,7 @@ import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { lifecycleFormats } from '../native/lifecycle-formats';
+import { observeNativeCondition } from '../native/observe-native-condition';
 import { lifecycleCaseTimeoutMs } from '../native/lifecycle-timeouts';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
 
@@ -207,9 +208,16 @@ async function beginRecovery(): Promise<void> {
 
 async function recover(): Promise<void> {
   await beginRecovery();
-  await waitFor(element(by.id('RecoveryStopButton')))
-    .not.toExist()
-    .withTimeout(90_000);
+  // Native waitFor never returned in run 39200157419, including after its
+  // 90-second deadline. Poll the same read-only assertion from the driver so
+  // each request returns between observations and a stuck request fails closed.
+  await observeNativeCondition(
+    'Recovery completion',
+    async () => {
+      await nativeExpect(element(by.id('RecoveryStopButton'))).not.toExist();
+    },
+    90_000,
+  );
   // Removing Stop alone does not establish a complete scan.
   await nativeExpect(element(by.text(english.wallets.recovery_incomplete))).not.toExist();
   await waitForId('RecoveryImportSelected');
