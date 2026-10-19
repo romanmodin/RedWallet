@@ -1,0 +1,13 @@
+RedWallet XBT 8.0.1 — combined iOS update
+
+- Optional artwork skin, with the standard red appearance retained by default. In Settings, double-tap the logo to toggle the artwork.
+- USDC totals display two decimal places. XBT amounts retain coin precision. The optional NeoxEX display quote refreshes when the app opens/resumes.
+- Opt-in SegWit (BIP84) and Taproot (BIP86) account recovery, independent receive/change discovery including spent-out history, adjustable discovery limits and explicit incomplete-scan handling.
+- Optional authenticated TLS backup servers, XBT compatibility checks, bounded waits and checks for stale chain information.
+- Authenticated BIP84 fee replacement and ancestor-aware CPFP, with decoded recipient/fee review, fee safeguards and frozen-coin protection. Fee-bump completion returns to the existing wallet screen.
+- Encrypted transaction-history preservation, failure-safe migration and deleted-wallet cache cleanup.
+- In-app privacy policy and retained BlueWallet open-source attribution.
+
+This is an XBT wallet. Unified signing is required; BTC and ordinary hardware-wallet signatures are not interchangeable with XBT. Taproot/SegWit, Unified-aware cold signing and prior transaction fixes are retained capabilities. Hosted simulator and isolated backend checks do not establish physical-phone or ColdWallet interoperability.
+
+Use a fresh test wallet and small test amounts. Do not share recovery phrases or private keys in feedback. The optional NeoxEX quote is display-only and never changes transaction amounts. The artwork is optional, not a separate wallet.

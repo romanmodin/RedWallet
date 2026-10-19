@@ -1,0 +1,31 @@
+{
+  "verifiedAt": "2026-10-19T02:53:23.818209+00:00",
+  "sourceCommit": "dece41b5ebeed892b66c5fb3b8e1ba32dc07b8df",
+  "gates": [
+    {
+      "id": 39182714947,
+      "url": "https://github.com/romanmodin/RedWallet/actions/runs/39182714947",
+      "workflow": ".github/workflows/ci.yml",
+      "source": "dece41b5ebeed892b66c5fb3b8e1ba32dc07b8df",
+      "conclusion": "success",
+      "runAttempt": 1
+    },
+    {
+      "id": 39182714863,
+      "url": "https://github.com/romanmodin/RedWallet/actions/runs/39182714863",
+      "workflow": ".github/workflows/e2e-ios.yml",
+      "source": "dece41b5ebeed892b66c5fb3b8e1ba32dc07b8df",
+      "conclusion": "success",
+      "runAttempt": 1
+    },
+    {
+      "id": 39182714902,
+      "url": "https://github.com/romanmodin/RedWallet/actions/runs/39182714902",
+      "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
+      "source": "dece41b5ebeed892b66c5fb3b8e1ba32dc07b8df",
+      "conclusion": "success",
+      "runAttempt": 1
+    }
+  ],
+  "androidQualified": false
+}

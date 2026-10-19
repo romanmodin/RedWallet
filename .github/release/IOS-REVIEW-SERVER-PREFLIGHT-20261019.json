@@ -1,0 +1,20 @@
+{
+  "verifiedAt": "2026-10-19T01:29:07.550970+00:00",
+  "endpoint": "electrum.bitcoinxor.org:50002",
+  "tlsAuthenticated": true,
+  "tlsVersion": "TLSv1.3",
+  "certificateExpires": "Dec  5 14:58:12 2026 GMT",
+  "serverVersion": [
+    "Fulcrum 2.1.2",
+    "1.4"
+  ],
+  "checkpointHeight": 961640,
+  "checkpointMatches": true,
+  "reportedTip": 977938,
+  "reportedTipHeaderBytes": 164,
+  "walletQueriesSent": false,
+  "transactionsBroadcast": false,
+  "scope": "Protocol preflight only; no SPV or native-device interoperability claim",
+  "publicReferenceTip": 977938,
+  "tipDifference": 0
+}
