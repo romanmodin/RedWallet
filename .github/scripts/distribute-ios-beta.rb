@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-# Assign only the verified Taproot build to the two existing RedWallet beta groups.
+# Assign only the verified combined iOS build to the two existing RedWallet beta groups.
 require 'json'
 require 'net/http'
 require 'openssl'
@@ -12,7 +12,7 @@ class BetaReleaseError < StandardError; end
 class RedWalletBetaRelease
   APP_ID = '6817118871'
   BUNDLE_ID = 'com.romanmodin.redwallet'
-  BUILD = '1791526289'
+  BUILD = '1792401003'
   VERSION = '8.0.1'
   GROUPS = [
     { id: '0bc2722a-48b6-4520-871d-dd5a4a8988cb', name: 'Roman iPhone Testing', internal: true },
