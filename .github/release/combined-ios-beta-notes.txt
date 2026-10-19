@@ -6,6 +6,7 @@ RedWallet XBT 8.0.1 — combined iOS update
 - Optional authenticated TLS backup servers, XBT compatibility checks, bounded waits and checks for stale chain information.
 - Authenticated BIP84 fee replacement and ancestor-aware CPFP, with decoded recipient/fee review, fee safeguards and frozen-coin protection. Fee-bump completion returns to the existing wallet screen.
 - Encrypted transaction-history preservation, failure-safe migration and deleted-wallet cache cleanup.
+- CoinJoin under Settings > Tools, marked amber Experimental. Participation is opt-in; sample mode is available first. Review fees and explicitly approve signing. Interrupted signed rounds can keep coins reserved until resolved. Powered by Kilojoin by Kilombino.
 - In-app privacy policy and retained BlueWallet open-source attribution.
 
 This is an XBT wallet. Unified signing is required; BTC and ordinary hardware-wallet signatures are not interchangeable with XBT. Taproot/SegWit, Unified-aware cold signing and prior transaction fixes are retained capabilities. Hosted simulator and isolated backend checks do not establish physical-phone or ColdWallet interoperability.

@@ -187,3 +187,19 @@ it('authenticates signatures before reporting original fee information', () => {
   original.ins[0].witness[0][10] = (original.ins[0].witness[0][10] + 1) % 256;
   expect(() => inspectBip84Original(txid, original.toHex(), parents, owns)).toThrow();
 });
+
+it('rejects fee replacement of a CoinJoin-reserved input before accessing its key', async () => {
+  const { Round } = await import('../../class/xbt/kilojoin/round');
+  const { WalletJournalStore } = await import('../../class/xbt/kilojoin/wallet-store');
+  const { wallet, original, parent } = fixture();
+  jest
+    .spyOn(wallet, 'getTransactions')
+    .mockReturnValue([
+      { txid: parent.getId(), rawHex: parent.toHex(), confirmations: 100 } as any,
+      { txid: original.getId(), rawHex: original.toHex(), confirmations: 0 } as any,
+    ]);
+  await Round.join(wallet.getID(), 'ab'.repeat(8), [parent.getId() + ':0'], 100, 1, new WalletJournalStore(wallet, async () => {}));
+  const keys = jest.spyOn(wallet, '_getWifForAddress');
+  expect(() => wallet.createAuthenticatedRBFTransaction(original.getId(), 3)).toThrow('reserved');
+  expect(keys).not.toHaveBeenCalled();
+});

@@ -1,3 +1,5 @@
+import { Journal } from '../xbt/kilojoin/round';
+import { assertUnreserved, reservedCoins } from '../xbt/kilojoin/wallet-store';
 import { inspectBip84Original, planBip84Replacement } from '../xbt/bip84-replacement';
 import { CreateTransactionResult } from './types';
 import { ECPairFactory } from 'ecpair';
@@ -24,6 +26,8 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
   public readonly typeReadable = XbtSegwitBech32Wallet.typeReadable;
   public readonly segwitType = 'p2wpkh';
   static readonly derivationPath = "m/84'/0'/0'";
+
+  _kilojoinJournals?: Record<string, Journal>;
 
   // Fee actions remain disabled until authenticated BIP84 replacement and fee review land.
   allowRBF() {
@@ -61,6 +65,10 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
   async broadcastTx(txhex: string): Promise<boolean> {
     assertXbtUnifiedTransaction(txhex);
     return super.broadcastTx(txhex);
+  }
+
+  cosignPsbt(_psbt: bitcoin.Psbt): never {
+    throw new Error('XBT generic PSBT cosigning is unsupported');
   }
 
   allowCosignPsbt() {
@@ -117,8 +125,10 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
   }
 
   getUtxo(respectFrozen = false) {
+    const reserved = reservedCoins(this);
     const transactions = new Map(this.getTransactions().map(transaction => [transaction.txid, transaction]));
     return super.getUtxo(respectFrozen).flatMap(utxo => {
+      if (reserved.has(`${utxo.txid}:${utxo.vout}`)) return [];
       const parent = transactions.get(utxo.txid);
       if (!parent?.rawHex) return [];
       let raw;
@@ -170,6 +180,10 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
           return false;
         }
       },
+    );
+    assertUnreserved(
+      this,
+      plan.original.ins.map(input => ({ txid: Buffer.from(input.hash).reverse().toString('hex'), vout: input.index })),
     );
     const psbt = new bitcoin.Psbt();
     psbt.setVersion(plan.original.version);
@@ -245,6 +259,7 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
 
   createTransaction(...args: Parameters<AbstractHDElectrumWallet['createTransaction']>) {
     const [utxos, targets, feeRate, changeAddress, sequence, skipSigning, masterFingerprint] = args;
+    assertUnreserved(this, utxos);
     if (!this.weOwnAddress(changeAddress)) throw new Error('XBT change address is not controlled by this wallet');
     const transactions = new Map(this.getTransactions().map(transaction => [transaction.txid, transaction]));
     const verifiedUtxos = utxos.map(utxo => {
