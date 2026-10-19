@@ -22,6 +22,14 @@ const SettingsTools: React.FC = () => {
     <SettingsScrollView>
       <SettingsSection>
         <SettingsListItem
+          title="CoinJoin — Experimental"
+          subtitle="Offline preview with sample coins"
+          iconName="tools"
+          onPress={() => navigation.navigate('CoinjoinExperimental')}
+          testID="CoinjoinExperimental"
+          chevron
+        />
+        <SettingsListItem
           title={loc.is_it_my_address.title}
           iconName="search"
           onPress={navigateToIsItMyAddress}
