@@ -73,6 +73,12 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
     await scrollUpOnHomeScreen();
     await capture('03-optional-artwork');
 
+    // The add-wallet card is to the right of the demo wallet on iPhone.
+    // Bring it fully into view before tapping, as the import helper does.
+    await waitFor(element(by.id('CreateAWallet')))
+      .toBeVisible()
+      .whileElement(by.id('WalletsList'))
+      .scroll(500, 'right');
     await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'ImportWallet');
     await element(by.id('ImportWallet')).tap();
     await waitForId('MnemonicInput');
