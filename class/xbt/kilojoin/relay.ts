@@ -16,6 +16,7 @@ export class KilojoinRelay {
   >();
 
   private subscription?: string;
+  private subscriptionGeneration = 0;
   private subscriptionKind = 2023;
   constructor(
     private readonly onEvent: (event: NostrEvent) => Promise<void>,
@@ -80,7 +81,7 @@ export class KilojoinRelay {
     recipients.forEach(key => hex(key, 32));
     if (this.subscription) this.send(['CLOSE', this.subscription]);
     this.subscriptionKind = 2023;
-    this.subscription = 'kilojoin-participant';
+    this.subscription = `kilojoin-participant-${++this.subscriptionGeneration}`;
     this.send(['REQ', this.subscription, { kinds: [2023], authors, '#p': recipients, since, limit: 256 }]);
   }
 
@@ -88,7 +89,7 @@ export class KilojoinRelay {
     if (!Number.isSafeInteger(since) || since < 0) throw new Error('Invalid discovery time');
     if (this.subscription) this.send(['CLOSE', this.subscription]);
     this.subscriptionKind = 32022;
-    this.subscription = 'kilojoin-pools';
+    this.subscription = `kilojoin-pools-${++this.subscriptionGeneration}`;
     this.send(['REQ', this.subscription, { kinds: [32022], '#t': ['kilojoin'], '#network': ['blake2b'], since, limit: 256 }]);
   }
 
@@ -136,10 +137,11 @@ export class KilojoinRelay {
         this.close();
         return;
       }
+      const subscription = this.subscription;
       this.queued++;
       this.sequence = this.sequence
         .then(async () => {
-          if (!this.closed) await this.onEvent(event);
+          if (!this.closed && this.subscription === subscription) await this.onEvent(event);
         })
         .catch(() => this.onError(new Error('Participant message rejected')))
         .finally(() => {

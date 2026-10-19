@@ -75,14 +75,40 @@ test('serializes valid events and ignores wrong subscription and malformed signa
   await connected;
   f.relay.subscribe([event.pubkey], [event.pubkey], 0);
   f.message(['EVENT', 'other', event]);
-  f.message(['EVENT', 'kilojoin-participant', { ...event, content: 'changed' }]);
-  f.message(['EVENT', 'kilojoin-participant', event]);
-  f.message(['EVENT', 'kilojoin-participant', event]);
+  f.message(['EVENT', 'kilojoin-participant-1', { ...event, content: 'changed' }]);
+  f.message(['EVENT', 'kilojoin-participant-1', event]);
+  f.message(['EVENT', 'kilojoin-participant-1', event]);
   await Promise.resolve();
   expect(handler).toHaveBeenCalledTimes(1);
   finish();
   for (let i = 0; i < 10; i++) await Promise.resolve();
   expect(handler).toHaveBeenCalledTimes(2);
   expect(f.errors).not.toHaveBeenCalled();
+  f.relay.close();
+});
+
+test('queued events from a superseded subscription are not delivered after the current handler', async () => {
+  let finish!: () => void;
+  const handler = jest.fn(async () => {
+    if (handler.mock.calls.length === 1)
+      await new Promise<void>(resolve => {
+        finish = resolve;
+      });
+  });
+  const f = fixture(handler),
+    connected = f.relay.connect();
+  f.socket.onopen!();
+  await connected;
+  f.relay.subscribe([event.pubkey], [event.pubkey], 0);
+  f.message(['EVENT', 'kilojoin-participant-1', event]);
+  f.message(['EVENT', 'kilojoin-participant-1', event]);
+  await Promise.resolve();
+  f.relay.subscribe([event.pubkey], [event.pubkey], 1);
+  finish();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  expect(handler).toHaveBeenCalledTimes(1);
+  f.message(['EVENT', 'kilojoin-participant-2', event]);
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  expect(handler).toHaveBeenCalledTimes(2);
   f.relay.close();
 });

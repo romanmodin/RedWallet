@@ -18,6 +18,7 @@ Implemented:
   approval, verified signature collection and canonical transaction assembly.
 - P2WPKH/P2TR XBT 0x21 signatures, exact fee/change review and backend revalidation.
 - Bounded relay queue, publication acknowledgments/timeouts and separate output socket.
+  Subscription generations reject late/queued frames from superseded subscriptions.
 - Session encryption using XChaCha20-Poly1305 with a device-only native Keychain key.
 - Durable wallet reservations, strict persistence error propagation/readback, and
   prevention of reserved-input spends through XBT send/RBF builders.
@@ -40,7 +41,9 @@ See tests/native/kilojoin for the reproducible standalone harness and source has
 The original pinned Kotlin PoolSession also completed full encrypted v3 rounds with
 RedWallet over a local test relay for both script types, with identical signed bytes.
 A separate disposable, peer-network-disabled XBT node accepted/mined both transaction
-types and rejected corrupted signatures. These do not constitute native device review.
+types and rejected corrupted signatures. Real loopback WebSocket tests additionally cover acknowledgments, disconnection,
+separate output connections, and obsolete subscription frames. These do not
+constitute native device review.
 
 Remaining release gates:
 1. Device qualification of the implemented live UI/orchestrator: pool discovery,
@@ -55,6 +58,6 @@ Remaining release gates:
 5. Native iOS/Android/device validation and bounded mobile RSA performance review.
    JS BigInt blind-RSA operations are not claimed to be constant-time.
 
-Latest local checks: 17 suites / 140 tests passed; full TypeScript check passed.
+Latest local checks: 18 suites / 144 tests passed; full TypeScript check passed.
 No mainnet transactions or relay connections are performed by unit tests.
 Do not enable live mixing merely by flipping the feature constant.
