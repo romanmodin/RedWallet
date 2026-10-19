@@ -21,5 +21,38 @@ Archive SHA256s checked against publisher sidecars:
 - Kotlin compiler: 81f0264c9073b5cbbdb3ff8418cf2c5dac076879fc156fa1a6462f5a5acc4420
 - Temurin JRE: 0b2b640e3046b64c8ec504de0ab9d91bb5610182bda21fad454681ce54d45a62
 
-This is transaction/cryptography interoperability. It does not exercise the complete
-Android PoolSession, Android JNI, relay round lifecycle, or a live XBT node.
+## Full upstream participant rounds
+
+`run-peer.py SOURCE KOTLINC JAVA JSON_JAR` verifies pinned sources and compiles the
+original upstream PoolSession, Protocol, BlindRsa, NIP44, event and crypto sources.
+The org.json:json:20250517 JAR from Maven Central is SHA256-pinned by the runner.
+`RelayClientStub.kt` replaces only networking with a signed-event stdio test relay;
+`Peer.kt` supplies synthetic chain observations and public fixture keys. No public
+relay, production node or real funds are used. The upstream creator's automatic
+signing uses only its public fixture key; RedWallet still requires explicit approval.
+
+Both P2WPKH and P2TR complete join/welcome, roster, close vote, RSA blind issuance,
+fresh-identity output registration and signature exchange, then compare the exact
+assembled transaction bytes. The test caught a pre-welcome subscription ordering
+issue; the app now subscribes to the direct inbox first and to pool history only
+after installing the welcome key. Kotlin sources remain unchanged.
+
+## Disposable XBT node qualification
+
+Run `KILOJOIN_REGTEST_BIN=/absolute/bin-directory node_modules/.bin/jest
+ tests/native/kilojoin/regtest.test.ts --runInBand` (one shell line).
+The directory must contain XBT-capable `bitcoind` and `bitcoin-cli` binaries.
+An optional `KILOJOIN_REGTEST_RECEIPT=/absolute/output.json` captures results.
+
+The test always creates a fresh temporary data directory, disables peer networking,
+binds RPC only to loopback, verifies BLAKE2b activation at height 150, funds public
+fixture keys, and checks/mines both script types' transactions. It rejects corrupted
+signatures, confirms one mined block, stops its own process and removes its directory.
+No existing node data/configuration is used. Both node cases passed on Knots
+v29.4.2.knots20260508, bitcoind SHA256
+`d04cd8211e711af989a7a62d0b8b55a8cfe496694392518da0ccb848469b3799`.
+
+These are separate protocol and node tests: the complete Kotlin round currently uses
+synthetic chain observations. Native UI/Keychain, actual WebSocket transport,
+combined full-round/backend faults and Android JNI remain outside this qualification.
+Both integration tests skip unless their explicit environment variables are supplied.

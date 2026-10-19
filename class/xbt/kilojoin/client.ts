@@ -127,7 +127,11 @@ export class MixingClient {
       start = clock();
     const round = await Round.join(wallet.getID(), terms.id, config.selected, Math.min(terms.timeout + 1500, start + 7200), start, store);
     const vault = new SessionVault(wallet.getID(), terms.id);
-    const subscribe = () => relay.subscribe([terms.creator, terms.public_key], [joinPub, terms.public_key], start - 60);
+    // Subscribe to the direct welcome first; pool history is unreadable until its key arrives.
+    const subscribe = () =>
+      session.snapshot().phase === 'joining'
+        ? relay.subscribe([terms.creator], [joinPub], start - 60)
+        : relay.subscribe([terms.creator, terms.public_key], [terms.public_key], start - 60);
     const relay = new KilojoinRelay(
       async event => {
         const before = session.snapshot().phase;

@@ -37,7 +37,10 @@ failed storage, concurrency, restart, tampering, fee and ordinary send/RBF regre
 The pinned Kotlin CoinjoinTx/crypto code additionally verified RedWallet raw transactions
 and signatures for P2WPKH/P2TR; RedWallet verified Kotlin-produced signatures in return.
 See tests/native/kilojoin for the reproducible standalone harness and source hashes.
-This is not a full Kotlin PoolSession round, live node acceptance or device review.
+The original pinned Kotlin PoolSession also completed full encrypted v3 rounds with
+RedWallet over a local test relay for both script types, with identical signed bytes.
+A separate disposable, peer-network-disabled XBT node accepted/mined both transaction
+types and rejected corrupted signatures. These do not constitute native device review.
 
 Remaining release gates:
 1. Device qualification of the implemented live UI/orchestrator: pool discovery,
@@ -45,8 +48,8 @@ Remaining release gates:
    conservative restart recovery. The release gate still shows only the offline preview.
 2. Device review of mixed/change labels: confirmed change is frozen; conservatively
    recovered outputs are all frozen until the user reviews and unfreezes them.
-3. Full v3 rounds with the pinned actual Kotlin peer and disposable XBT regtest node,
-   including relay disconnects, restart, late signatures and P2TR interoperability.
+3. Combine the passing Kotlin-peer and disposable-node harnesses with real WebSocket
+   transport and backend fault injection, including disconnects, restart and late signatures.
 4. Review network privacy: separate output identity/connection does not hide IPs from
    the relay or address queries from the configured backend. Do not promise anonymity.
 5. Native iOS/Android/device validation and bounded mobile RSA performance review.
