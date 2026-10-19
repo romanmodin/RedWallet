@@ -1,4 +1,5 @@
 import { normalizeXbtUnit } from '../xbt/units';
+import { CoinPrivacyRecord, readCoinPrivacyRecord } from '../xbt/coin-privacy';
 import b58 from 'bs58check';
 import { sha256 } from '@noble/hashes/sha256';
 import wif from 'wif';
@@ -11,6 +12,7 @@ type WalletWithPassphrase = AbstractWallet & { getPassphrase: () => string };
 type UtxoMetadata = {
   frozen?: boolean;
   memo?: string;
+  coinjoin?: CoinPrivacyRecord;
 };
 
 export class AbstractWallet {
@@ -512,9 +514,12 @@ export class AbstractWallet {
    * @param {{memo: String, frozen: Boolean}} opts - options to attach to UTXO
    */
   setUTXOMetadata(txid: string, vout: number, opts: UtxoMetadata): void {
+    const coinjoin = readCoinPrivacyRecord(opts.coinjoin, txid);
+    if ('coinjoin' in opts && opts.coinjoin !== undefined && !coinjoin) throw new Error('Invalid coin mixing history');
     const meta = this._utxoMetadata[`${txid}:${vout}`] || {};
     if ('memo' in opts) meta.memo = opts.memo;
     if ('frozen' in opts) meta.frozen = opts.frozen;
+    if ('coinjoin' in opts) meta.coinjoin = coinjoin;
     this._utxoMetadata[`${txid}:${vout}`] = meta;
   }
 

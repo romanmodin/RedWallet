@@ -3,6 +3,9 @@ import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Avatar from '../../components/Avatar';
 import Badge from '../../components/Badge';
+import CoinPrivacyBadge from '../../components/CoinPrivacyBadge';
+import confirmCoinPrivacy from '../../components/confirmCoinPrivacy';
+import { approvePrivacySelection, coinPrivacyStatus, CoinPrivacyStatus } from '../../class/xbt/coin-privacy';
 import Icon from '../../components/Icon';
 import { Animated, ActivityIndicator, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import debounce from '../../blue_modules/debounce';
@@ -84,6 +87,7 @@ type TOutputListProps = {
   balanceUnit: string;
   oMemo?: string;
   frozen: boolean;
+  privacy: CoinPrivacyStatus;
   change: boolean;
   onOpen: () => void;
   selected: boolean;
@@ -97,6 +101,7 @@ const OutputList: React.FC<TOutputListProps> = ({
   balanceUnit = BitcoinUnit.BTC,
   oMemo,
   frozen,
+  privacy,
   change,
   onOpen,
   selected,
@@ -138,6 +143,7 @@ const OutputList: React.FC<TOutputListProps> = ({
         <Text testID="OutputMemoLabel" style={oStyles.memo} numberOfLines={1} ellipsizeMode="middle">
           {memo || address}
         </Text>
+        <CoinPrivacyBadge status={privacy} frozen={frozen} />
       </View>
       <View style={styles.badges}>
         {frozen && <FrozenBadge />}
@@ -259,7 +265,8 @@ const CoinControl: React.FC = () => {
 
   const handleChoose = (item: Utxo) => navigation.navigate('CoinControlOutput', { walletID, utxo: item });
 
-  const handleUseCoin = (u: Utxo[]) => {
+  const handleUseCoin = async (u: Utxo[]) => {
+    if (!(await approvePrivacySelection(wallet, u, confirmCoinPrivacy))) return;
     goFromCoinControlToSendDetails(navigation, walletID, u);
   };
 
@@ -294,6 +301,7 @@ const CoinControl: React.FC = () => {
         item={item}
         oMemo={memo}
         frozen={oFrozen}
+        privacy={coinPrivacyStatus(wallet, item)}
         change={isChange}
         onOpen={() => handleChoose(item)}
         selected={selected.includes(key)}

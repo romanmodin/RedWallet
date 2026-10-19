@@ -4,6 +4,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import debounce from '../../blue_modules/debounce';
 import Avatar from '../../components/Avatar';
+import CoinPrivacyBadge from '../../components/CoinPrivacyBadge';
+import { coinPrivacyStatus } from '../../class/xbt/coin-privacy';
 import ListItem from '../../components/ListItem';
 import { BlueSpacing10 } from '../../components/BlueSpacing';
 import Button from '../../components/Button';
@@ -114,6 +116,8 @@ const CoinControlOutputSheet: React.FC = () => {
               <Text numberOfLines={1} style={[styles.amount, { color: colors.foregroundColor }]}>
                 {amount}
               </Text>
+              <CoinPrivacyBadge status={coinPrivacyStatus(wallet, utxo)} frozen={frozen} />
+              <Text style={[styles.memo, { color: colors.alternativeTextColor }]}>{loc.cc.privacy_explanation}</Text>
               <View style={styles.tranContainer}>
                 <Text style={[styles.tranText, { color: colors.alternativeTextColor }]}>
                   {loc.formatString(loc.transactions.list_conf, { number: confirmationsFormatted })}

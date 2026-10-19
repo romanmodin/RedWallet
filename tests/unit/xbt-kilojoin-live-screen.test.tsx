@@ -74,8 +74,48 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 beforeEach(() => {
+  mockWallet._utxoMetadata = {};
+  mockJoin.mockClear();
   mockSearchMode = 'pool';
   mockFinishSearch = undefined;
+});
+
+test('suggestions select coins without joining, and combining histories requires explicit approval', async () => {
+  const a = { txid: '11'.repeat(32), vout: 0, value: 6000, confirmations: 3 };
+  const b = { txid: '22'.repeat(32), vout: 0, value: 5000, confirmations: 3 };
+  mockWallet.setUTXOMetadata(a.txid, 0, { coinjoin: { version: 1, role: 'mixed', txid: a.txid } });
+  jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
+  jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([a, b] as never);
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {
+    fireEvent.press(screen.getByText('○ Test wallet'));
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByText('Find pools'));
+  });
+  fireEvent.press(screen.getByText('○ 10,000 sats · 2/5 · 2 sats/vB'));
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('CoinjoinSuggestCoins'));
+  });
+  expect(mockJoin).not.toHaveBeenCalled();
+  expect(screen.getByText('● 6,000 sats · 11111111…:0')).toBeTruthy();
+  expect(screen.getByText('● 5,000 sats · 22222222…:0')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByText('Join pool and reserve coins'));
+  });
+  expect(mockJoin).not.toHaveBeenCalled();
+  await act(async () => {
+    prompt.mock.calls[0][2]![0].onPress!();
+  });
+  expect(mockJoin).not.toHaveBeenCalled();
+  await act(async () => {
+    fireEvent.press(screen.getByText('Join pool and reserve coins'));
+  });
+  await act(async () => {
+    prompt.mock.calls[1][2]![1].onPress!();
+  });
+  expect(mockJoin).toHaveBeenCalledTimes(1);
 });
 afterEach(() => {
   cleanup();
