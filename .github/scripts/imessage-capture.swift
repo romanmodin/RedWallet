@@ -45,7 +45,7 @@ final class StickerCapture: XCTestCase {
                 break
             }
             // Only open app/sticker menus. Never target Send, a contact action, or account setup.
-            let labels = ["Apps", "Show Apps", "Add Apps", "Add", "More", "Stickers"]
+            let labels = ["add", "Apps", "Show Apps", "Add Apps", "Add", "More", "Stickers"]
             var advanced = false
             for label in labels where !used.contains(label) {
                 if let control = visible(messages, label) {
