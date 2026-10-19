@@ -134,6 +134,22 @@ export async function inspect(get, now = new Date().toISOString()) {
         images: images.map((image) => ({
           id: resourceId(image),
           state: image.attributes?.assetDeliveryState?.state || "UNKNOWN",
+          checksum: image.attributes?.sourceFileChecksum || null,
+          processingErrors: (
+            image.attributes?.assetDeliveryState?.errors || []
+          ).map((error) => ({
+            code:
+              typeof error.code === "string" &&
+              /^[A-Za-z0-9_.-]{1,160}$/.test(error.code)
+                ? error.code
+                : "UNKNOWN",
+            description:
+              typeof error.description === "string"
+                ? error.description
+                    .replace(/https?:\/\/\S+/g, "[URL]")
+                    .slice(0, 500)
+                : "",
+          })),
         })),
       });
     }
