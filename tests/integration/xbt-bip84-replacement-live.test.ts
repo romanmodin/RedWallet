@@ -86,8 +86,8 @@ isolated(
       );
       const wallet = new XbtSegwitBech32Wallet();
       wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
-      // Exercise the staged route without changing its production default.
-      jest.spyOn(wallet, 'allowAuthenticatedRBF').mockReturnValue(true);
+      // Qualify the candidate's actual capability without an override.
+      expect(wallet.allowAuthenticatedRBF()).toBe(true);
       const source = wallet._getExternalAddressByIndex(0);
       const recipient = wallet._getExternalAddressByIndex(1);
       const change = wallet._getInternalAddressByIndex(0);

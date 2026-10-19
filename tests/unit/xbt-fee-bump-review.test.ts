@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import * as bitcoin from 'bitcoinjs-lib';
 import CPFP from '../../screen/transactions/CPFP';
@@ -168,6 +169,7 @@ it('prepares decoded BIP84 output and fee review but blocks its disabled broadca
 it('blocks a stale BIP84 fee screen before inspection or transaction construction', async () => {
   const { screen } = reviewScreen(20_000, 0, false, RBFBumpFee);
   const wallet = new XbtSegwitBech32Wallet();
+  jest.spyOn(wallet, 'allowAuthenticatedRBF').mockReturnValue(false);
   const history = jest.spyOn(wallet, 'getTransactions');
   const createRBFbumpFee = jest.fn();
   Object.assign(screen.state, { wallet, tx: { createRBFbumpFee }, newFeeRate: '20', feeRate: 1 });
@@ -217,4 +219,33 @@ it.each(['10junk', 'Infinity', '-2', ''])('rejects malformed RBF fee rate %s bef
   Object.assign(screen.state, { newFeeRate, feeRate: 1, tx: { createRBFbumpFee } });
   await screen.createTransaction();
   expect(createRBFbumpFee).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['android', '{"code":404,"api-level":35,"message":Biometrics has not been set}'],
+  ['ios', '{"message":"key does not present"}'],
+] as const)('permits a reviewed fee bump with an unset %s biometric preference', async (platform, message) => {
+  Platform.OS = platform;
+  const { screen, broadcast, transaction, storage } = reviewScreen(200, 90_000);
+  storage.getItem.mockRejectedValue(Object.assign(new Error(message), { code: '404' }));
+  screen.broadcast();
+  await flush();
+  expect(unlockWithBiometrics).not.toHaveBeenCalled();
+  expect(broadcast).toHaveBeenCalledWith(transaction.toHex());
+  expect(screen.onSuccessBroadcast).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  ['1', 'Keystore cannot be unlocked'],
+  ['404', 'An unrelated key has not been set'],
+  ['404', 'Biometrics storage is corrupted'],
+])('keeps storage failure %s/%s as a broadcast gate', async (code, message) => {
+  Platform.OS = 'android';
+  const { screen, broadcast, storage } = reviewScreen(200, 90_000);
+  storage.getItem.mockRejectedValue(Object.assign(new Error(message), { code }));
+  screen.broadcast();
+  await flush();
+  expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(screen.state.isLoading).toBe(false);
 });

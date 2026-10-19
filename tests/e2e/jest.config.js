@@ -13,7 +13,7 @@ module.exports = {
   testEnvironment: 'detox/runners/jest/testEnvironment',
   setupFilesAfterEnv: ['<rootDir>/e2e/setup.js'],
   rootDir: '..',
-  testMatch: ['<rootDir>/e2e/**/*.spec.js'],
+  testMatch: ['<rootDir>/e2e/**/*.spec.{js,ts}'],
   transform: {
     '\\.[jt]sx?$': ['ts-jest'],
   },

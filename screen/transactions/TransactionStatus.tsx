@@ -1099,7 +1099,7 @@ const TransactionStatus: React.FC = () => {
   }
 
   return (
-    <SafeAreaScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaScrollView testID="TransactionStatusScroll" contentContainerStyle={styles.scrollContent}>
       {/* Value Section */}
       <View style={styles.valueCard}>
         <View style={styles.valueContent}>
@@ -1157,6 +1157,7 @@ const TransactionStatus: React.FC = () => {
                 <View style={styles.stateButtons}>
                   {isRBFBumpFeePossible === ButtonStatus.Possible && (
                     <TouchableOpacity
+                      testID="TransactionRbfBumpButton"
                       onPress={() => navigateToRBF('RBFBumpFee', tx, wallet)}
                       style={[styles.speedUpButton, stylesHook.speedUpButton]}
                       accessibilityRole="button"

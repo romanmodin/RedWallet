@@ -41,6 +41,8 @@ beforeAll(async () => {
     return result;
   };
 
+  if (process.env.REDWALLET_NATIVE_LIVE === '1') return;
+
   // Detox auto-launches the app before the first beforeAll; cover that launch too.
   try {
     await device.setURLBlacklist(URL_BLACKLIST);

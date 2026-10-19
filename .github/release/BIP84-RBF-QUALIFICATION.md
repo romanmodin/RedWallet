@@ -23,7 +23,7 @@ This exercises the mobile cryptography runtime; it does not replace a funded end
 - [ ] Enable hot BIP84 authenticated RBF only after those prerequisites.
 - [ ] External-signer BIP84 route separately qualified; the staged PSBT builder is not enabled by this change.
 
-Production `allowAuthenticatedRBF()` remains false. Unit and node tests override it only on their public fixture instance.
+The unmerged PR47 candidate enables hot-wallet `allowAuthenticatedRBF()` so hosted tests exercise the actual enabled app. Main/released builds remain contained until all qualification gates pass. Legacy BIP84 cancel/CPFP and external-signer RBF remain disabled.
 This receipt is software/node evidence, not proof of native UI, physical phone or cold-device interoperability.
 
 ## Reproduce isolated node acceptance
@@ -35,3 +35,6 @@ XBT_BIP84_NODE=/absolute/test-bin/bitcoind XBT_BIP84_CLI=/absolute/test-bin/bitc
 ```
 
 The test creates and deletes its own data directory, binds RPC to loopback, disables network activity and peer discovery, uses only a public fixture mnemonic, and stops its node in cleanup. It never connects to an existing wallet/node.
+
+## Funded native qualification
+The dedicated Native BIP84 RBF Android/iOS workflows run a fresh SegWit-only RBF stage against disposable real Knots and Fulcrum. They assert decoded recipient/fee review, reject a high-fee confirmation and verify zero replacement broadcasts, approve the same reviewed transaction, verify mempool replacement and mine two confirmations. The lab bridge adapts checkpoint and address labels; it is not production chain authentication or physical-device evidence.

@@ -30,9 +30,9 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
     return false;
   }
 
-  // Separate from legacy RBF/cancel/CPFP; stays off until native/node qualification.
+  // Authenticated replacement is separate from the blocked legacy cancel/CPFP paths.
   allowAuthenticatedRBF() {
-    return false;
+    return true;
   }
 
   getAuthenticatedRBFInfo(txid: string) {

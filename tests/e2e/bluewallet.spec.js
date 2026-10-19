@@ -83,7 +83,6 @@ describe('RedWallet UI Tests - no wallets', () => {
       await device.enableSynchronization();
     }
     await waitForWalletsList();
-
   });
 
   it('all settings screens work', async () => {
