@@ -1,18 +1,29 @@
 {
-  "sourceCommit": "af7710de8b2c527060b57f4224d6777381762e8b",
+  "sourceCommit": "16293fbc271ab4d0a4f293ca8739f2899c586e91",
   "productionTreeSha256": "60a3da7ddf0aafedabc8880ef79e218c63c66bf7498eda310d4eac3cae92ff11",
   "productionPathCount": 985,
   "status": "AWAITING_NATIVE_QUALIFICATION_AND_VISUAL_REVIEW",
   "requiredRuns": {
-    "ci": 39248046610,
-    "ios": 39248046525,
-    "fundedIos": 39259693384
+    "ci": 39262993463,
+    "ios": 39262993428,
+    "fundedIos": 39263056527
   },
   "softwareTests": {
-    "suites": 109,
-    "passed": 1020,
-    "inheritedSkipped": 1,
-    "lint": "passed"
+    "status": "pending",
+    "runId": 39262993463,
+    "previousPassedRun": {
+      "sourceCommit": "af7710de8b2c527060b57f4224d6777381762e8b",
+      "runId": 39248046610,
+      "suites": 109,
+      "passed": 1020,
+      "inheritedSkipped": 1,
+      "lint": "passed"
+    },
+    "focusedProtocolTests": {
+      "suites": 5,
+      "passed": 61,
+      "targetedLint": "passed"
+    }
   },
   "readOnlyRelayProbe": {
     "observedAt": "2026-10-19T10:50:13.498Z",
@@ -24,5 +35,23 @@
     "Indexed relay search with local signed network validation",
     "Visible progress, results, empty state and retry errors"
   ],
-  "uploaded": false
+  "uploaded": false,
+  "nativeVisualReview": {
+    "sourceCommit": "af7710de8b2c527060b57f4224d6777381762e8b",
+    "runId": 39248046525,
+    "artifactId": 12191525105,
+    "portrait": "visually inspected and approved",
+    "poolDiscovery": {
+      "compatiblePools": 2,
+      "joined": false,
+      "imageSha256": "d3fb559361cceef4e6b16c574a855a7137c1db99c5201d69d2383910290117b0"
+    },
+    "landscape": "not qualified: previous file duplicated portrait; stronger capture check pending"
+  },
+  "protocolReview": {
+    "protocolVersion": 3,
+    "upstreamCommit": "7a5037fc9ba517a92c66a8f8b89765f407a92b2c",
+    "upstreamDocument": "docs/PROTOCOL.md#11-kilojoin-v3-kilowallet-115-kilojoin-07",
+    "result": "v3 already implemented; discovery filter corrected"
+  }
 }
