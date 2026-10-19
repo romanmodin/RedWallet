@@ -70,7 +70,7 @@ export function parsePool(event: NostrEvent, now: number): Readonly<Terms> {
 export const passwordKey = (pool: string, password: string): Buffer => utf8Hash(`kilojoin/v1/pw|${pool}|${password}`);
 export const passwordProof = (key: Uint8Array, join: string): string => mac(key, Buffer.from(join)).toString('hex');
 export const tokenHash = (token: string): string => utf8Hash(`kilojoin/v1/token|${token}`).toString('hex');
-export const memberMac = (token: string, ...parts: (string | number)[]): string =>
+export const memberMac = (token: string, ...parts: (string | number | boolean)[]): string =>
   mac(Buffer.from(token), Buffer.from('kilojoin/v3|' + parts.join('|'))).toString('hex');
 export function changeMessage(pool: string, coins: Coin[], script: string, value: number): Buffer {
   if (!coins.length) throw new Error('No change coins');

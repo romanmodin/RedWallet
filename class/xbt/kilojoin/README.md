@@ -12,6 +12,11 @@ Implemented:
 - NIP-01 event validation/signing and NIP-44 v2 encryption, authenticated decoding,
   bounded parsing and explicit entropy inputs.
 - Kilojoin v3 pool validation, ownership proofs and protocol commitments.
+- Participant message boundary: creator/member authority separation, authenticated
+  decryption, recipient checks, bounded replay cache and stale-message rejection.
+- Roster validation: ownership proofs, sequence checks, exact own-seat commitment,
+  duplicate input/identity rejection and fresh independently supplied chain observations.
+  These modules are not yet connected to a live session or backend adapter.
 - Client-side RFC9474 randomized SHA384 RSA blind signatures; no RSA key generation
   or coordinator private-key implementation.
 - Canonical P2WPKH/P2TR transaction assembly, XBT 0x21 digests, signature verification,
@@ -24,6 +29,7 @@ Implemented:
 Validation: upstream P2WPKH raw transaction/txid/signatures, NIP44 event and ciphertext,
 fee/ownership commitments, RFC9474 blinding/finalization vector, malformed/changed
 inputs and fees, journal failures, cancellation behavior and preview UI.
+Current targeted validation: 6 suites / 54 tests pass; full TypeScript check passes.
 These vectors do not prove a complete v3 round works across wallets.
 
 Remaining release gates:
