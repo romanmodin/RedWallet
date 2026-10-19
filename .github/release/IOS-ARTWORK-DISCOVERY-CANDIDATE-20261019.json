@@ -1,0 +1,132 @@
+{
+  "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+  "productionTreeSha256": "60a3da7ddf0aafedabc8880ef79e218c63c66bf7498eda310d4eac3cae92ff11",
+  "productionPathCount": 985,
+  "status": "QUALIFIED_AWAITING_SIGNED_UPLOAD",
+  "requiredRuns": {
+    "ci": 39297579896,
+    "ios": 39297579842,
+    "fundedIos": 39297639315
+  },
+  "softwareTests": {
+    "status": "success",
+    "runId": 39297579896,
+    "localValidation": {
+      "suites": 111,
+      "passed": 1030,
+      "inheritedSkipped": 1,
+      "lintErrors": 0,
+      "existingWarnings": 19,
+      "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8"
+    },
+    "focusedCaptureTests": {
+      "suites": 2,
+      "passed": 11,
+      "scope": "native capture helper and storage password driver; ESLint on changed smoke/helper passed"
+    },
+    "focusedKeyboardTests": {
+      "passed": 7,
+      "scope": "bounded Done dismissal helper; no wallet action retry"
+    }
+  },
+  "readOnlyRelayProbe": {
+    "observedAt": "2026-10-19T10:50:13.498Z",
+    "compatiblePools": 3,
+    "joined": false
+  },
+  "fixes": [
+    "Measured centered artwork frame",
+    "Indexed relay search with local signed network validation",
+    "Visible progress, results, empty state and retry errors"
+  ],
+  "uploaded": false,
+  "nativeVisualReview": {
+    "sourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+    "runId": 39297579842,
+    "artifactId": 12216430899,
+    "artifactSha256": "6ce45240b876777f88b5b837966eb649e0e7783a80176ab58c3c25bd78c946a2",
+    "inspectedAt": "2026-10-19T19:34:53.453438+00:00",
+    "qualifiesReplacement": true,
+    "portrait": "Actual PNG inspected: centered helmet and readable empty wallet; native402x874",
+    "landscape": "Actual PNG inspected: rotated landscape UIKit content with framed helmet; native874x402 despite portrait framebuffer",
+    "returnPortrait": "Actual PNG inspected: centered helmet restored; native402x874",
+    "imageSha256": {
+      "01-helmet-portrait": "d7059715c7d5b8f3d16f6a8cfe957a195ae23397c261968b6e45c646dff912f6",
+      "02-helmet-landscape": "1203dec45bdae7cc0a54dff8b58ff190ea3e7210a6290c94797895815cabb1c3",
+      "02b-helmet-return-portrait": "008b24a7733c416ddb294c6e7ebdafc44690191021c7efe2b7ff7802709dae8f",
+      "03-pool-discovery": "013339397e7e7eab5c040a7b76d697012ef67a284566355056a2fcae73a50bac"
+    },
+    "sidecarHashesVerified": true,
+    "poolDiscovery": {
+      "compatiblePools": 4,
+      "denominationsSats": [
+        1000000,
+        500000,
+        2000000,
+        20000000
+      ],
+      "joined": false
+    }
+  },
+  "protocolReview": {
+    "protocolVersion": 3,
+    "upstreamCommit": "7a5037fc9ba517a92c66a8f8b89765f407a92b2c",
+    "upstreamDocument": "docs/PROTOCOL.md#11-kilojoin-v3-kilowallet-115-kilojoin-07",
+    "result": "v3 already implemented; discovery filter corrected"
+  },
+  "previousGateResults": {
+    "sourceCommit": "2df7aa9afe69e6453e899d29be2fd9f4618f9263",
+    "ci": {
+      "runId": 39274677453,
+      "conclusion": "success"
+    },
+    "ios": {
+      "runId": 39274677570,
+      "conclusion": "success",
+      "artifactId": 12203748697
+    },
+    "fundedIos": {
+      "runId": 39274783897,
+      "conclusion": "failure",
+      "cause": "Fee keyboard remained visible before replacement preparation",
+      "artifactId": 12198542981
+    },
+    "qualifiesReplacement": false
+  },
+  "qualifiedAt": "2026-10-19T19:34:53.453438+00:00",
+  "previousNativeVisualReview": {
+    "sourceCommit": "2df7aa9afe69e6453e899d29be2fd9f4618f9263",
+    "runId": 39274677570,
+    "artifactId": 12203748697,
+    "artifactSha256": "456382d2607297eb6c6d419c63c20c22e58063aa5d75a0c4b331936519d41967",
+    "inspectedAt": "2026-10-19T17:52:00Z",
+    "portrait": "Inspected: centered helmet, readable empty wallet; 402x874 native bounds",
+    "landscape": "Inspected: rotated landscape UIKit content, framed helmet; 874x402 native bounds despite portrait framebuffer",
+    "returnPortrait": "Inspected: restored centered helmet and 402x874 bounds",
+    "poolDiscovery": {
+      "compatiblePools": 2,
+      "denominationsSats": [
+        1000000,
+        20000000
+      ],
+      "joined": false,
+      "imageSha256": "60485f13fadf7a5031991a50cdb216ada5b9a65965b1dd010faa1de692a956ef"
+    },
+    "qualifiesReplacement": false,
+    "replacementReview": "Fresh exact-source 9f native captures and gates still required"
+  },
+  "fundedIos": {
+    "runId": 39297639315,
+    "conclusion": "success",
+    "artifactId": 12210848048,
+    "artifactSha256": "8ded9fb525c00be98fdbe4a5def0b4f21ce8c56c5d6108efda07c452a3138401",
+    "chain": "regtest",
+    "confirmations": 2,
+    "highFeeDeclineBlockedBroadcast": true,
+    "decodedReviewVerified": true,
+    "cleanupComplete": true,
+    "physicalPhone": false
+  },
+  "gateReceipt": "IOS-ARTWORK-DISCOVERY-GATES-20261019.json",
+  "sourceMergeCommit": "b69b6c006d749ba08279c6c4d2ca71d4b5cd8f83"
+}
