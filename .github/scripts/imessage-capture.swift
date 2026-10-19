@@ -22,6 +22,17 @@ final class StickerCapture: XCTestCase {
         return nil
     }
 
+    private func waitForPanel(_ app: XCUIApplication) {
+        // Retained 39236628098 evidence shows Apple's sticker panel loading asynchronously.
+        // Wait for that observed spinner, rather than searching an unfinished hierarchy.
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            !app.activityIndicators.allElementsBoundByIndex.contains { $0.exists && $0.isHittable }
+        }, object: nil)
+        let result = XCTWaiter.wait(for: [ready], timeout: 15)
+        if result != .completed { record(app, "messages-panel-still-loading") }
+        XCTAssertEqual(result, .completed, "Apple's app panel must finish loading before capture")
+    }
+
     func testCaptureQualifiedStickerExtension() throws {
         continueAfterFailure = false
         let messages = XCUIApplication(bundleIdentifier: "com.apple.MobileSMS")
@@ -40,8 +51,15 @@ final class StickerCapture: XCTestCase {
         for step in 0..<5 {
             if let pack = visible(messages, "BlueWallet") {
                 pack.tap()
+                waitForPanel(messages)
                 openedPack = true
                 record(messages, "imessage-extension-candidate")
+                // iPad evidence shows the selected pack before its images render.
+                // Retain bounded later observations for visual review, without sending a sticker.
+                Thread.sleep(forTimeInterval: 2)
+                record(messages, "imessage-extension-after-2s")
+                Thread.sleep(forTimeInterval: 6)
+                record(messages, "imessage-extension-after-8s")
                 break
             }
             // Only open app/sticker menus. Never target Send, a contact action, or account setup.
@@ -51,6 +69,7 @@ final class StickerCapture: XCTestCase {
                 if let control = visible(messages, label) {
                     used.insert(label)
                     control.tap()
+                    waitForPanel(messages)
                     record(messages, "messages-menu-" + String(step))
                     advanced = true
                     break
