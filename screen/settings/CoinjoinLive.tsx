@@ -31,8 +31,8 @@ export default function CoinjoinLive() {
   const [view, setView] = useState<ClientView>(),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
-  const client = useRef<MixingClient>(),
-    discovery = useRef<KilojoinRelay>(),
+  const client = useRef<MixingClient | undefined>(undefined),
+    discovery = useRef<KilojoinRelay | undefined>(undefined),
     mounted = useRef(true);
   useEffect(
     () => () => {
@@ -287,7 +287,7 @@ export default function CoinjoinLive() {
                 />
                 <Button
                   title="Check confirmation"
-                  disabled={busy || journal?.phase === 'complete'}
+                  disabled={busy}
                   onPress={() =>
                     run(async () => {
                       if (!(await client.current!.checkConfirmation())) setError('Not confirmed yet. Coins remain reserved.');
