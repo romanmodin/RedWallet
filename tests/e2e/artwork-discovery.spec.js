@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { element, waitFor } from 'detox';
@@ -13,7 +14,9 @@ const capture = async name => {
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
     await device.clearKeychain();
-    await device.setAppearance('dark');
+    // Detox 20 has no setAppearance API. Set the selected disposable simulator
+    // through Apple's native command before launching the app.
+    execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'dark']);
     await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
     await waitForWalletsList();
     await element(by.id('SettingsButton')).tap();
@@ -73,7 +76,7 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       console.log('Native read-only pool discovery:', status);
     } finally {
       await device.enableSynchronization();
-      await device.setAppearance('light');
+      execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'light']);
     }
   });
 });
