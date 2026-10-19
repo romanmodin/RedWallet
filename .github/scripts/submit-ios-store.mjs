@@ -23,6 +23,8 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots) {
     ipa.sourceCommit === SOURCE &&
       ipa.publicSourceCommit === SOURCE &&
       ipa.orchestrationCommit === "2e48763dfe0b1dd90763c47323143af527bd8148" &&
+      ipa.ipaSha256 ===
+        "1f35c12670d95c54dd7f960b9b9b7d09b12fda8ff7d7ca64e3003998f8784dd0" &&
       ipa.signatureVerification === "passed" &&
       ipa.sourceMappingVerification === "passed",
     "Unqualified signed package",
@@ -39,7 +41,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots) {
       beta.bundleId === BUNDLE_ID &&
       beta.version === VERSION &&
       id(beta.appleBuildId) &&
-      beta.build !== "1792401003",
+      beta.build === "1792439689",
     "Wrong release identity",
   );
   check(
@@ -53,7 +55,10 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots) {
     "Wrong signed bundles",
   );
   check(
-    mainShots.status === "SCREENSHOTS_REPLACED" &&
+    mainShots.appId === APP_ID &&
+      mainShots.version === VERSION &&
+      mainShots.appStoreVersionId === VERSION_ID &&
+      mainShots.status === "SCREENSHOTS_REPLACED" &&
       mainShots.sourceCommit === SOURCE &&
       mainShots.captureRunId === 39312798717 &&
       mainShots.images.length === 8 &&
@@ -61,16 +66,34 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots) {
     "Main screenshots not verified",
   );
   check(
-    messageShots.status === "SCREENSHOTS_COMPLETE" &&
+    messageShots.appId === APP_ID &&
+      messageShots.version === VERSION &&
+      messageShots.appStoreVersionId === VERSION_ID &&
+      messageShots.sourceCommit === SOURCE &&
+      Number.isSafeInteger(messageShots.captureRunId) &&
+      messageShots.captureRunId > 0 &&
+      messageShots.status === "SCREENSHOTS_COMPLETE" &&
       messageShots.images.length === 2 &&
       messageShots.images.every((i) => i.state === "COMPLETE"),
     "iMessage screenshots not verified",
   );
+  const images = [...mainShots.images, ...messageShots.images];
+  check(
+    new Set(images.map((i) => id(i.id))).size === 10,
+    "Duplicate screenshot identities",
+  );
+  for (const family of ["iphone", "ipad"]) {
+    check(
+      mainShots.images.filter((i) => i.family === family).length === 4 &&
+        messageShots.images.filter((i) => i.family === family).length === 1,
+      "Wrong screenshot family",
+    );
+  }
   return {
     build: beta.build,
     appleBuildId: beta.appleBuildId,
     ipaSha256: ipa.ipaSha256,
-    images: [...mainShots.images, ...messageShots.images],
+    images,
   };
 }
 export function client(token, request = fetch) {
@@ -371,7 +394,11 @@ export async function submit(api, candidate, report) {
       "GET",
       "/v1/reviewSubmissions/" + reviewId + "/items",
       undefined,
-      { limit: "200" },
+      {
+        limit: "200",
+        include: "appStoreVersion",
+        "fields[appStoreVersions]": "versionString,platform",
+      },
     )
   ).data;
   check(
@@ -405,7 +432,11 @@ export async function submit(api, candidate, report) {
       "GET",
       "/v1/reviewSubmissions/" + reviewId + "/items",
       undefined,
-      { limit: "200" },
+      {
+        limit: "200",
+        include: "appStoreVersion",
+        "fields[appStoreVersions]": "versionString,platform",
+      },
     )
   ).data;
   check(

@@ -35,7 +35,13 @@ function fixture() {
     }));
     c.images.push(...shots[s.id].map((x) => ({ id: x.id, state: "COMPLETE" })));
   }
-  const api = async (method, path, payload) => {
+  const api = async (method, path, payload, query) => {
+    if (method === "GET" && path.endsWith("/items"))
+      assert.equal(
+        query?.include,
+        "appStoreVersion",
+        "Request the item relationship before checking its identity",
+      );
     if (method !== "GET") writes.push({ method, path, payload });
     if (method === "PATCH" && path.endsWith("/relationships/build")) {
       selected = payload.data.id;
@@ -182,4 +188,83 @@ test("submission client rejects agreements, other apps, build uploads, and arbit
   ])
     await assert.rejects(api(method, path), /Unexpected/);
   assert.equal(calls, 0);
+});
+
+// Negative receipt cases cover stale or unrelated captures before any Apple write.
+test("submission receipts must belong to the exact signed release and both reviewed screenshot families", () => {
+  const source = "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8";
+  const ipa = {
+    sourceCommit: source,
+    publicSourceCommit: source,
+    orchestrationCommit: "2e48763dfe0b1dd90763c47323143af527bd8148",
+    signatureVerification: "passed",
+    sourceMappingVerification: "passed",
+    ipaSha256:
+      "1f35c12670d95c54dd7f960b9b9b7d09b12fda8ff7d7ca64e3003998f8784dd0",
+    bundles: [
+      "com.romanmodin.redwallet",
+      "com.romanmodin.redwallet.Stickers",
+    ].map((bundleId) => ({ bundleId, version: "8.0.1", build: "1792439689" })),
+  };
+  const beta = {
+    sourceCommit: source,
+    uploadRunId: "39312792179",
+    ipaSha256: ipa.ipaSha256,
+    processingState: "VALID",
+    appId: APP,
+    bundleId: "com.romanmodin.redwallet",
+    version: "8.0.1",
+    appleBuildId: "new-build-id",
+    build: "1792439689",
+  };
+  const identity = {
+    appId: APP,
+    version: "8.0.1",
+    appStoreVersionId: V,
+    sourceCommit: source,
+  };
+  const shots = {
+    ...identity,
+    status: "SCREENSHOTS_REPLACED",
+    captureRunId: 39312798717,
+    images: ["iphone", "ipad"].flatMap((family) =>
+      Array.from({ length: 4 }, (_, i) => ({
+        family,
+        id: family + i,
+        state: "COMPLETE",
+      })),
+    ),
+  };
+  const message = {
+    ...identity,
+    status: "SCREENSHOTS_COMPLETE",
+    captureRunId: 123,
+    images: ["iphone", "ipad"].map((family) => ({
+      family,
+      id: "message-" + family,
+      state: "COMPLETE",
+    })),
+  };
+  assert.equal(verifyReceipts(ipa, beta, shots, message).build, "1792439689");
+  assert.throws(
+    () => verifyReceipts(ipa, beta, shots, { ...message, sourceCommit: "old" }),
+    /iMessage/,
+  );
+  assert.throws(
+    () => verifyReceipts(ipa, beta, { ...shots, appId: "another" }, message),
+    /Main screenshots/,
+  );
+  assert.throws(
+    () =>
+      verifyReceipts(ipa, beta, shots, {
+        ...message,
+        images: message.images.map((i) => ({ ...i, family: "iphone" })),
+      }),
+    /family/,
+  );
+  assert.throws(
+    () =>
+      verifyReceipts({ ...ipa, ipaSha256: "another" }, beta, shots, message),
+    /signed package/,
+  );
 });
