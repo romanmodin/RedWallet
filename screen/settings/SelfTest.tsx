@@ -1,3 +1,4 @@
+import { runBip84ReplacementSelfTest } from '../../class/xbt/bip84-self-test';
 import { runTaprootSigningSelfTest } from '../../class/xbt/taproot-self-test';
 import BIP32Factory from 'bip32';
 import bip38 from 'bip38';
@@ -254,6 +255,7 @@ export default class SelfTest extends Component {
       //
 
       runTaprootSigningSelfTest();
+      runBip84ReplacementSelfTest();
 
       const data2encrypt = 'really long data string';
       const crypted = await encryption.encrypt(data2encrypt, 'password');
@@ -404,6 +406,7 @@ const SelfTestContent: React.FC<{
           <BlueText testID="SelfTestOk" h4>
             OK
           </BlueText>
+          <BlueText testID="Bip84ReplacementSelfTestOk">BIP84 replacement checks passed</BlueText>
           <BlueSpacing20 />
           <BlueText>{loc.settings.about_selftest_ok}</BlueText>
         </View>

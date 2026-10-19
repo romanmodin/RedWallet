@@ -11,6 +11,12 @@
 - [x] Reject malformed fee text instead of silently truncating it.
 - [x] Fresh isolated Knots accepted and mined replacement; original removed from mempool; insufficient increment refused.
 
+## Native self-test coverage (execution pending)
+The in-app self-test now runs `runBip84ReplacementSelfTest` using an offline public fixture and requires its success marker in Detox on both platforms.
+It checks signed/unsigned construction, recipient/input preservation, change floor, Unified signatures, signer change metadata, fee increments and rejection of forged parents, altered recipients, bad signatures and already-confirmed originals.
+The self-test no longer accepts a prior run's temporary lock file as a pass.
+This exercises the mobile cryptography runtime; it does not replace a funded end-to-end replacement/review/broadcast test.
+
 ## Release gate
 - [ ] Native Android and iOS focused replacement/review tests on the enabling source.
 - [ ] Exact-source software and native release gates successful.
