@@ -1,0 +1,93 @@
+name: Upload verified iMessage screenshots
+"on":
+  pull_request:
+    paths:
+      - ".github/scripts/upload-imessage-screenshots.mjs"
+      - ".github/scripts/test-upload-imessage-screenshots.mjs"
+      - ".github/workflows/upload-ios-imessage-screenshots.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: redwallet-imessage-upload
+  cancel-in-progress: false
+env:
+  SOURCE_COMMIT: 9f627fb87b4b6cc28cddcf6ad45e2edc721551a8
+  CI_RUN_ID: "39297579896"
+  IOS_RUN_ID: "39297579842"
+  FUNDED_IOS_RUN_ID: "39297639315"
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - run: node --test .github/scripts/test-upload-imessage-screenshots.mjs
+  upload:
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Verify exact-source release gates and unchanged extension
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I .github/scripts/verify-ios-release-gates.py
+          git diff --exit-code 0e36e37ad797b13b711d2606b52ac70ea52e873f "$SOURCE_COMMIT" -- ios/Stickers ios/BlueWallet.xcodeproj
+      - name: Download only the visually approved captures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import subprocess,json,hashlib,zipfile,io
+          from pathlib import Path
+          repo='romanmodin/RedWallet'
+          def api(path):return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/{path}']))
+          run=api('actions/runs/39238585772')
+          assert run['head_sha']=='f1484c06d031d486fee4d62a578a7ca55c58738c'
+          assert run['path']=='.github/workflows/capture-ios-imessage-screenshots.yml'
+          assert run['repository']['full_name']==repo and run['head_repository']['full_name']==repo
+          assert run['run_attempt']==1 and run['status']=='completed' and run['conclusion']=='success'
+          images=[
+            (12181535198,'8757053a6280c3954efbb29c9550656ec25db024ec03f563f85299996e47d3f0','attachments/EC17A186-E684-49CF-95FE-CD68093AC648.png','iphone.png','ed3a6d94e6f2bbcfea25f9337679e35345e224b5bbeef269a31e9707a652883c'),
+            (12181135725,'faa4e2a24b65729c4ffc5c5e543ba0d7f8da49fe5bca7acd52ee3515ad554cd8','attachments/C739FBE6-3FD4-4714-86C5-E860C9B2662A.png','ipad.png','caeee68897099b0902bef1547b0ca0acf2445439c3a1037e3ca843247211dc37')]
+          root=Path('verified-imessage');root.mkdir()
+          for aid,archive_hash,name,target,image_hash in images:
+            meta=api(f'actions/artifacts/{aid}')
+            assert not meta['expired'] and meta['workflow_run']['id']==39238585772 and meta['digest']=='sha256:'+archive_hash
+            data=subprocess.check_output(['gh','api',f'repos/{repo}/actions/artifacts/{aid}/zip'])
+            assert hashlib.sha256(data).hexdigest()==archive_hash
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+              assert archive.namelist().count(name)==1
+              image=archive.read(name)
+            assert hashlib.sha256(image).hexdigest()==image_hash
+            (root/target).write_bytes(image)
+          PY
+      - name: Upload the two approved iMessage screenshots
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: node .github/scripts/upload-imessage-screenshots.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: imessage-upload-receipt
+          path: imessage-upload-receipt.json
+          if-no-files-found: ignore
+          retention-days: 7
