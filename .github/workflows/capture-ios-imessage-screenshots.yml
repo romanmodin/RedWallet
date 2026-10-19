@@ -1,0 +1,136 @@
+name: Capture qualified iMessage extension screenshots
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/capture-ios-imessage-screenshots.yml'
+      - '.github/scripts/create-imessage-capture-project.rb'
+      - '.github/scripts/imessage-capture.swift'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+env:
+  SOURCE_COMMIT: 0e36e37ad797b13b711d2606b52ac70ea52e873f
+  PUBLIC_SOURCE_COMMIT: 0e36e37ad797b13b711d2606b52ac70ea52e873f
+  PRODUCTION_TREE_SHA256: 4fe2b1a5a4619f002d7b7cc19781d7fcee5b182f16de19cb831e63f172893f63
+  CI_RUN_ID: '39206955313'
+  IOS_RUN_ID: '39206955356'
+  FUNDED_IOS_RUN_ID: '39206955341'
+jobs:
+  capture:
+    runs-on: macos-26
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [iphone, ipad]
+    steps:
+      - name: Checkout pinned app source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: 0e36e37ad797b13b711d2606b52ac70ea52e873f
+          persist-credentials: false
+      - name: Checkout capture tools
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: .reviewed-orchestration
+          persist-credentials: false
+      - name: Verify production source and exact-source gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I .reviewed-orchestration/.github/scripts/verify-production-source.py --source-commit "$SOURCE_COMMIT" --public-commit "$PUBLIC_SOURCE_COMMIT" --expected-hash "$PRODUCTION_TREE_SHA256"
+          python3 -I .reviewed-orchestration/.github/scripts/verify-ios-release-gates.py
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+        with:
+          ruby-version: 3.4.10
+          bundler-cache: true
+      - name: Download qualified simulator artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: bluewallet-ios-app
+          run-id: ${{ env.IOS_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Restore simulator app and compile its qualified sticker extension
+        run: |
+          mkdir -p artifacts/imessage simulator-app
+          tar -xzf BlueWallet.app.tar.gz -C simulator-app
+          set -o pipefail
+          xcodebuild -project ios/BlueWallet.xcodeproj -target Stickers -configuration Release -sdk iphonesimulator SYMROOT="$PWD/sticker-build" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee artifacts/imessage/sticker-build.log
+          python3 - <<'PY'
+          import json,plistlib,shutil
+          from pathlib import Path
+          apps=list(Path('simulator-app').glob('*.app'))
+          assert len(apps)==1
+          app=apps[0]
+          extension=Path('sticker-build/Release-iphonesimulator/Stickers.appex')
+          assert extension.is_dir(), 'Qualified sticker target must build successfully'
+          ai=plistlib.loads((app/'Info.plist').read_bytes())
+          ei=plistlib.loads((extension/'Info.plist').read_bytes())
+          assert ei['CFBundleIdentifier']==ai['CFBundleIdentifier']+'.Stickers'
+          assert ei['NSExtension']['NSExtensionPointIdentifier']=='com.apple.message-payload-provider'
+          (app/'PlugIns').mkdir(exist_ok=True)
+          assert not (app/'PlugIns'/'Stickers.appex').exists(), 'Do not overwrite an unexpected extension'
+          shutil.copytree(extension,app/'PlugIns'/'Stickers.appex')
+          print('Restored omitted simulator sticker extension from the exact qualified source')
+          PY
+      - name: Prepare disposable simulator and qualified app plus extension
+        env:
+          STORE_FAMILY: ${{ matrix.family }}
+        run: |
+          python3 - <<'PY'
+          import json,os,plistlib,subprocess
+          from pathlib import Path
+          def sim(*args):
+              return subprocess.check_output(['xcrun','simctl',*args],text=True)
+          family=os.environ['STORE_FAMILY']
+          types=json.loads(sim('list','devicetypes','--json'))['devicetypes']
+          candidates=[d for d in types if (d['name']=='iPhone 17 Pro' if family=='iphone' else d['name'].startswith('iPad Pro 13-inch'))]
+          if not candidates:
+              raise SystemExit('Required device unavailable; no screenshot resizing permitted')
+          device=candidates[-1]
+          runtimes=[r for r in json.loads(sim('list','runtimes','--json'))['runtimes'] if r['isAvailable'] and r['name'].startswith('iOS ')]
+          runtime=max(runtimes,key=lambda r:tuple(int(n) for n in r['version'].split('.')))
+          udid=sim('create','RedWallet iMessage Capture',device['identifier'],runtime['identifier']).strip()
+          subprocess.run(['xcrun','simctl','boot',udid],check=True)
+          subprocess.run(['xcrun','simctl','bootstatus',udid,'-b'],check=True)
+          subprocess.run(['xcrun','simctl','status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100'],check=True)
+          apps=list(Path('simulator-app').glob('*.app'))
+          assert len(apps)==1
+          app=apps[0]
+          extensions=list((app/'PlugIns').glob('*.appex'))
+          records=[]
+          for extension in extensions:
+              info=plistlib.loads((extension/'Info.plist').read_bytes())
+              records.append({'name':info.get('CFBundleDisplayName'),'bundleId':info.get('CFBundleIdentifier'),'extensionPoint':info.get('NSExtension',{}).get('NSExtensionPointIdentifier')})
+          assert any(r['extensionPoint']=='com.apple.message-payload-provider' for r in records)
+          subprocess.run(['xcrun','simctl','install',udid,str(app)],check=True)
+          receipt={'sourceCommit':os.environ['SOURCE_COMMIT'],'simulatorArtifactRun':os.environ['IOS_RUN_ID'],'device':device['name'],'runtime':runtime['name'],'extensions':records,'captureStatus':'DIAGNOSTIC_ONLY','extensionBuild':'Stickers target compiled from exact source; omitted by general simulator CI','freshSimulator':True,'messagesSent':False,'physicalDeviceTest':False}
+          Path('artifacts/imessage/provenance.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          print(json.dumps(receipt,indent=2))
+          with open(os.environ['GITHUB_ENV'],'a') as out:
+              out.write('CAPTURE_UDID='+udid+'\n')
+          PY
+      - name: Generate independent XCTest capture runner
+        run: |
+          bundle exec ruby -c .reviewed-orchestration/.github/scripts/create-imessage-capture-project.rb
+          bundle exec ruby .reviewed-orchestration/.github/scripts/create-imessage-capture-project.rb capture-project
+      - name: Inspect actual iMessage UI
+        run: |
+          set -o pipefail
+          xcodebuild -project capture-project/StickerCapture.xcodeproj -scheme StickerCapture -sdk iphonesimulator -destination "platform=iOS Simulator,id=$CAPTURE_UDID" -parallel-testing-enabled NO -derivedDataPath capture-build -resultBundlePath artifacts/imessage/StickerCapture.xcresult test CODE_SIGNING_ALLOWED=NO 2>&1 | tee artifacts/imessage/xcodebuild.log
+      - name: Export diagnostic attachments
+        if: always()
+        run: |
+          if [ -d artifacts/imessage/StickerCapture.xcresult ]; then
+            xcrun xcresulttool export attachments --path artifacts/imessage/StickerCapture.xcresult --output-path artifacts/imessage/attachments
+          fi
+      - name: Retain iMessage evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: imessage-capture-${{ matrix.family }}
+          path: artifacts/imessage/
+          if-no-files-found: error
+          retention-days: 30
