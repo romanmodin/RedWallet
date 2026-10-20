@@ -161,9 +161,9 @@ describe('Kilojoin adversarial boundaries', () => {
         Buffer.alloc(32),
       );
     expect(protocol.parsePool(sign(terms), 1791400000).v).toBe(3);
-    expect(() => protocol.parsePool(sign({ ...terms, v: 4, outputs: 2 }), 1791400000)).toThrow('Unsupported');
+    expect(() => protocol.parsePool(sign({ ...terms, v: 4, outputs: 2 }), 1791400000, false)).toThrow('Unsupported');
     for (const outputs of [2, 3, 4, 5]) {
-      expect(protocol.outputCount(protocol.parsePool(sign({ ...terms, v: 4, outputs }), 1791400000, true))).toBe(outputs);
+      expect(protocol.outputCount(protocol.parsePool(sign({ ...terms, v: 4, outputs }), 1791400000))).toBe(outputs);
     }
     for (const outputs of [undefined, 0, 1, 6, 2.5]) {
       expect(() => protocol.parsePool(sign({ ...terms, v: 4, outputs }), 1791400000, true)).toThrow();

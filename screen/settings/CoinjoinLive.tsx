@@ -213,7 +213,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               onPress={() => run(refreshPools)}
             />
             <Text testID="CoinjoinPoolSearchStatus" accessibilityLiveRegion="polite" style={text}>
-              {searchState === 'idle' && 'Find open Kilojoin v3 pools on relay.kilombino.com.'}
+              {searchState === 'idle' && 'Find open Kilojoin v3 and v4 pools on relay.kilombino.com.'}
               {searchState === 'connecting' && 'Connecting to relay.kilombino.com…'}
               {searchState === 'searching' && 'Connected. Checking open pools…'}
               {searchState === 'failed' && 'Pool search failed or disconnected. Tap Find pools to retry.'}
@@ -286,6 +286,12 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               <Text style={text}>
                 Signatures: {signatureCount}/{inputCount}
               </Text>
+              {!!view.review && (
+                <Text style={text}>
+                  Your mixed outputs: {view.review.count} × {view.review.amount.toLocaleString()} sats ={' '}
+                  {view.review.total.toLocaleString()} sats
+                </Text>
+              )}
               {!!journal?.myFee && <Text style={text}>Your exact fee: {journal.myFee} sats</Text>}
               {!!journal?.reviewedId && (
                 <Text selectable style={text}>
@@ -312,12 +318,12 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             {session?.phase === 'review' && (
               <Button
                 title="Review and sign"
-                disabled={busy}
+                disabled={busy || !view.review}
                 onPress={() => {
                   const commitment = journal!.commitment!;
                   Alert.alert(
                     'Approve CoinJoin transaction?',
-                    `Your fee is ${journal!.myFee} sats. Once signed, cancellation cannot release these coins until the transaction is resolved.`,
+                    `You receive ${view.review!.count} mixed output(s) of ${view.review!.amount.toLocaleString()} sats each, totaling ${view.review!.total.toLocaleString()} sats, on fresh addresses. Change: ${view.review!.change.toLocaleString()} sats (not mixed). Your fee is ${journal!.myFee} sats. Once signed, cancellation cannot release these coins until the transaction is resolved.`,
                     [
                       { text: 'Cancel', style: 'cancel' },
                       {

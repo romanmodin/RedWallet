@@ -19,7 +19,13 @@ import { reservedCoins } from './wallet-store';
 const ECPair = ECPairFactory(ecc);
 const joining = new WeakSet<MixingWallet>();
 const clock = () => Math.floor(Date.now() / 1000);
-export type ClientView = { session: SessionState; journal: Journal; error?: string; broadcastId?: string };
+export type ClientView = {
+  session: SessionState;
+  journal: Journal;
+  error?: string;
+  broadcastId?: string;
+  review?: ReturnType<ParticipantSession['reviewSummary']>;
+};
 export class MixingClient {
   private timer?: ReturnType<typeof setTimeout>;
   private broadcastId?: string;
@@ -39,7 +45,13 @@ export class MixingClient {
   }
 
   view(): ClientView {
-    return { session: this.session.snapshot(), journal: this.round.snapshot(), error: this.error, broadcastId: this.broadcastId };
+    return {
+      session: this.session.snapshot(),
+      journal: this.round.snapshot(),
+      error: this.error,
+      broadcastId: this.broadcastId,
+      review: this.session.reviewSummary(),
+    };
   }
 
   private update(): void {
@@ -270,9 +282,15 @@ export class MixingClient {
       } catch {
         continue;
       }
-      if (this.mixAddresses.includes(a)) this.wallet.setUTXOMetadata(id, index, { memo: 'CoinJoin output · Kilojoin' });
+      if (this.mixAddresses.includes(a))
+        this.wallet.setUTXOMetadata(id, index, {
+          memo: 'CoinJoin output · Kilojoin',
+        });
       if (a === this.changeAddress)
-        this.wallet.setUTXOMetadata(id, index, { memo: 'CoinJoin change · frozen to avoid recombination', frozen: true });
+        this.wallet.setUTXOMetadata(id, index, {
+          memo: 'CoinJoin change · frozen to avoid recombination',
+          frozen: true,
+        });
     }
     await this.round.confirm(id, tip - entries[0].height + 1);
     this.broadcastId = id;
@@ -338,7 +356,10 @@ export async function confirmRecoveredRound(wallet: MixingWallet, poolId: string
   // Role metadata might not survive an interrupted session. Freeze every recovered
   // wallet output instead of guessing which equal output/change should be combined.
   for (const output of own)
-    wallet.setUTXOMetadata(id, output.index, { memo: 'Recovered CoinJoin output · review before unfreezing', frozen: true });
+    wallet.setUTXOMetadata(id, output.index, {
+      memo: 'Recovered CoinJoin output · review before unfreezing',
+      frozen: true,
+    });
   await round.confirm(id, tip - heights[0][0].height + 1);
   return true;
 }

@@ -256,3 +256,54 @@ test.each(['missing', 'invalid', 'swapped'])('v4 rejects %s blind signatures bef
   expect(f.session.snapshot().phase).toBe('closing');
   expect(f.round.snapshot().phase).toBe('joined');
 });
+
+test('v4 interrupted output publication preserves the acknowledged output and does not retry automatically', async () => {
+  const f = await fixture('p2wpkh', 5);
+  const publish = f.env.publish;
+  let outputs = 0;
+  f.env.publish = async (event, isolated) => {
+    if (isolated && ++outputs === 2) throw new Error('fixture disconnect');
+    await publish(event, isolated);
+  };
+  await expect(f.advance()).rejects.toThrow('fixture disconnect');
+  expect(f.published.filter(p => p.isolated)).toHaveLength(1);
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  await Promise.resolve();
+  expect(outputs).toBe(2);
+  await f.session.submitOutput();
+  const messages = f.published
+    .filter(p => p.isolated)
+    .map(({ event }) => JSON.parse(decrypt(event.content, conversationKey(creator, event.pubkey))));
+  expect(messages).toHaveLength(5);
+  expect(new Set(messages.map(m => m.script)).size).toBe(5);
+  await f.session.cancel();
+  expect(f.round.snapshot().phase).toBe('aborted');
+  expect(f.round.snapshot().reserved).toHaveLength(0);
+});
+
+test('v4 review summary matches every promised output and unsigned restart releases only unsigned reservations', async () => {
+  const f = await fixture('p2tr', 5);
+  expect(f.session.reviewSummary()).toBeUndefined();
+  await f.advance();
+  expect(f.session.reviewSummary()).toEqual({ count: 5, amount: 10000, total: 50000, change: f.rawSeats[0].change_value });
+  const recovered = await Round.restore(f.round.snapshot(), 'wallet', 10050, { save: async () => {} });
+  expect(recovered.snapshot().phase).toBe('aborted');
+  expect(recovered.snapshot().reserved).toHaveLength(0);
+});
+
+test.each([1, 5])('welcome sequence excludes pre-join roster history for %i-output pools without accepting rewinds', async count => {
+  const f = await fixture('p2wpkh', count);
+  await f.receive({ type: 'welcome', pool_secret: pool.toString('hex'), token: 'ab'.repeat(16), seq: 2 }, true);
+  const prior = f.session.snapshot();
+  await f.receive({ type: 'roster', seq: 1, seats: [f.rawSeats[1]] });
+  expect(f.session.snapshot()).toEqual(prior);
+  await f.receive({ type: 'roster', seq: 2, seats: f.rawSeats });
+  const accepted = f.session.snapshot();
+  expect(accepted.seats).toHaveLength(2);
+  await f.receive({ type: 'roster', seq: 1, seats: [] });
+  expect(f.session.snapshot()).toEqual(accepted);
+  await expect(f.receive({ type: 'roster', seq: 2, seats: [f.rawSeats[1]] })).rejects.toThrow('replayed roster');
+  await expect(f.receive({ type: 'roster', seq: 3, seats: [f.rawSeats[1]] })).rejects.toThrow();
+  expect(f.session.snapshot()).toEqual(accepted);
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+});

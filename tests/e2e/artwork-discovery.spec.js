@@ -2,14 +2,20 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { element, waitFor } from 'detox';
-import { nativeCaptureEvidence, matchesNativeOrientation } from './native-capture-helper';
+import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation } from './native-capture-helper';
 import { getSwitchValue, goBack, helperCreateWallet, scrollUpOnHomeScreen, waitForId, waitForWalletsList } from './helperz';
 
 const smoke = process.env.REDWALLET_VISUAL_SMOKE === '1' ? describe : describe.skip;
-const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface') => {
+const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = false) => {
   const directory = path.resolve('artifacts/appearance-discovery');
   fs.mkdirSync(directory, { recursive: true });
-  const deadline = Date.now() + 15000;
+  const started = Date.now();
+  const deadline = started + 15000;
+  let orientationRequests = 0;
+  if (rotate) {
+    await device.setOrientation(orientation);
+    orientationRequests++;
+  }
   let evidence;
   // simctl captures the physical framebuffer in portrait pixel coordinates even
   // when UIKit has rotated. Assert the actual native surface bounds, retain the
@@ -22,8 +28,12 @@ const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface') => {
     evidence = nativeCaptureEvidence(png, before, after, orientation);
     // Retain the last observed native state on failure as well as success.
     fs.copyFileSync(file, path.join(directory, name + '.png'));
-    fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, ...evidence }, null, 2) + '\n');
+    fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, orientationRequests, ...evidence }, null, 2) + '\n');
     if (matchesNativeOrientation(evidence)) return;
+    if (shouldRepeatOrientation(evidence, Date.now() - started, orientationRequests)) {
+      await device.setOrientation(orientation);
+      orientationRequests++;
+    }
     await new Promise(resolve => setTimeout(resolve, 500));
   } while (Date.now() < deadline);
   throw new Error(`Native ${orientation} surface never settled: ${JSON.stringify(evidence)}`);
@@ -64,12 +74,8 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await waitForWalletsList();
     await scrollUpOnHomeScreen();
     await capture('01-helmet-portrait', 'portrait');
-    await device.setOrientation('landscape');
-    await waitForWalletsList();
-    await capture('02-helmet-landscape', 'landscape');
-    await device.setOrientation('portrait');
-    await waitForWalletsList();
-    await capture('02b-helmet-return-portrait', 'portrait');
+    await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
+    await capture('02b-helmet-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('Tools')))
       .toBeVisible()

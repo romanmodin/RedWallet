@@ -56,3 +56,23 @@ These are separate protocol and node tests: the complete Kotlin round currently 
 synthetic chain observations. Native UI/Keychain, actual WebSocket transport,
 combined full-round/backend faults and Android JNI remain outside this qualification.
 Both integration tests skip unless their explicit environment variables are supplied.
+
+
+## Kilowallet 1.2.0 / Kilojoin v4 combined qualification
+
+`run-peer-v4.py` uses unchanged upstream Kotlin sources pinned to Kilowallet
+v1.2.0 commit `6fbff814de8a59d6c4879724bcb1ae772182a0f1` and verified by
+`peer-v4-source-sha256.json`. Supply its `app/src/main/java/com/kilombino/pyblockwatch`
+directory, the compiler, Java and JSON jar as for `run-peer.py`.
+Set `KILOJOIN_REGTEST_BIN` and `KILOJOIN_V4_RECEIPT` to enable the combined backend
+and write an actual receipt. Without the node flag, chain observations are synthetic.
+
+Six cases cover one-output v3 and two-/five-output v4 on P2WPKH and P2TR. RedWallet
+uses actual loopback WebSocket connections, with a separate connection for every
+mixed output. Kotlin's networking adapter bridges signed encrypted events through
+stdio; its original PoolSession and cryptography run unchanged. Both participants
+check the disposable node's UTXOs. Kotlin broadcasts only public-fixture transactions
+to that same isolated node; the test compares exact bytes and mines one confirmation.
+Node peer networking is disabled, RPC is loopback-only, binary SHA256 is pinned,
+and each fresh data directory/process is cleaned up. No production node or real
+wallet is used. This does not establish physical-phone or public-relay availability.

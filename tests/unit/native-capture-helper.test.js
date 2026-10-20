@@ -1,4 +1,4 @@
-import { nativeCaptureEvidence, matchesNativeOrientation } from '../e2e/native-capture-helper';
+import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation } from '../e2e/native-capture-helper';
 
 const png = Buffer.alloc(24);
 Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
@@ -28,4 +28,14 @@ test('missing native dimensions and invalid screenshots fail closed', () => {
   expect(() => nativeCaptureEvidence(png, {}, landscape, 'landscape')).toThrow('native surface');
   expect(() => nativeCaptureEvidence(Buffer.alloc(24), landscape, landscape, 'landscape')).toThrow('PNG');
   expect(() => nativeCaptureEvidence(png, landscape, landscape, 'sideways')).toThrow('orientation');
+});
+
+test('one observed rotation repeat stays within the existing deadline and never repeats a settled or moving surface', () => {
+  const stuck = nativeCaptureEvidence(png, portrait, portrait, 'landscape');
+  expect(shouldRepeatOrientation(stuck, 5000, 1)).toBe(true);
+  expect(shouldRepeatOrientation(stuck, 4999, 1)).toBe(false);
+  expect(shouldRepeatOrientation(stuck, 10000, 1)).toBe(false);
+  expect(shouldRepeatOrientation(stuck, 5000, 2)).toBe(false);
+  expect(shouldRepeatOrientation(nativeCaptureEvidence(png, portrait, landscape, 'landscape'), 5000, 1)).toBe(false);
+  expect(shouldRepeatOrientation(nativeCaptureEvidence(png, landscape, landscape, 'landscape'), 5000, 1)).toBe(false);
 });

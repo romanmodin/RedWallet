@@ -1,4 +1,4 @@
-/** Participant-only v3 controller. Transport and secure persistence are injected.
+/** Participant-only v3/v4 controller. Transport and secure persistence are injected.
  * This controller never automatically signs or broadcasts a transaction.
  */
 import { script as bitcoinScript } from 'bitcoinjs-lib';
@@ -60,6 +60,7 @@ export class ParticipantSession {
   private readonly terms: Readonly<Terms>;
   private readonly seat: Seat;
   private readonly mixScripts: string[];
+  private welcomeSequenceFloor = -1;
   private busy = false;
   private idle: Promise<void> = Promise.resolve();
   constructor(
@@ -92,7 +93,13 @@ export class ParticipantSession {
     )
       throw new Error('Invalid participant configuration');
     this.inbox = new MessageInbox(terms.creator, terms.public_key, joinSecret, env.now());
-    this.state = { phase: 'joining', sequence: -1, seats: [], signatures: {}, deadline: journal.deadline };
+    this.state = {
+      phase: 'joining',
+      sequence: -1,
+      seats: [],
+      signatures: {},
+      deadline: journal.deadline,
+    };
   }
 
   async sendJoin(changeSignature: string, password?: string): Promise<void> {
@@ -117,7 +124,11 @@ export class ParticipantSession {
         proof: this.seat.proofs[0],
         proofs: this.seat.proofs,
         change_sig: changeSignature,
-        ...(this.terms.private ? { pw: passwordProof(passwordKey(this.terms.id, password!), this.seat.join_pub) } : {}),
+        ...(this.terms.private
+          ? {
+              pw: passwordProof(passwordKey(this.terms.id, password!), this.seat.join_pub),
+            }
+          : {}),
       };
       const recipient = this.terms.public_key;
       await this.env.publish(
@@ -244,6 +255,7 @@ export class ParticipantSession {
             token: body.token,
             sequence: (body.seq as number) - 1,
           });
+          this.welcomeSequenceFloor = (body.seq as number) - 1;
           this.inbox.installPoolSecret(poolSecret);
           poolSecret.fill(0);
           break;
@@ -254,10 +266,17 @@ export class ParticipantSession {
           await this.save({ ...this.state, phase: 'aborted' });
           break;
         case 'roster': {
+          if (!Number.isSafeInteger(body.seq) || (body.seq as number) < 0) throw new Error('Invalid roster sequence');
+          // Authenticated relay history can predate our seat. It cannot update this round.
+          // Newer/current rosters still pass strict replay, ownership and chain validation.
+          if ((body.seq as number) <= this.welcomeSequenceFloor) break;
           this.require(['open', 'voting']);
-          if (!Number.isSafeInteger(body.seq)) throw new Error('Invalid roster sequence');
           const seats = await this.checkedSeats(body.seats, body.seq as number);
-          await this.save({ ...this.state, seats, sequence: body.seq as number });
+          await this.save({
+            ...this.state,
+            seats,
+            sequence: body.seq as number,
+          });
           break;
         }
         case 'vote_open': {
@@ -275,7 +294,12 @@ export class ParticipantSession {
         case 'reopen':
           this.require(['voting']);
           if (body.vote_id !== this.state.voteId) throw new Error('Wrong vote');
-          await this.save({ ...this.state, phase: 'open', voteId: undefined, deadline: this.round.snapshot().deadline });
+          await this.save({
+            ...this.state,
+            phase: 'open',
+            voteId: undefined,
+            deadline: this.round.snapshot().deadline,
+          });
           break;
         case 'closing': {
           this.require(['open', 'voting']);
@@ -325,7 +349,11 @@ export class ParticipantSession {
             );
             const entropy = this.env.random(1);
             if (entropy.length !== 1) throw new Error('Invalid entropy');
-            return { ...output, signature: sig.toString('hex'), notBefore: this.env.now() + 3 + (entropy[0] % 41) };
+            return {
+              ...output,
+              signature: sig.toString('hex'),
+              notBefore: this.env.now() + 3 + (entropy[0] % 41),
+            };
           });
           await this.save({
             ...this.state,
@@ -350,7 +378,11 @@ export class ParticipantSession {
           const p = this.buildPlan(next),
             expected = await this.reviewContext();
           await this.round.review(p, expected, this.env.now());
-          await this.save({ ...next, phase: 'review', deadline: Math.min(this.round.snapshot().deadline, this.env.now() + 1200) });
+          await this.save({
+            ...next,
+            phase: 'review',
+            deadline: Math.min(this.round.snapshot().deadline, this.env.now() + 1200),
+          });
           break;
         }
         case 'sig': {
@@ -361,7 +393,13 @@ export class ParticipantSession {
             throw new Error('Invalid participant signature');
           const old = this.state.signatures[body.outpoint as string];
           if (old && old !== body.sig) throw new Error('Conflicting signature');
-          await this.save({ ...this.state, signatures: { ...this.state.signatures, [body.outpoint as string]: body.sig } });
+          await this.save({
+            ...this.state,
+            signatures: {
+              ...this.state.signatures,
+              [body.outpoint as string]: body.sig,
+            },
+          });
           break;
         }
         // Peer transaction claims are never used as confirmation or to release reservations.
@@ -519,9 +557,26 @@ export class ParticipantSession {
           index = p.coins.findIndex(c => outpoint(c) === id);
         if (!sig || !verifySignature(p, index, sig)) throw new Error('Invalid own signature');
       }
-      await this.save({ ...this.state, signatures: { ...this.state.signatures, ...Object.fromEntries(signatures) } });
+      await this.save({
+        ...this.state,
+        signatures: {
+          ...this.state.signatures,
+          ...Object.fromEntries(signatures),
+        },
+      });
       for (const [id, sig] of signatures) await this.publish({ type: 'sig', outpoint: id, sig });
     });
+  }
+
+  reviewSummary(): { count: number; amount: number; total: number; change: number } | undefined {
+    if (!['review', 'signed'].includes(this.state.phase) || !this.round.snapshot().commitment) return undefined;
+    const count = outputCount(this.terms);
+    return {
+      count,
+      amount: this.terms.denomination,
+      total: count * this.terms.denomination,
+      change: this.seat.change_value,
+    };
   }
 
   reviewed(): Journal {

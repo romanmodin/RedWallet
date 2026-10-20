@@ -17,6 +17,7 @@ const mockTerms = {
   timeout: 9999999999,
 };
 const mockView = {
+  review: { count: 1, amount: 10000, total: 10000, change: 39729 },
   session: { phase: 'review', seats: [], signatures: {} },
   journal: {
     phase: 'review',
@@ -108,6 +109,8 @@ test('live controls select coins but require an explicit confirmation before sig
   );
   fireEvent.press(screen.getByText('Review and sign'));
   expect(mockApprove).not.toHaveBeenCalled();
+  expect(prompt.mock.calls[0][1]).toContain('1 mixed output(s) of 10,000 sats each');
+  expect(prompt.mock.calls[0][1]).toContain('Change: 39,729 sats (not mixed)');
   const buttons = prompt.mock.calls[0][2]!;
   await act(async () => {
     buttons.find(b => b.text === 'Sign transaction')!.onPress!();

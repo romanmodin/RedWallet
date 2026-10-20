@@ -22,3 +22,17 @@ export function matchesNativeOrientation(evidence) {
     evidence.orientation === 'landscape' ? bounds.width > bounds.height : bounds.height > bounds.width,
   );
 }
+
+// One harmless repeat only after a positive, stable observation that UIKit did
+// not rotate. Keep both requests inside the original 15-second settling budget.
+export function shouldRepeatOrientation(evidence, elapsed, requests) {
+  return (
+    requests === 1 &&
+    elapsed >= 5000 &&
+    elapsed < 10000 &&
+    !matchesNativeOrientation(evidence) &&
+    evidence.before.width === evidence.after.width &&
+    evidence.before.height === evidence.after.height &&
+    evidence.before.width !== evidence.before.height
+  );
+}

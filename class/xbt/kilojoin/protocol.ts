@@ -1,11 +1,11 @@
-/** Kilojoin v3 wire helpers; adapted from Kilombino (Apache-2.0). */
+/** Kilojoin v3/v4 wire helpers; adapted from Kilombino (Apache-2.0). */
 import { hex, mac, utf8Hash, verifyEvent, NostrEvent } from './crypto';
 import { publicKey } from './blind-rsa';
 import { Coin, outpoint } from './transaction';
 // Experimental participation is opt-in in the main app; each join also requires explicit acknowledgment.
 export const LIVE_JOIN_ENABLED = true;
 export const PROTOCOL_VERSION = 3;
-export const V4_ENABLED = false; // Enable only after multi-output native qualification.
+export const V4_ENABLED = true; // Experimental opt-in; release requires exact-source native qualification.
 export const RELAY = 'wss://relay.kilombino.com';
 export type Terms = {
   v: 3 | 4;
