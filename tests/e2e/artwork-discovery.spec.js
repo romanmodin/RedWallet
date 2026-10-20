@@ -2,11 +2,11 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { element, waitFor } from 'detox';
-import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation } from './native-capture-helper';
+import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation, observeNativeRotation } from './native-capture-helper';
 import { getSwitchValue, goBack, helperCreateWallet, scrollUpOnHomeScreen, waitForId, waitForWalletsList } from './helperz';
 
 const smoke = process.env.REDWALLET_VISUAL_SMOKE === '1' ? describe : describe.skip;
-const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = false) => {
+const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = false) => {
   const directory = path.resolve('artifacts/appearance-discovery');
   fs.mkdirSync(directory, { recursive: true });
   const started = Date.now();
@@ -38,6 +38,13 @@ const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface', rota
   } while (Date.now() < deadline);
   throw new Error(`Native ${orientation} surface never settled: ${JSON.stringify(evidence)}`);
 };
+// Pool discovery already controls synchronization itself. Scope this change
+// strictly to the two actual orientation transitions; every native/pixel/hash
+// assertion and the original 15-second budget remain in captureObserved.
+const capture = (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = false) => {
+  const observation = () => captureObserved(name, orientation, surfaceId, rotate);
+  return rotate ? observeNativeRotation(device, observation) : observation();
+};
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
     // CI pre-boots the simulator. Detox returns early for an already-booted
@@ -48,7 +55,10 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     // Detox 20 has no setAppearance API. Set the selected disposable simulator
     // through Apple's native command before launching the app.
     execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'dark']);
-    await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
+    await device.launchApp({
+      delete: true,
+      permissions: { notifications: 'NO' },
+    });
     await waitForWalletsList();
     await element(by.id('SettingsButton')).tap();
     await element(by.id('NetworkSettings')).tap();

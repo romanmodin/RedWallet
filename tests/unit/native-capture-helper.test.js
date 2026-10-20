@@ -1,4 +1,9 @@
-import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation } from '../e2e/native-capture-helper';
+import {
+  nativeCaptureEvidence,
+  matchesNativeOrientation,
+  shouldRepeatOrientation,
+  observeNativeRotation,
+} from '../e2e/native-capture-helper';
 
 const png = Buffer.alloc(24);
 Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
@@ -38,4 +43,61 @@ test('one observed rotation repeat stays within the existing deadline and never 
   expect(shouldRepeatOrientation(stuck, 5000, 2)).toBe(false);
   expect(shouldRepeatOrientation(nativeCaptureEvidence(png, portrait, landscape, 'landscape'), 5000, 1)).toBe(false);
   expect(shouldRepeatOrientation(nativeCaptureEvidence(png, landscape, landscape, 'landscape'), 5000, 1)).toBe(false);
+});
+
+test('rotation observation checks native state before restoring normal synchronization', async () => {
+  const calls = [];
+  const device = {
+    disableSynchronization: jest.fn(async () => calls.push('disable')),
+    enableSynchronization: jest.fn(async () => calls.push('enable')),
+  };
+  const result = await observeNativeRotation(device, async () => {
+    calls.push('observe');
+    return matchesNativeOrientation(nativeCaptureEvidence(png, landscape, landscape, 'landscape'));
+  });
+  expect(result).toBe(true);
+  expect(calls).toEqual(['disable', 'observe', 'enable']);
+});
+
+test('unsynchronized observation does not accept an unchanged or moving surface', async () => {
+  const device = {
+    disableSynchronization: jest.fn(),
+    enableSynchronization: jest.fn(),
+  };
+  for (const [before, after] of [
+    [portrait, portrait],
+    [portrait, landscape],
+    [landscape, portrait],
+  ]) {
+    expect(
+      await observeNativeRotation(device, async () => matchesNativeOrientation(nativeCaptureEvidence(png, before, after, 'landscape'))),
+    ).toBe(false);
+  }
+  expect(device.enableSynchronization).toHaveBeenCalledTimes(3);
+});
+
+test('observation failure restores synchronization and is not retried or swallowed', async () => {
+  const device = {
+    disableSynchronization: jest.fn(),
+    enableSynchronization: jest.fn(),
+  };
+  const error = new Error('Native landscape surface never settled');
+  const observation = jest.fn(async () => {
+    throw error;
+  });
+  await expect(observeNativeRotation(device, observation)).rejects.toBe(error);
+  expect(observation).toHaveBeenCalledTimes(1);
+  expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
+});
+
+test('a synchronization transport failure prevents observation and still attempts restoration', async () => {
+  const error = new Error('transport failed');
+  const device = {
+    disableSynchronization: jest.fn().mockRejectedValue(error),
+    enableSynchronization: jest.fn(),
+  };
+  const observation = jest.fn();
+  await expect(observeNativeRotation(device, observation)).rejects.toBe(error);
+  expect(observation).not.toHaveBeenCalled();
+  expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
 });

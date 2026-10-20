@@ -14,7 +14,13 @@ export function nativeCaptureEvidence(png, before, after, orientation) {
     return { width: value.width, height: value.height };
   };
   if (!pixels.width || !pixels.height) throw new Error('Invalid native PNG dimensions');
-  return { orientation, pixels, before: bounds(before), after: bounds(after), sha256: createHash('sha256').update(png).digest('hex') };
+  return {
+    orientation,
+    pixels,
+    before: bounds(before),
+    after: bounds(after),
+    sha256: createHash('sha256').update(png).digest('hex'),
+  };
 }
 
 export function matchesNativeOrientation(evidence) {
@@ -35,4 +41,16 @@ export function shouldRepeatOrientation(evidence, elapsed, requests) {
     evidence.before.height === evidence.after.height &&
     evidence.before.width !== evidence.before.height
   );
+}
+
+// A rotation is deliberately a non-idle UI transition. Observe the real native
+// bounds directly instead of adding Detox idle drains to every probe. Restore
+// normal synchronization even when observation or the transport fails.
+export async function observeNativeRotation(device, observation) {
+  try {
+    await device.disableSynchronization();
+    return await observation();
+  } finally {
+    await device.enableSynchronization();
+  }
 }
