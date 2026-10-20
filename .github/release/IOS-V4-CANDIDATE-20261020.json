@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "2bb3073678492b476ae67d6e42a76ca705b26fb2",
-  "productionTreeSha256": "08475a6c5c950f7e2485c42960a510911327acc541ee9ded66cbc0cf06a498a1",
-  "productionPathCount": 988,
-  "ciRunId": 39418562475,
-  "iosRunId": 39418562465,
-  "fundedIosRunId": 39418586405,
+  "sourceCommit": "ea199eb0d8eb22e272ada88c51009054f11eb4e2",
+  "productionTreeSha256": "8a9e96245cbc910bf5e30031728ac9345ff480787fa62158122108c53039b1fe",
+  "productionPathCount": 989,
+  "ciRunId": 39465258886,
+  "iosRunId": 39465258897,
+  "fundedIosRunId": 39465415582,
   "status": "PENDING_EXACT_SOURCE_QUALIFICATION",
   "uploaded": false,
   "distributed": false,
@@ -14,10 +14,11 @@
   "replacesAppleBuildId": "8f82931c-2a19-43cb-b15b-93182f029ae5",
   "existingReviewSubmissionId": "bcd6801a-7ad2-433e-8963-05b880baefc8",
   "authorization": "User2026-10-20 authorized TestFlight delivery and Apple resubmission with v4; do not withdraw existing submission before the verified replacement is processed and ready.",
-  "ciStatus": "SUCCESS",
-  "peerRegtestStatus": "PASSED_6_CASES",
+  "ciStatus": "PENDING",
+  "peerRegtestStatus": "HISTORICAL_PASSED_6_CASES_NOT_CURRENT_SOURCE_QUALIFICATION",
   "peerRegtestReceiptSha256": "c303f802aa16e7a901e285dca8c0d979bfeaab74c79f27bb2fed5e28f3d5c037",
-  "nativeStatus": "IN_PROGRESS",
+  "nativeStatus": "PENDING",
   "replacementHelperStatus": "PREPARED_OFFLINE_NOT_WIRED",
-  "replacementHelperTestsPassed": 13
+  "replacementHelperTestsPassed": 13,
+  "peerRegtestSourceCommit": "2bb3073678492b476ae67d6e42a76ca705b26fb2"
 }
