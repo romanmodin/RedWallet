@@ -1,0 +1,17 @@
+{
+  "sourceCommit": "2bb3073678492b476ae67d6e42a76ca705b26fb2",
+  "productionTreeSha256": "08475a6c5c950f7e2485c42960a510911327acc541ee9ded66cbc0cf06a498a1",
+  "productionPathCount": 988,
+  "ciRunId": 39418562475,
+  "iosRunId": 39418562465,
+  "fundedIosRunId": 39418586405,
+  "status": "PENDING_EXACT_SOURCE_QUALIFICATION",
+  "uploaded": false,
+  "distributed": false,
+  "submitted": false,
+  "appId": "6817118871",
+  "replacesBuild": "1792439689",
+  "replacesAppleBuildId": "8f82931c-2a19-43cb-b15b-93182f029ae5",
+  "existingReviewSubmissionId": "bcd6801a-7ad2-433e-8963-05b880baefc8",
+  "authorization": "User2026-10-20 authorized TestFlight delivery and Apple resubmission with v4; do not withdraw existing submission before the verified replacement is processed and ready."
+}
