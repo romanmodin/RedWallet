@@ -13,5 +13,11 @@
   "replacesBuild": "1792439689",
   "replacesAppleBuildId": "8f82931c-2a19-43cb-b15b-93182f029ae5",
   "existingReviewSubmissionId": "bcd6801a-7ad2-433e-8963-05b880baefc8",
-  "authorization": "User2026-10-20 authorized TestFlight delivery and Apple resubmission with v4; do not withdraw existing submission before the verified replacement is processed and ready."
+  "authorization": "User2026-10-20 authorized TestFlight delivery and Apple resubmission with v4; do not withdraw existing submission before the verified replacement is processed and ready.",
+  "ciStatus": "SUCCESS",
+  "peerRegtestStatus": "PASSED_6_CASES",
+  "peerRegtestReceiptSha256": "c303f802aa16e7a901e285dca8c0d979bfeaab74c79f27bb2fed5e28f3d5c037",
+  "nativeStatus": "IN_PROGRESS",
+  "replacementHelperStatus": "PREPARED_OFFLINE_NOT_WIRED",
+  "replacementHelperTestsPassed": 13
 }
