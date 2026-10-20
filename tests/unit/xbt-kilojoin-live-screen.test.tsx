@@ -6,6 +6,7 @@ import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wal
 const mockWallet = new XbtSegwitBech32Wallet();
 mockWallet.setLabel('Test wallet');
 const mockTerms = {
+  v: 3,
   id: 'ab'.repeat(8),
   denomination: 10000,
   fee_rate: 2,
@@ -38,6 +39,7 @@ jest.mock('../../class/xbt/kilojoin/client', () => ({
   },
 }));
 jest.mock('../../class/xbt/kilojoin/protocol', () => ({
+  ...jest.requireActual('../../class/xbt/kilojoin/protocol'),
   LIVE_JOIN_ENABLED: true,
   parsePool: () => mockTerms,
 }));

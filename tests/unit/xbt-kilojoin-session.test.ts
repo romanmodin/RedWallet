@@ -5,7 +5,7 @@ import ecc from '../../blue_modules/noble_ecc';
 import { ParticipantSession, SessionEnvironment } from '../../class/xbt/kilojoin/session';
 import { Round } from '../../class/xbt/kilojoin/round';
 import { Terms, tokenHash, changeMessage } from '../../class/xbt/kilojoin/protocol';
-import { Coin, coinScript, digest, outpoint, ownershipMessage, Plan } from '../../class/xbt/kilojoin/transaction';
+import { Coin, coinScript, digest, outpoint, ownershipMessage, Plan, change } from '../../class/xbt/kilojoin/transaction';
 import { parseSeat } from '../../class/xbt/kilojoin/roster';
 import { conversationKey, decrypt, encrypt, NostrEvent, signEvent } from '../../class/xbt/kilojoin/crypto';
 import { modPow } from '../../class/xbt/kilojoin/blind-rsa';
@@ -18,12 +18,13 @@ const creator = secret(8),
 const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ format: 'jwk' });
 const n = BigInt('0x' + Buffer.from(rsa.n!, 'base64url').toString('hex'));
 const d = BigInt('0x' + Buffer.from(rsa.d!, 'base64url').toString('hex'));
-async function fixture(type: Coin['type'] = 'p2wpkh') {
+async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1) {
   let now = 10000,
     counter = 0;
   const script = (i: number) => (type === 'p2wpkh' ? '0014' + i.toString(16).repeat(40) : '5120' + i.toString(16).repeat(64));
   const terms: Terms = {
-    v: 3,
+    v: outputs === 1 ? 3 : 4,
+    ...(outputs === 1 ? {} : { outputs }),
     app: 'kilowallet',
     network: 'blake2b',
     id: '0123456789abcdef',
@@ -47,7 +48,7 @@ async function fixture(type: Coin['type'] = 'p2wpkh') {
     const coin: Coin = {
       txid: (i + 1).toString(16).repeat(64),
       vout: 0,
-      value: 50000,
+      value: outputs === 1 ? 50000 : 100000,
       pubkey: Buffer.from(ecc.pointFromScalar(key, true)!).toString('hex'),
       type,
     };
@@ -55,7 +56,7 @@ async function fixture(type: Coin['type'] = 'p2wpkh') {
     return {
       coin,
       change_script: script(i + 3),
-      change_value: type === 'p2wpkh' ? 39729 : 39702,
+      change_value: change(coin.value, terms.denomination, terms.fee_rate, 1, type, outputs)!,
       token_hash: i === 0 ? tokenHash(token) : 'cd'.repeat(32),
       join_pub: joinPub,
       proofs: [Buffer.from(ecc.signDER(ownershipMessage(terms.id, joinPub, coin), key)).toString('hex')],
@@ -75,7 +76,15 @@ async function fixture(type: Coin['type'] = 'p2wpkh') {
     },
   };
   const round = await Round.join('wallet', terms.id, own.coins.map(outpoint), 12000, now, { save: async () => {} });
-  const session = new ParticipantSession(terms, own, join, script(5), 400, round, env);
+  const session = new ParticipantSession(
+    terms,
+    own,
+    join,
+    Array.from({ length: outputs }, (_, i) => script(5 + i)),
+    outputs === 1 ? 400 : 1000,
+    round,
+    env,
+  );
   const receive = async (body: Record<string, unknown>, direct = false, sender = creator) => {
     const recipient = direct ? pub(join) : pub(pool);
     await session.receive(
@@ -91,18 +100,29 @@ async function fixture(type: Coin['type'] = 'p2wpkh') {
       ),
     );
   };
-  const advance = async () => {
+  const advance = async (alter: (body: Record<string, unknown>) => Record<string, unknown> = body => body) => {
     await receive({ type: 'welcome', pool_secret: pool.toString('hex'), token, seq: 1 }, true);
     await receive({ type: 'roster', seq: 1, seats: rawSeats });
     await receive({ type: 'closing', round_id: 'aa'.repeat(8), seats: rawSeats, deadline: now + 300 });
     const request = JSON.parse(decrypt(published[0].event.content, conversationKey(pool, pub(pool))));
-    const blindSignature = modPow(BigInt('0x' + request.blinded), d, n)
-      .toString(16)
-      .padStart(512, '0');
-    await receive({ type: 'blind_sig', round_id: request.round_id, token_hash: own.token_hash, sig: blindSignature });
+    const blinded = outputs === 1 ? [request.blinded] : request.blinded;
+    expect(blinded).toHaveLength(outputs);
+    const sigs = blinded.map((b: string) =>
+      modPow(BigInt('0x' + b), d, n)
+        .toString(16)
+        .padStart(512, '0'),
+    );
+    await receive(
+      alter({
+        type: 'blind_sig',
+        round_id: request.round_id,
+        token_hash: own.token_hash,
+        ...(outputs === 1 ? { sig: sigs[0] } : { sigs }),
+      }),
+    );
     now += 45;
     await session.submitOutput();
-    await receive({ type: 'outputs', round_id: request.round_id, scripts: [script(5), script(6)] });
+    await receive({ type: 'outputs', round_id: request.round_id, scripts: Array.from({ length: outputs * 2 }, (_, i) => script(5 + i)) });
   };
   const signature = (p: Plan, index: number) => {
     const key = keys[Number(p.coins[index].txid[0]) - 1];
@@ -184,4 +204,55 @@ test('welcome arriving before publication acknowledgment waits for the join acti
   await f.session.sendJoin(proof);
   await welcome;
   expect(f.session.snapshot().phase).toBe('open');
+});
+
+test.each([
+  ['p2wpkh', 2],
+  ['p2wpkh', 5],
+  ['p2tr', 2],
+  ['p2tr', 5],
+] as const)('v4 %s with %s outputs verifies every output and uses distinct publication identities', async (type, count) => {
+  const f = await fixture(type, count);
+  await f.advance();
+  expect(f.session.snapshot().phase).toBe('review');
+  expect(f.session.snapshot().outputStates).toBeUndefined();
+  const isolated = f.published.filter(p => p.isolated);
+  expect(isolated).toHaveLength(count);
+  expect(new Set(isolated.map(p => p.event.pubkey)).size).toBe(count);
+  for (const { event } of isolated) {
+    expect(event.pubkey).not.toBe(pub(join));
+    const body = JSON.parse(decrypt(event.content, conversationKey(creator, event.pubkey)));
+    expect(body.token_hash).toBeUndefined();
+    expect(body.type).toBe('output');
+  }
+  let peerSignature = '';
+  await f.session.signApproved(f.session.reviewed().commitment!, async p => {
+    expect(p.people).toBe(2);
+    expect(p.outputsPerPerson).toBe(count);
+    peerSignature = f.signature(p, 1);
+    return new Map([[outpoint(p.coins[0]), f.signature(p, 0)]]);
+  });
+  await f.receive({ type: 'sig', outpoint: outpoint(f.rawSeats[1].coin), sig: peerSignature }, false, pool);
+  const result = Transaction.fromHex(f.session.completedTransaction());
+  expect(result.outs.filter(o => o.value === 10000n)).toHaveLength(count * 2);
+  expect(result.ins.every(i => i.witness[0][i.witness[0].length - 1] === 0x21)).toBe(true);
+  await f.session.cancel();
+  expect(f.round.snapshot().phase).toBe('uncertain');
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+});
+
+test.each(['missing', 'invalid', 'swapped'])('v4 rejects %s blind signatures before any output publication', async fault => {
+  const f = await fixture('p2wpkh', 2);
+  await expect(
+    f.advance(body => {
+      const sigs = [...(body.sigs as string[])];
+      if (fault === 'missing') sigs.pop();
+      if (fault === 'invalid') sigs[0] = '00'.repeat(256);
+      if (fault === 'swapped') sigs.reverse();
+      return { ...body, sigs };
+    }),
+  ).rejects.toThrow();
+  expect(f.published.filter(p => p.isolated)).toHaveLength(0);
+  expect(f.session.snapshot().phase).toBe('closing');
+  expect(f.round.snapshot().phase).toBe('joined');
 });

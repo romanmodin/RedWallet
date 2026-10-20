@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { resetSelftestDevice } from './selftest-reset';
 import * as bitcoin from 'bitcoinjs-lib';
 import { element, waitFor } from 'detox';
 
@@ -40,8 +41,7 @@ console.warn = console.log = (...args) => {
 describe('RedWallet UI Tests - no wallets', () => {
   it('selftest passes', async () => {
     // Always qualify the installed build; a previous run's lock is not evidence for this source.
-    await device.clearKeychain();
-    await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
+    await resetSelftestDevice(device);
     await waitForWalletsList();
 
     // go to settings, press SelfTest and wait for OK

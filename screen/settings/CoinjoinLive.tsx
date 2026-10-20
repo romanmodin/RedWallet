@@ -10,7 +10,7 @@ import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
 import { ClientView, MixingClient, recoverWalletRounds, confirmRecoveredRound } from '../../class/xbt/kilojoin/client';
 import { MixingWallet } from '../../class/xbt/kilojoin/wallet-adapter';
 import { KilojoinRelay } from '../../class/xbt/kilojoin/relay';
-import { LIVE_JOIN_ENABLED, parsePool, Terms } from '../../class/xbt/kilojoin/protocol';
+import { LIVE_JOIN_ENABLED, parsePool, Terms, outputCount } from '../../class/xbt/kilojoin/protocol';
 import { NostrEvent } from '../../class/xbt/kilojoin/crypto';
 import { change, feeShare } from '../../class/xbt/kilojoin/transaction';
 import { Utxo } from '../../class/wallets/types';
@@ -118,8 +118,13 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const pool = visiblePools.find(p => p.terms.id === poolId),
     total = coins.filter(c => selected.includes(`${c.txid}:${c.vout}`)).reduce((n, c) => n + c.value, 0);
   const remainder =
-    pool && selected.length ? change(total, pool.terms.denomination, pool.terms.fee_rate, selected.length, pool.terms.script) : null;
-  const estimate = pool && selected.length ? feeShare(pool.terms.fee_rate, remainder !== 0, selected.length, pool.terms.script) : 0;
+    pool && selected.length
+      ? change(total, pool.terms.denomination, pool.terms.fee_rate, selected.length, pool.terms.script, outputCount(pool.terms))
+      : null;
+  const estimate =
+    pool && selected.length
+      ? feeShare(pool.terms.fee_rate, remainder !== 0, selected.length, pool.terms.script, outputCount(pool.terms))
+      : 0;
   const start = async () => {
     if (!pool || !wallet) throw new Error('Select a wallet and pool');
     const created = await MixingClient.join({
@@ -220,7 +225,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             <View style={card}>
               {visiblePools.map(p =>
                 pick(
-                  `${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}`,
+                  `${outputCount(p.terms) > 1 ? outputCount(p.terms) + ' × ' : ''}${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}`,
                   poolId === p.terms.id,
                   () => {
                     setPoolId(p.terms.id);

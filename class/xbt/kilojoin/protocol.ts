@@ -5,9 +5,11 @@ import { Coin, outpoint } from './transaction';
 // Experimental participation is opt-in in the main app; each join also requires explicit acknowledgment.
 export const LIVE_JOIN_ENABLED = true;
 export const PROTOCOL_VERSION = 3;
+export const V4_ENABLED = false; // Enable only after multi-output native qualification.
 export const RELAY = 'wss://relay.kilombino.com';
 export type Terms = {
-  v: 3;
+  v: 3 | 4;
+  outputs?: number;
   app: string;
   network: 'blake2b';
   id: string;
@@ -28,7 +30,14 @@ export type Terms = {
 function integer(n: unknown, min: number, max: number): boolean {
   return typeof n === 'number' && Number.isSafeInteger(n) && n >= min && n <= max;
 }
-export function parsePool(event: NostrEvent, now: number): Readonly<Terms> {
+/** v4 stays hidden from live discovery until multi-output native qualification. */
+export function outputCount(terms: Pick<Terms, 'v' | 'outputs'>): number {
+  if (terms.v === 3 && (terms.outputs === undefined || terms.outputs === 1)) return 1;
+  if (terms.v === 4 && integer(terms.outputs, 2, 5)) return terms.outputs!;
+  throw new Error('Invalid protocol output count');
+}
+
+export function parsePool(event: NostrEvent, now: number, allowV4 = V4_ENABLED): Readonly<Terms> {
   if (
     !integer(now, 0, Number.MAX_SAFE_INTEGER) ||
     !verifyEvent(event) ||
@@ -38,8 +47,16 @@ export function parsePool(event: NostrEvent, now: number): Readonly<Terms> {
   )
     throw new Error('Invalid or stale pool event');
   const t = JSON.parse(event.content) as Terms;
-  if (!t || t.v !== 3 || t.network !== 'blake2b' || t.app !== 'kilowallet' || typeof t.id !== 'string' || !/^[0-9a-f]{16,64}$/.test(t.id))
+  if (
+    !t ||
+    (t.v !== 3 && !(allowV4 && t.v === 4)) ||
+    t.network !== 'blake2b' ||
+    t.app !== 'kilowallet' ||
+    typeof t.id !== 'string' ||
+    !/^[0-9a-f]{16,64}$/.test(t.id)
+  )
     throw new Error('Unsupported pool');
+  outputCount(t);
   hex(t.public_key, 32);
   hex(t.creator, 32);
   if (
