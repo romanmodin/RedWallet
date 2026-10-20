@@ -1,0 +1,12 @@
+{
+  "failedSource": "ea199eb0d8eb22e272ada88c51009054f11eb4e2",
+  "runId": 39465258897,
+  "artifactId": 12291221637,
+  "artifactSha256": "d7e6923face869f13b1d68da367f7c0912bf15cd571494bb2f388bd7e658cc3f",
+  "observedFailure": "spawnSync xcrun ETIMEDOUT at direct simctl shutdown in selftest-reset.js before self-test execution",
+  "correction": "Use Detox resetContentAndSettings lifecycle with 150-second aggregate setup deadline; fail without launch or retry on error. Self-test assertions unchanged.",
+  "causalLimit": "Direct shutdown bypasses Detox recorder shutdown hooks; whether that caused this timeout is not proven. Hosted validation required.",
+  "localValidation": "6 focused reset tests passed; changed-file ESLint and diff check passed",
+  "qualification": "pending",
+  "visualReview": "Portrait and discovery viewed; return-portrait image lacks wallet card/toolbar and needs investigation before visual approval. Landscape image review pending."
+}
