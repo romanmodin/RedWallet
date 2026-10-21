@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { step } from './interaction-diagnostic-journal';
 import path from 'node:path';
 import { element, waitFor } from 'detox';
 import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation, observeNativeRotation } from './native-capture-helper';
@@ -13,7 +14,7 @@ const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurfac
   const deadline = started + 15000;
   let orientationRequests = 0;
   if (rotate) {
-    await device.setOrientation(orientation);
+    await step(`request ${orientation}`, () => device.setOrientation(orientation), Math.max(1, deadline - Date.now()));
     orientationRequests++;
   }
   let evidence;
@@ -21,17 +22,17 @@ const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurfac
   // when UIKit has rotated. Assert the actual native surface bounds, retain the
   // unmodified screenshot, and require human visual inspection of both views.
   do {
-    const before = await element(by.id(surfaceId)).getAttributes();
-    const file = await device.takeScreenshot(name);
+    const before = await step(`${name} bounds before`, () => element(by.id(surfaceId)).getAttributes(), Math.max(1, deadline - Date.now()));
+    const file = await step(`${name} screenshot`, () => device.takeScreenshot(name), Math.max(1, deadline - Date.now()));
     const png = fs.readFileSync(file);
-    const after = await element(by.id(surfaceId)).getAttributes();
+    const after = await step(`${name} bounds after`, () => element(by.id(surfaceId)).getAttributes(), Math.max(1, deadline - Date.now()));
     evidence = nativeCaptureEvidence(png, before, after, orientation);
     // Retain the last observed native state on failure as well as success.
     fs.copyFileSync(file, path.join(directory, name + '.png'));
     fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, orientationRequests, ...evidence }, null, 2) + '\n');
     if (matchesNativeOrientation(evidence)) return;
     if (shouldRepeatOrientation(evidence, Date.now() - started, orientationRequests)) {
-      await device.setOrientation(orientation);
+      await step(`request ${orientation}`, () => device.setOrientation(orientation), Math.max(1, deadline - Date.now()));
       orientationRequests++;
     }
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -43,7 +44,15 @@ const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurfac
 // assertion and the original 15-second budget remain in captureObserved.
 const capture = (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = false) => {
   const observation = () => captureObserved(name, orientation, surfaceId, rotate);
-  return rotate ? observeNativeRotation(device, observation) : observation();
+  return rotate
+    ? observeNativeRotation(
+        {
+          disableSynchronization: () => step(`${name} disable synchronization`, () => device.disableSynchronization()),
+          enableSynchronization: () => step(`${name} restore synchronization`, () => device.enableSynchronization()),
+        },
+        observation,
+      )
+    : observation();
 };
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
@@ -68,7 +77,7 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await goBack();
     await goBack();
     await goBack();
-    await helperCreateWallet('Artwork Test Wallet', 'taproot');
+    await step('create disposable artwork wallet', () => helperCreateWallet('Artwork Test Wallet', 'taproot'), 150000);
     await device.launchApp({ newInstance: true });
     await waitForWalletsList();
     await element(by.id('SettingsButton')).tap();
@@ -82,10 +91,12 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       .withTimeout(5000);
     await goBack();
     await waitForWalletsList();
-    await scrollUpOnHomeScreen();
+    await step('legacy home scroll before portrait', () => scrollUpOnHomeScreen());
     await capture('01-helmet-portrait', 'portrait');
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
     await capture('02b-helmet-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
+    // This isolated diagnostic stops before discovery; it cannot qualify a release.
+    if (process.env.REDWALLET_INTERACTION_DIAGNOSTIC === 'rotation') return;
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('Tools')))
       .toBeVisible()
