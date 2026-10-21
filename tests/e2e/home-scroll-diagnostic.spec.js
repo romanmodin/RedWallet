@@ -6,8 +6,8 @@ import { waitForWalletsList } from './helperz';
 const diagnostic = process.env.REDWALLET_INTERACTION_DIAGNOSTIC === 'scroll' ? describe : describe.skip;
 diagnostic('Nonqualifying empty-wallet navigation diagnostic', () => {
   it('scrolls the actual vertical home list without triggering pull-to-refresh and opens recovery', async () => {
-    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id], { timeout: 15000 });
-    await step('clear disposable keychain', () => device.clearKeychain());
+    // Recorded reset completed in 32.7 seconds; this setup limit is not a UI assertion.
+    await step('clear disposable keychain', () => device.clearKeychain(), 60000);
     await step(
       'fresh app launch',
       () =>
@@ -17,6 +17,8 @@ diagnostic('Nonqualifying empty-wallet navigation diagnostic', () => {
         }),
       120000,
     );
+    // Keychain/permission resets can restart SpringBoard. Attach only afterward.
+    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id], { timeout: 15000 });
     await step('home ready', () => waitForWalletsList(15000));
     await step('empty home screenshot', () => device.takeScreenshot('diagnostic-empty-home'));
     // Wallets is the vertical SectionList; WalletsList is its horizontal carousel.

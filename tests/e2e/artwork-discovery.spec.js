@@ -56,11 +56,7 @@ const capture = (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = f
 };
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
-    // CI pre-boots the simulator. Detox returns early for an already-booted
-    // device, so explicitly attach Simulator before asking UIKit to rotate.
-    // A setOrientation acknowledgement alone is not evidence of rotation.
-    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id]);
-    await device.clearKeychain();
+    await step('clear disposable keychain', () => device.clearKeychain(), 60000);
     // Detox 20 has no setAppearance API. Set the selected disposable simulator
     // through Apple's native command before launching the app.
     execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'dark']);
@@ -91,6 +87,9 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       .withTimeout(5000);
     await goBack();
     await waitForWalletsList();
+    // The retained log shows SpringBoard restarted after the previous early
+    // attachment. Attach the selected simulator after all resets and launches.
+    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id], { timeout: 15000 });
     await step('legacy home scroll before portrait', () => scrollUpOnHomeScreen());
     await capture('01-helmet-portrait', 'portrait');
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
