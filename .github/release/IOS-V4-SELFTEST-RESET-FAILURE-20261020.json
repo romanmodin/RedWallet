@@ -8,5 +8,14 @@
   "causalLimit": "Direct shutdown bypasses Detox recorder shutdown hooks; whether that caused this timeout is not proven. Hosted validation required.",
   "localValidation": "6 focused reset tests passed; changed-file ESLint and diff check passed",
   "qualification": "pending",
-  "visualReview": "Portrait and discovery viewed; return-portrait image lacks wallet card/toolbar and needs investigation before visual approval. Landscape image review pending."
+  "visualReview": "Portrait and discovery viewed; return-portrait image lacks wallet card/toolbar and needs investigation before visual approval. Landscape image review pending.",
+  "replacementFailure": {
+    "source": "b70cd90ab9f533e43a65e800a2942e681ea9ea53",
+    "runId": 39513793887,
+    "artifactId": 12311968587,
+    "sha256": "670158e9931fa4a569f6b0c0a98024dc402ceb56cf87a4a4a65cd9eb7967b9cc",
+    "observed": "Shutdown completed 00:06:00Z, erase completed 00:06:01Z, bootstatus began 00:06:03Z, reset completed 00:08:38Z after 150-second budget.",
+    "correction": "Create and boot a fresh exact-ID simulator before the full Detox process. Separate provisioning timeout300s; self-test assertions and deadlines unchanged. Fail closed if preparation fails or selected ID differs.",
+    "hostedVerified": false
+  }
 }

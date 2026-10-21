@@ -71,3 +71,15 @@ test('Android retains clear and reinstall without simulator reset', async () => 
   expect(order).toEqual(['clear', 'launch']);
   expect(device.resetContentAndSettings).not.toHaveBeenCalled();
 });
+
+test('workflow-prepared exact simulator launches without repeating erase or keychain reset', async () => {
+  const { device, order } = fixture();
+  await resetSelftestDevice(device, id);
+  expect(order).toEqual(['launch']);
+  expect(device.launchApp).toHaveBeenCalledWith({ delete: true });
+});
+test('a mismatched prepared simulator fails before launch or mutation', async () => {
+  const { device, order } = fixture();
+  await expect(resetSelftestDevice(device, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')).rejects.toThrow('does not match');
+  expect(order).toEqual([]);
+});

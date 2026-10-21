@@ -2,10 +2,17 @@
 // Its public reset API stops artifact recording, shuts down, erases Keychain and
 // app data, invalidates install state, then boots through the device lifecycle.
 // Direct simctl shutdown bypassed those hooks and timed out in 39465258897.
-async function resetSelftestDevice(device) {
+async function resetSelftestDevice(device, preparedId = process.env.REDWALLET_FRESH_SELFTEST_SIMULATOR) {
   if (device.getPlatform() === 'ios') {
     const id = device.id;
     if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Invalid self-test simulator identity');
+    if (preparedId !== undefined) {
+      if (preparedId !== id) throw new Error('Prepared self-test simulator does not match selected device');
+      // The workflow created this disposable simulator immediately before Detox.
+      // Erasing it again would repeat first-boot migration inside the test.
+      await device.launchApp({ delete: true });
+      return;
+    }
     await device.terminateApp();
     let timer;
     try {
