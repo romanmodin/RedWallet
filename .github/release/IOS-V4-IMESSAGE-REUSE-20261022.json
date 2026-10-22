@@ -1,0 +1,18 @@
+{
+  "status": "UNCHANGED_NATIVE_IOS_SOURCE_VERIFIED",
+  "verifiedAt": "2026-10-22T14:52:11.889515+00:00",
+  "publicRepository": "romanmodin/RedWallet",
+  "previousSourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+  "replacementSourceCommit": "286e875cb488365eeb00799b6c04305994ab9db7",
+  "scope": "Entire tracked ios/ subtree, including sticker sources, assets, target, schemes and project settings",
+  "previousIosTree": "30e39cdee442e7d716cdc95de44ada6df2a523b7",
+  "replacementIosTree": "30e39cdee442e7d716cdc95de44ada6df2a523b7",
+  "captureRunId": 39319942381,
+  "acceptedUploadRunId": 39330552821,
+  "acceptedReceiptSha256": "faadf6141de70a91eeda2313290f56eff2392b04c9ccbf075405dd357fcc9586",
+  "receiptSourceCommitPreserved": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+  "historicalReceiptRewritten": false,
+  "reuseRequiresLiveAppleCompleteAssets": true,
+  "newPackageVerificationPending": true,
+  "reason": "Reuse the actual accepted iMessage captures only after new signed package verification; native iMessage source has no changes."
+}
