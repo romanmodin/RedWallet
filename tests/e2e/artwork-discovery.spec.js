@@ -89,7 +89,15 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await waitForWalletsList();
     // The retained log shows SpringBoard restarted after the previous early
     // attachment. Attach the selected simulator after all resets and launches.
-    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id], { timeout: 15000 });
+    const developerDirectory = execFileSync('xcode-select', ['-p'], { encoding: 'utf8' }).trim();
+    const attachment = execFileSync(
+      '/tmp/redwallet-attach-diagnostic-simulator',
+      [device.id, path.join(developerDirectory, 'Applications/Simulator.app')],
+      { encoding: 'utf8', timeout: 35000 },
+    );
+    fs.mkdirSync('artifacts/interaction-diagnostics', { recursive: true });
+    fs.writeFileSync('artifacts/interaction-diagnostics/simulator-window.json', attachment);
+    if (JSON.parse(attachment).windowObserved !== true) throw new Error('Selected simulator window was not observed');
     await step('legacy home scroll before portrait', () => scrollUpOnHomeScreen());
     await capture('01-helmet-portrait', 'portrait');
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);

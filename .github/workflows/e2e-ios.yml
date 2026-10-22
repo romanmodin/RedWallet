@@ -261,6 +261,10 @@ jobs:
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl spawn booted notifyutil -p com.apple.Accessibility.ReduceMotionStatusDidChange
 
+      - name: Compile simulator window attachment probe
+        if: matrix.interaction == 'rotation'
+        run: xcrun swiftc .github/scripts/attach-diagnostic-simulator.swift -o /tmp/redwallet-attach-diagnostic-simulator
+
       - name: Run isolated interaction diagnostic (not qualification)
         timeout-minutes: 10
         env:
