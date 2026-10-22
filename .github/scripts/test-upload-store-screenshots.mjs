@@ -138,3 +138,20 @@ test("retains an existing asset when its bytes exactly match a reviewed replacem
       .ids.includes(retainedId),
   );
 });
+
+test("retirement accepts Apple's editable state after developer withdrawal", async () => {
+  const f = fixture();
+  f.data[
+    "/v1/appStoreVersions/65cd6bc4-9962-4b77-a3ca-78c115f3a615"
+  ].data.attributes.appStoreState = "DEVELOPER_REJECTED";
+  await retireOld(f.api, f.images, {});
+  assert.equal(f.writes.length, 8);
+});
+test("retirement preserves every asset while a version is in review", async () => {
+  const f = fixture();
+  f.data[
+    "/v1/appStoreVersions/65cd6bc4-9962-4b77-a3ca-78c115f3a615"
+  ].data.attributes.appStoreState = "WAITING_FOR_REVIEW";
+  await assert.rejects(retireOld(f.api, f.images, {}), /no longer editable/);
+  assert.equal(f.writes.length, 0);
+});

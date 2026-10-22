@@ -13,6 +13,9 @@
   "receiptSourceCommitPreserved": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
   "historicalReceiptRewritten": false,
   "reuseRequiresLiveAppleCompleteAssets": true,
-  "newPackageVerificationPending": true,
-  "reason": "Reuse the actual accepted iMessage captures only after new signed package verification; native iMessage source has no changes."
+  "newPackageVerificationPending": false,
+  "reason": "New signed main and sticker bundles both verified as 8.0.1 (1792686194), arm64, with passed signatures and exact source mapping. Native iOS tree is identical; reuse still requires actual accepted Apple assets COMPLETE.",
+  "signedPackageRunId": 39799087741,
+  "signedPackageBuild": "1792686194",
+  "signedPackageReceiptSha256": "023f55249619f3986e894548de932709ae8b0cf7d114682ecddb43a5acd460bd"
 }

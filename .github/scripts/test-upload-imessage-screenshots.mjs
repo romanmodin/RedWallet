@@ -168,3 +168,84 @@ test("failed screenshot cleanup requires its exact observed checksum, rejection 
   assert.equal(removed, true);
   assert.equal(await retireRejected(api), false);
 });
+
+test("main screenshot replacement accepts developer withdrawal but never an active review", async () => {
+  let state = "DEVELOPER_REJECTED";
+  const calls = [];
+  const bytes = Buffer.alloc(33);
+  Buffer.from("89504e470d0a1a0a", "hex").copy(bytes);
+  bytes.write("IHDR", 12);
+  bytes.writeUInt32BE(2, 16);
+  bytes.writeUInt32BE(3, 20);
+  const image = {
+    family: "iphone",
+    file: "native.png",
+    width: 2,
+    height: 3,
+    displayType: "APP_IPHONE_67",
+    bytes,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+  const api = async (method, path) => {
+    calls.push(method);
+    assert.equal(method, "GET");
+    if (path === "/v1/apps/6817118871")
+      return {
+        data: {
+          id: "6817118871",
+          attributes: { bundleId: "com.romanmodin.redwallet" },
+        },
+      };
+    if (path === "/v1/appStoreVersions/65cd6bc4-9962-4b77-a3ca-78c115f3a615")
+      return {
+        data: {
+          id: "65cd6bc4-9962-4b77-a3ca-78c115f3a615",
+          attributes: {
+            versionString: "8.0.1",
+            platform: "IOS",
+            appStoreState: state,
+          },
+        },
+      };
+    if (path.endsWith("/appStoreVersionLocalizations"))
+      return {
+        data: [
+          {
+            id: "67c79fa3-be47-4fc0-94c5-713836f9d262",
+            attributes: { locale: "en-US" },
+          },
+        ],
+      };
+    if (path.endsWith("/appScreenshotSets"))
+      return {
+        data: [
+          { id: "set", attributes: { screenshotDisplayType: "APP_IPHONE_67" } },
+        ],
+      };
+    if (path.endsWith("/appScreenshots"))
+      return {
+        data: [
+          {
+            id: "existing",
+            attributes: {
+              sourceFileChecksum: createHash("md5").update(bytes).digest("hex"),
+              assetDeliveryState: { state: "COMPLETE" },
+            },
+          },
+        ],
+      };
+    throw Error("Unexpected resource");
+  };
+  const report = { images: [] };
+  await upload(api, [image], undefined, report, [image], "redwallet-app");
+  assert.equal(report.images[0].reused, true);
+  await assert.rejects(upload(api, [image]), /non-editable/);
+  for (state of ["WAITING_FOR_REVIEW", "IN_REVIEW", "READY_FOR_DISTRIBUTION"]) {
+    calls.length = 0;
+    await assert.rejects(
+      upload(api, [image], undefined, { images: [] }, [image], "redwallet-app"),
+      /non-editable/,
+    );
+    assert.deepEqual(calls, ["GET", "GET"]);
+  }
+});

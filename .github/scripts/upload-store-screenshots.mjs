@@ -7,18 +7,19 @@ const VERSION_ID = "65cd6bc4-9962-4b77-a3ca-78c115f3a615";
 const LOCALE_ID = "67c79fa3-be47-4fc0-94c5-713836f9d262";
 export const OLD = {
   APP_IPHONE_67: [
-    "6a8d2761-8d15-4964-82ad-b19e138edeaa",
-    "0f3a814a-093f-4c38-b56f-5f26425bb2dc",
-    "4cf5b582-9136-4c0e-a32b-272a4d789873",
-    "41b6c6c7-84f7-4d84-a328-954e8f411c7d",
+    "e1800019-654f-8a97-802d-6d7bd53b2728",
+    "24800019-654f-8a97-8020-82197d778f39",
+    "b1c00019-654f-8a97-801a-98c963a082f2",
+    "6e800019-654f-8a97-8023-57516b0a0d02",
   ],
   APP_IPAD_PRO_3GEN_129: [
-    "748ad799-0f22-4de0-bcc7-92766ebf9f2b",
-    "2d166eed-a38b-420e-a00f-6c5c4d3e32a5",
-    "14402526-34a8-4f57-b7b5-e45b2b8f4a62",
-    "82f54f19-003a-4953-8ee9-e202bce9572b",
+    "39800019-654f-8a97-803a-a4f3b667e519",
+    "3f800019-654f-8a97-8002-8725f2531b43",
+    "04800019-654f-8a97-801b-2cd085a0d164",
+    "83c00019-654f-8a97-8021-61ddbf92f8d9",
   ],
 };
+
 function check(ok, message) {
   if (!ok) throw Error(message);
 }
@@ -107,7 +108,9 @@ export async function retireOld(api, images, report) {
   const before = await inventory(api, images, true);
   const version = (await api("GET", "/v1/appStoreVersions/" + VERSION_ID)).data;
   check(
-    version?.attributes?.appStoreState === "PREPARE_FOR_SUBMISSION",
+    ["PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED"].includes(
+      version?.attributes?.appStoreState,
+    ),
     "Version no longer editable",
   );
   report.retired = [];
@@ -148,8 +151,8 @@ async function main() {
       ),
     );
     check(
-      manifest.sourceCommit === "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8" &&
-        manifest.captureRunId === 39312798717 &&
+      manifest.sourceCommit === "286e875cb488365eeb00799b6c04305994ab9db7" &&
+        manifest.captureRunId === 39799093428 &&
         manifest.visuallyReviewed === true,
       "Unreviewed screenshot provenance",
     );

@@ -1,17 +1,9 @@
-RedWallet XBT 8.0.1 — artwork and CoinJoin discovery fixes
+RedWallet XBT 8.0.1 (1792686194) — Kilojoin v4
 
-- Corrected optional artwork framing in portrait and landscape.
-- Fixed KiloJoin v3 pool discovery, with visible search progress, compatible-pool results, empty results and connection errors. Finding pools does not join a round or reserve coins.
+CoinJoin under Settings > Tools now supports compatible v3 single-output pools and v4 pools with 2–5 equal mixed outputs per participant, with fresh receiving addresses and separate blinded output registration. Built in collaboration with Kilombino's Kilojoin protocol.
 
-- Optional artwork skin, with the standard red appearance retained by default. In Settings, double-tap the logo to toggle the artwork.
-- USDC totals display two decimal places. XBT amounts retain coin precision. The optional NeoxEX display quote refreshes when the app opens/resumes.
-- Opt-in SegWit (BIP84) and Taproot (BIP86) account recovery, independent receive/change discovery including spent-out history, adjustable discovery limits and explicit incomplete-scan handling.
-- Optional authenticated TLS backup servers, XBT compatibility checks, bounded waits and checks for stale chain information.
-- Authenticated BIP84 fee replacement and ancestor-aware CPFP, with decoded recipient/fee review, fee safeguards and frozen-coin protection. Fee-bump completion returns to the existing wallet screen.
-- Encrypted transaction-history preservation, failure-safe migration and deleted-wallet cache cleanup.
-- CoinJoin under Settings > Tools, marked amber Experimental. Participation is opt-in; sample mode is available first. Review fees and explicitly approve signing. Interrupted signed rounds can keep coins reserved until resolved. Powered by Kilojoin by Kilombino.
-- In-app privacy policy and retained BlueWallet open-source attribution.
+Includes CoinJoin join/recovery fixes, native entropy and protected identity-storage checks, corrected optional artwork framing, pool discovery progress/errors, and the combined wallet/security improvements.
 
-This is an XBT wallet. Unified signing is required; BTC and ordinary hardware-wallet signatures are not interchangeable with XBT. Taproot/SegWit, Unified-aware cold signing and prior transaction fixes are retained capabilities. Hosted simulator and isolated backend checks do not establish physical-phone or ColdWallet interoperability.
+CoinJoin remains Experimental and requires explicit live opt-in. Review amounts, recipients and fees before signing. Mixing does not guarantee anonymity; the relay can see your IP and your configured backend can see address queries. Reserved coins and change require the displayed recovery/confirmation steps.
 
-Use a fresh test wallet and small test amounts. Do not share recovery phrases or private keys in feedback. The optional NeoxEX quote is display-only and never changes transaction amounts. The artwork is optional, not a separate wallet.
+Use a fresh wallet and small test amounts. Hosted iOS and funded regtest tests passed; this does not establish physical-device, ColdWallet, or full mainnet CoinJoin interoperability. Coin color labels and automatic privacy-aware suggestions are not included in this build.
