@@ -247,6 +247,13 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             {!!pool && (
               <View style={card}>
                 <Text style={text}>Choose confirmed coins · up to {pool.terms.max_inputs}</Text>
+                <Text
+                  style={text}
+                  accessibilityLabel="Coin selection legend: filled circle means selected; empty circle means not selected."
+                >
+                  ● Selected · ○ Not selected
+                </Text>
+                <Text style={text}>These circles show selection only, not whether a coin has been mixed or reserved.</Text>
                 {coins.map(c => {
                   const id = `${c.txid}:${c.vout}`;
                   return pick(
