@@ -94,8 +94,17 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await capture('01-helmet-portrait', 'portrait');
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
     await capture('02b-helmet-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
-    // This isolated diagnostic stops before discovery; it cannot qualify a release.
-    if (process.env.REDWALLET_INTERACTION_DIAGNOSTIC === 'rotation') return;
+    // Preserve the immediate capture above, then separately observe whether the
+    // wallet card settles into view without scrolling, tapping or relaunching.
+    if (process.env.REDWALLET_INTERACTION_DIAGNOSTIC === 'rotation') {
+      await step('return-portrait wallet card visible', () =>
+        waitFor(element(by.id('Artwork Test Wallet')))
+          .toBeVisible()
+          .withTimeout(15000),
+      );
+      await capture('02c-helmet-return-portrait-settled', 'portrait');
+      return; // This diagnostic cannot qualify a release or join a pool.
+    }
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('Tools')))
       .toBeVisible()

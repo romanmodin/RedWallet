@@ -25,3 +25,9 @@ Scroll job 119538148292 failed before any scroll action. Its 120-second launch w
 The workflow now permits selecting just scroll so the successful rotation diagnostic need not run again. Existing source-artifact verification is unchanged. No app code or release gate changes.
 
 Verified artifacts: rotation 12389840616 / SHA256 65de69a34d8392bc7a8fa9caa43e68f612f3ae50bee40b6ea3dc86476346086e; scroll 12388399191 / SHA256 996945ada94c9f5971d756c17508385e7434b2384862c5e7463e8a1fe7ed0e87. Native capture hashes: portrait 60e541f343a5ca994fa7235ff2c360c518f94489772f12c8b34e059d142e1a5e; landscape efed4bbfa4d9ad405065cce8a7040c902683fb4a49c8f61ee5bb05cfea2fa0f9; return portrait 5cb67806aa75deef6408b10d54ca5c19894f7386b407b54955cb94480546153e.
+
+## Final visual follow-up after source 286e qualified
+
+All required source-286e software/general/funded iOS jobs passed. The actual general-run artifact 12400258528 (SHA256 a3201725adc561d691107e5a7c95e2228799c2088964e0fa21462d9f3dcbe7cf) was downloaded and all four PNGs reviewed. Portrait and pool discovery are readable. Landscape is correctly rotated inside portrait pixel coordinates, with small balance text. The immediate return-portrait capture does not show the wallet card. Do not infer either permanent disappearance or completed visual approval from that single frame.
+
+This diagnostic uses the exact qualified scroll helper and unchanged production tree (989 paths, 8a9e96245cbc910bf5e30031728ac9345ff480787fa62158122108c53039b1fe). It preserves all immediate captures and adds a separate 15-second wallet-card visibility observation plus settled screenshot, without scroll/tap/relaunch recovery. Rotation deadlines and release assertions are unchanged. Reuse remains subject to the existing same-branch/source verifier. This is solely a visual-settling investigation, not replacement qualification.
