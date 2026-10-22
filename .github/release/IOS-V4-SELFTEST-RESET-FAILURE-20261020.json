@@ -1,0 +1,31 @@
+{
+  "failedSource": "ea199eb0d8eb22e272ada88c51009054f11eb4e2",
+  "runId": 39465258897,
+  "artifactId": 12291221637,
+  "artifactSha256": "d7e6923face869f13b1d68da367f7c0912bf15cd571494bb2f388bd7e658cc3f",
+  "observedFailure": "spawnSync xcrun ETIMEDOUT at direct simctl shutdown in selftest-reset.js before self-test execution",
+  "correction": "Use Detox resetContentAndSettings lifecycle with 150-second aggregate setup deadline; fail without launch or retry on error. Self-test assertions unchanged.",
+  "causalLimit": "Direct shutdown bypasses Detox recorder shutdown hooks; whether that caused this timeout is not proven. Hosted validation required.",
+  "localValidation": "6 focused reset tests passed; changed-file ESLint and diff check passed",
+  "qualification": "pending",
+  "visualReview": "Portrait and discovery viewed; return-portrait image lacks wallet card/toolbar and needs investigation before visual approval. Landscape image review pending.",
+  "replacementFailure": {
+    "source": "b70cd90ab9f533e43a65e800a2942e681ea9ea53",
+    "runId": 39513793887,
+    "artifactId": 12311968587,
+    "sha256": "670158e9931fa4a569f6b0c0a98024dc402ceb56cf87a4a4a65cd9eb7967b9cc",
+    "observed": "Shutdown completed 00:06:00Z, erase completed 00:06:01Z, bootstatus began 00:06:03Z, reset completed 00:08:38Z after 150-second budget.",
+    "correction": "Create and boot a fresh exact-ID simulator before the full Detox process. Separate provisioning timeout300s; self-test assertions and deadlines unchanged. Fail closed if preparation fails or selected ID differs.",
+    "hostedVerified": false
+  },
+  "freshProvisionFailure": {
+    "source": "11ddf9b2f314a7ef0642e05a67609316d442a92a",
+    "run": 39565268189,
+    "logSha256": "94ef53ed4ecf35ac1f313c7ac51602c08531cb8186be154ab15200645005bd8e",
+    "observed": "Initial simulator booted in77s; artwork and7TLS checks passed. Second simulator bootstatus exceeded300s. Helper did not shut down initial simulator and independently chose latest runtime. Timeout stdout was not retained.",
+    "rootCauseLimit": "Resource contention/runtime mismatch remain hypotheses, not proven causes.",
+    "correction": "Require exact preboot device ID/type/state, retain its runtime, shut down only that device before creating replacement. Preserve300s boot readiness limit. Retain command stdout on failure.",
+    "validation": "5 provisioning tests passed; YAML/diff checks passed",
+    "hostedVerified": false
+  }
+}

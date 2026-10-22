@@ -1,3 +1,4 @@
+import { runKilojoinNativeSelfTest } from '../../class/xbt/kilojoin/native-self-test';
 import { runBip84ReplacementSelfTest } from '../../class/xbt/bip84-self-test';
 import { runTaprootSigningSelfTest } from '../../class/xbt/taproot-self-test';
 import BIP32Factory from 'bip32';
@@ -256,6 +257,7 @@ export default class SelfTest extends Component {
 
       runTaprootSigningSelfTest();
       runBip84ReplacementSelfTest();
+      await runKilojoinNativeSelfTest();
 
       const data2encrypt = 'really long data string';
       const crypted = await encryption.encrypt(data2encrypt, 'password');

@@ -8,9 +8,11 @@ import { SessionState } from './session';
 const busy = new Set<string>();
 export class SessionVault {
   private readonly service: string;
-  constructor(walletId: string, poolId: string) {
+  constructor(walletId: string, poolId: string, attemptId?: string) {
     if (!walletId || !/^[0-9a-f]{16,64}$/.test(poolId)) throw new Error('Invalid session vault identity');
-    this.service = 'redwallet.kilojoin.v1.' + utf8Hash(JSON.stringify([walletId, poolId])).toString('hex');
+    if (attemptId !== undefined && !/^[0-9a-f]{64}$/.test(attemptId)) throw new Error('Invalid session attempt identity');
+    const identity = attemptId === undefined ? [walletId, poolId] : [walletId, poolId, attemptId];
+    this.service = 'redwallet.kilojoin.v1.' + utf8Hash(JSON.stringify(identity)).toString('hex');
   }
 
   private async exclusive<T>(action: () => Promise<T>): Promise<T> {

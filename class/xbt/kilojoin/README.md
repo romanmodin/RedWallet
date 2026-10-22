@@ -87,3 +87,19 @@ on source `af7710de8b2c527060b57f4224d6777381762e8b` visibly returned two compat
 open pools (Actions run `39248046525`). This proves discovery, not real-fund round
 completion. The full release gate for that run failed in the separate unlock test;
 experimental limitations and all signing/release gates above remain in force.
+
+
+## V4 candidate, 2026-10-20
+
+Supports v3 one-output pools and v4 pools with two to five equal outputs per seat.
+The pool creator sets the count. Fees, sufficient input value, reserved fresh receive
+addresses, blinded requests/signature arrays, independently delayed registrations and
+all-own-output review account for this count. The user sees count, denomination,
+total, change and fee before explicit signing. Each output uses a separate connection
+and identity; this does not conceal the IP address or guarantee anonymity.
+
+Unchanged Kilowallet1.2.0 sources at6fbff814de8a59d6c4879724bcb1ae772182a0f1 completed
+six one/two/five-output cases across both script types through real loopback WebSockets
+and an isolated XBT node, with matching transaction bytes and mined confirmation.
+See the reproducible v4 harness in tests/native/kilojoin. Native/physical-device
+qualification remains distinct; an enabled candidate is not proof of a shipped build.

@@ -674,13 +674,10 @@ export async function scrollUpOnHomeScreen() {
   if (device.getPlatform() !== 'ios') {
     return;
   }
-  try {
-    await element(by.type('RCTEnhancedScrollView').withDescendant(by.type('RCTEnhancedScrollView'))).swipe('down', 'slow', 0.5);
-  } catch (_) {
-    // if no wallets there will be just one scroll
-    await element(by.type('RCTEnhancedScrollView')).swipe('down', 'slow', 0.5);
-  }
-  await sleep(1000); // bounce animation
+  // Target the vertical home list, not the carousel or a pull-to-refresh swipe.
+  // Native diagnostic 39704395983 verified this through recovery navigation.
+  await element(by.id('Wallets')).scrollTo('top');
+  await sleep(1000); // allow the home layout to settle
 }
 
 // We really only need this function when running tests locally.

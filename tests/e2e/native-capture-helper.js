@@ -14,11 +14,43 @@ export function nativeCaptureEvidence(png, before, after, orientation) {
     return { width: value.width, height: value.height };
   };
   if (!pixels.width || !pixels.height) throw new Error('Invalid native PNG dimensions');
-  return { orientation, pixels, before: bounds(before), after: bounds(after), sha256: createHash('sha256').update(png).digest('hex') };
+  return {
+    orientation,
+    pixels,
+    before: bounds(before),
+    after: bounds(after),
+    sha256: createHash('sha256').update(png).digest('hex'),
+  };
 }
 
 export function matchesNativeOrientation(evidence) {
   return [evidence.before, evidence.after].every(bounds =>
     evidence.orientation === 'landscape' ? bounds.width > bounds.height : bounds.height > bounds.width,
   );
+}
+
+// One harmless repeat only after a positive, stable observation that UIKit did
+// not rotate. Keep both requests inside the original 15-second settling budget.
+export function shouldRepeatOrientation(evidence, elapsed, requests) {
+  return (
+    requests === 1 &&
+    elapsed >= 5000 &&
+    elapsed < 10000 &&
+    !matchesNativeOrientation(evidence) &&
+    evidence.before.width === evidence.after.width &&
+    evidence.before.height === evidence.after.height &&
+    evidence.before.width !== evidence.before.height
+  );
+}
+
+// A rotation is deliberately a non-idle UI transition. Observe the real native
+// bounds directly instead of adding Detox idle drains to every probe. Restore
+// normal synchronization even when observation or the transport fails.
+export async function observeNativeRotation(device, observation) {
+  try {
+    await device.disableSynchronization();
+    return await observation();
+  } finally {
+    await device.enableSynchronization();
+  }
 }

@@ -1,0 +1,42 @@
+{
+  "status": "candidate corrections pending hosted qualification",
+  "failedSource": "2bb3073678492b476ae67d6e42a76ca705b26fb2",
+  "android": {
+    "runId": 39421759030,
+    "artifactId": 12264344157,
+    "archiveSha256": "3d18c092390cf64e39a7e2d573f5170ca41c3625a3a730fd42ea3592069594b3",
+    "failure": "Recipient empty after custom fee selection; preceding address and amount assertions passed. No signing or broadcast reached.",
+    "observedCodeDefect": "Amount callback replaced current recipient with render-captured item. A delayed callback can restore a stale empty address.",
+    "correction": "Update a cloned current recipient by stable key; preserve latest address and other fields; ignore removed keys.",
+    "causedHostedFailureProven": false
+  },
+  "ios": {
+    "runId": 39418586405,
+    "artifactId": 12263993140,
+    "archiveSha256": "76723713af44644f0330858b5d57d78b83eaf08beacb424104f643fbc4345335",
+    "failure": "Native import-control wait did not return after AddWalletRoot navigation. Final failure image remained on empty home screen; no recovery or transaction signing reached.",
+    "lastInvokeUtc": "2026-10-20T12:25:28.385Z",
+    "correction": "Use existing driver-bounded read-only visibility observer after the single navigation tap, preserving 15-second overall deadline and failing closed on an unresponsive native request. Add stage diagnostics.",
+    "navigationRootCauseProven": false
+  },
+  "safeguards": [
+    "No action retry",
+    "Recipient, amount, fee, signature and broadcast assertions unchanged",
+    "No real-fund transactions",
+    "No timeout increase",
+    "No release qualification from previous source"
+  ],
+  "hostedCorrectionVerified": false,
+  "localValidation": {
+    "checkedAt": "2026-10-20T17:20:18.185897+00:00",
+    "focused": "3 suites / 17 tests passed",
+    "unit": "Test Suites: 118 passed, 118 total\nTests:       1 skipped, 1079 passed, 1080 total\nSnapshots:   0 total\nTime:        132.966 s, estimated 239 s",
+    "typescript": "passed",
+    "lint": "0 errors / 19 existing warnings",
+    "logs": [
+      "/tmp/redwallet-v4-fixes-focused.log",
+      "/tmp/redwallet-v4-fixes-unit.log",
+      "/tmp/redwallet-v4-fixes-lint.log"
+    ]
+  }
+}

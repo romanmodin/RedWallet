@@ -1,3 +1,4 @@
+import { updatePaymentRecipient } from '../../helpers/update-payment-recipient';
 import { isXbtTaprootWallet } from '../../class/xbt-taproot-transaction';
 import { confirmXbtPayment } from '../../class/xbt/payment-warning';
 import { getPayjoinUrl, supportsPayjoin } from '../../class/payjoin-policy';
@@ -1544,28 +1545,28 @@ const SendDetails = () => {
               });
             }}
             onChangeText={(text: string) => {
-              setAddresses(addrs => {
-                item.amount = text;
-                switch (item.unit || amountUnit) {
-                  case BitcoinUnit.BTC:
-                    item.amountSats = btcToSatoshi(item.amount);
-                    break;
-                  case BitcoinUnit.LOCAL_CURRENCY:
-                    if (!XBT_PROFILE.fiatEnabled) {
-                      item.amount = '';
-                      item.amountSats = 0;
+              setAddresses(addrs =>
+                updatePaymentRecipient(addrs, item.key, current => {
+                  current.amount = text;
+                  switch (current.unit || amountUnit) {
+                    case BitcoinUnit.BTC:
+                      current.amountSats = btcToSatoshi(current.amount);
                       break;
-                    }
-                    item.amountSats = btcToSatoshi(fiatToBTC(Number(item.amount)));
-                    break;
-                  case BitcoinUnit.SATS:
-                  default:
-                    item.amountSats = parseInt(text, 10);
-                    break;
-                }
-                addrs[index] = item;
-                return [...addrs];
-              });
+                    case BitcoinUnit.LOCAL_CURRENCY:
+                      if (!XBT_PROFILE.fiatEnabled) {
+                        current.amount = '';
+                        current.amountSats = 0;
+                        break;
+                      }
+                      current.amountSats = btcToSatoshi(fiatToBTC(Number(current.amount)));
+                      break;
+                    case BitcoinUnit.SATS:
+                    default:
+                      current.amountSats = parseInt(text, 10);
+                      break;
+                  }
+                }),
+              );
             }}
             unit={item.unit || amountUnit}
             editable={isEditable}

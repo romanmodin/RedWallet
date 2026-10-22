@@ -1,6 +1,6 @@
 /** Strict v3 roster validation. Chain observations MUST come from our backend, never the relay. */
 import { hex } from './crypto';
-import { Terms } from './protocol';
+import { Terms, outputCount } from './protocol';
 import { change, Coin, coinScript, isType, outpoint, verifyOwnership } from './transaction';
 export type Seat = {
   token_hash: string;
@@ -51,7 +51,7 @@ export function parseSeat(value: unknown, terms: Readonly<Terms>): Seat {
     if (!verifyOwnership(terms.id, raw.join_pub as string, c, proofs[i])) throw new Error('Invalid ownership proof');
   });
   const total = coins.reduce((n, c) => n + c.value, 0);
-  const expected = change(total, terms.denomination, terms.fee_rate, coins.length, terms.script);
+  const expected = change(total, terms.denomination, terms.fee_rate, coins.length, terms.script, outputCount(terms));
   if (
     expected === null ||
     raw.change_value !== expected ||

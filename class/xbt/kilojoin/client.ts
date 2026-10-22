@@ -6,18 +6,26 @@ import * as BlueElectrum from '../../../blue_modules/BlueElectrum';
 import { BlueApp } from '../../blue-app';
 import { parseVerifiedParentTransaction } from '../verified-transaction';
 import { NostrEvent } from './crypto';
-import { changeMessage, LIVE_JOIN_ENABLED, parsePool, Terms } from './protocol';
+import { changeMessage, LIVE_JOIN_ENABLED, parsePool, Terms, outputCount } from './protocol';
 import { KilojoinRelay, publishIsolated } from './relay';
+import { relayFailureMessage } from './relay-error';
 import { Journal, Round } from './round';
 import { Coin, change, ownershipMessage } from './transaction';
 import { MixingWallet, nativeEntropy, observeCoins, walletSigner } from './wallet-adapter';
 import { SessionVault } from './vault';
 import { ParticipantSession, SessionState } from './session';
+import { reserveOutputAddresses } from './output-addresses';
 import { reservedCoins } from './wallet-store';
 const ECPair = ECPairFactory(ecc);
 const joining = new WeakSet<MixingWallet>();
 const clock = () => Math.floor(Date.now() / 1000);
-export type ClientView = { session: SessionState; journal: Journal; error?: string; broadcastId?: string };
+export type ClientView = {
+  session: SessionState;
+  journal: Journal;
+  error?: string;
+  broadcastId?: string;
+  review?: ReturnType<ParticipantSession['reviewSummary']>;
+};
 export class MixingClient {
   private timer?: ReturnType<typeof setTimeout>;
   private broadcastId?: string;
@@ -29,7 +37,7 @@ export class MixingClient {
     private readonly session: ParticipantSession,
     private readonly round: Round,
     private readonly relay: KilojoinRelay,
-    private readonly mixAddress: string,
+    private readonly mixAddresses: string[],
     private readonly changeAddress: string | undefined,
     private readonly onUpdate: (view: ClientView) => void,
   ) {
@@ -37,7 +45,13 @@ export class MixingClient {
   }
 
   view(): ClientView {
-    return { session: this.session.snapshot(), journal: this.round.snapshot(), error: this.error, broadcastId: this.broadcastId };
+    return {
+      session: this.session.snapshot(),
+      journal: this.round.snapshot(),
+      error: this.error,
+      broadcastId: this.broadcastId,
+      review: this.session.reviewSummary(),
+    };
   }
 
   private update(): void {
@@ -108,12 +122,17 @@ export class MixingClient {
     }));
     await observeCoins(coins);
     const total = coins.reduce((sum, c) => sum + c.value, 0),
-      remainder = change(total, terms.denomination, terms.fee_rate, coins.length, terms.script);
-    if (remainder === null || total - terms.denomination - remainder > config.maxFee)
+      remainder = change(total, terms.denomination, terms.fee_rate, coins.length, terms.script, outputCount(terms));
+    if (remainder === null || total - outputCount(terms) * terms.denomination - remainder > config.maxFee)
       throw new Error('Selected coins exceed the approved fee or are insufficient');
-    const mixAddress = await wallet.getAddressAsync(),
+    const mixAddresses = await reserveOutputAddresses(
+        wallet,
+        outputCount(terms),
+        addresses => BlueElectrum.multiGetHistoryByAddress(addresses),
+        () => app.saveToDisk(true),
+      ),
       changeAddress = remainder > 0 ? await wallet.getChangeAddressAsync() : undefined;
-    const mixScript = Buffer.from(address.toOutputScript(mixAddress)).toString('hex');
+    const mixScripts = mixAddresses.map(a => Buffer.from(address.toOutputScript(a)).toString('hex'));
     const changeScript = changeAddress ? Buffer.from(address.toOutputScript(changeAddress)).toString('hex') : '';
     const seat = {
       token_hash: '00'.repeat(32),
@@ -128,8 +147,16 @@ export class MixingClient {
     );
     const store = app.createKilojoinJournalStore(wallet),
       start = clock();
-    const round = await Round.join(wallet.getID(), terms.id, config.selected, Math.min(terms.timeout + 1500, start + 7200), start, store);
-    const vault = new SessionVault(wallet.getID(), terms.id);
+    const round = await Round.join(
+      wallet.getID(),
+      terms.id,
+      config.selected,
+      Math.min(terms.timeout + 1500, start + 7200),
+      start,
+      store,
+      joinPub,
+    );
+    const vault = new SessionVault(wallet.getID(), terms.id, joinPub);
     // Subscribe to the direct welcome first; pool history is unreadable until its key arrives.
     const subscribe = () =>
       session.snapshot().phase === 'joining'
@@ -140,24 +167,12 @@ export class MixingClient {
         const before = session.snapshot().phase;
         await session.receive(event);
         if (before === 'joining' && session.snapshot().phase === 'open') subscribe();
-        const state = session.snapshot();
-        if (state.phase === 'closing' && state.outputNotBefore && client && !client.timer) {
-          client.timer = setTimeout(
-            () => {
-              if (client?.closed) return;
-              session
-                .submitOutput()
-                .then(() => client?.update())
-                .catch(() => client?.fail('Output registration failed; retry or cancel the round.'));
-            },
-            Math.max(0, state.outputNotBefore - clock()) * 1000,
-          );
-        }
+        client?.scheduleOutputs();
         client?.update();
       },
-      () => client?.fail('Relay message or connection failed. Coins remain reserved until the round is resolved.'),
+      error => client?.fail(relayFailureMessage(error)),
     );
-    const session = new ParticipantSession(terms, seat, joinSecret, mixScript, config.maxFee, round, {
+    const session = new ParticipantSession(terms, seat, joinSecret, mixScripts, config.maxFee, round, {
       now: clock,
       random: nativeEntropy,
       saveEncrypted: state => vault.save(state),
@@ -171,7 +186,7 @@ export class MixingClient {
         ]),
       publish: (event, isolated) => (isolated ? publishIsolated(event) : relay.publish(event)),
     });
-    const client = new MixingClient(terms, wallet, session, round, relay, mixAddress, changeAddress, config.onUpdate);
+    const client = new MixingClient(terms, wallet, session, round, relay, mixAddresses, changeAddress, config.onUpdate);
     try {
       await relay.connect();
       subscribe();
@@ -187,6 +202,25 @@ export class MixingClient {
     }
   }
 
+  private scheduleOutputs(): void {
+    const state = this.session.snapshot();
+    if (this.closed || this.timer || state.phase !== 'closing' || state.outputNotBefore === undefined) return;
+    this.timer = setTimeout(
+      () => {
+        this.timer = undefined;
+        if (this.closed) return;
+        this.session
+          .submitOutput()
+          .then(() => {
+            this.update();
+            this.scheduleOutputs();
+          })
+          .catch(() => this.fail('Output registration failed; retry or cancel the round.'));
+      },
+      Math.max(0, state.outputNotBefore - clock()) * 1000,
+    );
+  }
+
   async requestClose(): Promise<void> {
     await this.session.requestClose();
     this.update();
@@ -200,6 +234,7 @@ export class MixingClient {
   async retryOutput(): Promise<void> {
     await this.session.submitOutput();
     this.update();
+    this.scheduleOutputs();
   }
 
   async retrySignatures(): Promise<void> {
@@ -225,11 +260,11 @@ export class MixingClient {
     if (!id || !['signed', 'uncertain'].includes(this.round.snapshot().phase)) throw new Error('No signed round to confirm');
     const [transactions, histories, tip] = await Promise.all([
       BlueElectrum.multiGetTransactionByTxid([id], false, 45, true),
-      BlueElectrum.multiGetHistoryByAddress([this.mixAddress]),
+      BlueElectrum.multiGetHistoryByAddress([this.mixAddresses[0]]),
       BlueElectrum.getReportedBlockTip(),
     ]);
     const tx = parseVerifiedParentTransaction(id, transactions[id]);
-    const entries = (histories[this.mixAddress] || []).filter(h => h.tx_hash === id);
+    const entries = (histories[this.mixAddresses[0]] || []).filter(h => h.tx_hash === id);
     if (
       tip === null ||
       !Number.isSafeInteger(tip) ||
@@ -247,9 +282,15 @@ export class MixingClient {
       } catch {
         continue;
       }
-      if (a === this.mixAddress) this.wallet.setUTXOMetadata(id, index, { memo: 'CoinJoin output · Kilojoin' });
+      if (this.mixAddresses.includes(a))
+        this.wallet.setUTXOMetadata(id, index, {
+          memo: 'CoinJoin output · Kilojoin',
+        });
       if (a === this.changeAddress)
-        this.wallet.setUTXOMetadata(id, index, { memo: 'CoinJoin change · frozen to avoid recombination', frozen: true });
+        this.wallet.setUTXOMetadata(id, index, {
+          memo: 'CoinJoin change · frozen to avoid recombination',
+          frozen: true,
+        });
     }
     await this.round.confirm(id, tip - entries[0].height + 1);
     this.broadcastId = id;
@@ -315,7 +356,10 @@ export async function confirmRecoveredRound(wallet: MixingWallet, poolId: string
   // Role metadata might not survive an interrupted session. Freeze every recovered
   // wallet output instead of guessing which equal output/change should be combined.
   for (const output of own)
-    wallet.setUTXOMetadata(id, output.index, { memo: 'Recovered CoinJoin output · review before unfreezing', frozen: true });
+    wallet.setUTXOMetadata(id, output.index, {
+      memo: 'Recovered CoinJoin output · review before unfreezing',
+      frozen: true,
+    });
   await round.confirm(id, tip - heights[0][0].height + 1);
   return true;
 }

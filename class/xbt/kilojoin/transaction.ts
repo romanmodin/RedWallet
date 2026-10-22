@@ -20,6 +20,7 @@ export type Plan = {
   outputs: Output[];
   amount: number;
   people: number;
+  outputsPerPerson?: number;
   type: ScriptType;
 };
 export const DUST = 294;
@@ -45,24 +46,29 @@ export function coinScript(c: Coin): Buffer {
 export function isType(script: string, type: ScriptType): boolean {
   return (type === 'p2wpkh' ? /^0014[0-9a-f]{40}$/ : /^5120[0-9a-f]{64}$/).test(script);
 }
-export function feeShare(rate: number, withChange = true, inputs = 1, type: ScriptType = 'p2wpkh'): number {
+export function feeShare(rate: number, withChange = true, inputs = 1, type: ScriptType = 'p2wpkh', outputs = 1): number {
   checkType(type);
   integer(inputs, 1, 10);
+  integer(outputs, 1, 5);
   if (!Number.isFinite(rate) || rate < 1 || rate > 500) throw new Error('Invalid fee rate');
-  return Math.ceil(rate * ((type === 'p2tr' ? 57.75 : 68) * inputs + (type === 'p2tr' ? 43 : 31) * (withChange ? 2 : 1) + 5.25));
+  return Math.ceil(
+    rate * ((type === 'p2tr' ? 57.75 : 68) * inputs + (type === 'p2tr' ? 43 : 31) * (outputs + (withChange ? 1 : 0)) + 5.25),
+  );
 }
-export function change(value: number, amount: number, rate: number, inputs = 1, type: ScriptType = 'p2wpkh'): number | null {
+export function change(value: number, amount: number, rate: number, inputs = 1, type: ScriptType = 'p2wpkh', outputs = 1): number | null {
   integer(value, 1, MAX_MONEY);
   integer(amount, 1000, 100000000);
-  const remainder = value - amount - feeShare(rate, true, inputs, type);
+  const remainder = value - outputs * amount - feeShare(rate, true, inputs, type, outputs);
   if (remainder > DUST) return remainder;
-  return value - amount - feeShare(rate, false, inputs, type) >= 0 ? 0 : null;
+  return value - outputs * amount - feeShare(rate, false, inputs, type, outputs) >= 0 ? 0 : null;
 }
-export function plan(coins: Coin[], mixes: string[], changes: Output[], amount: number): Plan {
+export function plan(coins: Coin[], mixes: string[], changes: Output[], amount: number, outputsPerPerson = 1): Plan {
   integer(amount, 1000, 100000000);
-  integer(mixes.length, 2, 20);
-  integer(coins.length, mixes.length, mixes.length * 10);
-  if (changes.length > mixes.length) throw new Error('Too many change outputs');
+  integer(outputsPerPerson, 1, 5);
+  const people = mixes.length / outputsPerPerson;
+  integer(people, 2, 20);
+  integer(coins.length, people, people * 10);
+  if (changes.length > people) throw new Error('Too many change outputs');
   const type = coins[0].type;
   const inputScripts = new Set(coins.map(c => coinScript(c).toString('hex')));
   if (coins.some(c => c.type !== type)) throw new Error('Mixed script types');
@@ -86,7 +92,8 @@ export function plan(coins: Coin[], mixes: string[], changes: Output[], amount: 
     coins: coins.map(c => ({ ...c })).sort((a, b) => (a.txid < b.txid ? -1 : a.txid > b.txid ? 1 : a.vout - b.vout)),
     outputs,
     amount,
-    people: mixes.length,
+    people,
+    ...(outputsPerPerson === 1 ? {} : { outputsPerPerson }),
     type,
   };
 }
@@ -146,6 +153,7 @@ export function verifyOwnership(pool: string, joinKey: string, c: Coin, der: str
 export type Review = {
   mine: Coin[];
   mixScript: string;
+  mixScripts?: string[];
   changeScript?: string;
   maxFee: number;
   feeRate: number;
@@ -158,11 +166,17 @@ export type Review = {
 export function review(p: Plan, r: Review): { txHex: string; txid: string; fee: number; myFee: number } {
   integer(r.maxFee, 0, MAX_MONEY);
   integer(r.mine.length, 1, 10);
+  const count = p.outputsPerPerson ?? 1;
+  integer(count, 1, 5);
+  const mixedCount = p.people * count;
+  const ownScripts = r.mixScripts ?? [r.mixScript];
+  if (ownScripts.length !== count || new Set(ownScripts).size !== count) throw new Error('Own output count mismatch');
   const canonical = plan(
     p.coins,
-    p.outputs.slice(0, p.people).map(o => o.script),
-    p.outputs.slice(p.people),
+    p.outputs.slice(0, mixedCount).map(o => o.script),
+    p.outputs.slice(mixedCount),
     p.amount,
+    count,
   );
   if (transaction(canonical).toHex() !== transaction(p).toHex() || p.type !== canonical.type) throw new Error('Noncanonical plan');
   if (r.seatInputs.length !== p.people || r.seatInputs.reduce((n, c) => n + c, 0) !== p.coins.length) throw new Error('Seat mismatch');
@@ -177,23 +191,23 @@ export function review(p: Plan, r: Review): { txHex: string; txid: string; fee: 
     if (!c || c.value !== mine.value || c.pubkey !== mine.pubkey || c.type !== mine.type) throw new Error('Own coin changed');
   }
   const ownValue = r.mine.reduce((n, c) => n + c.value, 0);
-  const expected = change(ownValue, p.amount, r.feeRate, r.mine.length, p.type);
+  const expected = change(ownValue, p.amount, r.feeRate, r.mine.length, p.type, count);
   if (expected === null) throw new Error('Insufficient own funds');
-  if (p.outputs.slice(0, p.people).filter(o => o.script === r.mixScript && o.value === p.amount).length !== 1)
+  if (ownScripts.some(script => p.outputs.slice(0, mixedCount).filter(o => o.script === script && o.value === p.amount).length !== 1))
     throw new Error('Own mixed output missing');
   if (
     expected > 0 &&
-    (!r.changeScript || p.outputs.slice(p.people).filter(o => o.script === r.changeScript && o.value === expected).length !== 1)
+    (!r.changeScript || p.outputs.slice(mixedCount).filter(o => o.script === r.changeScript && o.value === expected).length !== 1)
   )
     throw new Error('Own change missing or changed');
   if (expected === 0 && r.changeScript && p.outputs.some(o => o.script === r.changeScript)) throw new Error('Unexpected own change');
-  const myFee = ownValue - p.amount - expected;
+  const myFee = ownValue - count * p.amount - expected;
   if (myFee > r.maxFee) throw new Error('User fee limit exceeded');
   const fee = p.coins.reduce((n, c) => n + c.value, 0) - p.outputs.reduce((n, o) => n + o.value, 0);
   const vb = 10.5 + (p.type === 'p2tr' ? 57.75 : 68) * p.coins.length + (p.type === 'p2tr' ? 43 : 31) * p.outputs.length;
   if (
     fee < Math.floor(r.feeRate * vb * 0.95) ||
-    fee > r.seatInputs.reduce((n, c) => n + feeShare(r.feeRate, true, c, p.type), 0) + (DUST + 1) * p.people
+    fee > r.seatInputs.reduce((n, c) => n + feeShare(r.feeRate, true, c, p.type, count), 0) + (DUST + 1) * p.people
   )
     throw new Error('Round fee outside bounds');
   const tx = transaction(p);
