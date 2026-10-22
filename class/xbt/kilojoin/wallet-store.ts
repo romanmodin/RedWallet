@@ -41,7 +41,13 @@ export class WalletJournalStore implements JournalStore {
     const before = this.wallet._kilojoinJournals;
     const previous = before?.[next.poolId];
     if (!previous && next.phase !== 'joined') throw new Error('New round must start joined');
-    if (previous) {
+    // Only a fully cancelled unsigned attempt may be replaced. New identities
+    // also reject late callbacks from the old attempt, even with equal deadlines.
+    const restarting =
+      previous?.phase === 'aborted' && next.phase === 'joined' && !!next.attemptId && next.attemptId !== previous.attemptId;
+    if (restarting && [next.reviewedHex, next.reviewedId, next.commitment, next.myFee].some(field => field !== undefined))
+      throw new Error('New attempt must not retain a prior review');
+    if (previous && !restarting) {
       const allowed: Record<Journal['phase'], Journal['phase'][]> = {
         joined: ['joined', 'review', 'aborted'],
         review: ['review', 'approved', 'aborted'],
@@ -52,6 +58,7 @@ export class WalletJournalStore implements JournalStore {
         complete: ['complete'],
       };
       if (
+        next.attemptId !== previous.attemptId ||
         !allowed[previous.phase].includes(next.phase) ||
         next.deadline !== previous.deadline ||
         (next.reserved.length && JSON.stringify(next.reserved) !== JSON.stringify(previous.reserved)) ||

@@ -188,8 +188,19 @@ async function beginRecovery(): Promise<void> {
     .toBeVisible()
     .whileElement(by.id('WalletsList'))
     .scroll(500, 'right');
+  console.info('[native-lifecycle] opening add-wallet screen');
   await element(by.id('CreateAWallet')).tap();
-  await waitForId('ImportWallet', 15_000);
+  // The native wait in 39418586405 never returned, even after its deadline.
+  // Release the native request between read-only observations. Do not retry
+  // the navigation tap or relax visibility/the original 15-second deadline.
+  await observeNativeCondition(
+    'Add-wallet import control',
+    async () => {
+      await nativeExpect(element(by.id('ImportWallet'))).toBeVisible();
+    },
+    15_000,
+  );
+  console.info('[native-lifecycle] add-wallet import control visible');
   await element(by.id('ImportWallet')).tap();
   await waitForId('ImportWalletScroll', 15_000);
   await waitFor(element(by.id('ToggleRecoveryDiscovery')))

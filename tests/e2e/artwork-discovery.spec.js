@@ -2,14 +2,20 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { element, waitFor } from 'detox';
-import { nativeCaptureEvidence, matchesNativeOrientation } from './native-capture-helper';
+import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation, observeNativeRotation } from './native-capture-helper';
 import { getSwitchValue, goBack, helperCreateWallet, scrollUpOnHomeScreen, waitForId, waitForWalletsList } from './helperz';
 
 const smoke = process.env.REDWALLET_VISUAL_SMOKE === '1' ? describe : describe.skip;
-const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface') => {
+const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = false) => {
   const directory = path.resolve('artifacts/appearance-discovery');
   fs.mkdirSync(directory, { recursive: true });
-  const deadline = Date.now() + 15000;
+  const started = Date.now();
+  const deadline = started + 15000;
+  let orientationRequests = 0;
+  if (rotate) {
+    await device.setOrientation(orientation);
+    orientationRequests++;
+  }
   let evidence;
   // simctl captures the physical framebuffer in portrait pixel coordinates even
   // when UIKit has rotated. Assert the actual native surface bounds, retain the
@@ -22,23 +28,33 @@ const capture = async (name, orientation, surfaceId = 'ArtworkSkinSurface') => {
     evidence = nativeCaptureEvidence(png, before, after, orientation);
     // Retain the last observed native state on failure as well as success.
     fs.copyFileSync(file, path.join(directory, name + '.png'));
-    fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, ...evidence }, null, 2) + '\n');
+    fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, orientationRequests, ...evidence }, null, 2) + '\n');
     if (matchesNativeOrientation(evidence)) return;
+    if (shouldRepeatOrientation(evidence, Date.now() - started, orientationRequests)) {
+      await device.setOrientation(orientation);
+      orientationRequests++;
+    }
     await new Promise(resolve => setTimeout(resolve, 500));
   } while (Date.now() < deadline);
   throw new Error(`Native ${orientation} surface never settled: ${JSON.stringify(evidence)}`);
 };
+// Pool discovery already controls synchronization itself. Scope this change
+// strictly to the two actual orientation transitions; every native/pixel/hash
+// assertion and the original 15-second budget remain in captureObserved.
+const capture = (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = false) => {
+  const observation = () => captureObserved(name, orientation, surfaceId, rotate);
+  return rotate ? observeNativeRotation(device, observation) : observation();
+};
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
-    // CI pre-boots the simulator. Detox returns early for an already-booted
-    // device, so explicitly attach Simulator before asking UIKit to rotate.
-    // A setOrientation acknowledgement alone is not evidence of rotation.
-    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id]);
     await device.clearKeychain();
     // Detox 20 has no setAppearance API. Set the selected disposable simulator
     // through Apple's native command before launching the app.
     execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'dark']);
-    await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
+    await device.launchApp({
+      delete: true,
+      permissions: { notifications: 'NO' },
+    });
     await waitForWalletsList();
     await element(by.id('SettingsButton')).tap();
     await element(by.id('NetworkSettings')).tap();
@@ -62,14 +78,14 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       .withTimeout(5000);
     await goBack();
     await waitForWalletsList();
+    // Resetting Keychain or notification permissions can restart SpringBoard.
+    // Attach after all resets/relaunches; native diagnostic 39691385530 verified
+    // portrait, landscape and return-portrait bounds with this ordering.
+    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id], { timeout: 15000 });
     await scrollUpOnHomeScreen();
     await capture('01-helmet-portrait', 'portrait');
-    await device.setOrientation('landscape');
-    await waitForWalletsList();
-    await capture('02-helmet-landscape', 'landscape');
-    await device.setOrientation('portrait');
-    await waitForWalletsList();
-    await capture('02b-helmet-return-portrait', 'portrait');
+    await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
+    await capture('02b-helmet-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('Tools')))
       .toBeVisible()

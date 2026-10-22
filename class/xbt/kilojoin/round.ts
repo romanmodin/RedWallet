@@ -10,6 +10,8 @@ export type Journal = {
   version: 1;
   walletId: string;
   poolId: string;
+  /** Separates retries within one pool; absent only in legacy journals. */
+  attemptId?: string;
   phase: Phase;
   reserved: string[];
   deadline: number;
@@ -33,6 +35,7 @@ export function validateJournal(value: unknown): Journal {
     !j.walletId ||
     typeof j.poolId !== 'string' ||
     !/^[0-9a-f]{16,64}$/.test(j.poolId) ||
+    (j.attemptId !== undefined && (typeof j.attemptId !== 'string' || !/^[0-9a-f]{64}$/.test(j.attemptId))) ||
     !['joined', 'review', 'approved', 'signed', 'uncertain', 'aborted', 'complete'].includes(j.phase) ||
     !Number.isSafeInteger(j.deadline) ||
     j.deadline < 1 ||
@@ -83,10 +86,12 @@ export class Round {
     deadline: number,
     now: number,
     store: JournalStore,
+    attemptId?: string,
   ): Promise<Round> {
     if (
       !walletId ||
       !/^[0-9a-f]{16,64}$/.test(poolId) ||
+      (attemptId !== undefined && !/^[0-9a-f]{64}$/.test(attemptId)) ||
       selected.length < 1 ||
       selected.length > 10 ||
       new Set(selected).size !== selected.length ||
@@ -101,6 +106,7 @@ export class Round {
       version: 1,
       walletId,
       poolId,
+      ...(attemptId === undefined ? {} : { attemptId }),
       phase: 'joined',
       reserved: [...selected],
       deadline,

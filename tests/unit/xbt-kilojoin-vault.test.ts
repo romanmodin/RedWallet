@@ -64,3 +64,13 @@ test('native key persistence failure prevents writing session ciphertext', async
   await expect(vault.save(state)).rejects.toThrow('encryption key');
   expect(AsyncStorage.setItem).not.toHaveBeenCalled();
 });
+
+test('same-pool attempts have isolated vaults so late old writes cannot overwrite a new session', async () => {
+  const old = new SessionVault('retry-wallet', 'ab'.repeat(8), '11'.repeat(32));
+  const next = new SessionVault('retry-wallet', 'ab'.repeat(8), '22'.repeat(32));
+  await old.save(state);
+  await next.save({ ...state, sequence: 7 });
+  await old.save({ ...state, sequence: 2 });
+  expect(await next.load()).toEqual({ ...state, sequence: 7 });
+  expect(await old.load()).toEqual({ ...state, sequence: 2 });
+});

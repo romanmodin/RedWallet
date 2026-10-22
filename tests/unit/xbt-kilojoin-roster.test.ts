@@ -3,6 +3,7 @@ import { parseSeat, validateRoster, ChainCoin } from '../../class/xbt/kilojoin/r
 import { Terms } from '../../class/xbt/kilojoin/protocol';
 import { Coin, coinScript, outpoint, ownershipMessage } from '../../class/xbt/kilojoin/transaction';
 const terms = {
+  v: 3,
   id: '0123456789abcdef',
   script: 'p2wpkh',
   denomination: 10000,

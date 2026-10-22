@@ -1,0 +1,25 @@
+{
+  "sourceCommit": "2bb3073678492b476ae67d6e42a76ca705b26fb2",
+  "runId": 39418562465,
+  "runAttempt": 1,
+  "jobId": 118618270931,
+  "build": "success",
+  "nativeTests": "failure",
+  "firstActionableFailure": "Native landscape surface never settled: before 402x874 / after 874x402",
+  "artifactId": 12264900009,
+  "archiveSha256": "a80b7cb9dac82a3b6819d91a53386c3ce16008a40f030efe599e09c840eb2933",
+  "landscapePngSha256": "356a342c6462db7628d584692902d4533d18a8edd7c6fc2605cf87507158c846",
+  "actualLandscapePngReviewed": true,
+  "visualObservation": "Rendered empty-wallet screen rotated in native landscape; the capture straddles the layout transition and does not qualify stable before/after bounds.",
+  "nativeLogEvidence": [
+    "First orientation request 12:22:19.359Z, native timeout 12:22:21.361Z",
+    "Second request 12:22:28.407Z, native timeout 12:22:30.409Z",
+    "Scene will change to landscapeRight at 12:22:35.844Z",
+    "Each synchronized getAttributes probe took approximately 1.4\u20131.6 seconds"
+  ],
+  "candidateCorrection": "Disable Detox synchronization only while observing the two orientation transitions; restore in finally. Actual before/after native bounds, PNG hashes, original 15-second deadline, portrait/landscape/return-portrait and full suites remain required.",
+  "rootCauseProven": false,
+  "hostedCorrectionVerified": false,
+  "productionCodeChanged": false,
+  "fullSuitesAfterSmokeRan": false
+}
