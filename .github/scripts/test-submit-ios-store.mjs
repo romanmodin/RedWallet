@@ -57,6 +57,29 @@ function fixture(options = {}) {
     c.images.push(...shots[s.id].map((x) => ({ id: x.id, state: "COMPLETE" })));
   }
   const api = async (method, path, payload, query) => {
+    assert.equal(
+      path.endsWith("/betaGroups"),
+      false,
+      "Use the documented build include relationship",
+    );
+    if (
+      method === "GET" &&
+      path === "/v1/builds/new-build-id" &&
+      query?.include === "betaGroups"
+    ) {
+      const groups = [
+        "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
+        "463ff340-3283-4f17-949d-39c7aa929da2",
+      ].map((id) => ({ id, type: "betaGroups" }));
+      return {
+        data: {
+          id: c.appleBuildId,
+          attributes: { version: c.build },
+          relationships: { betaGroups: { data: groups } },
+        },
+        included: groups,
+      };
+    }
     if (method === "GET" && path.endsWith("/items"))
       assert.equal(
         query?.include,

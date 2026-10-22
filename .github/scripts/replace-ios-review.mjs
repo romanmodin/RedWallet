@@ -42,9 +42,27 @@ async function ready(api, candidate) {
     "Replacement belongs to another app or version",
   );
   const beta = (await api("GET", root + "/buildBetaDetail")).data;
-  const groups = (
-    await api("GET", root + "/betaGroups", undefined, { limit: "200" })
-  ).data;
+  // Apple exposes beta groups through the build's include relationship. The
+  // direct /builds/{id}/betaGroups route returned 403 for this app, while the
+  // documented build-details query is also used by our verified beta delivery.
+  const groupInfo = await api("GET", root, undefined, {
+    include: "betaGroups",
+  });
+  const relation = groupInfo.data?.relationships?.betaGroups;
+  const groupIds = relation?.data;
+  check(
+    groupInfo.data?.id === candidate.appleBuildId &&
+      groupInfo.data.attributes?.version === candidate.build &&
+      Array.isArray(groupIds) &&
+      !relation.links?.next &&
+      (!relation.meta?.paging || relation.meta.paging.total <= groupIds.length),
+    "Incomplete TestFlight group relationship for replacement build",
+  );
+  const groups = (groupInfo.included || []).filter(
+    (x) =>
+      x.type === "betaGroups" &&
+      groupIds.some((g) => g.type === "betaGroups" && g.id === x.id),
+  );
   check(
     beta?.attributes?.internalBuildState === "IN_BETA_TESTING" &&
       beta.attributes.externalBuildState === "IN_BETA_TESTING" &&

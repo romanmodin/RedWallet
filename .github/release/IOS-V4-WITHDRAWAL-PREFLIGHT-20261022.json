@@ -7,5 +7,12 @@
   "archiveSha256": "7e8bb8f25d0b0474d7c08223a4831d8b28cac8583c18fe55df2f1ee15f338ac3",
   "receiptSha256": "33a67b06ddf9531bb198453fa031b9efc0f6effae18f242fa7c018c3cf788535",
   "observed": "Actual release receipts and exact-source gates passed; live preflight stopped without withdrawalRequested. Generic catch hid the actionable reason. Read-only inspection39850275925 verified old WAITING_FOR_REVIEW build and all10oldassetsCOMPLETE at20:37:19Z.",
-  "correction": "Controlled error classes and stage/operation reporting, plus an enforced read-only preflight mode. All mutation and readiness assertions retained. No retry of prior mutation; none had been requested."
+  "correction": "Controlled error classes and stage/operation reporting, plus an enforced read-only preflight mode. All mutation and readiness assertions retained. No retry of prior mutation; none had been requested.",
+  "diagnosticRun": 39851306379,
+  "diagnosticArtifactId": 12457457126,
+  "diagnosticArchiveSha256": "ba28b508fbf49bf081e3301802f5d743ea3b35645bcd1de3e5a612bb6cbb36b1",
+  "diagnosticReceiptSha256": "414f023856772333c97ec22da09b8e24a1c6647916d6e4af224a7031f98ece48",
+  "firstActionableFailure": "Read-only preflight failed GET /v1/builds/7717ad5a-860d-4a6c-bf33-d48e17f3a2da/betaGroups with HTTP403 FORBIDDEN_ERROR. Listing had passed; no cancellation requested.",
+  "boundedCorrection": "Use documented GET build?include=betaGroups, as already used successfully by actual beta-delivery run39848490670. Require exact build/version, complete relationship data and matching included groups; both required group memberships and live beta states remain mandatory.",
+  "primaryDocumentation": "https://developer.apple.com/documentation/appstoreconnectapi/get-v1-builds-_id_"
 }
