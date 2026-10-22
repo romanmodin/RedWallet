@@ -1,9 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { makeToken } from "./inspect-ios-store.mjs";
-import { client, verifyListing } from "./submit-ios-store.mjs";
+import { client, verifyListing, SubmissionError } from "./submit-ios-store.mjs";
 import {
   REPLACEMENT_SOURCE,
+  ReplacementError,
   OLD_REVIEW,
   withdrawSupersededReview,
 } from "./replace-ios-review.mjs";
@@ -14,8 +15,9 @@ const GROUPS = [
   "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
   "463ff340-3283-4f17-949d-39c7aa929da2",
 ];
+class WithdrawalError extends Error {}
 function check(ok, message) {
-  if (!ok) throw Error(message);
+  if (!ok) throw new WithdrawalError(message);
 }
 export function withdrawalCandidate(
   ipa,
@@ -137,11 +139,20 @@ export function withdrawalClient(token, request = fetch) {
     return api(method, path, payload, query);
   };
 }
+export function safeWithdrawalError(error) {
+  return error instanceof SubmissionError ||
+    error instanceof ReplacementError ||
+    error instanceof WithdrawalError
+    ? error.message
+    : "Unexpected withdrawal failure; private raw diagnostics omitted";
+}
 async function main() {
   const report = {
     sourceCommit: REPLACEMENT_SOURCE,
     submitted: false,
     checkedAt: new Date().toISOString(),
+    readOnly: process.env.WITHDRAWAL_PREFLIGHT_ONLY === "true",
+    stage: "receipt-validation",
   };
   try {
     const read = (p) => JSON.parse(readFileSync(p, "utf8"));
@@ -162,13 +173,24 @@ async function main() {
         JSON.parse(process.env.APP_STORE_CONNECT_API_KEY_CONTENT || ""),
       ),
     );
-    await verifyListing(api, candidate);
-    await withdrawSupersededReview(api, candidate, report);
+    const scopedApi = async (method, path, payload, query) => {
+      report.lastOperation = method + " " + path;
+      check(
+        !report.readOnly || method === "GET",
+        "Read-only preflight cannot mutate Apple",
+      );
+      return api(method, path, payload, query);
+    };
+    report.stage = "live-listing";
+    await verifyListing(scopedApi, candidate);
+    report.stage = "live-review-replacement";
+    await withdrawSupersededReview(scopedApi, candidate, report, {
+      readOnly: report.readOnly,
+    });
     report.status = report.replacementStatus;
   } catch (error) {
     report.status = "STOPPED_FOR_REVIEW";
-    report.error =
-      "Withdrawal stopped; inspect the retained state before another attempt";
+    report.error = safeWithdrawalError(error);
     process.exitCode = 1;
   } finally {
     writeFileSync(

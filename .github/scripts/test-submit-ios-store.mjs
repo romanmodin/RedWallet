@@ -12,6 +12,7 @@ import {
   REPLACEMENT_SOURCE,
   OLD_BUILD,
   OLD_REVIEW,
+  withdrawSupersededReview,
 } from "./replace-ios-review.mjs";
 const APP = "6817118871",
   V = "65cd6bc4-9962-4b77-a3ca-78c115f3a615",
@@ -461,4 +462,14 @@ test("review detail patch cannot change contacts or credentials", async () => {
     /Only reviewer notes/,
   );
   assert.equal(calls, 0);
+});
+
+test("read-only replacement preflight completes all live checks without canceling or selecting", async () => {
+  const f = fixture({ replacement: true }),
+    report = {};
+  await withdrawSupersededReview(f.api, f.c, report, { readOnly: true });
+  assert.equal(report.replacementStatus, "WITHDRAWAL_PREFLIGHT_PASSED");
+  assert.equal(report.readOnly, true);
+  assert.equal(report.withdrawalRequested, undefined);
+  assert.equal(f.writes.length, 0);
 });

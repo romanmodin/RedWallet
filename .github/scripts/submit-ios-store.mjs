@@ -16,7 +16,7 @@ const VERSION_ID = "65cd6bc4-9962-4b77-a3ca-78c115f3a615";
 const LOCALE_ID = "67c79fa3-be47-4fc0-94c5-713836f9d262";
 const POLICY =
   "https://github.com/romanmodin/RedWallet/blob/" + SOURCE + "/docs/PRIVACY.md";
-class SubmissionError extends Error {}
+export class SubmissionError extends Error {}
 function check(ok, message) {
   if (!ok) throw new SubmissionError(message);
 }
