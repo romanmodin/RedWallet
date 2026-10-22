@@ -43,6 +43,31 @@ function fixture(overrides = {}) {
       if (s.afterPatch === "COMPLETE") s.state = "DEVELOPER_REJECTED";
       return {};
     }
+    assert.equal(
+      path.endsWith("/betaGroups"),
+      false,
+      "Do not use Apple's rejected direct group route",
+    );
+    if (path === "/v1/builds/new-build-id" && query?.include === "betaGroups") {
+      const all = [
+        "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
+        "463ff340-3283-4f17-949d-39c7aa929da2",
+      ].map((id) => ({ id, type: "betaGroups" }));
+      const groups = s.missingGroup ? all.slice(0, 1) : all;
+      return {
+        data: {
+          id: s.wrongGroupBuild ? "another-build" : c.appleBuildId,
+          attributes: { version: c.build },
+          relationships: {
+            betaGroups: {
+              data: s.unrelatedGroups ? [] : groups,
+              ...(s.incompleteGroups ? { links: { next: "next-page" } } : {}),
+            },
+          },
+        },
+        included: groups,
+      };
+    }
     if (path === "/v1/builds/new-build-id") {
       reads++;
       if (s.changeBeforeWrite && reads === 2)
@@ -119,6 +144,10 @@ test("withdraws only the exact old review after replacement Apple and TestFlight
 for (const [title, overrides, error] of [
   ["unprocessed build", { valid: false }, /not ready/],
   ["undelivered TestFlight", { delivered: false }, /TestFlight/],
+  ["missing tester group", { missingGroup: true }, /TestFlight/],
+  ["unrelated included groups", { unrelatedGroups: true }, /TestFlight/],
+  ["incomplete group relationship", { incompleteGroups: true }, /TestFlight/],
+  ["group response for another build", { wrongGroupBuild: true }, /TestFlight/],
   ["other selected build", { selected: "another-build" }, /unexpectedly/],
   ["another review", { extraReview: true }, /Another review/],
   [
