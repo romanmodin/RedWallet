@@ -1,0 +1,39 @@
+{
+  "sourceCommit": "286e875cb488365eeb00799b6c04305994ab9db7",
+  "verifiedAt": "2026-10-22T20:27:44.645216+00:00",
+  "purpose": "Withdraw only the old review after verified V4 tester availability and reviewed replacement captures; preserve historical assets until editable",
+  "receipts": [
+    {
+      "member": "ios-ipa-verification.json",
+      "runId": 39799087741,
+      "head": "b881585e528a9d06b20f67b28a774bd540f3fd20",
+      "artifactId": 12454964276,
+      "archiveSha256": "07d239fd6738e58e1727722f7e17b96ced93978a67af2e48f006540aa479e64c",
+      "sha256": "b1f52daff00e5ab0140d0707c471eac81c15e2215a53a207a2ba6b2333826150"
+    },
+    {
+      "member": "testflight-beta-verification.json",
+      "runId": 39848490670,
+      "head": "3eff5e4e15e2da5261ae8764effc284cbece68b7",
+      "artifactId": 12457380084,
+      "archiveSha256": "5c135adbc9a2185214ae3f7304fc7e106c2d2c92e3fb22cce7f3ba3b9ed54ecb",
+      "sha256": "08d5e2e787990f006b095191d00186b8af38de399e18f6ca4380b61c3a1f31b8"
+    },
+    {
+      "runId": 39318465990,
+      "head": "2a75085cb930609501d0362afa1e0b48aee8e9ed",
+      "artifactId": 12219810127,
+      "archiveSha256": "66b67589a4c52286f6366aa8562048f40be5ff58acc57dd5a40969fcb50b7955",
+      "member": "store-screenshot-receipt.json",
+      "sha256": "24a55e9a63e93c172904d9be06d7f7c29f863afea1b7a6de2a37169ffbd33b11"
+    },
+    {
+      "runId": 39330552821,
+      "head": "687c297eb466e890bee940e73901c6cc160d9014",
+      "artifactId": 12224825464,
+      "archiveSha256": "15c1f4bd28a3abbd70812c0646dfadb2df79d22b29606d5358290809d5ad4b11",
+      "member": "imessage-upload-receipt.json",
+      "sha256": "faadf6141de70a91eeda2313290f56eff2392b04c9ccbf075405dd357fcc9586"
+    }
+  ]
+}
