@@ -12,7 +12,9 @@ diagnostic('Nonqualifying empty-wallet navigation diagnostic', () => {
       'fresh app launch',
       () =>
         device.launchApp({
-          delete: true,
+          // This isolated spec runs after Detox's default fresh installation.
+          // Do not repeat uninstall/install or terminate a never-launched app.
+          newInstance: false,
           permissions: { notifications: 'NO' },
         }),
       120000,

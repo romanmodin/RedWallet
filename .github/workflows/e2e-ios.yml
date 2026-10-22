@@ -8,6 +8,15 @@ on:
         required: false
         default: ''
         type: string
+      interaction:
+        description: Isolated diagnostic to execute (not release qualification)
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - scroll
+          - rotation
 
 permissions:
   contents: read
@@ -173,7 +182,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        interaction: [scroll, rotation]
+        interaction: ${{ fromJSON(inputs.interaction == 'scroll' && '["scroll"]' || inputs.interaction == 'rotation' && '["rotation"]' || '["scroll","rotation"]') }}
     if: ${{ always() && !cancelled() && (needs.build.result == 'success' || inputs.source_run_id != '') }}
     runs-on: macos-26
     needs: build
