@@ -1,0 +1,11 @@
+{
+  "failedRun": 39849881667,
+  "failedJob": 120073016041,
+  "sourceCommit": "286e875cb488365eeb00799b6c04305994ab9db7",
+  "orchestrationCommit": "728944e3029405a2442c79776160ea37724cb3b4",
+  "artifactId": 12455938922,
+  "archiveSha256": "7e8bb8f25d0b0474d7c08223a4831d8b28cac8583c18fe55df2f1ee15f338ac3",
+  "receiptSha256": "33a67b06ddf9531bb198453fa031b9efc0f6effae18f242fa7c018c3cf788535",
+  "observed": "Actual release receipts and exact-source gates passed; live preflight stopped without withdrawalRequested. Generic catch hid the actionable reason. Read-only inspection39850275925 verified old WAITING_FOR_REVIEW build and all10oldassetsCOMPLETE at20:37:19Z.",
+  "correction": "Controlled error classes and stage/operation reporting, plus an enforced read-only preflight mode. All mutation and readiness assertions retained. No retry of prior mutation; none had been requested."
+}

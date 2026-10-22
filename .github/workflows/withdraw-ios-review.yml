@@ -9,7 +9,13 @@ name: Withdraw superseded review after verified v4 delivery
       - .github/scripts/download-ios-review-receipts.py
       - .github/release/IOS-V4-WITHDRAWAL-INPUTS-20261022.json
       - .github/workflows/withdraw-ios-review.yml
-  workflow_dispatch: null
+  workflow_dispatch:
+    inputs:
+      preflight_only:
+        description: Read-only live preflight; false permits the already-authorized exact old review withdrawal
+        type: boolean
+        required: true
+        default: true
 permissions:
   contents: read
   actions: read
@@ -80,6 +86,7 @@ jobs:
           APP_STORE_CONNECT_API_KEY_CONTENT:
             ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT
             }}
+          WITHDRAWAL_PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
         run: node .github/scripts/withdraw-ios-review.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()

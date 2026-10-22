@@ -140,3 +140,23 @@ test("withdrawal client cannot select a build, submit, or cancel another review"
   });
   assert.equal(calls.length, 1);
 });
+
+test("safe withdrawal diagnostics retain only controlled errors", async () => {
+  const { safeWithdrawalError } = await import("./withdraw-ios-review.mjs");
+  const { SubmissionError } = await import("./submit-ios-store.mjs");
+  const { ReplacementError } = await import("./replace-ios-review.mjs");
+  assert.equal(
+    safeWithdrawalError(new SubmissionError("Apple build is not ready")),
+    "Apple build is not ready",
+  );
+  assert.equal(
+    safeWithdrawalError(
+      new ReplacementError("Another review must be preserved"),
+    ),
+    "Another review must be preserved",
+  );
+  assert.equal(
+    safeWithdrawalError(new Error("PRIVATE TOKEN SECRET")),
+    "Unexpected withdrawal failure; private raw diagnostics omitted",
+  );
+});

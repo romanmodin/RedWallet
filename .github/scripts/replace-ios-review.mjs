@@ -10,8 +10,9 @@ const GROUPS = [
   "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
   "463ff340-3283-4f17-949d-39c7aa929da2",
 ];
+export class ReplacementError extends Error {}
 function check(ok, message) {
-  if (!ok) throw new Error(message);
+  if (!ok) throw new ReplacementError(message);
 }
 async function ready(api, candidate) {
   check(
@@ -69,7 +70,12 @@ async function snapshot(api) {
 // Caller must first validate the exact-source gates and signed receipt artifacts.
 // This function additionally reads live Apple readiness; it never selects or submits a build.
 // No mutation retries, including after uncertain HTTP outcomes.
-export async function withdrawSupersededReview(api, candidate, report) {
+export async function withdrawSupersededReview(
+  api,
+  candidate,
+  report,
+  { readOnly = false } = {},
+) {
   await ready(api, candidate);
   let live = await snapshot(api);
   if (
@@ -154,6 +160,11 @@ export async function withdrawSupersededReview(api, candidate, report) {
       lastReview?.attributes?.state === state,
     "Release changed before withdrawal",
   );
+  if (readOnly) {
+    report.replacementStatus = "WITHDRAWAL_PREFLIGHT_PASSED";
+    report.readOnly = true;
+    return report;
+  }
   report.supersededReviewId = OLD_REVIEW;
   report.withdrawalRequested = true;
   await api("PATCH", "/v1/reviewSubmissions/" + OLD_REVIEW, {
