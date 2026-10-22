@@ -4,6 +4,8 @@ name: Submit verified RedWallet iOS app for review
     paths:
       - ".github/scripts/submit-ios-store.mjs"
       - ".github/scripts/test-submit-ios-store.mjs"
+      - ".github/scripts/replace-ios-review.mjs"
+      - ".github/scripts/test-replace-ios-review.mjs"
       - ".github/release/IOS-APP-REVIEW-INPUTS-20261019.json"
       - ".github/workflows/submit-ios-store.yml"
   workflow_dispatch:
@@ -31,7 +33,7 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: 24
-      - run: node --test .github/scripts/test-submit-ios-store.mjs
+      - run: node --test .github/scripts/test-submit-ios-store.mjs .github/scripts/test-replace-ios-review.mjs
   submit:
     needs: verify
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
