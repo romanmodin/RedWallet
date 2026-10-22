@@ -1,0 +1,55 @@
+{
+  "status": "candidate_pending_exact_source_qualification",
+  "appChanged": false,
+  "releaseAssertionsChanged": false,
+  "scroll": {
+    "run": 39704395983,
+    "head": "2379fa2d41899e0f159e1d1479ac1a2027e91395",
+    "attempt": 1,
+    "job": 119580887897,
+    "conclusion": "success",
+    "artifact": 12394786040,
+    "artifactSha256": "d97a7c0e75608422b7dec74c655fb0213b136fd0cb4dc45a3cddceb7c0c07382",
+    "scrollMs": 3529,
+    "recoveryVisible": true,
+    "screenshotReviewed": "empty recovery form, no phrase entered"
+  },
+  "rotation": {
+    "run": 39691385530,
+    "head": "8fb093b14b7e0614742f73dbabf4d28f27b6a28f",
+    "attempt": 1,
+    "job": 119538147860,
+    "conclusion": "success",
+    "artifact": 12389840616,
+    "artifactSha256": "65de69a34d8392bc7a8fa9caa43e68f612f3ae50bee40b6ea3dc86476346086e",
+    "nativeBounds": [
+      [
+        402,
+        874
+      ],
+      [
+        874,
+        402
+      ],
+      [
+        402,
+        874
+      ]
+    ],
+    "visualLimit": "Landscape framebuffer remains portrait-sized and clips rotated UIKit content; complete landscape visual approval is still required."
+  },
+  "changes": [
+    "Use vertical Wallets scrollTo(top) in both shared home helpers; preserve downstream visibility and wallet assertions.",
+    "Attach Simulator after artwork setup resets/relaunches; preserve 15-second native orientation observation and all captures."
+  ],
+  "qualification": "Both runs are diagnostic only and do not replace required software/general/funded iOS gates. No diagnostic workflow or startup changes copied to release candidate.",
+  "localValidation": {
+    "unitSuites": 118,
+    "unitPassed": 1084,
+    "inheritedSkipped": 1,
+    "typescript": "passed",
+    "fullLint": "passed",
+    "unitLog": "/tmp/redwallet-interaction-fixed-unit-20261022.log",
+    "lintLog": "/tmp/redwallet-interaction-fixed-lint-20261022.log"
+  }
+}
