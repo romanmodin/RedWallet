@@ -6,8 +6,10 @@ name: Submit verified RedWallet iOS app for review
       - ".github/scripts/test-submit-ios-store.mjs"
       - ".github/scripts/replace-ios-review.mjs"
       - ".github/scripts/test-replace-ios-review.mjs"
-      - ".github/release/IOS-APP-REVIEW-INPUTS-20261019.json"
+      - ".github/release/IOS-V4-APP-REVIEW-INPUTS-20261022.json"
       - ".github/workflows/submit-ios-store.yml"
+      - ".github/scripts/download-ios-review-receipts.py"
+      - ".github/release/IOS-V4-IMESSAGE-REUSE-20261022.json"
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,11 +18,11 @@ concurrency:
   group: redwallet-app-review-submission
   cancel-in-progress: false
 env:
-  SOURCE_COMMIT: 9f627fb87b4b6cc28cddcf6ad45e2edc721551a8
-  CI_RUN_ID: "39297579896"
-  IOS_RUN_ID: "39297579842"
-  FUNDED_IOS_RUN_ID: "39297639315"
-  UPLOAD_RUN_ID: "39312792179"
+  SOURCE_COMMIT: 286e875cb488365eeb00799b6c04305994ab9db7
+  CI_RUN_ID: "39711126561"
+  IOS_RUN_ID: "39711126600"
+  FUNDED_IOS_RUN_ID: "39711154580"
+  UPLOAD_RUN_ID: "39799087741"
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -53,36 +55,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -I .github/scripts/verify-ios-release-gates.py
-          python3 - <<'PY'
-          import subprocess,json,hashlib,zipfile,io
-          from pathlib import Path
-          repo='romanmodin/RedWallet'
-          def api(path):return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/{path}']))
-          m=json.loads(Path('.github/release/IOS-APP-REVIEW-INPUTS-20261019.json').read_text())
-          assert m['sourceCommit']=='9f627fb87b4b6cc28cddcf6ad45e2edc721551a8'
-          expected={
-            'ios-ipa-verification.json':'.github/workflows/build-ios-approved-source.yml',
-            'testflight-beta-verification.json':'.github/workflows/distribute-ios-beta.yml',
-            'store-screenshot-receipt.json':'.github/workflows/upload-ios-store-screenshots.yml',
-            'imessage-upload-receipt.json':'.github/workflows/upload-ios-imessage-screenshots.yml'}
-          assert len(m['receipts'])==4 and {x['member'] for x in m['receipts']}==set(expected)
-          root=Path('submission-receipts');root.mkdir()
-          for receipt in m['receipts']:
-              r=api(f"actions/runs/{receipt['runId']}")
-              assert r['head_sha']==receipt['head'] and r['path']==expected[receipt['member']]
-              assert r['repository']['full_name']==repo and r['head_repository']['full_name']==repo
-              assert r['head_branch']=='main' and r['event']=='workflow_dispatch'
-              assert r['run_attempt']==1 and r['status']=='completed' and r['conclusion']=='success'
-              if receipt['member']=='ios-ipa-verification.json':
-                  assert r['id']==39312792179 and r['head_sha']=='2e48763dfe0b1dd90763c47323143af527bd8148'
-              a=api(f"actions/artifacts/{receipt['artifactId']}")
-              assert not a['expired'] and a['workflow_run']['id']==r['id'] and a['digest']=='sha256:'+receipt['archiveSha256']
-              b=subprocess.check_output(['gh','api',f"repos/{repo}/actions/artifacts/{receipt['artifactId']}/zip"])
-              assert hashlib.sha256(b).hexdigest()==receipt['archiveSha256']
-              z=zipfile.ZipFile(io.BytesIO(b));assert z.namelist().count(receipt['member'])==1
-              data=z.read(receipt['member']);assert hashlib.sha256(data).hexdigest()==receipt['sha256']
-              (root/receipt['member']).write_bytes(data)
-          PY
+          python3 -I .github/scripts/download-ios-review-receipts.py .github/release/IOS-V4-APP-REVIEW-INPUTS-20261022.json
       - name: Verify exact uploaded package against the qualified source
         env:
           GH_TOKEN: ${{ github.token }}

@@ -5,6 +5,8 @@ import {
   submit,
   client,
   replaceAndSubmit,
+  v4ReviewNotes,
+  V4_REVIEW_NOTE,
 } from "./submit-ios-store.mjs";
 import {
   REPLACEMENT_SOURCE,
@@ -33,6 +35,7 @@ function fixture(options = {}) {
     reviews = options.replacement
       ? [{ id: OLD_REVIEW, attributes: { state: "WAITING_FOR_REVIEW" } }]
       : [],
+    notes = options.longNotes ? "N".repeat(4000) : "PRIVATE",
     items = [];
   const sets = Object.entries({
     APP_IPHONE_67: 4,
@@ -74,6 +77,14 @@ function fixture(options = {}) {
     }
     if (method === "PATCH" && path === "/v1/appInfoLocalizations/info-locale") {
       policy = payload.data.attributes.privacyPolicyUrl;
+      return {};
+    }
+    if (
+      method === "PATCH" &&
+      path === "/v1/appStoreReviewDetails/review-detail"
+    ) {
+      assert.deepEqual(Object.keys(payload.data.attributes), ["notes"]);
+      notes = payload.data.attributes.notes;
       return {};
     }
     if (method === "POST" && path === "/v1/reviewSubmissions") {
@@ -143,6 +154,7 @@ function fixture(options = {}) {
       ],
       ["/v1/appStoreVersions/" + V + "/build"]: { id: selected },
       ["/v1/appStoreVersions/" + V + "/appStoreReviewDetail"]: {
+        id: "review-detail",
         attributes: Object.fromEntries(
           [
             "contactFirstName",
@@ -151,7 +163,7 @@ function fixture(options = {}) {
             "contactEmail",
             "notes",
           ]
-            .map((k) => [k, "PRIVATE"])
+            .map((k) => [k, k === "notes" ? notes : "PRIVATE"])
             .concat([["demoAccountRequired", false]]),
         ),
       },
@@ -238,30 +250,42 @@ test("submission client rejects agreements, other apps, build uploads, and arbit
 
 // Negative receipt cases cover stale or unrelated captures before any Apple write.
 test("submission receipts must belong to the exact signed release and both reviewed screenshot families", () => {
-  const source = "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8";
+  const source = "286e875cb488365eeb00799b6c04305994ab9db7";
   const ipa = {
     sourceCommit: source,
     publicSourceCommit: source,
-    orchestrationCommit: "2e48763dfe0b1dd90763c47323143af527bd8148",
+    orchestrationCommit: "b881585e528a9d06b20f67b28a774bd540f3fd20",
     signatureVerification: "passed",
     sourceMappingVerification: "passed",
     ipaSha256:
-      "1f35c12670d95c54dd7f960b9b9b7d09b12fda8ff7d7ca64e3003998f8784dd0",
+      "4d0dc7e91c2acd01eac6d9efe07c574724c28c1483c663e013a8259d2bf5e77e",
     bundles: [
       "com.romanmodin.redwallet",
       "com.romanmodin.redwallet.Stickers",
-    ].map((bundleId) => ({ bundleId, version: "8.0.1", build: "1792439689" })),
+    ].map((bundleId) => ({
+      bundleId,
+      version: "8.0.1",
+      build: "1792686194",
+      architectures: ["arm64"],
+    })),
   };
   const beta = {
     sourceCommit: source,
-    uploadRunId: "39312792179",
+    uploadRunId: "39799087741",
     ipaSha256: ipa.ipaSha256,
     processingState: "VALID",
+    status: "AVAILABLE_TO_TESTERS",
+    internalBuildState: "IN_BETA_TESTING",
+    externalBuildState: "IN_BETA_TESTING",
+    groups: [
+      "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
+      "463ff340-3283-4f17-949d-39c7aa929da2",
+    ].map((id) => ({ id, assigned: true })),
     appId: APP,
     bundleId: "com.romanmodin.redwallet",
     version: "8.0.1",
     appleBuildId: "new-build-id",
-    build: "1792439689",
+    build: "1792686194",
   };
   const identity = {
     appId: APP,
@@ -272,7 +296,7 @@ test("submission receipts must belong to the exact signed release and both revie
   const shots = {
     ...identity,
     status: "SCREENSHOTS_REPLACED",
-    captureRunId: 39312798717,
+    captureRunId: 39799093428,
     images: ["iphone", "ipad"].flatMap((family) =>
       Array.from({ length: 4 }, (_, i) => ({
         family,
@@ -283,6 +307,7 @@ test("submission receipts must belong to the exact signed release and both revie
   };
   const message = {
     ...identity,
+    sourceCommit: "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
     status: "SCREENSHOTS_COMPLETE",
     captureRunId: 39319942381,
     images: ["iphone", "ipad"].map((family) => ({
@@ -291,27 +316,62 @@ test("submission receipts must belong to the exact signed release and both revie
       state: "COMPLETE",
     })),
   };
-  assert.equal(verifyReceipts(ipa, beta, shots, message).build, "1792439689");
+  const reuse = {
+    previousSourceCommit: "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+    replacementSourceCommit: source,
+    previousIosTree: "30e39cdee442e7d716cdc95de44ada6df2a523b7",
+    replacementIosTree: "30e39cdee442e7d716cdc95de44ada6df2a523b7",
+    newPackageVerificationPending: false,
+    signedPackageRunId: 39799087741,
+    signedPackageBuild: beta.build,
+  };
+  const verify = (i, b, s, m, r = reuse) => verifyReceipts(i, b, s, m, r);
+  assert.equal(verify(ipa, beta, shots, message).build, "1792686194");
   assert.throws(
-    () => verifyReceipts(ipa, beta, shots, { ...message, sourceCommit: "old" }),
+    () => verify(ipa, beta, shots, { ...message, sourceCommit: "old" }),
     /iMessage/,
   );
   assert.throws(
-    () => verifyReceipts(ipa, beta, { ...shots, appId: "another" }, message),
+    () => verify(ipa, beta, { ...shots, appId: "another" }, message),
     /Main screenshots/,
   );
   assert.throws(
     () =>
-      verifyReceipts(ipa, beta, shots, {
+      verify(ipa, beta, shots, {
         ...message,
         images: message.images.map((i) => ({ ...i, family: "iphone" })),
       }),
     /family/,
   );
   assert.throws(
-    () =>
-      verifyReceipts({ ...ipa, ipaSha256: "another" }, beta, shots, message),
+    () => verify({ ...ipa, ipaSha256: "another" }, beta, shots, message),
     /signed package/,
+  );
+  assert.throws(
+    () =>
+      verify(
+        ipa,
+        { ...beta, externalBuildState: "WAITING_FOR_REVIEW" },
+        shots,
+        message,
+      ),
+    /Apple build/,
+  );
+  assert.throws(
+    () =>
+      verify(ipa, beta, shots, message, {
+        ...reuse,
+        newPackageVerificationPending: true,
+      }),
+    /iMessage source/,
+  );
+  assert.throws(
+    () =>
+      verify(ipa, beta, shots, message, {
+        ...reuse,
+        replacementIosTree: "different",
+      }),
+    /iMessage source/,
   );
 });
 
@@ -368,4 +428,37 @@ test("replacement client supports only the additional read-only beta checks", as
     api("PATCH", "/v1/builds/new-build-id/betaGroups", {}),
     /Unexpected/,
   );
+});
+
+test("V4 notes preserve prior text and are idempotent", () => {
+  const n = v4ReviewNotes("Existing private contact and review context");
+  assert.equal(
+    n,
+    "Existing private contact and review context\n\n" + V4_REVIEW_NOTE,
+  );
+  assert.equal(v4ReviewNotes(n), n);
+  assert.throws(() => v4ReviewNotes("X".repeat(4000)), /limit/);
+});
+test("oversized notes stop before build selection or metadata writes", async () => {
+  const f = fixture({ longNotes: true });
+  await assert.rejects(submit(f.api, f.c, {}), /limit/);
+  assert.equal(f.writes.length, 0);
+});
+test("review detail patch cannot change contacts or credentials", async () => {
+  let calls = 0;
+  const api = client("fake", async () => {
+    calls++;
+    return { status: 204, ok: true };
+  });
+  await assert.rejects(
+    api("PATCH", "/v1/appStoreReviewDetails/review-detail", {
+      data: {
+        type: "appStoreReviewDetails",
+        id: "review-detail",
+        attributes: { contactEmail: "changed" },
+      },
+    }),
+    /Only reviewer notes/,
+  );
+  assert.equal(calls, 0);
 });
