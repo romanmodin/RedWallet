@@ -1,7 +1,7 @@
 // Prepared for the v4 replacement. No CLI/credential access: wire only after
 // actual new signed/uploaded/TestFlight receipt pins have been verified.
 // Apple documents `canceled: boolean` on ReviewSubmissionUpdateRequest.Data.Attributes.
-export const REPLACEMENT_SOURCE = "2bb3073678492b476ae67d6e42a76ca705b26fb2";
+export const REPLACEMENT_SOURCE = "286e875cb488365eeb00799b6c04305994ab9db7";
 export const OLD_REVIEW = "bcd6801a-7ad2-433e-8963-05b880baefc8";
 export const OLD_BUILD = "8f82931c-2a19-43cb-b15b-93182f029ae5";
 const APP = "6817118871";

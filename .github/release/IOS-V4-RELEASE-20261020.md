@@ -8,9 +8,15 @@ User authorized TestFlight delivery and replacing the Apple submission with v4 o
 
 After gates pass: guarded merge PR74, update/verify this branch, merge, dispatch one protected signing/upload plus required fresh captures after duplicate checks. Verify actual upload/source/signatures; update beta pins only from its receipt, distribute to existing groups and verify availability. Prepare replacement submission from actual receipts; verify current old build/review IDs before cancellation and stop on any unexpected state. Wait for cancellation to become terminal, select the new build, refresh qualified-source privacy URL and reviewer notes, submit and GET-verify status. No blind mutation retries or new legal acceptance. Do not claim upload/submission from this preparation.
 
-## Verified progress 2026-10-20 08:07 EDT
+## Current qualification — 2026-10-22
 
-Exact-source software CI 39418562475 passed. The committed 2bb307367 source passed six real reference-peer/loopback-WebSocket/disposable-Knots rounds: one, two and five outputs for each SegWit/Taproot type. Every raw transaction matched and was accepted and confirmed once; peer networking was disabled. The upstream Kotlin sources remain pinned to Kilowallet 1.2.0 commit 6fbff814de8a59d6c4879724bcb1ae772182a0f1. This does not establish physical-phone interoperability. Native general and funded runs remain pending.
+Source `286e875cb488365eeb00799b6c04305994ab9db7` passed CI39711126561, general iOS39711126600 and funded iOS39711154580 on attempt1. The existing gate verifier passed and actual general/funded artifacts were inspected. Production mapping is989paths/SHA2568a9e96245cbc910bf5e30031728ac9345ff480787fa62158122108c53039b1fe.
+
+Visual approval remains pending because the immediate return-to-portrait screenshot lacked the wallet card. Follow-up39744396216 timed out during the first landscape request and never reached the card check; it is not evidence of a persistent card failure. The corrected nonqualifying follow-up39791900858 observes the selected Simulator window before requesting rotation. No v4 signing/upload/TestFlight distribution or review replacement has occurred. The offline replacement helper is now pinned to286e, but remains unwired until actual package/delivery receipts exist.
+
+## Historical peer evidence — 2026-10-20 08:07 EDT
+
+Exact-source software CI 39418562475 passed. The committed 2bb307367 source passed six real reference-peer/loopback-WebSocket/disposable-Knots rounds: one, two and five outputs for each SegWit/Taproot type. Every raw transaction matched and was accepted and confirmed once; peer networking was disabled. The upstream Kotlin sources remain pinned to Kilowallet 1.2.0 commit 6fbff814de8a59d6c4879724bcb1ae772182a0f1. This does not establish physical-phone interoperability. Those historical native runs do not establish the current candidate qualification described above.
 
 Prepared `replace-ios-review.mjs` is an offline-tested module with no credential access or CLI entrypoint. It is not wired to the submission job and performs no live action during PR tests. Thirteen tests cover exact old review identity, replacement Apple/TestFlight readiness, unrelated review/build preservation, pending cancellation, and uncertain-write behavior. The existing submission verifier still pins the prior actual release; repin and integrate only from the eventual new verified receipts.
 

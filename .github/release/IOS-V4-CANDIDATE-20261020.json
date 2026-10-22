@@ -53,7 +53,7 @@
     ],
     "androidQualified": false
   },
-  "visualFollowupRunId": 39744396216,
+  "visualFollowupRunId": 39791900858,
   "visualEvidence": {
     "artifactId": 12400258528,
     "archiveSha256": "a3201725adc561d691107e5a7c95e2228799c2088964e0fa21462d9f3dcbe7cf",
@@ -69,5 +69,13 @@
     "decodedReviewVerified": true,
     "highFeeDeclineBlockedBroadcast": true,
     "cleanupComplete": true
-  }
+  },
+  "previousVisualFollowup": {
+    "runId": 39744396216,
+    "artifactId": 12411038967,
+    "archiveSha256": "25bc53ed832556aa2e79a4b9943c22c8d94d547dc04b1e49c257176eb0a7d6cc",
+    "result": "SIMULATOR_LANDSCAPE_REQUEST_TIMEOUT_BEFORE_RETURN_PORTRAIT_CHECK",
+    "qualifiesRelease": false
+  },
+  "visualFollowupStatus": "QUEUED_SELECTED_SIMULATOR_WINDOW_PROBE"
 }
