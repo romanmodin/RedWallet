@@ -1,21 +1,38 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { verifyReceipts, submit, client } from "./submit-ios-store.mjs";
+import {
+  verifyReceipts,
+  submit,
+  client,
+  replaceAndSubmit,
+} from "./submit-ios-store.mjs";
+import {
+  REPLACEMENT_SOURCE,
+  OLD_BUILD,
+  OLD_REVIEW,
+} from "./replace-ios-review.mjs";
 const APP = "6817118871",
   V = "65cd6bc4-9962-4b77-a3ca-78c115f3a615",
   L = "67c79fa3-be47-4fc0-94c5-713836f9d262";
-function fixture() {
+function fixture(options = {}) {
   const c = {
-      build: "new-build-number",
+      build: options.replacement ? "1792700000" : "new-build-number",
+      sourceCommit: options.replacement ? REPLACEMENT_SOURCE : undefined,
       appleBuildId: "new-build-id",
       ipaSha256: "hash",
       images: [],
     },
     writes = [];
-  let state = "PREPARE_FOR_SUBMISSION",
-    selected = "0c79c478-9b0f-4017-a62f-499e8d5e7143",
+  let state = options.replacement
+      ? "WAITING_FOR_REVIEW"
+      : "PREPARE_FOR_SUBMISSION",
+    selected = options.replacement
+      ? OLD_BUILD
+      : "0c79c478-9b0f-4017-a62f-499e8d5e7143",
     policy = "https://github.com/romanmodin/RedWallet/blob/old/docs/PRIVACY.md",
-    reviews = [],
+    reviews = options.replacement
+      ? [{ id: OLD_REVIEW, attributes: { state: "WAITING_FOR_REVIEW" } }]
+      : [],
     items = [];
   const sets = Object.entries({
     APP_IPHONE_67: 4,
@@ -43,6 +60,14 @@ function fixture() {
         "Request the item relationship before checking its identity",
       );
     if (method !== "GET") writes.push({ method, path, payload });
+    if (method === "PATCH" && path === "/v1/reviewSubmissions/" + OLD_REVIEW) {
+      assert.deepEqual(payload.data.attributes, { canceled: true });
+      reviews[0].attributes.state = options.pendingCancellation
+        ? "CANCELING"
+        : "COMPLETE";
+      if (!options.pendingCancellation) state = "DEVELOPER_REJECTED";
+      return {};
+    }
     if (method === "PATCH" && path.endsWith("/relationships/build")) {
       selected = payload.data.id;
       return {};
@@ -95,6 +120,27 @@ function fixture() {
       ["/v1/builds/new-build-id/preReleaseVersion"]: {
         attributes: { version: "8.0.1", platform: "IOS" },
       },
+      ["/v1/builds/new-build-id/buildBetaDetail"]: {
+        attributes: {
+          internalBuildState: "IN_BETA_TESTING",
+          externalBuildState: options.undelivered
+            ? "WAITING_FOR_REVIEW"
+            : "IN_BETA_TESTING",
+        },
+      },
+      ["/v1/builds/new-build-id/betaGroups"]: [
+        "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
+        "463ff340-3283-4f17-949d-39c7aa929da2",
+      ].map((id) => ({ id })),
+      ["/v1/reviewSubmissions/" + OLD_REVIEW]: reviews.find(
+        (r) => r.id === OLD_REVIEW,
+      ),
+      ["/v1/reviewSubmissions/" + OLD_REVIEW + "/items"]: [
+        {
+          id: "old-item",
+          relationships: { appStoreVersion: { data: { id: V } } },
+        },
+      ],
       ["/v1/appStoreVersions/" + V + "/build"]: { id: selected },
       ["/v1/appStoreVersions/" + V + "/appStoreReviewDetail"]: {
         attributes: Object.fromEntries(
@@ -266,5 +312,60 @@ test("submission receipts must belong to the exact signed release and both revie
     () =>
       verifyReceipts({ ...ipa, ipaSha256: "another" }, beta, shots, message),
     /signed package/,
+  );
+});
+
+test("replacement preflights screenshots and beta delivery, withdraws only old review, then submits the new build", async () => {
+  const f = fixture({ replacement: true }),
+    report = {};
+  await replaceAndSubmit(f.api, f.c, report);
+  assert.equal(report.submitted, true);
+  assert.equal(report.replacementStatus, "OLD_REVIEW_REMOVAL_VERIFIED");
+  assert.equal(report.selectedBuild, f.c.appleBuildId);
+  assert.equal(f.writes[0].path, "/v1/reviewSubmissions/" + OLD_REVIEW);
+  assert.deepEqual(f.writes[0].payload.data.attributes, { canceled: true });
+  assert.equal(
+    f.writes.filter((w) => w.path === "/v1/reviewSubmissions/" + OLD_REVIEW)
+      .length,
+    1,
+  );
+  f.writes.length = 0;
+  await replaceAndSubmit(f.api, f.c, {});
+  assert.equal(f.writes.length, 0);
+});
+test("replacement missing a complete screenshot preserves the old submission", async () => {
+  const f = fixture({ replacement: true });
+  Object.values(f.shots)[0][0].attributes.assetDeliveryState.state = "FAILED";
+  await assert.rejects(replaceAndSubmit(f.api, f.c, {}), /screenshots differ/);
+  assert.equal(f.writes.length, 0);
+});
+test("replacement not delivered to TestFlight preserves the old submission", async () => {
+  const f = fixture({ replacement: true, undelivered: true });
+  await assert.rejects(replaceAndSubmit(f.api, f.c, {}), /TestFlight/);
+  assert.equal(f.writes.length, 0);
+});
+test("pending old review cancellation stops without selecting or submitting the new build", async () => {
+  const f = fixture({ replacement: true, pendingCancellation: true }),
+    report = {};
+  await replaceAndSubmit(f.api, f.c, report);
+  assert.equal(report.replacementStatus, "WAITING_FOR_OLD_REVIEW_REMOVAL");
+  assert.equal(f.writes.length, 1);
+  assert.equal(report.submitted, undefined);
+});
+test("replacement client supports only the additional read-only beta checks", async () => {
+  const seen = [];
+  const api = client("fake", async (url, options) => {
+    seen.push([url.pathname, options.method]);
+    return { status: 200, ok: true, json: async () => ({ data: {} }) };
+  });
+  for (const tail of ["buildBetaDetail", "betaGroups"])
+    await api("GET", "/v1/builds/new-build-id/" + tail);
+  assert.deepEqual(
+    seen.map((x) => x[1]),
+    ["GET", "GET"],
+  );
+  await assert.rejects(
+    api("PATCH", "/v1/builds/new-build-id/betaGroups", {}),
+    /Unexpected/,
   );
 });

@@ -207,7 +207,9 @@ export async function upload(
     version?.id === VERSION_ID &&
       version.attributes?.versionString === VERSION &&
       version.attributes.platform === "IOS" &&
-      version.attributes.appStoreState === "PREPARE_FOR_SUBMISSION",
+      (version.attributes.appStoreState === "PREPARE_FOR_SUBMISSION" ||
+        (filePrefix === "redwallet-app" &&
+          version.attributes.appStoreState === "DEVELOPER_REJECTED")),
     "Wrong or non-editable version",
   );
   const locales = (

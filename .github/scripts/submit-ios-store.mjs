@@ -1,6 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { makeToken, APP_ID, BUNDLE_ID, VERSION } from "./inspect-ios-store.mjs";
+import {
+  withdrawSupersededReview,
+  REPLACEMENT_SOURCE,
+  OLD_BUILD,
+} from "./replace-ios-review.mjs";
 export const SOURCE = "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8";
 const VERSION_ID = "65cd6bc4-9962-4b77-a3ca-78c115f3a615";
 const LOCALE_ID = "67c79fa3-be47-4fc0-94c5-713836f9d262";
@@ -98,7 +103,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots) {
 export function client(token, request = fetch) {
   return async (method, path, payload, query = {}) => {
     const get =
-      /^\/v1\/(?:apps\/6817118871(?:\/(?:appInfos|reviewSubmissions))?|appInfos\/[A-Za-z0-9-]+\/appInfoLocalizations|appStoreVersions\/65cd6bc4-9962-4b77-a3ca-78c115f3a615(?:\/(?:build|appStoreReviewDetail|appStoreVersionLocalizations))?|appStoreVersionLocalizations\/67c79fa3-be47-4fc0-94c5-713836f9d262\/appScreenshotSets|appScreenshotSets\/[A-Za-z0-9-]+\/appScreenshots|builds\/[A-Za-z0-9-]+(?:\/(?:app|preReleaseVersion))?|reviewSubmissions\/[A-Za-z0-9-]+(?:\/items)?)$/;
+      /^\/v1\/(?:apps\/6817118871(?:\/(?:appInfos|reviewSubmissions))?|appInfos\/[A-Za-z0-9-]+\/appInfoLocalizations|appStoreVersions\/65cd6bc4-9962-4b77-a3ca-78c115f3a615(?:\/(?:build|appStoreReviewDetail|appStoreVersionLocalizations))?|appStoreVersionLocalizations\/67c79fa3-be47-4fc0-94c5-713836f9d262\/appScreenshotSets|appScreenshotSets\/[A-Za-z0-9-]+\/appScreenshots|builds\/[A-Za-z0-9-]+(?:\/(?:app|preReleaseVersion|buildBetaDetail|betaGroups))?|reviewSubmissions\/[A-Za-z0-9-]+(?:\/items)?)$/;
     const patch =
       /^\/v1\/(?:appStoreVersions\/65cd6bc4-9962-4b77-a3ca-78c115f3a615\/relationships\/build|appInfoLocalizations\/[A-Za-z0-9-]+|reviewSubmissions\/[A-Za-z0-9-]+)$/;
     check(
@@ -271,13 +276,18 @@ export async function verifyListing(api, candidate) {
 }
 export async function submit(api, candidate, report) {
   const version = await verifyListing(api, candidate);
+  const verifiedReplacement =
+    candidate.sourceCommit === REPLACEMENT_SOURCE &&
+    report.replacementStatus === "OLD_REVIEW_REMOVAL_VERIFIED";
   check(
     [
       "PREPARE_FOR_SUBMISSION",
       "READY_FOR_REVIEW",
       "WAITING_FOR_REVIEW",
       "IN_REVIEW",
-    ].includes(version.attributes.appStoreState),
+    ].includes(version.attributes.appStoreState) ||
+      (verifiedReplacement &&
+        version.attributes.appStoreState === "DEVELOPER_REJECTED"),
     "Version state requires review",
   );
   let selected = (
@@ -297,7 +307,8 @@ export async function submit(api, candidate, report) {
         [
           candidate.appleBuildId,
           "0c79c478-9b0f-4017-a62f-499e8d5e7143",
-        ].includes(selected.id),
+        ].includes(selected.id) ||
+        (verifiedReplacement && selected.id === OLD_BUILD),
       "Unexpected selected build; preserve it for review",
     );
     if (selected?.id !== candidate.appleBuildId)
@@ -471,6 +482,26 @@ export async function submit(api, candidate, report) {
   report.status = "SUBMITTED_FOR_APP_REVIEW";
   report.submitted = true;
   return report;
+}
+// Prepared offline. The CLI remains on its prior receipt pins until the new
+// signed package, TestFlight delivery and screenshot receipts are verified.
+export async function replaceAndSubmit(api, candidate, report) {
+  check(
+    candidate.sourceCommit === REPLACEMENT_SOURCE,
+    "Unqualified replacement source",
+  );
+  // Verify the entire listing before withdrawing the existing review.
+  await verifyListing(api, candidate);
+  await withdrawSupersededReview(api, candidate, report);
+  if (report.replacementStatus === "WAITING_FOR_OLD_REVIEW_REMOVAL")
+    return report;
+  check(
+    ["OLD_REVIEW_REMOVAL_VERIFIED", "REPLACEMENT_ALREADY_SUBMITTED"].includes(
+      report.replacementStatus,
+    ),
+    "Replacement withdrawal remains unresolved",
+  );
+  return submit(api, candidate, report);
 }
 async function main() {
   const report = {
