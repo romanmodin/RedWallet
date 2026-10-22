@@ -1,4 +1,4 @@
-# V4 release preparation — pending qualification
+# V4 release preparation — qualified source, delivery pending
 
 Pins the enabled v4 candidate and required exact-source software/general iOS/funded iOS runs. PR74 must qualify and merge first; then update this branch against actual main and verify unchanged production mapping before merging orchestration. Do not dispatch old main pins or interpret this draft as qualification.
 
@@ -12,7 +12,7 @@ After gates pass: guarded merge PR74, update/verify this branch, merge, dispatch
 
 Source `286e875cb488365eeb00799b6c04305994ab9db7` passed CI39711126561, general iOS39711126600 and funded iOS39711154580 on attempt1. The existing gate verifier passed and actual general/funded artifacts were inspected. Production mapping is989paths/SHA2568a9e96245cbc910bf5e30031728ac9345ff480787fa62158122108c53039b1fe.
 
-Visual approval remains pending because the immediate return-to-portrait screenshot lacked the wallet card. Follow-up39744396216 timed out during the first landscape request and never reached the card check; it is not evidence of a persistent card failure. The corrected nonqualifying follow-up39791900858 observes the selected Simulator window before requesting rotation. No v4 signing/upload/TestFlight distribution or review replacement has occurred. The offline replacement helper is now pinned to286e, but remains unwired until actual package/delivery receipts exist.
+Visual review is complete after re-extracting the original four PNGs and verifying each against its sidecar and archived bytes. The return-to-portrait image clearly contains the Wallets header and Artwork Test Wallet card with 0 XBT; the earlier contrary assessment was mistaken. Portrait artwork framing and read-only discovery are readable, and landscape native bounds show the actual rotation. The immediate landscape capture has small balance text. Additional diagnostic39791900858 remains separate and cannot replace the required successful gates. No v4 signing/upload/TestFlight distribution or review replacement has occurred. The offline replacement helper is pinned to286e and remains unwired until actual package/delivery receipts exist.
 
 ## Historical peer evidence — 2026-10-20 08:07 EDT
 

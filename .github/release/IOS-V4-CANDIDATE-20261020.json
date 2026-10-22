@@ -5,7 +5,7 @@
   "ciRunId": 39711126561,
   "iosRunId": 39711126600,
   "fundedIosRunId": 39711154580,
-  "status": "AUTOMATED_GATES_PASSED_VISUAL_FOLLOWUP_PENDING",
+  "status": "QUALIFIED_FOR_IOS_SIGNING",
   "uploaded": false,
   "distributed": false,
   "submitted": false,
@@ -21,9 +21,9 @@
   "replacementHelperStatus": "PREPARED_OFFLINE_NOT_WIRED",
   "replacementHelperTestsPassed": 13,
   "peerRegtestSourceCommit": "2bb3073678492b476ae67d6e42a76ca705b26fb2",
-  "visualStatus": "RETURN_PORTRAIT_CARD_SETTLING_UNRESOLVED",
+  "visualStatus": "APPROVED_ACTUAL_QUALIFICATION_FRAMES",
   "qualification": {
-    "verifiedAt": "2026-10-22T07:55:40.876335+00:00",
+    "verifiedAt": "2026-10-22T14:06:08.476892+00:00",
     "sourceCommit": "286e875cb488365eeb00799b6c04305994ab9db7",
     "gates": [
       {
@@ -59,7 +59,14 @@
     "archiveSha256": "a3201725adc561d691107e5a7c95e2228799c2088964e0fa21462d9f3dcbe7cf",
     "allFourPngsInspected": true,
     "sidecarHashesMatched": true,
-    "observation": "Initial portrait and pool discovery readable; landscape genuinely rotated; immediate return-portrait frame has no wallet card. Separate no-intervention settling observation pending."
+    "observation": "Re-extracted all four original PNGs from verified artifact12400258528 and viewed individually. Initial portrait and return-portrait both show the centered artwork, Wallets header, Artwork Test Wallet card with 0 XBT and transaction section. Landscape native bounds874x402 and rotated framebuffer are correct; balance text appears small in the immediate transition frame. Pool discovery is readable. The prior claim that the return-portrait wallet card was absent was an incorrect visual assessment, not a file change or an app failure.",
+    "reviewedAt": "2026-10-22T14:07:02.165147+00:00",
+    "pngSha256": {
+      "portrait": "27b6013ed777dff7977182046da74500bfb40fcde8a4db7bfba2dc3058d548c8",
+      "landscape": "1203dec45bdae7cc0a54dff8b58ff190ea3e7210a6290c94797895815cabb1c3",
+      "returnPortrait": "262b8939ee19981a06fc4a92a5e40294d264739ea49c6ad38c0644e913413c51",
+      "discovery": "9ddc6ac7aeab5ef772de2e8bb8056a10a58cef7b615ba46eac175a1babeab341"
+    }
   },
   "fundedEvidence": {
     "artifactId": 12398246141,
@@ -77,5 +84,5 @@
     "result": "SIMULATOR_LANDSCAPE_REQUEST_TIMEOUT_BEFORE_RETURN_PORTRAIT_CHECK",
     "qualifiesRelease": false
   },
-  "visualFollowupStatus": "QUEUED_SELECTED_SIMULATOR_WINDOW_PROBE"
+  "visualFollowupStatus": "NONQUALIFYING_ADDITIONAL_DIAGNOSTIC_NOT_A_RELEASE_GATE"
 }
