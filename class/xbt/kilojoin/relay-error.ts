@@ -21,6 +21,13 @@ export function participantFailure(error: unknown): Error {
     'Invalid or expired session phase': 'KJ-PHASE',
     'Invalid vote caller': 'KJ-VOTE',
     'Invalid round/vote identifier': 'KJ-ROUND-ID',
+    'Conflicting initial vote': 'KJ-ORDER',
+    'Session persistence failed': 'KJ-STORAGE',
+    'Invalid NIP44 payload': 'KJ-DECRYPT',
+    'Invalid NIP44 version/encoding': 'KJ-DECRYPT',
+    'Invalid NIP44 MAC': 'KJ-DECRYPT',
+    'Invalid NIP44 padding': 'KJ-DECRYPT',
+    'Invalid UTF8': 'KJ-DECRYPT',
   };
   const code = error instanceof Error && Object.prototype.hasOwnProperty.call(codes, error.message) ? codes[error.message] : 'KJ-PROCESS';
   return new Error('Participant message rejected [' + code + ']');
@@ -54,6 +61,9 @@ export function relayFailureMessage(error: Error): string {
     'KJ-PHASE',
     'KJ-VOTE',
     'KJ-ROUND-ID',
+    'KJ-ORDER',
+    'KJ-STORAGE',
+    'KJ-DECRYPT',
   ]) {
     messages['Participant message rejected [' + code + ']'] = messages['Participant message rejected'] + ' Diagnostic: ' + code + '.';
   }

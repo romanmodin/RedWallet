@@ -41,6 +41,13 @@ test.each([
   ['Invalid or expired session phase', 'KJ-PHASE'],
   ['Invalid vote caller', 'KJ-VOTE'],
   ['Invalid round/vote identifier', 'KJ-ROUND-ID'],
+  ['Conflicting initial vote', 'KJ-ORDER'],
+  ['Session persistence failed', 'KJ-STORAGE'],
+  ['Invalid NIP44 MAC', 'KJ-DECRYPT'],
+  ['Invalid NIP44 padding', 'KJ-DECRYPT'],
+  ['Invalid NIP44 payload', 'KJ-DECRYPT'],
+  ['Invalid NIP44 version/encoding', 'KJ-DECRYPT'],
+  ['Invalid UTF8', 'KJ-DECRYPT'],
 ])('distinguishes exact local failure %s without echoing details', (message, code) => {
   expect(relayFailureMessage(participantFailure(new Error(message)))).toContain(`Diagnostic: ${code}.`);
   const untrusted = `${message}: private peer details`;

@@ -61,6 +61,12 @@ export class ParticipantSession {
   private readonly seat: Seat;
   private readonly mixScripts: string[];
   private welcomeSequenceFloor = -1;
+  private pendingInitialVote?: {
+    by: string;
+    voteId: string;
+    createdAt: number;
+  };
+
   private busy = false;
   private idle: Promise<void> = Promise.resolve();
   constructor(
@@ -178,8 +184,20 @@ export class ParticipantSession {
   }
 
   private async save(next: SessionState): Promise<void> {
-    await this.env.saveEncrypted(copy(next));
+    try {
+      await this.env.saveEncrypted(copy(next));
+    } catch {
+      // Persist no raw native error text: it can contain storage identifiers.
+      throw new Error('Session persistence failed');
+    }
     this.state = copy(next);
+  }
+
+  private votingState(base: SessionState, vote: { by: string; voteId: string; createdAt: number }): SessionState {
+    if (base.seats.length < this.terms.min_peers || !base.seats.some(s => s.token_hash === vote.by)) throw new Error('Invalid vote caller');
+    const deadline = Math.min(base.deadline, vote.createdAt + 600);
+    if (this.env.now() >= deadline) throw new Error('Invalid or expired session phase');
+    return { ...base, phase: 'voting', voteId: vote.voteId, deadline };
   }
 
   private async publish(body: Record<string, unknown>, isolated = false): Promise<void> {
@@ -278,23 +296,33 @@ export class ParticipantSession {
           if ((body.seq as number) <= this.welcomeSequenceFloor) break;
           this.require(['open', 'voting']);
           const seats = await this.checkedSeats(body.seats, body.seq as number);
-          await this.save({
+          const next: SessionState = {
             ...this.state,
             seats,
             sequence: body.seq as number,
-          });
+          };
+          // A fresh pool subscription can return stored vote_open before roster
+          // (NIP-01 newest-first history, including timestamp ties). Accept the
+          // vote only after all roster/ownership/chain checks, in one durable save.
+          await this.save(this.pendingInitialVote ? this.votingState(next, this.pendingInitialVote) : next);
+          this.pendingInitialVote = undefined;
           break;
         }
         case 'vote_open': {
           this.require(['open']);
-          if (this.state.seats.length < this.terms.min_peers || !this.state.seats.some(s => s.token_hash === body.by))
-            throw new Error('Invalid vote caller');
-          await this.save({
-            ...this.state,
-            phase: 'voting',
+          const vote = {
+            by: hex(body.by as string, 32).toString('hex'),
             voteId: identifier(body.vote_id),
-            deadline: Math.min(this.state.deadline, message.createdAt + 600),
-          });
+            createdAt: message.createdAt,
+          };
+          if (this.state.seats.length === 0) {
+            // The authenticated creator's one bounded pending request cannot
+            // trigger voting, publishing or signing without a verified roster.
+            if (this.pendingInitialVote) throw new Error('Conflicting initial vote');
+            this.pendingInitialVote = vote;
+            break;
+          }
+          await this.save(this.votingState(this.state, vote));
           break;
         }
         case 'reopen':
@@ -602,6 +630,7 @@ export class ParticipantSession {
     return this.exclusive(async () => {
       await this.round.cancel();
       await this.save({ ...this.state, phase: 'aborted' });
+      this.pendingInitialVote = undefined;
       this.inbox.close();
       this.joinSecret.fill(0);
     });

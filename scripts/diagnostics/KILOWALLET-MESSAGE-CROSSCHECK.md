@@ -101,3 +101,43 @@ Generated exchanges are copied from /tmp/redwallet-actual-session-vectors.json t
 blinding randomness means the recorded blind signature cannot authenticate a new
 blinding request; full blinding/output interoperability is verified by the manual
 live-process harness above. Neither test exercises iOS/Hermes or real chain data.
+
+
+## Immediate startup order and state fingerprints
+
+`tests/unit/xbt-kilojoin-startup-order.test.ts` uses the production relay and
+session with an offline socket and actual recorded Kotlin creator envelopes.
+Its callback mirrors MixingClient's direct-welcome to pool subscription switch.
+NIP-01 initial history with a limit is timestamp descending, then event ID
+ascending: https://github.com/nostr-protocol/nips/blob/master/01.md.
+
+Before correction, all 12 chronological exchanges passed; forcing vote before
+roster failed in all 12. The specified history sort produced that failure in
+7 of the 12 fixed recordings. These tests reproduce a startup defect; they do
+not prove that the actual relay delivered the user's attempt in that order.
+The failed vote left phase OPEN, whereas the user's screenshot says JOINING.
+A welcome persistence failure leaves JOINING with zero seats. A later chain
+failure leaves OPEN with zero seats; a duplicate accepted roster leaves OPEN
+with its accepted seats. The controller does not reset those states to JOINING.
+A welcome arriving before the join publication acknowledgment waits correctly.
+
+The correction retains at most one authenticated initial vote. It cannot cause
+voting, publishing or signing until the complete roster, input proofs, chain
+observations, own seat and caller membership pass. Roster and voting state are
+saved atomically. The original vote time/deadline and strict replay rejection
+remain; conflicting pending votes fail closed. This is not general history
+reconciliation or automatic retry. New KJ-STORAGE/KJ-DECRYPT diagnostics avoid
+exposing native storage errors, payloads or keys.
+
+The native self-test now calls `startup-self-test.ts`: exact actual-envelope
+subsets for both script types, five seats and five outputs are packaged in
+`startup-self-test-vectors.json`. Each runs chronological and reversed order,
+using real native crypto/vault code when executed on iOS. It uses a fixed test
+clock and independent known synthetic coin map, never the wallet or backend.
+It rejects replay and verifies no transaction was signed. Only its unique
+storage/keychain records are deleted. The generator source for known peer coins
+is `KilowalletSessionHarness.kt` at the pinned upstream revision above.
+The Node-hosted self-test passed; native iOS execution remains REQUIRED.
+
+Evidence and actual before/after log hashes:
+`.github/release/IOS-KILOJOIN-STARTUP-ORDER-20261023.json`.

@@ -133,7 +133,10 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1) {
     const tweaked = ECPair.fromPrivateKey(key).tweak(bitcoinCrypto.taggedHash('TapTweak', internal));
     return Buffer.concat([tweaked.signSchnorr!(digest(p, index)), Buffer.from([0x21])]).toString('hex');
   };
-  return { session, round, env, advance, receive, published, signature, rawSeats, terms };
+  const tick = (seconds: number) => {
+    now += seconds;
+  };
+  return { session, round, env, advance, receive, published, signature, rawSeats, terms, tick };
 }
 test.each([1, 2, 5])('accepts upstream BigInteger welcome key for %i mixed outputs', async outputs => {
   const f = await fixture('p2wpkh', outputs);
@@ -164,11 +167,118 @@ test('does not advance or install the welcome key when durable persistence fails
   const f = await fixture();
   (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('Persistence unavailable'));
   await expect(f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true)).rejects.toThrow(
-    'Persistence unavailable',
+    'Session persistence failed',
   );
   expect(f.session.snapshot().phase).toBe('joining');
   await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Unauthorized message route');
   expect(f.published).toHaveLength(0);
+});
+
+test('a pending initial vote cannot vote, publish, sign, or change reservations before a verified roster', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const before = f.session.snapshot();
+  await f.receive({
+    type: 'vote_open',
+    by: f.rawSeats[1].token_hash,
+    vote_id: 'aa'.repeat(8),
+  });
+  expect(f.session.snapshot()).toEqual(before);
+  await expect(f.session.vote(true)).rejects.toThrow('phase');
+  expect(f.published).toHaveLength(0);
+  expect(f.round.snapshot().phase).toBe('joined');
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot()).toMatchObject({
+    phase: 'voting',
+    deadline: 10600,
+    voteId: 'aa'.repeat(8),
+  });
+  expect(f.published).toHaveLength(0);
+});
+
+test.each(['proof', 'chain', 'own-seat'] as const)('a pending initial vote never bypasses a failing %s check', async failure => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({
+    type: 'vote_open',
+    by: f.rawSeats[1].token_hash,
+    vote_id: 'aa'.repeat(8),
+  });
+  const seats = JSON.parse(JSON.stringify(f.rawSeats));
+  if (failure === 'proof') seats[1].proofs[0] = '00';
+  if (failure === 'chain') f.env.observe = async () => new Map();
+  if (failure === 'own-seat') seats[0].token_hash = 'ee'.repeat(32);
+  await expect(f.receive({ type: 'roster', seq: 1, seats })).rejects.toThrow();
+  expect(f.session.snapshot()).toMatchObject({
+    phase: 'open',
+    seats: [],
+    sequence: 0,
+  });
+  expect(f.published).toHaveLength(0);
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+});
+
+test('initial vote caller must belong to the subsequently verified roster', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({
+    type: 'vote_open',
+    by: 'ff'.repeat(32),
+    vote_id: 'aa'.repeat(8),
+  });
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Invalid vote caller');
+  expect(f.session.snapshot()).toMatchObject({ phase: 'open', seats: [] });
+  expect(f.published).toHaveLength(0);
+});
+
+test('conflicting pending votes fail closed without replacing the first authenticated request', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({
+    type: 'vote_open',
+    by: f.rawSeats[1].token_hash,
+    vote_id: 'aa'.repeat(8),
+  });
+  await expect(
+    f.receive({
+      type: 'vote_open',
+      by: f.rawSeats[1].token_hash,
+      vote_id: 'bb'.repeat(8),
+    }),
+  ).rejects.toThrow('Conflicting initial vote');
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot().voteId).toBe('aa'.repeat(8));
+  expect(f.published).toHaveLength(0);
+});
+
+test('a deferred vote keeps the original deadline and cannot become valid after its expiry', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({
+    type: 'vote_open',
+    by: f.rawSeats[1].token_hash,
+    vote_id: 'aa'.repeat(8),
+  });
+  f.tick(601);
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('expired session phase');
+  expect(f.session.snapshot()).toMatchObject({ phase: 'open', seats: [] });
+  expect(f.published).toHaveLength(0);
+});
+
+test('durable roster/vote failure never partially advances a deferred vote', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({
+    type: 'vote_open',
+    by: f.rawSeats[1].token_hash,
+    vote_id: 'aa'.repeat(8),
+  });
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('private native error detail'));
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Session persistence failed');
+  expect(f.session.snapshot()).toMatchObject({ phase: 'open', seats: [] });
+  expect(f.published).toHaveLength(0);
+  expect(f.round.snapshot().phase).toBe('joined');
 });
 
 test.each(['p2wpkh', 'p2tr'] as const)(
@@ -210,7 +320,7 @@ test('session persistence failure before signing never invokes spending-key code
   await f.advance();
   (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('keychain unavailable'));
   const signer = jest.fn();
-  await expect(f.session.signApproved(f.session.reviewed().commitment!, signer)).rejects.toThrow('keychain unavailable');
+  await expect(f.session.signApproved(f.session.reviewed().commitment!, signer)).rejects.toThrow('Session persistence failed');
   expect(signer).not.toHaveBeenCalled();
   expect(f.round.snapshot().phase).toBe('signed');
   await f.session.cancel();
