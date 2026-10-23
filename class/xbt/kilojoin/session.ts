@@ -209,12 +209,27 @@ export class ParticipantSession {
     return { ...base, phase: 'voting', voteId: vote.voteId, deadline };
   }
 
-  private canFollowVote(vote: PendingVote): boolean {
-    return (
-      this.state.seats.length >= this.terms.min_peers &&
-      this.state.seats.some(s => s.token_hash === vote.by) &&
-      this.env.now() < Math.min(this.round.snapshot().deadline, vote.createdAt + 600)
-    );
+  private liveVote(vote: PendingVote): boolean {
+    return this.env.now() < Math.min(this.round.snapshot().deadline, vote.createdAt + 600);
+  }
+
+  private canFollowVote(vote: PendingVote, state = this.state): boolean {
+    return state.seats.length >= this.terms.min_peers && state.seats.some(s => s.token_hash === vote.by) && this.liveVote(vote);
+  }
+
+  private followingState(base: SessionState, votes: Map<string, PendingVote>): { next: SessionState; following: Map<string, PendingVote> } {
+    let next = base;
+    const following = new Map(votes);
+    for (const [id, vote] of following) {
+      if (next.retiredVoteIds?.includes(id) || !this.liveVote(vote)) following.delete(id);
+      else if (next.phase === 'open' && this.canFollowVote(vote, next)) {
+        next = this.votingState(next, vote);
+        following.delete(id);
+      }
+      // An authenticated request may precede the roster that establishes its
+      // caller/quorum. Keep it bounded and inactive until that roster verifies.
+    }
+    return { next, following };
   }
 
   private async publish(body: Record<string, unknown>, isolated = false): Promise<void> {
@@ -339,13 +354,16 @@ export class ParticipantSession {
           // vote only after all roster/ownership/chain checks, in one durable save.
           const initial = [...this.pendingInitialVotes.values()];
           if (initial.length) next = this.votingState(next, initial[0]);
-          await this.save(next);
+          const queued = new Map(this.followingVotes);
           // Multiple cycles can be replayed before the roster. Only now may
           // their callers be checked against verified seats. The first request
           // remains active until its specific creator cancellation arrives.
           for (const vote of initial.slice(1)) {
-            if (this.canFollowVote(vote)) this.followingVotes.set(vote.voteId, vote);
+            if (this.liveVote(vote)) queued.set(vote.voteId, vote);
           }
+          const promoted = this.followingState(next, queued);
+          await this.save(promoted.next);
+          this.followingVotes = promoted.following;
           this.pendingInitialVotes.clear();
           break;
         }
@@ -357,18 +375,21 @@ export class ParticipantSession {
             createdAt: message.createdAt,
           };
           if (vote.voteId === this.state.voteId || this.state.retiredVoteIds?.includes(vote.voteId)) break;
-          if (this.state.phase === 'voting') {
-            // Replay can deliver the next creator vote before the current one's
-            // reopen. Retain it without changing the active vote or publishing.
+          if (this.state.phase === 'voting' || this.state.seats.length > 0) {
+            // A creator vote may precede either the current vote's cancellation
+            // or a newer roster. Retain it without activating an unverified caller.
             this.requireOpenPool();
             const pending = this.followingVotes.get(vote.voteId);
             if (pending) {
               if (pending.by !== vote.by) throw new Error('Conflicting pending vote identity');
               break;
             }
-            if (!this.canFollowVote(vote)) break;
-            if (this.followingVotes.size >= 32) throw new Error('Pending vote limit');
-            this.followingVotes.set(vote.voteId, vote);
+            if (!this.liveVote(vote)) break;
+            if (this.state.phase === 'open' && this.canFollowVote(vote)) await this.save(this.votingState(this.state, vote));
+            else {
+              if (this.followingVotes.size >= 32) throw new Error('Pending vote limit');
+              this.followingVotes.set(vote.voteId, vote);
+            }
             break;
           }
           this.require(['open']);
@@ -399,23 +420,16 @@ export class ParticipantSession {
           const active = this.state.voteId === voteId;
           const following = new Map(this.followingVotes);
           following.delete(voteId);
-          let next: SessionState = {
+          const next: SessionState = {
             ...this.state,
             retiredVoteIds: [...retired, voteId],
             ...(active ? { phase: 'open', voteId: undefined, deadline: this.round.snapshot().deadline } : {}),
           };
-          if (active) {
-            for (const [id, pending] of following) {
-              following.delete(id);
-              if (next.retiredVoteIds!.includes(id) || !this.canFollowVote(pending)) continue;
-              next = this.votingState(next, pending);
-              break;
-            }
-          }
+          const promoted = this.followingState(next, following);
           // Cancellation and promotion are one durable transition. Failed saves
           // leave both the active vote and the pending queue unchanged.
-          await this.save(next);
-          this.followingVotes = following;
+          await this.save(promoted.next);
+          this.followingVotes = promoted.following;
           // Cancellation may precede vote_open or its required roster. Clear a
           // matching pending request only after the cancellation is durable.
           this.pendingInitialVotes.delete(voteId);

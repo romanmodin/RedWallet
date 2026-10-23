@@ -676,6 +676,129 @@ async function activeVoteFixture() {
   return f;
 }
 
+const rosterVoteCases = (['p2wpkh', 'p2tr'] as const).flatMap(type =>
+  [1, 5].flatMap(outputs =>
+    [
+      ...['rv', 'vr'].map(order => ({ mode: 'open', order })),
+      ...['rvc', 'rcv', 'vrc', 'vcr', 'crv', 'cvr'].map(order => ({ mode: 'voting', order })),
+      ...['rv', 'vr'].map(order => ({ mode: 'quorum', order })),
+    ].map(scenario => ({ type, outputs, ...scenario })),
+  ),
+);
+
+test.each(rosterVoteCases)(
+  'a verified roster update and its vote may arrive in either order: $type/$outputs/$mode/$order',
+  async ({ type, outputs, mode, order }) => {
+    const f = await fixture(type, outputs);
+    await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+    const initial = mode === 'quorum' ? [f.rawSeats[0]] : f.rawSeats;
+    await f.receive({ type: 'roster', seq: 1, seats: initial });
+    if (mode === 'voting') await f.receive({ type: 'vote_open', vote_id: 'aa'.repeat(8), by: f.rawSeats[1].token_hash });
+    const key = secret(3),
+      joinPub = pub(secret(11)),
+      coin = { ...f.rawSeats[1].coin, txid: '3'.repeat(64), pubkey: Buffer.from(ecc.pointFromScalar(key, true)!).toString('hex') };
+    const newcomer = {
+      coin,
+      join_pub: joinPub,
+      token_hash: 'ef'.repeat(32),
+      proofs: [Buffer.from(ecc.signDER(ownershipMessage(f.terms.id, joinPub, coin), key)).toString('hex')],
+      change_script: type === 'p2wpkh' ? '0014' + 'c'.repeat(40) : '5120' + 'c'.repeat(64),
+      change_value: f.rawSeats[1].change_value,
+    };
+    const seats = mode === 'quorum' ? f.rawSeats : [...f.rawSeats, newcomer];
+    const events: Record<string, Record<string, unknown>> = {
+      r: { type: 'roster', seq: 2, seats },
+      v: { type: 'vote_open', vote_id: 'bb'.repeat(8), by: mode === 'quorum' ? f.rawSeats[1].token_hash : newcomer.token_hash },
+      c: { type: 'reopen', vote_id: 'aa'.repeat(8) },
+    };
+    const journal = f.round.snapshot();
+    for (const step of order) await f.receive(events[step]);
+    expect(f.session.snapshot()).toMatchObject({ phase: 'voting', sequence: 2, voteId: 'bb'.repeat(8), deadline: 10600 });
+    expect(f.session.snapshot().seats).toHaveLength(seats.length);
+    expect(f.round.snapshot()).toEqual(journal);
+    expect(f.published).toHaveLength(0);
+  },
+);
+
+async function waitingRosterFixture() {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'roster', seq: 1, seats: [f.rawSeats[0]] });
+  await f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash });
+  return f;
+}
+
+test('a vote waiting for an updated roster cannot publish, spend, change reservations or accept a stale roster', async () => {
+  const f = await waitingRosterFixture();
+  const before = f.session.snapshot(),
+    journal = f.round.snapshot();
+  await expect(f.session.vote(true)).rejects.toThrow('phase');
+  const signer = jest.fn();
+  await expect(f.session.signApproved('00'.repeat(32), signer)).rejects.toThrow();
+  expect(signer).not.toHaveBeenCalled();
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot()).toEqual(before);
+  expect(f.round.snapshot()).toEqual(journal);
+  expect(f.published).toHaveLength(0);
+});
+
+test.each(['proof', 'chain', 'own-seat', 'persist'] as const)(
+  'an updated roster cannot activate a pending vote after a failing %s check',
+  async fault => {
+    const f = await waitingRosterFixture();
+    const before = f.session.snapshot(),
+      observe = f.env.observe,
+      seats = JSON.parse(JSON.stringify(f.rawSeats));
+    if (fault === 'proof') seats[1].proofs[0] = '00';
+    if (fault === 'chain') f.env.observe = async () => new Map();
+    if (fault === 'own-seat') seats[0].token_hash = 'ee'.repeat(32);
+    if (fault === 'persist') (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('synthetic storage failure'));
+    await expect(f.receive({ type: 'roster', seq: 2, seats })).rejects.toThrow();
+    expect(f.session.snapshot()).toEqual(before);
+    await expect(f.session.vote(true)).rejects.toThrow('phase');
+    expect(f.published).toHaveLength(0);
+    expect(f.round.snapshot().reserved).toHaveLength(1);
+    f.env.observe = observe;
+    // A new authenticated envelope with a valid roster; no automatic action retry.
+    await f.receive({ type: 'roster', seq: 2, seats: f.rawSeats });
+    expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8), sequence: 2 });
+    expect(f.published).toHaveLength(0);
+  },
+);
+
+test.each(['expired', 'cancelled', 'unknown-caller'] as const)(
+  'a later roster does not activate a pending vote that is %s',
+  async fault => {
+    const f = await waitingRosterFixture();
+    if (fault === 'expired') f.tick(601);
+    if (fault === 'cancelled') await f.receive({ type: 'reopen', vote_id: 'bb'.repeat(8) });
+    const seats = fault === 'unknown-caller' ? [f.rawSeats[0]] : f.rawSeats;
+    await f.receive({ type: 'roster', seq: 2, seats });
+    expect(f.session.snapshot().phase).toBe('open');
+    expect(f.session.snapshot().voteId).toBeUndefined();
+    await expect(f.session.vote(true)).rejects.toThrow('phase');
+    expect(f.published).toHaveLength(0);
+    expect(f.round.snapshot().reserved).toHaveLength(1);
+  },
+);
+
+test('pending roster votes preserve the first timestamp and enforce identity and resource bounds', async () => {
+  const f = await waitingRosterFixture();
+  f.tick(60);
+  await f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash });
+  await expect(f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[0].token_hash })).rejects.toThrow(
+    'Conflicting pending vote identity',
+  );
+  for (let i = 1; i < 32; i++)
+    await f.receive({ type: 'vote_open', vote_id: i.toString(16).padStart(16, '0'), by: f.rawSeats[1].token_hash });
+  await expect(f.receive({ type: 'vote_open', vote_id: 'ee'.repeat(8), by: f.rawSeats[1].token_hash })).rejects.toThrow(
+    'Pending vote limit',
+  );
+  await f.receive({ type: 'roster', seq: 2, seats: f.rawSeats });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8), deadline: 10600 });
+  expect(f.published).toHaveLength(0);
+});
+
 test('future vote buffering does not change the active vote, deadline, persisted state or journal', async () => {
   const f = await activeVoteFixture();
   const before = f.session.snapshot(),

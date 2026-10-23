@@ -6,16 +6,18 @@ vote IDs, but dropped a different `vote_open` while already voting. For example,
 a valid roster followed by vote A, vote B, reopen A left the participant open
 with B lost. No ownership or transaction defect is needed to reproduce this.
 
-The correction retains up to 32 following creator-authenticated vote requests
-while a vote is active. Each request must name a member of the currently verified
-roster and have an unexpired deadline. It cannot change the active vote, persist
+The first correction retained up to 32 following creator-authenticated vote requests
+while a vote was active, requiring the caller to be in the current roster.
+The later roster-order correction described in `HERMES-KILOJOIN-ROSTER.md` also
+retains unexpired requests awaiting their caller's newer roster. They cannot change the active vote, persist
 new session state, publish a vote, request a spending signature or release coins.
 Duplicate IDs retain their original deadline; conflicting caller identities and
 resource exhaustion fail closed.
 
 On creator reopen, the matching request is removed. If the active vote ended,
-the next eligible request is promoted; cancelled, expired or no-longer-present
-callers are discarded. Cancellation history and the new active state are saved
+the next eligible request is promoted; cancelled and expired requests are
+discarded. A caller absent from the current roster remains inactive, awaiting a
+newer fully verified roster within the same deadline. Cancellation history and the new active state are saved
 in one encrypted transition. Only after successful storage is the local queue
 replaced. A failed save leaves the active vote and pending requests intact.
 
