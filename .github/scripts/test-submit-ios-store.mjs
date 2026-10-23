@@ -98,6 +98,8 @@ function fixture(options = {}) {
     }
     if (method === "PATCH" && path.endsWith("/relationships/build")) {
       selected = payload.data.id;
+      if (options.resetStateAfterBuildSelection)
+        state = "PREPARE_FOR_SUBMISSION";
       return {};
     }
     if (method === "PATCH" && path === "/v1/appInfoLocalizations/info-locale") {
@@ -205,7 +207,13 @@ function fixture(options = {}) {
       ],
       ["/v1/appStoreVersionLocalizations/" + L + "/appScreenshotSets"]: sets,
       ["/v1/apps/" + APP + "/appInfos"]: [
-        { id: "info", attributes: { appStoreState: state } },
+        {
+          id: "info",
+          attributes: {
+            appStoreState: options.deprecatedInfoState ?? state,
+            state,
+          },
+        },
       ],
       ["/v1/appInfos/info/appInfoLocalizations"]: [
         {
@@ -521,4 +529,70 @@ test("read-only replacement preflight completes all live checks without cancelin
   assert.equal(report.readOnly, true);
   assert.equal(report.withdrawalRequested, undefined);
   assert.equal(f.writes.length, 0);
+});
+
+test("refreshes metadata status when selecting the replacement build resets the withdrawn version", async () => {
+  const f = fixture({ replacement: true, resetStateAfterBuildSelection: true });
+  const report = {};
+  await replaceAndSubmit(f.api, f.c, report);
+  assert.equal(report.status, "SUBMITTED_FOR_APP_REVIEW");
+  assert.equal(report.knownCoinJoinIssueDisclosed, true);
+  assert.equal(report.reviewState, "WAITING_FOR_REVIEW");
+  f.writes.length = 0;
+  await replaceAndSubmit(f.api, f.c, {});
+  assert.equal(f.writes.length, 0);
+});
+test("uses Apple's current app-info state when its deprecated field differs", async () => {
+  const f = fixture({ deprecatedInfoState: "NOT_APPLICABLE" });
+  const report = {};
+  await submit(f.api, f.c, report);
+  assert.equal(report.status, "SUBMITTED_FOR_APP_REVIEW");
+});
+test("unexpected version changes stop before privacy or review submission writes", async () => {
+  for (const change of ["identity", "state"]) {
+    const f = fixture();
+    let reads = 0;
+    const api = async (...args) => {
+      const response = await f.api(...args);
+      if (
+        args[0] === "GET" &&
+        args[1] === "/v1/appStoreVersions/" + V &&
+        ++reads === 2
+      ) {
+        if (change === "identity") response.data.id = "other-version";
+        else response.data.attributes.appStoreState = "IN_REVIEW";
+      }
+      return response;
+    };
+    await assert.rejects(
+      submit(api, f.c, {}),
+      /Version (identity|state) changed/,
+    );
+    assert.equal(
+      f.writes.some((w) =>
+        /appInfoLocalizations|reviewSubmissions|reviewSubmissionItems/.test(
+          w.path,
+        ),
+      ),
+      false,
+    );
+  }
+});
+test("multiple matching app-info records still stop before policy or submission writes", async () => {
+  const f = fixture();
+  const api = async (...args) => {
+    const response = await f.api(...args);
+    if (args[0] === "GET" && args[1] === "/v1/apps/" + APP + "/appInfos")
+      response.data.push({ ...response.data[0], id: "another-info" });
+    return response;
+  };
+  await assert.rejects(submit(api, f.c, {}), /Ambiguous app information/);
+  assert.equal(
+    f.writes.some((w) =>
+      /appInfoLocalizations|reviewSubmissions|reviewSubmissionItems/.test(
+        w.path,
+      ),
+    ),
+    false,
+  );
 });
