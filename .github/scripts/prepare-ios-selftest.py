@@ -33,8 +33,8 @@ def prepare(run=subprocess.check_output, config_path=Path('.detoxrc.json'), prot
     runtime, prototype = matches[0]
     if prototype.get('state') != 'Booted' or prototype.get('deviceTypeIdentifier') != selected:
         raise ValueError('Preboot simulator type/state does not match')
-    # TLS has exited. Stop only this job's selected simulator before booting
-    # another; preserve the exact runtime that already passed TLS and artwork.
+    # Stop only this job's selected simulator while preparing another on the
+    # same runtime. Park mode runs before artwork/TLS; direct mode runs after.
     command('shutdown', prototype_id)
     device_id = command('create', 'RedWallet-selftest-' + uuid.uuid4().hex, selected, runtime)
     uuid.UUID(device_id)
@@ -54,6 +54,10 @@ def prepare(run=subprocess.check_output, config_path=Path('.detoxrc.json'), prot
         command('shutdown', device_id)
         command('boot', prototype_id)
         command('bootstatus', prototype_id, '-b', timeout=300)
+        # Two devices now share the type. Keep artwork/TLS on the warmed original;
+        # a type-only selector can accidentally boot and contaminate the parked twin.
+        config['devices']['simulator']['device'] = {'id': prototype_id}
+        config_path.write_text(json.dumps(config, indent=2) + '\n')
     else:
         config['devices']['simulator']['device'] = {'id': device_id}
         config_path.write_text(json.dumps(config, indent=2) + '\n')
@@ -80,6 +84,8 @@ def activate(receipt, source, run=subprocess.check_output, config_path=Path('.de
     if receipt.get('appLaunched') is not False or receipt.get('bundleId') != 'com.romanmodin.redwallet':
         raise ValueError('Prepared simulator app state mismatch')
     config = json.loads(config_path.read_text())
+    if config['devices']['simulator']['device'] != {'id': prototype_id}:
+        raise ValueError('Original simulator selection changed before activation')
     binary = (config_path.parent / config['apps']['ios.release']['binaryPath']).resolve()
     if receipt.get('binaryPath') != str(binary):
         raise ValueError('Prepared simulator artifact path mismatch')

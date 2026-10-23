@@ -142,7 +142,7 @@ class ParkedPreparationTests(unittest.TestCase):
         before = config.read_text()
         run.side_effect = list(run.side_effect) + ['', '', '']
         receipt = module.prepare(run, config, OLD, park=True)
-        self.assertEqual(config.read_text(), before)
+        self.assertEqual(json.loads(config.read_text())['devices']['simulator']['device'], {'id': OLD})
         self.assertTrue(receipt['parked'])
         self.assertFalse(receipt['appLaunched'])
         self.assertEqual([c.args[0][2:] for c in run.call_args_list[-3:]], [
@@ -152,6 +152,13 @@ class ParkedPreparationTests(unittest.TestCase):
             {'udid': ID, 'state': 'Shutdown', 'deviceTypeIdentifier': 'phone17'}]}}),
             '', '', '', '/simulator/Applications/BlueWallet.app']
         return config, receipt, Mock(side_effect=replies)
+
+    def test_park_pins_warm_original_and_cannot_select_parked_twin_by_type(self):
+        config, run = self.scenario()
+        run.side_effect = list(run.side_effect) + ['', '', '']
+        receipt = module.prepare(run, config, OLD, park=True)
+        self.assertEqual(json.loads(config.read_text())['devices']['simulator']['device'], {'id': OLD})
+        self.assertNotEqual(OLD, receipt['deviceId'])
 
     def test_parked_simulator_activates_without_create_erase_reinstall_or_launch(self):
         config, receipt, run = self.prepared()
@@ -196,6 +203,24 @@ class ParkedPreparationTests(unittest.TestCase):
                 module.activate(receipt, 'a' * 40, run, config)
             self.assertEqual(config.read_text(), before)
             self.assertEqual(run.call_count, index + 1)
+
+    def test_changed_original_selection_stops_before_any_simulator_mutation(self):
+        for device in [{'type': 'iPhone 17'}, {'id': ID}]:
+            config, receipt, run = self.prepared()
+            content = json.loads(config.read_text())
+            content['devices']['simulator']['device'] = device
+            config.write_text(json.dumps(content))
+            with self.assertRaisesRegex(ValueError, 'Original simulator selection changed'):
+                module.activate(receipt, 'a' * 40, run, config)
+            run.assert_not_called()
+
+    def test_failed_original_reboot_does_not_publish_selection(self):
+        config, run = self.scenario()
+        before = config.read_text()
+        run.side_effect = list(run.side_effect) + ['', '', subprocess.TimeoutExpired('bootstatus', 300)]
+        with self.assertRaises(subprocess.TimeoutExpired):
+            module.prepare(run, config, OLD, park=True)
+        self.assertEqual(config.read_text(), before)
 
     def test_parking_failure_never_selects_replacement(self):
         config, run = self.scenario()
