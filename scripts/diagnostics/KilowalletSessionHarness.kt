@@ -6,6 +6,7 @@ import org.json.JSONArray
 import java.math.BigInteger
 fun main() {
     val input = JSONObject(System.`in`.bufferedReader().readText())
+    val retainedMembers = JSONArray()
     val state: PoolSession.State
     if (input.optString("command") == "setup") {
         val count = input.getInt("outputs")
@@ -42,7 +43,14 @@ fun main() {
                 try {
                     PoolSession::class.java.getDeclaredMethod("sendJoin").apply { isAccessible = true }.invoke(member)
                     val join = RelayClient.published.last()
+                    val beforeReply = RelayClient.published.size
                     PoolSession::class.java.getDeclaredMethod("onEvent", NostrEvent::class.java).apply { isAccessible = true }.invoke(session, join)
+                    if (input.optBoolean("retainSeedMembers")) {
+                        val receive = PoolSession::class.java.getDeclaredMethod("onEvent", NostrEvent::class.java).apply { isAccessible = true }
+                        for (event in RelayClient.published.drop(beforeReply).toList()) receive.invoke(member, event)
+                        check(memberState.phase == PoolSession.Phase.OPEN && memberState.token != null) { "Seed member did not accept creator welcome" }
+                        retainedMembers.put(memberState.toJson())
+                    }
                 } finally { member.stop(); relay.connect() }
             }
 
@@ -62,8 +70,41 @@ fun main() {
                     receive.invoke(session, ev)
                 }
             }
+            input.optJSONObject("completeSeedOutputs")?.let { seed ->
+                val members = seed.getJSONArray("members")
+                val closing = NostrEvent.parse(seed.getJSONObject("closing"))
+                // Every seed uses the actual reference participant controller:
+                // closing -> blind request -> creator signature -> handInOutput.
+                // No timer, network, spending signature, or broadcast is invoked.
+                for (index in 0 until members.length()) {
+                    val memberState = PoolSession.State.parse(members.getJSONObject(index))
+                    val member = PoolSession(env, memberState)
+                    PoolSession::class.java.getDeclaredField("relay").apply { isAccessible = true }.set(member, relay)
+                    try {
+                        val beforeBlind = RelayClient.published.size
+                        receive.invoke(member, closing)
+                        check(memberState.phase == PoolSession.Phase.CLOSING) { "Seed member did not close" }
+                        val requests = RelayClient.published.drop(beforeBlind).toList()
+                        check(requests.size == 1) { "Expected one seed blind request" }
+                        val beforeSignature = RelayClient.published.size
+                        requests.forEach { receive.invoke(session, it) }
+                        val replies = RelayClient.published.drop(beforeSignature).toList()
+                        check(replies.size == 1) { "Expected one creator blind-signature reply" }
+                        replies.forEach { receive.invoke(member, it) }
+                        check(memberState.outSigs.size == state.terms.outputs) { "Seed did not verify all blind signatures" }
+                        for (output in memberState.mixScripts.indices) {
+                            val beforeOutput = RelayClient.published.size
+                            val accepted = PoolSession::class.java.getDeclaredMethod("handInOutput", Int::class.javaPrimitiveType).apply { isAccessible = true }.invoke(member, output)
+                            check(accepted == true) { "Seed output hand-in failed" }
+                            val handedIn = RelayClient.published.drop(beforeOutput).toList()
+                            check(handedIn.size == 1) { "Expected one isolated output event" }
+                            handedIn.forEach { receive.invoke(session, it) }
+                        }
+                    } finally { member.stop(); relay.connect() }
+                }
+            }
 
         }
-        println(JSONObject().put("state", state.toJson()).put("events", JSONArray(RelayClient.published.map { it.toJson() })).toString())
+        println(JSONObject().put("state", state.toJson()).put("events", JSONArray(RelayClient.published.map { it.toJson() })).put("members", retainedMembers).toString())
     } finally { session.stop() }
 }

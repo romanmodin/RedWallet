@@ -1,5 +1,9 @@
 # Offline Kilowallet message cross-check
 
+Later extension: `HERMES-KILOWALLET-DIALOGUE.md` runs fresh exchanges with the
+actual pinned Hermes engine and completes the five-participant output lists.
+The older Node/vector results and limitations below remain historical.
+
 Reference: https://github.com/Kilombino/kilowallet at
 `233733def7e492084f4d57e5faa1d76b9ab2ce79` (Apache-2.0).
 The reference checkout was tracked-clean. No upstream files were modified.
