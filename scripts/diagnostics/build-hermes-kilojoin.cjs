@@ -7,8 +7,8 @@ const root = path.resolve(__dirname, '../..');
 const destination = process.argv[2];
 const baseline = process.argv[3];
 const diagnostic = process.env.REDWALLET_HERMES_DIAGNOSTIC || 'startup';
-if (!['startup', 'stop', 'replay'].includes(diagnostic)) throw new Error('Unknown Hermes diagnostic');
-const baselineModules = diagnostic === 'replay' ? ['session', 'messages'] : [diagnostic === 'stop' ? 'session' : 'crypto'];
+if (!['startup', 'stop', 'replay', 'votes'].includes(diagnostic)) throw new Error('Unknown Hermes diagnostic');
+const baselineModules = diagnostic === 'replay' ? ['session', 'messages'] : [['stop', 'votes'].includes(diagnostic) ? 'session' : 'crypto'];
 if (!destination || (baseline && !/^[0-9a-f]{40}$/.test(baseline))) {
   throw new Error('Usage: node build-hermes-kilojoin.cjs OUTPUT.js [BASELINE_FULL_COMMIT]');
 }

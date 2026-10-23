@@ -28,6 +28,7 @@ export type SessionState = {
   token?: string;
   poolSecret?: string;
   voteId?: string;
+  retiredVoteIds?: string[];
   roundId?: string;
   deadline: number;
   prepared?: string;
@@ -183,6 +184,16 @@ export class ParticipantSession {
     if (!phases.includes(this.state.phase) || this.env.now() >= this.state.deadline) throw new Error('Invalid or expired session phase');
   }
 
+  private requireOpenPool(): void {
+    // The vote deadline stops our votes, not the creator's resolution. Upstream
+    // sends roster/reopen/closing after that deadline. Match its three-minute
+    // resolution grace, without extending the pool's original deadline.
+    const journal = this.round.snapshot();
+    const deadline = Math.min(journal.deadline, this.state.phase === 'voting' ? this.state.deadline + 180 : journal.deadline);
+    if (!['open', 'voting'].includes(this.state.phase) || journal.phase !== 'joined' || this.env.now() >= deadline)
+      throw new Error('Invalid or expired session phase');
+  }
+
   private async save(next: SessionState): Promise<void> {
     try {
       await this.env.saveEncrypted(copy(next));
@@ -310,7 +321,7 @@ export class ParticipantSession {
           // Only a newer sequence proceeds to ownership and chain validation.
           if ((body.seq as number) <= this.state.sequence) break;
           if (!['open', 'voting'].includes(this.state.phase)) break;
-          this.require(['open', 'voting']);
+          this.requireOpenPool();
           const seats = await this.checkedSeats(body.seats, body.seq as number);
           const next: SessionState = {
             ...this.state,
@@ -331,7 +342,7 @@ export class ParticipantSession {
             voteId: identifier(body.vote_id),
             createdAt: message.createdAt,
           };
-          if (vote.voteId === this.state.voteId) break;
+          if (vote.voteId === this.state.voteId || this.state.retiredVoteIds?.includes(vote.voteId)) break;
           this.require(['open']);
           if (this.state.seats.length === 0) {
             // The authenticated creator's one bounded pending request cannot
@@ -346,19 +357,29 @@ export class ParticipantSession {
           await this.save(this.votingState(this.state, vote));
           break;
         }
-        case 'reopen':
-          if (this.state.phase !== 'voting' || body.vote_id !== this.state.voteId) break;
-          this.require(['voting']);
+        case 'reopen': {
+          if (!['open', 'voting'].includes(this.state.phase)) break;
+          const voteId = identifier(body.vote_id);
+          const retired = this.state.retiredVoteIds ?? [];
+          if (retired.includes(voteId)) break;
+          this.requireOpenPool();
+          // Do not evict cancellations: replay must never revive an ended vote.
+          // Bound this encrypted metadata independently of the envelope cache.
+          if (retired.length >= 256) throw new Error('Session vote history limit');
+          const active = this.state.voteId === voteId;
           await this.save({
             ...this.state,
-            phase: 'open',
-            voteId: undefined,
-            deadline: this.round.snapshot().deadline,
+            retiredVoteIds: [...retired, voteId],
+            ...(active ? { phase: 'open', voteId: undefined, deadline: this.round.snapshot().deadline } : {}),
           });
+          // Cancellation may precede vote_open or its required roster. Clear a
+          // matching pending request only after the cancellation is durable.
+          if (this.pendingInitialVote?.voteId === voteId) this.pendingInitialVote = undefined;
           break;
+        }
         case 'closing': {
           if (!['open', 'voting'].includes(this.state.phase)) break;
-          this.require(['open', 'voting']);
+          this.requireOpenPool();
           const roundId = identifier(body.round_id),
             seats = await this.checkedSeats(body.seats, this.state.sequence + 1);
           if (seats.length < this.terms.min_peers) throw new Error('Too few participants');
