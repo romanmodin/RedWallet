@@ -1,0 +1,44 @@
+{
+  "status": "locally-validated-not-pushed",
+  "parentCandidate": "0397ac491a032a9e6913c35a97a3bffacd04612f",
+  "upstreamCommit": "233733def7e492084f4d57e5faa1d76b9ab2ce79",
+  "addedReferenceSourcesSHA256": {
+    "coinjoin/CoinjoinTx.kt": "eea2fae05a501d2943c064e012933b607412daab3698f7c1facb2cc9663ba44c",
+    "coinjoin/Protocol.kt": "84eddab9c5a26720bad4c866f164e6425e3f14e7b896c369292a83bd047e0bfa",
+    "coinjoin/BlindRsa.kt": "d28ed65a19dfe573292f4400299341cb4b1f5c35f16f71c5e9b1c8466c2e78eb",
+    "crypto/Address.kt": "8b9ce75e1ca9cfd80a34815d5c812bb00fe3db68a63f554e8601b36f13ba6698",
+    "crypto/Base58.kt": "2899eb80b0accbfe2cc05dc53871a951b6555f22d2e8234e522b269f5e3f736f",
+    "crypto/Bech32.kt": "89d00ce6d9f576f337bfcd2a57a3f3d9af70a30e504b5da8c667a8a3de67ff98",
+    "crypto/Bip32.kt": "9f19842fde052adc54eb87fc3fe479a86cc411c518ac80c54ce01963ca09e481",
+    "crypto/TxBuilder.kt": "de0ecf03763408a1256d41b39375ae0ba5dde6cbdf5243795269320e16470f86"
+  },
+  "fixtureSHA256": "1176335e768aff7fd2f18e8fff22a451c5bb0b7a13a6f38c3dbf7a424520ff21",
+  "confirmedDefect": "Cancel during an active roster observation fails with Session action pending; client closes relay before invoking cancel. Wait for active action to settle before cancellation decides unsigned versus exposed.",
+  "before": "34 pass/1 fail: expected stopped, received Session action pending",
+  "focused": "705 tests PASS across session, actual Kotlin rosters/fees, store and rejoin",
+  "safety": "Cancellation during signing retains uncertain journal and reservations both with successful publication and relay publication failure. No deadlines, ownership/fee checks or signature safeguards changed.",
+  "crossImplementation": "640 fee/dust boundary cases plus 12 actual upstream ownership-proof seats pass; mutation negatives included",
+  "limitations": [
+    "Not confirmed cause of user initial join failure",
+    "No real funds or live joins",
+    "No native iOS tests",
+    "Not pushed or released"
+  ],
+  "additionalRegression": "An already-waiting participant handler can acquire the session after the first action completes. Single idle wait was insufficient: 37 pass/1 fail. Final cancellation rechecks busy and waits for that handler too; regression passes.",
+  "verifiedAt": "2026-10-23T05:30:15.566836+00:00",
+  "fullUnitSummary": [
+    "Test Suites: 120 passed, 120 total",
+    "Tests:       1 skipped, 1780 passed, 1781 total",
+    "Time:        111.533 s, estimated 112 s"
+  ],
+  "typeScript": "pass",
+  "changedFileESLint": "pass",
+  "logsSHA256": {
+    "redwallet-stop-inflight-before.log": "ebd16e9aa7d272adca3d05a1afe96b93f39c9b861f958c25d4cf62941bc33a6a",
+    "redwallet-stop-waiter-before.log": "e777e7b24013f0a014aa7791dd616d64e05209b00b61bb8c32bd3cdf88e719a6",
+    "redwallet-roster-stop-final-focused.log": "16b22ff02fde18ae21aa769f817fa40ab4f7e91e0fca5bf60cb897cdd9ff14a3",
+    "redwallet-roster-stop-final-full.log": "5f85320d571be47e3d611d4c8f871cdbdfbe403fa6113cd00423ec040ad501e4",
+    "redwallet-roster-stop-final-tsc.log": "7125f194612fcff2f454c05d848e7cb71facc1967b4d5017e25b34fdee3ba74f",
+    "redwallet-roster-stop-final-lint.log": "7125f194612fcff2f454c05d848e7cb71facc1967b4d5017e25b34fdee3ba74f"
+  }
+}

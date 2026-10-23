@@ -411,3 +411,103 @@ test.each([1, 5])('relay serializes immediate roster/vote/closing while chain ch
     relay.close();
   }
 });
+
+test('stop waits for an in-flight roster check before cancelling an unsigned round', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const observe = f.env.observe;
+  let entered!: () => void;
+  let release!: () => void;
+  const started = new Promise<void>(resolve => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  f.env.observe = async coins => {
+    entered();
+    await gate;
+    return observe(coins);
+  };
+  const roster = f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  await started;
+  const stopped = f.session.cancel().then(
+    () => 'stopped',
+    error => error.message,
+  );
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  release();
+  await roster;
+  expect(await stopped).toBe('stopped');
+  expect(f.session.snapshot().phase).toBe('aborted');
+  expect(f.round.snapshot().reserved).toHaveLength(0);
+});
+
+test.each([false, true])('stop during signing retains coins even if publication fails: %s', async publicationFails => {
+  const f = await fixture();
+  await f.advance();
+  let entered!: () => void;
+  let release!: () => void;
+  const started = new Promise<void>(resolve => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  if (publicationFails)
+    f.env.publish = async () => {
+      throw new Error('relay already closed');
+    };
+  const signing = f.session
+    .signApproved(f.session.reviewed().commitment!, async p => {
+      entered();
+      await gate;
+      return new Map([[outpoint(p.coins[0]), f.signature(p, 0)]]);
+    })
+    .then(
+      () => 'signed',
+      error => error.message,
+    );
+  await started;
+  const stopped = f.session.cancel();
+  expect(f.round.snapshot().phase).toBe('signed');
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  release();
+  expect(await signing).toBe(publicationFails ? 'relay already closed' : 'signed');
+  await stopped;
+  expect(f.round.snapshot().phase).toBe('uncertain');
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+});
+
+test('stop also waits for a participant message already waiting on signing', async () => {
+  const f = await fixture();
+  await f.advance();
+  let entered!: () => void;
+  let release!: () => void;
+  let peerSignature = '';
+  const started = new Promise<void>(resolve => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  const signing = f.session.signApproved(f.session.reviewed().commitment!, async p => {
+    peerSignature = f.signature(p, 1);
+    entered();
+    await gate;
+    return new Map([[outpoint(p.coins[0]), f.signature(p, 0)]]);
+  });
+  await started;
+  // The relay's current handler may already be waiting for a UI signing action.
+  const participant = f.receive({ type: 'sig', outpoint: outpoint(f.rawSeats[1].coin), sig: peerSignature }, false, pool);
+  const stopped = f.session.cancel().then(
+    () => 'stopped',
+    error => error.message,
+  );
+  release();
+  await signing;
+  await participant;
+  expect(await stopped).toBe('stopped');
+  expect(f.round.snapshot().phase).toBe('uncertain');
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+});

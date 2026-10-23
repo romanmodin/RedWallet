@@ -41,3 +41,20 @@ production race. Chain observations in these session tests remain simulated.
 Remaining unproven on-device causes include a specific rejected roster/proof or
 chain observation, replay ordering on a real connection, and iOS runtime behavior.
 No result here establishes why the reported physical-device attempt failed.
+
+## Roster, ownership and fee extension
+
+`KilowalletRosterVectors.kt` uses the same pinned upstream checkout, additionally
+compiling unmodified `coinjoin/CoinjoinTx.kt`, `Protocol.kt`, `BlindRsa.kt` and
+`crypto/Address.kt`, `Base58.kt`, `Bech32.kt`, `Bip32.kt`, `TxBuilder.kt`.
+Compile these with the prior source list into `roster-reference.jar`, then compile
+and run `KilowalletRosterVectorsKt` using the same classpath recipe.
+The output is `tests/unit/fixtures/kilojoin-kotlin-rosters.json`.
+
+The 640 fee/change cases cross both script types, outputs 1–5, inputs 1/2/8/10,
+fee rates 1/1.25/2/500, and four insufficient/exact/dust-boundary input values.
+Twelve actual upstream seat encodings cover both script types, outputs 1/2/5,
+and single/multiple inputs. RedWallet verifies actual Kotlin ownership signatures,
+script derivation and change commitments, and rejects altered amounts/identities.
+These are reference-code interoperability checks, not independently observed
+chain coins or a complete live pool. All inputs are disposable synthetic data.

@@ -595,6 +595,10 @@ export class ParticipantSession {
   }
 
   async cancel(): Promise<void> {
+    // The client closes the relay first. Let the active action settle before
+    // deciding whether its coins are unsigned or must remain reserved. A handler
+    // already waiting on that action may acquire the session first, so recheck.
+    while (this.busy) await this.idle;
     return this.exclusive(async () => {
       await this.round.cancel();
       await this.save({ ...this.state, phase: 'aborted' });
