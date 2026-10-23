@@ -1,0 +1,37 @@
+{
+  "failureRun": 39973004163,
+  "failureArtifact": 12509687809,
+  "failureArchiveSha256": "002ba14fc62e43b430c356471282e78a0059d5095922a2e41224a57d685cf860",
+  "error": "Ambiguous app information",
+  "alreadyVerifiedEffects": {
+    "selectedBuild": "7717ad5a-860d-4a6c-bf33-d48e17f3a2da",
+    "knownCoinJoinIssueDisclosed": true
+  },
+  "readOnlyInspectionRun": 39974374660,
+  "inspectionArtifact": 12510127902,
+  "inspectionArchiveSha256": "5c73b686368513cdf8cd58abf632b00b54f4b8689d6cbfb82ab9d6dc4d07e1c1",
+  "observedVersionState": "PREPARE_FOR_SUBMISSION",
+  "observedAppInfos": [
+    {
+      "id": "6d2fc261-32ac-4890-bc33-a58fab76a877",
+      "appStoreState": "PREPARE_FOR_SUBMISSION",
+      "state": "PREPARE_FOR_SUBMISSION",
+      "localizations": [
+        {
+          "id": "6a1b8061-ca92-46a2-b0b4-a44366d60d5e",
+          "locale": "en-US",
+          "privacyPolicyUrl": "https://github.com/romanmodin/RedWallet/blob/9f627fb87b4b6cc28cddcf6ad45e2edc721551a8/docs/PRIVACY.md"
+        }
+      ]
+    }
+  ],
+  "correction": "Refresh version identity/state after selecting build; prefer current app-info state over deprecated appStoreState, still require exactly one matching metadata record. Unexpected transitions fail closed. No retry of writes.",
+  "validation": {
+    "parentRegressionFailedAsExpected": true,
+    "fixedSafetyTestsPassed": 38
+  },
+  "docs": [
+    "https://developer.apple.com/documentation/appstoreconnectapi/appinfo/attributes-data.dictionary",
+    "https://developer.apple.com/documentation/appstoreconnectapi/app-infos"
+  ]
+}

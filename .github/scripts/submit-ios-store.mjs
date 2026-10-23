@@ -413,13 +413,33 @@ export async function submit(api, candidate, report) {
     COINJOIN_KNOWN_ISSUE_NOTE,
   );
   report.selectedBuild = candidate.appleBuildId;
+  // Selecting a replacement build can move DEVELOPER_REJECTED to
+  // PREPARE_FOR_SUBMISSION. Do not select metadata using the earlier snapshot.
+  const currentVersion = (
+    await api("GET", "/v1/appStoreVersions/" + VERSION_ID)
+  ).data;
+  check(
+    currentVersion?.id === VERSION_ID &&
+      currentVersion.attributes?.versionString === VERSION &&
+      currentVersion.attributes?.platform === "IOS",
+    "Version identity changed during metadata preparation",
+  );
+  check(
+    (already
+      ? ["WAITING_FOR_REVIEW", "IN_REVIEW"]
+      : ["PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "DEVELOPER_REJECTED"]
+    ).includes(currentVersion.attributes.appStoreState),
+    "Version state changed unexpectedly during metadata preparation",
+  );
   const infos = (
     await api("GET", "/v1/apps/" + APP_ID + "/appInfos", undefined, {
       limit: "200",
     })
   ).data;
   const editable = infos.filter(
-    (i) => i.attributes?.appStoreState === version.attributes.appStoreState,
+    (i) =>
+      (i.attributes?.state ?? i.attributes?.appStoreState) ===
+      currentVersion.attributes.appStoreState,
   );
   check(editable.length === 1, "Ambiguous app information");
   const infoLocales = (
