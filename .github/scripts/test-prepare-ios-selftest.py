@@ -130,6 +130,28 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(module.checked_out_source(run), head)
         run.assert_called_once_with(['git', 'rev-parse', 'HEAD'], text=True, timeout=30)
 
+    def test_empty_timeout_output_still_retains_command_deadline_and_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            command = ['xcrun', 'simctl', 'list', 'devicetypes', '-j']
+            error = subprocess.TimeoutExpired(command, 30)
+            module.record_failure(error, 'a' * 40, Path(tmp))
+            receipt = json.loads((Path(tmp) / 'selftest-provision-failure.json').read_text())
+            self.assertEqual(receipt['sourceCommit'], 'a' * 40)
+            self.assertEqual(receipt['command'], command)
+            self.assertEqual(receipt['timeoutSeconds'], 30)
+            self.assertEqual(receipt['output'], '')
+            self.assertIn('timed out after 30 seconds',
+                          (Path(tmp) / 'selftest-provision-failure.log').read_text())
+
+    def test_failed_command_output_and_exit_code_are_retained(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            error = subprocess.CalledProcessError(1, ['xcrun', 'simctl', 'boot', ID], output=b'boot failed')
+            module.record_failure(error, 'a' * 40, Path(tmp))
+            receipt = json.loads((Path(tmp) / 'selftest-provision-failure.json').read_text())
+            self.assertEqual(receipt['returnCode'], 1)
+            self.assertEqual(receipt['output'], 'boot failed')
+            self.assertIsNone(receipt['timeoutSeconds'])
+
     def test_invalid_source_is_not_accepted(self):
         with self.assertRaisesRegex(ValueError, 'Invalid checked-out'):
             module.checked_out_source(Mock(return_value='HEAD'))
@@ -152,6 +174,46 @@ class ParkedPreparationTests(unittest.TestCase):
             {'udid': ID, 'state': 'Shutdown', 'deviceTypeIdentifier': 'phone17'}]}}),
             '', '', '', '/simulator/Applications/BlueWallet.app']
         return config, receipt, Mock(side_effect=replies)
+
+    def test_cold_original_is_not_booted_before_pristine_simulator_is_prepared(self):
+        config, run = self.scenario()
+        replies = list(run.side_effect)
+        devices = json.loads(replies[1])
+        devices['devices']['com.apple.iOS-26-5'][0]['state'] = 'Shutdown'
+        replies[1] = json.dumps(devices)
+        del replies[2]  # A shutdown original does not need another shutdown.
+        run.side_effect = replies + ['', '', '']
+        receipt = module.prepare(run, config, OLD, park=True)
+        calls = [c.args[0][2:] for c in run.call_args_list]
+        self.assertEqual([c for c in calls if c[0] == 'boot'], [['boot', ID], ['boot', OLD]])
+        self.assertNotIn(['shutdown', OLD], calls)
+        self.assertLess(next(i for i, c in enumerate(calls) if c[0] == 'install'),
+                        calls.index(['boot', OLD]))
+        self.assertEqual(calls[-1], ['bootstatus', OLD, '-b'])
+        self.assertEqual(json.loads(config.read_text())['devices']['simulator']['device'], {'id': OLD})
+        self.assertTrue(receipt['parked'])
+        self.assertFalse(receipt['appLaunched'])
+
+    def test_incomplete_original_state_is_rejected_before_any_mutation(self):
+        for state in ['Booting', 'Shutting Down', None]:
+            config, run = self.scenario()
+            replies = list(run.side_effect)
+            devices = json.loads(replies[1])
+            devices['devices']['com.apple.iOS-26-5'][0]['state'] = state
+            replies[1] = json.dumps(devices)
+            run.side_effect = replies
+            with self.assertRaises(ValueError):
+                module.prepare(run, config, OLD, park=True)
+            self.assertEqual(run.call_count, 2)
+
+    def test_inventory_timeout_never_boots_or_changes_config(self):
+        config, run = self.scenario()
+        before = config.read_text()
+        run.side_effect = subprocess.TimeoutExpired(['xcrun', 'simctl', 'list', 'devicetypes', '-j'], 30)
+        with self.assertRaises(subprocess.TimeoutExpired):
+            module.prepare(run, config, OLD, park=True)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(config.read_text(), before)
 
     def test_park_pins_warm_original_and_cannot_select_parked_twin_by_type(self):
         config, run = self.scenario()

@@ -1,0 +1,44 @@
+{
+  "observedAt": "2026-10-23T22:58:36.713450+00:00",
+  "failedSource": "594697e914eafa614e3d48b0d6753bbc429f5d97",
+  "runId": 40025524053,
+  "attempt": 1,
+  "testJobId": 120670902348,
+  "failedStep": "Prepare and park pristine self-test simulator",
+  "failedCommand": [
+    "xcrun",
+    "simctl",
+    "list",
+    "devicetypes",
+    "-j"
+  ],
+  "deadlineSeconds": 30,
+  "failureBeforeSimulatorMutation": true,
+  "failureBeforeAppTests": true,
+  "rootCauseOfServiceDelayProven": false,
+  "jobLogSha256": "08fe84e2b462f255b3b696dfc3376f8f6081cb693a975c5d3f877f4974b81be4",
+  "artifactId": 12533908056,
+  "artifactZipSha256": "f6f15608b8b2bd0539dcbb61d7073a9d50845313caf0093c304894f6627e6109",
+  "artifactMember": "selftest-provision-failure.log",
+  "artifactMemberBytes": 0,
+  "candidateCorrection": "Select original without boot; enumerate and provision pristine simulator before original first-boot migration; park it then boot and pin original exact UUID. Transitional original states fail closed. Preserve error command/source/deadline even without stdout.",
+  "candidateHostedProof": false,
+  "timeoutsChanged": false,
+  "assertionsChanged": false,
+  "testRetriesAdded": false,
+  "productionCodeChanged": false,
+  "localValidation": {
+    "coldOriginalRegressionFailedBeforeFix": true,
+    "pythonProvisioningTestsPassed": 23
+  },
+  "previousFundedEvidence": {
+    "runId": 40025551613,
+    "attempt": 1,
+    "result": "success",
+    "artifactId": 12534218788,
+    "archiveSha256": "2b4c2c77ed053a1aa6508b07dabbd5f2336da8e5e9bc92c47b4030987b753219",
+    "nativeReceiptSha256": "bc64e014afb73bb4d47524ad0a9957e928303378006b117cdaec11351366939f",
+    "backendReceiptSha256": "41eb871b8445c1e5e19e347f8e9e81b99031aa8e1f3c433087e8052cd4e7e54f",
+    "qualifiesReplacementSource": false
+  }
+}

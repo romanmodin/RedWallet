@@ -238,8 +238,9 @@ jobs:
           mkdir -p ios/build/Build/Products/Release-iphonesimulator
           tar -xzf BlueWallet.app.tar.gz -C ios/build/Build/Products/Release-iphonesimulator
 
-      # Pre-boot simulator so first detox launchApp lands warm.
-      - name: Pre-boot iOS simulator
+      # Select without booting: inventory/provision before first-boot migration.
+      # The park helper boots and verifies this exact device after parking the pristine one.
+      - name: Select original iOS simulator
         run: |
           DEVICE_TYPE=$(jq -r '.devices.simulator.device.type' .detoxrc.json)
           UDID=$(applesimutils --list --byType "$DEVICE_TYPE" | jq -r '.[0].udid // empty')
@@ -247,10 +248,7 @@ jobs:
             echo "ERROR: no simulator of type '$DEVICE_TYPE' found"
             exit 1
           fi
-          xcrun simctl boot "$UDID" 2>/dev/null || true
-          xcrun simctl bootstatus "$UDID" -b
           echo "REDWALLET_PREBOOT_SIMULATOR=$UDID" >> "$GITHUB_ENV"
-          xcrun simctl launch "$UDID" com.apple.springboard >/dev/null 2>&1 || true
 
       - name: Prepare and park pristine self-test simulator
         run: python3 .github/scripts/prepare-ios-selftest.py --park

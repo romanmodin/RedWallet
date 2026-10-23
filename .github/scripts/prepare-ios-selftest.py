@@ -31,11 +31,15 @@ def prepare(run=subprocess.check_output, config_path=Path('.detoxrc.json'), prot
     if len(matches) != 1:
         raise ValueError('Expected exactly one preboot simulator')
     runtime, prototype = matches[0]
-    if prototype.get('state') != 'Booted' or prototype.get('deviceTypeIdentifier') != selected:
+    allowed_states = {'Booted', 'Shutdown'} if park else {'Booted'}
+    if prototype.get('state') not in allowed_states or prototype.get('deviceTypeIdentifier') != selected:
         raise ValueError('Preboot simulator type/state does not match')
-    # Stop only this job's selected simulator while preparing another on the
-    # same runtime. Park mode runs before artwork/TLS; direct mode runs after.
-    command('shutdown', prototype_id)
+    # In park mode, inventory and prepare the disposable simulator before the
+    # original's first boot. Listing types after first-boot migration stalled in
+    # 40025524053. Keep the same bounded commands and reject transitional states.
+    # Direct mode still requires a booted original, as before.
+    if prototype['state'] == 'Booted':
+        command('shutdown', prototype_id)
     device_id = command('create', 'RedWallet-selftest-' + uuid.uuid4().hex, selected, runtime)
     uuid.UUID(device_id)
     command('boot', device_id)
@@ -117,7 +121,25 @@ def checked_out_source(run=subprocess.check_output):
     return source
 
 
+def record_failure(error, source, directory=Path('artifacts')):
+    directory.mkdir(exist_ok=True)
+    output = error.output or b''
+    if isinstance(output, bytes):
+        output = output.decode(errors='replace')
+    # A timed-out simctl may emit nothing. Keep the failed command and deadline
+    # independently of stdout so the next hosted failure is still diagnosable.
+    details = {
+        'sourceCommit': source, 'errorType': type(error).__name__, 'command': error.cmd,
+        'timeoutSeconds': getattr(error, 'timeout', None),
+        'returnCode': getattr(error, 'returncode', None), 'output': output,
+    }
+    (directory / 'selftest-provision-failure.json').write_text(json.dumps(details, indent=2) + '\n')
+    (directory / 'selftest-provision-failure.log').write_text(str(error) + '\n' + output)
+    print(str(error) + '\n' + output, flush=True)
+
+
 if __name__ == '__main__':
+    source = None
     try:
         source = checked_out_source()
         mode = sys.argv[1] if len(sys.argv) == 2 else ''
@@ -128,12 +150,7 @@ if __name__ == '__main__':
         else:
             raise ValueError('Unexpected simulator preparation mode')
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
-        Path('artifacts').mkdir(exist_ok=True)
-        output = error.output or b''
-        if isinstance(output, bytes):
-            output = output.decode(errors='replace')
-        Path('artifacts/selftest-provision-failure.log').write_text(output)
-        print(output, flush=True)
+        record_failure(error, source)
         raise
     Path('artifacts').mkdir(exist_ok=True)
     receipt['sourceCommit'] = source
