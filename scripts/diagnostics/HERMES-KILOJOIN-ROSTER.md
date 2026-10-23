@@ -20,10 +20,11 @@ Roster/cancellation and promotion are one encrypted save; the in-memory queue is
 updated only after persistence succeeds. Duplicate identity checks, the original
 vote timestamp, cancellation history and the pool deadline remain enforced.
 
-This does not change the initial first-vote check before any roster is verified.
-An invalid caller or expired first request in that separate path still fails
-closed. It also does not add crash resume or automatic voting, spending or
-broadcasting. Queued requests are local to the current controller instance.
+This correction originally left the first-vote path before any roster unchanged.
+The follow-up in `HERMES-KILOJOIN-HISTORY.md` now also keeps ineligible initial
+requests inactive without rejecting a valid roster. Neither change adds crash
+resume or automatic voting, spending or broadcasting. Queued requests are local
+to the current controller instance.
 
 The added safety tests cover stale rosters, invalid proofs, missing chain data,
 changed own seats, failed storage, expiry, cancellation, unknown callers,

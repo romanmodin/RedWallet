@@ -344,7 +344,7 @@ export class ParticipantSession {
           if (!['open', 'voting'].includes(this.state.phase)) break;
           this.requireOpenPool();
           const seats = await this.checkedSeats(body.seats, body.seq as number);
-          let next: SessionState = {
+          const next: SessionState = {
             ...this.state,
             seats,
             sequence: body.seq as number,
@@ -352,13 +352,12 @@ export class ParticipantSession {
           // A fresh pool subscription can return stored vote_open before roster
           // (NIP-01 newest-first history, including timestamp ties). Accept the
           // vote only after all roster/ownership/chain checks, in one durable save.
-          const initial = [...this.pendingInitialVotes.values()];
-          if (initial.length) next = this.votingState(next, initial[0]);
           const queued = new Map(this.followingVotes);
-          // Multiple cycles can be replayed before the roster. Only now may
-          // their callers be checked against verified seats. The first request
-          // remains active until its specific creator cancellation arrives.
-          for (const vote of initial.slice(1)) {
+          // Replay may begin with an expired cycle or an absent caller. Such a
+          // request must not invalidate an otherwise verified roster or block a
+          // later eligible request. The same strict eligibility checks apply to
+          // every initial and following vote before any can become active.
+          for (const vote of this.pendingInitialVotes.values()) {
             if (this.liveVote(vote)) queued.set(vote.voteId, vote);
           }
           const promoted = this.followingState(next, queued);

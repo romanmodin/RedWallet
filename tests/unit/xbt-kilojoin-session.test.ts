@@ -258,8 +258,15 @@ test('initial vote caller must belong to the subsequently verified roster', asyn
     by: 'ff'.repeat(32),
     vote_id: 'aa'.repeat(8),
   });
-  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Invalid vote caller');
-  expect(f.session.snapshot()).toMatchObject({ phase: 'open', seats: [] });
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'open', sequence: 1 });
+  expect(f.session.snapshot().seats).toHaveLength(2);
+  expect(f.session.snapshot().voteId).toBeUndefined();
+  await expect(f.session.vote(true)).rejects.toThrow('phase');
+  const signer = jest.fn();
+  await expect(f.session.signApproved('00'.repeat(32), signer)).rejects.toThrow();
+  expect(signer).not.toHaveBeenCalled();
+  expect(f.round.snapshot().reserved).toHaveLength(1);
   expect(f.published).toHaveLength(0);
 });
 
@@ -292,8 +299,15 @@ test('a deferred vote keeps the original deadline and cannot become valid after 
     vote_id: 'aa'.repeat(8),
   });
   f.tick(601);
-  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('expired session phase');
-  expect(f.session.snapshot()).toMatchObject({ phase: 'open', seats: [] });
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'open', sequence: 1 });
+  expect(f.session.snapshot().seats).toHaveLength(2);
+  expect(f.session.snapshot().voteId).toBeUndefined();
+  await expect(f.session.vote(true)).rejects.toThrow('phase');
+  const signer = jest.fn();
+  await expect(f.session.signApproved('00'.repeat(32), signer)).rejects.toThrow();
+  expect(signer).not.toHaveBeenCalled();
+  expect(f.round.snapshot().reserved).toHaveLength(1);
   expect(f.published).toHaveLength(0);
 });
 
@@ -319,6 +333,93 @@ async function pendingVotesFixture() {
   await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'bb'.repeat(8) });
   return f;
 }
+
+const initialHistoryCases = (['p2wpkh', 'p2tr'] as const).flatMap(type =>
+  [1, 5].flatMap(outputs =>
+    ['absent-caller', 'expired'].flatMap(fault =>
+      ['arb', 'abr', 'bar', 'bra', 'rab', 'rba'].map(order => ({ type, outputs, fault, order })),
+    ),
+  ),
+);
+
+test.each(initialHistoryCases)(
+  'initial $fault vote history cannot block a valid roster and current vote: $type/$outputs/$order',
+  async ({ type, outputs, fault, order }) => {
+    const f = await fixture(type, outputs);
+    await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+    const stale = signEvent(
+      {
+        kind: 2023,
+        created_at: 10000,
+        tags: [['p', f.terms.public_key]],
+        content: encrypt(
+          JSON.stringify({
+            type: 'vote_open',
+            vote_id: 'aa'.repeat(8),
+            by: fault === 'absent-caller' ? 'ff'.repeat(32) : f.rawSeats[1].token_hash,
+          }),
+          conversationKey(creator, f.terms.public_key),
+          randomBytes(32),
+        ),
+      },
+      creator,
+      randomBytes(32),
+    );
+    if (fault === 'expired') f.tick(601);
+    const journal = f.round.snapshot();
+    for (const step of order) {
+      if (step === 'a') await f.session.receive(stale);
+      if (step === 'r') await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+      if (step === 'b') await f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash });
+      expect(f.session.snapshot().voteId).not.toBe('aa'.repeat(8));
+      expect(f.published).toHaveLength(0);
+      expect(f.round.snapshot()).toEqual(journal);
+    }
+    expect(f.session.snapshot()).toMatchObject({
+      phase: 'voting',
+      voteId: 'bb'.repeat(8),
+      sequence: 1,
+      deadline: fault === 'expired' ? 11201 : 10600,
+    });
+    expect(f.session.snapshot().seats).toHaveLength(2);
+    await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+    expect(f.session.snapshot().voteId).toBe('bb'.repeat(8));
+    expect(f.published).toHaveLength(0);
+  },
+);
+
+test.each(['p2wpkh', 'p2tr'] as const)('initial %s request remains inactive until a later roster establishes quorum', async type => {
+  const f = await fixture(type, 5);
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash });
+  await f.receive({ type: 'roster', seq: 1, seats: [f.rawSeats[0]] });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'open', sequence: 1 });
+  await expect(f.session.vote(true)).rejects.toThrow('phase');
+  expect(f.published).toHaveLength(0);
+  await f.receive({ type: 'roster', seq: 2, seats: f.rawSeats });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8), deadline: 10600 });
+  expect(f.published).toHaveLength(0);
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+});
+
+test('failed first-roster save preserves both inactive history and the eligible initial request', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'vote_open', vote_id: 'aa'.repeat(8), by: 'ff'.repeat(32) });
+  await f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash });
+  const before = f.session.snapshot();
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('synthetic storage failure'));
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Session persistence failed');
+  expect(f.session.snapshot()).toEqual(before);
+  await expect(f.session.vote(true)).rejects.toThrow('phase');
+  expect(f.published).toHaveLength(0);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8) });
+  await f.receive({ type: 'reopen', vote_id: 'bb'.repeat(8) });
+  expect(f.session.snapshot().phase).toBe('open');
+  expect(f.session.snapshot().voteId).toBeUndefined();
+  expect(f.published).toHaveLength(0);
+});
 
 test('failed initial roster persistence retains every pending cycle for a later authenticated envelope', async () => {
   const f = await pendingVotesFixture();

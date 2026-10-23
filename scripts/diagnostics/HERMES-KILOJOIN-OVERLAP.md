@@ -37,10 +37,11 @@ after durable persistence. Different callers claiming the same vote ID still
 fail closed; duplicate IDs preserve their original deadline. Stop clears both
 queues once journal cancellation is durable, even if terminal storage fails.
 
-This does not weaken the original first-vote caller/deadline validation or claim
-that all arbitrary histories are supported. A surviving first request with an
-invalid caller or expired deadline still fails closed. Pending requests are
-instance-local; no automatic vote, transaction signature or broadcast is added.
+At this stage the first request could still reject a valid initial roster when
+its caller was absent or its deadline had expired. The follow-up documented in
+`HERMES-KILOJOIN-HISTORY.md` addresses that remaining case: such a request cannot
+activate, but it no longer blocks a newer eligible request. Pending requests
+remain instance-local; no automatic vote, transaction signature or broadcast is added.
 
 Tests use synthetic coins and public Kotlin fixture payloads:
 
