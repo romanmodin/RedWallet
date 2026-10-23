@@ -486,6 +486,138 @@ test('late closing retains its own strict deadline even when the vote deadline h
   expect(f.published).toHaveLength(0);
 });
 
+const overlappingOrders = ['abc', 'acb', 'bac', 'bca', 'cab', 'cba'];
+test.each(
+  (['p2wpkh', 'p2tr'] as const).flatMap(type => [1, 5].flatMap(outputs => overlappingOrders.map(order => ({ type, outputs, order })))),
+)('overlapping votes preserve the surviving cycle for $type/$outputs/$order', async ({ type, outputs, order }) => {
+  const f = await fixture(type, outputs);
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  const journal = f.round.snapshot();
+  const events: Record<string, Record<string, unknown>> = {
+    a: { type: 'vote_open', vote_id: 'aa'.repeat(8), by: f.rawSeats[1].token_hash },
+    b: { type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash },
+    c: { type: 'reopen', vote_id: 'aa'.repeat(8) },
+  };
+  for (const step of order) await f.receive(events[step]);
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8), deadline: 10600 });
+  expect(f.session.snapshot().seats).toHaveLength(2);
+  expect(f.round.snapshot()).toEqual(journal);
+  expect(f.session.snapshot().signatures).toEqual({});
+  expect(f.published).toHaveLength(0);
+});
+
+function permutations(items: string[]): string[][] {
+  return items.length === 0 ? [[]] : items.flatMap((item, i) => permutations(items.filter((_, j) => i !== j)).map(rest => [item, ...rest]));
+}
+test.each(permutations(['a', 'b', 'd', 'x', 'y']).map(order => [order.join('')]))(
+  'three replayed cycles converge after both cancellations: %s',
+  async order => {
+    const f = await fixture('p2wpkh', 5);
+    await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+    await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+    const journal = f.round.snapshot();
+    const events: Record<string, Record<string, unknown>> = {
+      a: { type: 'vote_open', vote_id: 'aa'.repeat(8), by: f.rawSeats[1].token_hash },
+      b: { type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash },
+      d: { type: 'vote_open', vote_id: 'dd'.repeat(8), by: f.rawSeats[1].token_hash },
+      x: { type: 'reopen', vote_id: 'aa'.repeat(8) },
+      y: { type: 'reopen', vote_id: 'bb'.repeat(8) },
+    };
+    for (const step of order) await f.receive(events[step]);
+    expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'dd'.repeat(8), deadline: 10600 });
+    expect(f.round.snapshot()).toEqual(journal);
+    expect(f.published).toHaveLength(0);
+  },
+);
+
+async function activeVoteFixture() {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  await f.receive({ type: 'vote_open', vote_id: 'aa'.repeat(8), by: f.rawSeats[1].token_hash });
+  return f;
+}
+
+test('future vote buffering does not change the active vote, deadline, persisted state or journal', async () => {
+  const f = await activeVoteFixture();
+  const before = f.session.snapshot(),
+    journal = f.round.snapshot();
+  const writes = (f.env.saveEncrypted as jest.Mock).mock.calls.length;
+  f.tick(60);
+  const next = { type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash };
+  await f.receive(next);
+  await f.receive(next); // Re-encrypted duplicate cannot extend the first deadline.
+  expect(f.session.snapshot()).toEqual(before);
+  expect(f.round.snapshot()).toEqual(journal);
+  expect(f.env.saveEncrypted).toHaveBeenCalledTimes(writes);
+  expect(f.published).toHaveLength(0);
+  f.tick(40);
+  await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8), deadline: 10660 });
+  f.tick(560);
+  await expect(f.session.vote(true)).rejects.toThrow('expired');
+});
+
+test('failed atomic cancellation/promotion keeps the original vote and retains the next request', async () => {
+  const f = await activeVoteFixture();
+  await f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash });
+  const before = f.session.snapshot();
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('private synthetic detail'));
+  await expect(f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) })).rejects.toThrow('Session persistence failed');
+  expect(f.session.snapshot()).toEqual(before);
+  // New authenticated envelope after the injected failure; no automatic wallet-action retry.
+  await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8) });
+  expect(f.published).toHaveLength(0);
+  expect(f.round.snapshot().phase).toBe('joined');
+});
+
+test.each(['expired', 'removed-caller', 'cancelled', 'wrong-authority', 'unknown-caller'] as const)(
+  'does not promote a following vote that is %s',
+  async problem => {
+    const f = await activeVoteFixture();
+    await f.receive(
+      { type: 'vote_open', vote_id: 'bb'.repeat(8), by: problem === 'unknown-caller' ? 'ff'.repeat(32) : f.rawSeats[1].token_hash },
+      false,
+      problem === 'wrong-authority' ? pool : creator,
+    );
+    if (problem === 'expired') f.tick(601);
+    if (problem === 'removed-caller') await f.receive({ type: 'roster', seq: 2, seats: [f.rawSeats[0]] });
+    if (problem === 'cancelled') await f.receive({ type: 'reopen', vote_id: 'bb'.repeat(8) });
+    await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+    expect(f.session.snapshot()).toMatchObject({ phase: 'open', deadline: 12000 });
+    expect(f.session.snapshot().voteId).toBeUndefined();
+    expect(f.published).toHaveLength(0);
+    expect(f.round.snapshot().reserved).toHaveLength(1);
+  },
+);
+
+test('conflicting identity cannot replace an already buffered vote', async () => {
+  const f = await activeVoteFixture();
+  await f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash });
+  await expect(f.receive({ type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[0].token_hash })).rejects.toThrow(
+    'Conflicting pending vote identity',
+  );
+  await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8) });
+  expect(f.published).toHaveLength(0);
+});
+
+test('pending vote resource limit keeps the existing request and cannot bypass cancellation', async () => {
+  const f = await activeVoteFixture();
+  for (let i = 1; i <= 32; i++)
+    await f.receive({ type: 'vote_open', vote_id: i.toString(16).padStart(16, '0'), by: f.rawSeats[1].token_hash });
+  const before = f.session.snapshot();
+  await expect(f.receive({ type: 'vote_open', vote_id: 'ee'.repeat(8), by: f.rawSeats[1].token_hash })).rejects.toThrow(
+    'Pending vote limit',
+  );
+  expect(f.session.snapshot()).toEqual(before);
+  await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: '0000000000000001' });
+  expect(f.published).toHaveLength(0);
+});
+
 test.each(['p2wpkh', 'p2tr'] as const)(
   'encrypted %s participant round verifies blind output, explicit approval and all signatures',
   async type => {

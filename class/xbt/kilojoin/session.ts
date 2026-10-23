@@ -21,6 +21,7 @@ type OutputState = {
   submitted?: boolean;
 };
 type Phase = 'joining' | 'open' | 'voting' | 'closing' | 'review' | 'signed' | 'aborted';
+type PendingVote = { by: string; voteId: string; createdAt: number };
 export type SessionState = {
   phase: Phase;
   sequence: number;
@@ -62,11 +63,8 @@ export class ParticipantSession {
   private readonly seat: Seat;
   private readonly mixScripts: string[];
   private welcomeCreatedAt?: number;
-  private pendingInitialVote?: {
-    by: string;
-    voteId: string;
-    createdAt: number;
-  };
+  private pendingInitialVote?: PendingVote;
+  private followingVotes = new Map<string, PendingVote>();
 
   private busy = false;
   private idle: Promise<void> = Promise.resolve();
@@ -204,11 +202,19 @@ export class ParticipantSession {
     this.state = copy(next);
   }
 
-  private votingState(base: SessionState, vote: { by: string; voteId: string; createdAt: number }): SessionState {
+  private votingState(base: SessionState, vote: PendingVote): SessionState {
     if (base.seats.length < this.terms.min_peers || !base.seats.some(s => s.token_hash === vote.by)) throw new Error('Invalid vote caller');
     const deadline = Math.min(base.deadline, vote.createdAt + 600);
     if (this.env.now() >= deadline) throw new Error('Invalid or expired session phase');
     return { ...base, phase: 'voting', voteId: vote.voteId, deadline };
+  }
+
+  private canFollowVote(vote: PendingVote): boolean {
+    return (
+      this.state.seats.length >= this.terms.min_peers &&
+      this.state.seats.some(s => s.token_hash === vote.by) &&
+      this.env.now() < Math.min(this.round.snapshot().deadline, vote.createdAt + 600)
+    );
   }
 
   private async publish(body: Record<string, unknown>, isolated = false): Promise<void> {
@@ -336,13 +342,27 @@ export class ParticipantSession {
           break;
         }
         case 'vote_open': {
-          if (this.state.phase !== 'open') break;
+          if (!['open', 'voting'].includes(this.state.phase)) break;
           const vote = {
             by: hex(body.by as string, 32).toString('hex'),
             voteId: identifier(body.vote_id),
             createdAt: message.createdAt,
           };
           if (vote.voteId === this.state.voteId || this.state.retiredVoteIds?.includes(vote.voteId)) break;
+          if (this.state.phase === 'voting') {
+            // Replay can deliver the next creator vote before the current one's
+            // reopen. Retain it without changing the active vote or publishing.
+            this.requireOpenPool();
+            const pending = this.followingVotes.get(vote.voteId);
+            if (pending) {
+              if (pending.by !== vote.by) throw new Error('Conflicting pending vote identity');
+              break;
+            }
+            if (!this.canFollowVote(vote)) break;
+            if (this.followingVotes.size >= 32) throw new Error('Pending vote limit');
+            this.followingVotes.set(vote.voteId, vote);
+            break;
+          }
           this.require(['open']);
           if (this.state.seats.length === 0) {
             // The authenticated creator's one bounded pending request cannot
@@ -367,11 +387,25 @@ export class ParticipantSession {
           // Bound this encrypted metadata independently of the envelope cache.
           if (retired.length >= 256) throw new Error('Session vote history limit');
           const active = this.state.voteId === voteId;
-          await this.save({
+          const following = new Map(this.followingVotes);
+          following.delete(voteId);
+          let next: SessionState = {
             ...this.state,
             retiredVoteIds: [...retired, voteId],
             ...(active ? { phase: 'open', voteId: undefined, deadline: this.round.snapshot().deadline } : {}),
-          });
+          };
+          if (active) {
+            for (const [id, pending] of following) {
+              following.delete(id);
+              if (next.retiredVoteIds!.includes(id) || !this.canFollowVote(pending)) continue;
+              next = this.votingState(next, pending);
+              break;
+            }
+          }
+          // Cancellation and promotion are one durable transition. Failed saves
+          // leave both the active vote and the pending queue unchanged.
+          await this.save(next);
+          this.followingVotes = following;
           // Cancellation may precede vote_open or its required roster. Clear a
           // matching pending request only after the cancellation is durable.
           if (this.pendingInitialVote?.voteId === voteId) this.pendingInitialVote = undefined;

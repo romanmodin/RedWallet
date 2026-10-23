@@ -188,6 +188,56 @@ test.each(vectors)('startup burst with real Kotlin $terms.script / $terms.max_pe
 });
 
 test.each(vectors)(
+  'relay burst preserves the next cycle across an older cancellation: $terms.script/$terms.max_peers/$mixes.length',
+  async v => {
+    const creator = Buffer.from('08'.padStart(64, '0'), 'hex');
+    const pool = Buffer.from('02'.padStart(64, '0'), 'hex');
+    const creatorPub = Buffer.from(ecc.pointFromScalar(creator, true)!.slice(1)).toString('hex');
+    const payloads = v.events.map(event => {
+      const recipient = event.tags.find(tag => tag[0] === 'p')![1];
+      const receiver = recipient === v.terms.public_key ? pool : Buffer.from('07'.padStart(64, '0'), 'hex');
+      return JSON.parse(decrypt(event.content, conversationKey(receiver, v.terms.creator)));
+    });
+    const envelope = (body: unknown, recipient = v.terms.public_key) =>
+      signEvent(
+        {
+          kind: 2023,
+          created_at: v.startedAt + 2,
+          tags: [['p', recipient]],
+          content: encrypt(JSON.stringify(body), conversationKey(creator, recipient), randomBytes(32)),
+        },
+        creator,
+        randomBytes(32),
+      );
+    const events = [envelope(payloads[0], v.rawSeat.join_pub), envelope(payloads[1]), envelope(payloads[2])];
+    const f = await fixture({ ...v, terms: { ...v.terms, creator: creatorPub }, events });
+    try {
+      await f.welcome();
+      // Send as one burst through the real serialized relay, not direct session calls.
+      for (const event of [
+        events[1],
+        events[2],
+        envelope({ ...payloads[2], vote_id: 'bb'.repeat(8) }),
+        envelope({ type: 'reopen', vote_id: payloads[2].vote_id }),
+      ])
+        f.deliver(event);
+      await f.drain();
+      expect(f.errors).toEqual([]);
+      expect(f.updates).toContainEqual({ phase: 'voting', seats: v.terms.max_peers });
+      expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8) });
+      expect(f.session.snapshot().seats).toHaveLength(v.terms.max_peers);
+      expect(f.observe).toHaveBeenCalledTimes(1);
+      expect(f.round.snapshot().phase).toBe('joined');
+      expect(f.round.snapshot().reserved).toHaveLength(v.rawSeat.coins.length);
+      expect(f.session.snapshot().signatures).toEqual({});
+      expect(f.socket.send.mock.calls.map(([raw]) => JSON.parse(raw)[0])).not.toContain('EVENT');
+    } finally {
+      f.relay.close();
+    }
+  },
+);
+
+test.each(vectors)(
   'defers vote-before-roster until the initial roster is verified for actual $terms.script / $terms.max_peers seats / $mixes.length outputs',
   async v => {
     const f = await fixture(v);
