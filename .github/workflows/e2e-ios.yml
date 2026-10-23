@@ -252,6 +252,9 @@ jobs:
           echo "REDWALLET_PREBOOT_SIMULATOR=$UDID" >> "$GITHUB_ENV"
           xcrun simctl launch "$UDID" com.apple.springboard >/dev/null 2>&1 || true
 
+      - name: Prepare and park pristine self-test simulator
+        run: python3 .github/scripts/prepare-ios-selftest.py --park
+
       # Cut animations so detox sync stays steady on slow CI VMs; Reduce Motion makes reanimated skip to final value.
       - name: Disable simulator animations
         run: |
@@ -297,9 +300,9 @@ jobs:
             --record-videos failing --record-logs failing --take-screenshots failing \
             --headless --retries 0 --reuse --artifacts-location ./artifacts/tls
           fi
-          # Provision after TLS exits, before Detox owns a device or records artifacts.
+          # Activate the pristine simulator whose migration completed before artwork/TLS.
           # Failure stops the gate; never fall back to the reused simulator.
-          python3 .github/scripts/prepare-ios-selftest.py
+          python3 .github/scripts/prepare-ios-selftest.py --activate
           export REDWALLET_FRESH_SELFTEST_SIMULATOR="$(cat selftest-simulator-id.txt)"
           # Retain supported inherited coverage; bluewallet2 requires a funded Bitcoin fixture.
           npm run e2e:test:ios-release -- \

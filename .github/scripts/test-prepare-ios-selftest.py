@@ -134,5 +134,76 @@ class PreparationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Invalid checked-out'):
             module.checked_out_source(Mock(return_value='HEAD'))
 
+class ParkedPreparationTests(unittest.TestCase):
+    scenario = PreparationTests.scenario
+
+    def prepared(self):
+        config, run = self.scenario()
+        before = config.read_text()
+        run.side_effect = list(run.side_effect) + ['', '', '']
+        receipt = module.prepare(run, config, OLD, park=True)
+        self.assertEqual(config.read_text(), before)
+        self.assertTrue(receipt['parked'])
+        self.assertFalse(receipt['appLaunched'])
+        self.assertEqual([c.args[0][2:] for c in run.call_args_list[-3:]], [
+            ['shutdown', ID], ['boot', OLD], ['bootstatus', OLD, '-b']])
+        receipt['sourceCommit'] = 'a' * 40
+        replies = [json.dumps({'devices': {'com.apple.iOS-26-5': [
+            {'udid': ID, 'state': 'Shutdown', 'deviceTypeIdentifier': 'phone17'}]}}),
+            '', '', '', '/simulator/Applications/BlueWallet.app']
+        return config, receipt, Mock(side_effect=replies)
+
+    def test_parked_simulator_activates_without_create_erase_reinstall_or_launch(self):
+        config, receipt, run = self.prepared()
+        result = module.activate(receipt, 'a' * 40, run, config)
+        self.assertTrue(result['activated'])
+        self.assertFalse(result['parked'])
+        self.assertEqual(json.loads(config.read_text())['devices']['simulator']['device'], {'id': ID})
+        self.assertEqual([c.args[0][2] for c in run.call_args_list],
+                         ['list', 'shutdown', 'boot', 'bootstatus', 'get_app_container'])
+        self.assertEqual(run.call_args_list[3].kwargs['timeout'], 300)
+
+    def test_stale_source_or_unverified_park_never_mutates_simulator(self):
+        for field, value in [('sourceCommit', 'b' * 40), ('parked', False),
+                             ('appLaunched', True), ('deviceId', OLD), ('binaryPath', '/wrong.app')]:
+            with self.subTest(field=field):
+                config, receipt, run = self.prepared()
+                receipt[field] = value
+                with self.assertRaises(ValueError):
+                    module.activate(receipt, 'a' * 40, run, config)
+                run.assert_not_called()
+
+    def test_changed_runtime_type_or_state_never_boots(self):
+        for field, value in [('state', 'Booted'), ('deviceTypeIdentifier', 'other')]:
+            config, receipt, run = self.prepared()
+            replies = list(run.side_effect)
+            devices = json.loads(replies[0])
+            devices['devices']['com.apple.iOS-26-5'][0][field] = value
+            replies[0] = json.dumps(devices)
+            run.side_effect = replies
+            with self.assertRaises(ValueError):
+                module.activate(receipt, 'a' * 40, run, config)
+            self.assertEqual(run.call_count, 1)
+
+    def test_activation_boot_timeout_or_changed_container_never_publishes(self):
+        for index, value in [(3, subprocess.TimeoutExpired('bootstatus', 300)), (4, '/wrong/BlueWallet.app')]:
+            config, receipt, run = self.prepared()
+            before = config.read_text()
+            replies = list(run.side_effect)
+            replies[index] = value
+            run.side_effect = replies
+            with self.assertRaises((ValueError, subprocess.TimeoutExpired)):
+                module.activate(receipt, 'a' * 40, run, config)
+            self.assertEqual(config.read_text(), before)
+            self.assertEqual(run.call_count, index + 1)
+
+    def test_parking_failure_never_selects_replacement(self):
+        config, run = self.scenario()
+        before = config.read_text()
+        run.side_effect = list(run.side_effect) + [subprocess.TimeoutExpired('shutdown', 30)]
+        with self.assertRaises(subprocess.TimeoutExpired):
+            module.prepare(run, config, OLD, park=True)
+        self.assertEqual(config.read_text(), before)
+
 if __name__ == '__main__':
     unittest.main()

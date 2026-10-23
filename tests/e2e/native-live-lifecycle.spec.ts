@@ -28,6 +28,7 @@ import {
   waitForText,
   waitForWalletsList,
 } from './lifecycle-helperz';
+import { launchNativeClean } from './launch-native-clean';
 import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
@@ -458,8 +459,7 @@ native('isolated native live wallet stages and final acceptance', () => {
           markStep('clear keychain');
           await device.clearKeychain();
           markStep('launch app');
-          await device.launchApp({
-            delete: true,
+          await launchNativeClean(device, {
             permissions: { notifications: 'NO' },
             launchArgs: { detoxEnableSynchronization: 0 },
           });
