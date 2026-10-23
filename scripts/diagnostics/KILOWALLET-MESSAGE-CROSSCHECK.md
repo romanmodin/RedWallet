@@ -141,3 +141,45 @@ The Node-hosted self-test passed; native iOS execution remains REQUIRED.
 
 Evidence and actual before/after log hashes:
 `.github/release/IOS-KILOJOIN-STARTUP-ORDER-20261023.json`.
+
+## Full client startup and node-version cross-check
+
+`tests/unit/xbt-kilojoin-client-startup.test.ts` drives the actual MixingClient,
+ParticipantSession, KilojoinRelay, SessionVault, wallet derivation, journal store,
+and raw-parent/UTXO/history checks together. Native storage/entropy, backend
+responses, wallet disk I/O and the socket are offline test doubles. Unlike the
+recorded Kotlin tests above, the creator messages here are generated synthetic
+fixtures. They do not claim an actual native runtime or real chain observation.
+
+The 25 tests include 16 combinations of both address types, one/five outputs,
+chronological/reversed history, and welcome before/after publication ACK. Each
+completes startup, stops and rejoins with a fresh identity, five accepted seats,
+persisted encrypted state and advancing output-address indices. Late events and
+errors on the retired socket cannot overwrite the replacement attempt. No
+transaction signature or broadcast is requested; only the join is published.
+
+Injected welcome-keychain-read, welcome-write, invalid welcome MAC and wrong
+pool-secret failures all leave JOINING/zero seats, with bounded diagnostics.
+An independently unspent-check failure leaves OPEN/zero seats. Initial storage
+failure or a refused publication ACK rejects startup and releases the unsigned
+reservation; an authentic creator rejection produces ABORTED, not the generic
+participant-processing failure. Successful fresh attempts follow Stop in the
+fault cases. These are observed code paths, not proof of the user's phone cause.
+
+The first harness version mistakenly identified a vote caller by join public
+key instead of token hash and correctly failed KJ-VOTE. The fixture was corrected
+against the upstream creator code; no production validation was changed.
+
+Kilojoin node package 0.8.0 at `9a073beb7e8f5e59966fcd1a0641fa7e012d68cb`
+pins Kilowallet submodule `9165628aa872f13de3ffe2ef8422a7795dbc2dde`.
+Its Gradle build imports the shared coinjoin implementation. PoolSession.kt,
+Nip44.kt, Protocol.kt and CoinjoinTx.kt were fetched at that exact submodule
+commit and are byte-identical to the files previously cross-tested at
+`233733def7e492084f4d57e5faa1d76b9ab2ce79`. This rules out a source difference
+in those files for these two published revisions. It does not establish the
+version or configuration deployed by any particular pool.
+
+Evidence: `.github/release/IOS-KILOJOIN-CLIENT-STARTUP-20261023.json`.
+Related validation: 8 suites / 183 tests passed; TypeScript and changed-file
+ESLint passed. No app code changed in this pass. The earlier native startup
+self-test still requires execution on iOS before native qualification.
