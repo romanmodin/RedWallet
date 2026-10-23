@@ -63,7 +63,7 @@ export class ParticipantSession {
   private readonly seat: Seat;
   private readonly mixScripts: string[];
   private welcomeCreatedAt?: number;
-  private pendingInitialVote?: PendingVote;
+  private pendingInitialVotes = new Map<string, PendingVote>();
   private followingVotes = new Map<string, PendingVote>();
 
   private busy = false;
@@ -329,7 +329,7 @@ export class ParticipantSession {
           if (!['open', 'voting'].includes(this.state.phase)) break;
           this.requireOpenPool();
           const seats = await this.checkedSeats(body.seats, body.seq as number);
-          const next: SessionState = {
+          let next: SessionState = {
             ...this.state,
             seats,
             sequence: body.seq as number,
@@ -337,8 +337,16 @@ export class ParticipantSession {
           // A fresh pool subscription can return stored vote_open before roster
           // (NIP-01 newest-first history, including timestamp ties). Accept the
           // vote only after all roster/ownership/chain checks, in one durable save.
-          await this.save(this.pendingInitialVote ? this.votingState(next, this.pendingInitialVote) : next);
-          this.pendingInitialVote = undefined;
+          const initial = [...this.pendingInitialVotes.values()];
+          if (initial.length) next = this.votingState(next, initial[0]);
+          await this.save(next);
+          // Multiple cycles can be replayed before the roster. Only now may
+          // their callers be checked against verified seats. The first request
+          // remains active until its specific creator cancellation arrives.
+          for (const vote of initial.slice(1)) {
+            if (this.canFollowVote(vote)) this.followingVotes.set(vote.voteId, vote);
+          }
+          this.pendingInitialVotes.clear();
           break;
         }
         case 'vote_open': {
@@ -365,13 +373,15 @@ export class ParticipantSession {
           }
           this.require(['open']);
           if (this.state.seats.length === 0) {
-            // The authenticated creator's one bounded pending request cannot
-            // trigger voting, publishing or signing without a verified roster.
-            if (this.pendingInitialVote) {
-              if (vote.voteId === this.pendingInitialVote.voteId && vote.by === this.pendingInitialVote.by) break;
-              throw new Error('Conflicting initial vote');
+            // Distinct creator vote IDs are replayed cycles, not an identity
+            // conflict. Bound them without activating any before the roster.
+            const pending = this.pendingInitialVotes.get(vote.voteId);
+            if (pending) {
+              if (vote.by !== pending.by) throw new Error('Conflicting initial vote identity');
+              break;
             }
-            this.pendingInitialVote = vote;
+            if (this.pendingInitialVotes.size >= 32) throw new Error('Initial vote limit');
+            this.pendingInitialVotes.set(vote.voteId, vote);
             break;
           }
           await this.save(this.votingState(this.state, vote));
@@ -408,7 +418,7 @@ export class ParticipantSession {
           this.followingVotes = following;
           // Cancellation may precede vote_open or its required roster. Clear a
           // matching pending request only after the cancellation is durable.
-          if (this.pendingInitialVote?.voteId === voteId) this.pendingInitialVote = undefined;
+          this.pendingInitialVotes.delete(voteId);
           break;
         }
         case 'closing': {
@@ -724,7 +734,8 @@ export class ParticipantSession {
       } finally {
         // Once journal cancellation is durable, late messages cannot revive
         // this attempt, even if native encrypted storage is unavailable.
-        this.pendingInitialVote = undefined;
+        this.pendingInitialVotes.clear();
+        this.followingVotes.clear();
         this.inbox.close();
         this.joinSecret.fill(0);
       }

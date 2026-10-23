@@ -42,6 +42,7 @@ test.each([
   ['Invalid vote caller', 'KJ-VOTE'],
   ['Invalid round/vote identifier', 'KJ-ROUND-ID'],
   ['Conflicting initial vote', 'KJ-ORDER'],
+  ['Conflicting initial vote identity', 'KJ-ORDER'],
   ['Session persistence failed', 'KJ-STORAGE'],
   ['Invalid NIP44 MAC', 'KJ-DECRYPT'],
   ['Invalid NIP44 padding', 'KJ-DECRYPT'],

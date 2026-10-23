@@ -235,6 +235,7 @@ test.each(['proof', 'chain', 'own-seat'] as const)('a pending initial vote never
     by: f.rawSeats[1].token_hash,
     vote_id: 'aa'.repeat(8),
   });
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'bb'.repeat(8) });
   const seats = JSON.parse(JSON.stringify(f.rawSeats));
   if (failure === 'proof') seats[1].proofs[0] = '00';
   if (failure === 'chain') f.env.observe = async () => new Map();
@@ -262,7 +263,7 @@ test('initial vote caller must belong to the subsequently verified roster', asyn
   expect(f.published).toHaveLength(0);
 });
 
-test('conflicting pending votes fail closed without replacing the first authenticated request', async () => {
+test('conflicting initial vote identity fails closed without replacing the first authenticated request', async () => {
   const f = await fixture();
   await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
   await f.receive({
@@ -273,10 +274,10 @@ test('conflicting pending votes fail closed without replacing the first authenti
   await expect(
     f.receive({
       type: 'vote_open',
-      by: f.rawSeats[1].token_hash,
-      vote_id: 'bb'.repeat(8),
+      by: f.rawSeats[0].token_hash,
+      vote_id: 'aa'.repeat(8),
     }),
-  ).rejects.toThrow('Conflicting initial vote');
+  ).rejects.toThrow('Conflicting initial vote identity');
   await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
   expect(f.session.snapshot().voteId).toBe('aa'.repeat(8));
   expect(f.published).toHaveLength(0);
@@ -309,6 +310,113 @@ test('durable roster/vote failure never partially advances a deferred vote', asy
   expect(f.session.snapshot()).toMatchObject({ phase: 'open', seats: [] });
   expect(f.published).toHaveLength(0);
   expect(f.round.snapshot().phase).toBe('joined');
+});
+
+async function pendingVotesFixture() {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'aa'.repeat(8) });
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'bb'.repeat(8) });
+  return f;
+}
+
+test('failed initial roster persistence retains every pending cycle for a later authenticated envelope', async () => {
+  const f = await pendingVotesFixture();
+  const before = f.session.snapshot(),
+    journal = f.round.snapshot();
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('private synthetic storage error'));
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Session persistence failed');
+  expect(f.session.snapshot()).toEqual(before);
+  expect(f.round.snapshot()).toEqual(journal);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot().voteId).toBe('aa'.repeat(8));
+  await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+  expect(f.session.snapshot().voteId).toBe('bb'.repeat(8));
+  expect(f.published).toHaveLength(0);
+});
+
+test('failed pre-roster cancellation cannot remove a queued cycle until its save succeeds', async () => {
+  const f = await pendingVotesFixture();
+  const before = f.session.snapshot();
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('private synthetic storage error'));
+  await expect(f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) })).rejects.toThrow('Session persistence failed');
+  expect(f.session.snapshot()).toEqual(before);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot().voteId).toBe('aa'.repeat(8));
+  await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+  expect(f.session.snapshot().voteId).toBe('bb'.repeat(8));
+  expect(f.published).toHaveLength(0);
+});
+
+test('pre-roster duplicates cannot extend either vote deadline or replace the active request', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'aa'.repeat(8) });
+  f.tick(60);
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'bb'.repeat(8) });
+  f.tick(40);
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'bb'.repeat(8) });
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot()).toMatchObject({ voteId: 'aa'.repeat(8), deadline: 10600 });
+  await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+  expect(f.session.snapshot()).toMatchObject({ voteId: 'bb'.repeat(8), deadline: 10660 });
+  expect(f.published).toHaveLength(0);
+});
+
+test.each(['unknown-caller', 'expired', 'wrong-authority'] as const)(
+  'a queued initial cycle cannot bypass the %s check when promoted',
+  async problem => {
+    const f = await fixture();
+    await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+    const sender = problem === 'wrong-authority' ? pool : creator;
+    const following = signEvent(
+      {
+        kind: 2023,
+        created_at: 10000,
+        tags: [['p', f.terms.public_key]],
+        content: encrypt(
+          JSON.stringify({
+            type: 'vote_open',
+            by: problem === 'unknown-caller' ? 'ff'.repeat(32) : f.rawSeats[1].token_hash,
+            vote_id: 'bb'.repeat(8),
+          }),
+          conversationKey(sender, f.terms.public_key),
+          randomBytes(32),
+        ),
+      },
+      sender,
+      randomBytes(32),
+    );
+    // A is fresh; an older B envelope arrives second through replay.
+    if (problem === 'expired') f.tick(601);
+    await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'aa'.repeat(8) });
+    await f.session.receive(following);
+    await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+    expect(f.session.snapshot().voteId).toBe('aa'.repeat(8));
+    await f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) });
+    expect(f.session.snapshot().phase).toBe('open');
+    expect(f.session.snapshot().voteId).toBeUndefined();
+    expect(f.published).toHaveLength(0);
+    expect(f.round.snapshot().reserved).toHaveLength(1);
+  },
+);
+
+test('pre-roster resource limit cannot replace retained votes or activate an unverified roster', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  for (let i = 1; i <= 32; i++)
+    await f.receive({ type: 'vote_open', vote_id: i.toString(16).padStart(16, '0'), by: f.rawSeats[1].token_hash });
+  const before = f.session.snapshot();
+  await expect(f.receive({ type: 'vote_open', vote_id: 'ee'.repeat(8), by: f.rawSeats[1].token_hash })).rejects.toThrow(
+    'Initial vote limit',
+  );
+  expect(f.session.snapshot()).toEqual(before);
+  expect(before).toMatchObject({ phase: 'open', seats: [] });
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  expect(f.session.snapshot().voteId).toBe('0000000000000001');
+  await f.receive({ type: 'reopen', vote_id: '0000000000000001' });
+  expect(f.session.snapshot().voteId).toBe('0000000000000002');
+  expect(f.published).toHaveLength(0);
 });
 
 const reopenOrders = ['rvc', 'rcv', 'vrc', 'vcr', 'crv', 'cvr'];
@@ -510,6 +618,35 @@ test.each(
 function permutations(items: string[]): string[][] {
   return items.length === 0 ? [[]] : items.flatMap((item, i) => permutations(items.filter((_, j) => i !== j)).map(rest => [item, ...rest]));
 }
+test.each(
+  (['p2wpkh', 'p2tr'] as const).flatMap(type =>
+    [1, 5].flatMap(outputs => permutations(['r', 'a', 'b', 'c']).map(order => ({ type, outputs, order: order.join('') }))),
+  ),
+)('initial replay cycles converge with delayed roster for $type/$outputs/$order', async ({ type, outputs, order }) => {
+  const f = await fixture(type, outputs);
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const journal = f.round.snapshot();
+  const events: Record<string, Record<string, unknown>> = {
+    r: { type: 'roster', seq: 1, seats: f.rawSeats },
+    a: { type: 'vote_open', vote_id: 'aa'.repeat(8), by: f.rawSeats[1].token_hash },
+    b: { type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash },
+    c: { type: 'reopen', vote_id: 'aa'.repeat(8) },
+  };
+  let rosterSeen = false;
+  for (const step of order) {
+    await f.receive(events[step]);
+    if (step === 'r') rosterSeen = true;
+    if (!rosterSeen) {
+      expect(f.session.snapshot()).toMatchObject({ phase: 'open', seats: [], sequence: 0 });
+      await expect(f.session.vote(true)).rejects.toThrow('phase');
+    }
+    expect(f.round.snapshot()).toEqual(journal);
+    expect(f.published).toHaveLength(0);
+  }
+  expect(f.session.snapshot()).toMatchObject({ phase: 'voting', voteId: 'bb'.repeat(8), deadline: 10600, sequence: 1 });
+  expect(f.session.snapshot().seats).toHaveLength(2);
+  expect(f.session.snapshot().signatures).toEqual({});
+});
 test.each(permutations(['a', 'b', 'd', 'x', 'y']).map(order => [order.join('')]))(
   'three replayed cycles converge after both cancellations: %s',
   async order => {
@@ -873,12 +1010,13 @@ test('stop can finish after encrypted cancellation persistence fails following d
   expect(f.published).toHaveLength(0);
 });
 
-test('durable cancellation closes the inbox even when the encrypted terminal write fails', async () => {
-  const f = await fixture();
-  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+test.each([false, true])('durable cancellation closes queued vote replay even when terminal storage fails (roster %s)', async roster => {
+  const f = await pendingVotesFixture();
+  if (roster) await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
   (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('synthetic encrypted write failure'));
   await expect(f.session.cancel()).rejects.toThrow('Session persistence failed');
   const before = f.session.snapshot();
+  await expect(f.receive({ type: 'reopen', vote_id: 'aa'.repeat(8) })).rejects.toThrow('Session closed');
   await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Session closed');
   expect(f.session.snapshot()).toEqual(before);
   expect(f.round.snapshot().phase).toBe('aborted');

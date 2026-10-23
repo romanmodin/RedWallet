@@ -19,7 +19,26 @@ const creatorPub = Buffer.from(ecc.pointFromScalar(creator, true)!.slice(1)).toS
 const check = (ok: boolean, why: string) => {
   if (!ok) throw new Error(why);
 };
-const cases = ['abc', 'acb', 'bac', 'bca', 'cab', 'cba', 'abdxy', 'abxdy', 'dabxy', 'adbyx'];
+const cases = [
+  'abc',
+  'acb',
+  'bac',
+  'bca',
+  'cab',
+  'cba',
+  'abdxy',
+  'abxdy',
+  'dabxy',
+  'adbyx',
+  'rabc',
+  'arbc',
+  'abrc',
+  'abcr',
+  'barc',
+  'bacr',
+  'bcar',
+  'cbar',
+];
 const results: { name: string; ok: boolean; error?: string }[] = [];
 async function run() {
   for (const v of vectors)
@@ -66,10 +85,13 @@ async function run() {
             ),
           );
         await receive(payloads[0], seat.join_pub);
-        await receive(payloads[1]);
-        check(session.snapshot().seats.length === terms.max_peers, 'Roster not verified');
+        if (!order.includes('r')) {
+          await receive(payloads[1]);
+          check(session.snapshot().seats.length === terms.max_peers, 'Roster not verified');
+        }
         const vote = payloads[2];
         const events: Record<string, unknown> = {
+          r: payloads[1],
           a: vote,
           b: { ...vote, vote_id: 'bb'.repeat(8) },
           d: { ...vote, vote_id: 'dd'.repeat(8) },
@@ -77,7 +99,16 @@ async function run() {
           x: { type: 'reopen', vote_id: vote.vote_id },
           y: { type: 'reopen', vote_id: 'bb'.repeat(8) },
         };
-        for (const step of order) await receive(events[step]);
+        let rosterSeen = !order.includes('r');
+        for (const step of order) {
+          await receive(events[step]);
+          if (step === 'r') rosterSeen = true;
+          if (!rosterSeen) {
+            check(session.snapshot().phase === 'open' && session.snapshot().seats.length === 0, 'Activated before roster');
+            check(publications === 0, 'Published before roster');
+            check(JSON.stringify(round.snapshot()) === journal, 'Changed journal before roster');
+          }
+        }
         const surviving = order.includes('d') ? 'dd'.repeat(8) : 'bb'.repeat(8);
         check(session.snapshot().phase === 'voting' && session.snapshot().voteId === surviving, 'Following vote lost');
         check(session.snapshot().seats.length === terms.max_peers, 'Roster lost');

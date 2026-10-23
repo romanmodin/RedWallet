@@ -22,6 +22,7 @@ export function participantFailure(error: unknown): Error {
     'Invalid vote caller': 'KJ-VOTE',
     'Invalid round/vote identifier': 'KJ-ROUND-ID',
     'Conflicting initial vote': 'KJ-ORDER',
+    'Conflicting initial vote identity': 'KJ-ORDER',
     'Session persistence failed': 'KJ-STORAGE',
     'Invalid NIP44 payload': 'KJ-DECRYPT',
     'Invalid NIP44 version/encoding': 'KJ-DECRYPT',

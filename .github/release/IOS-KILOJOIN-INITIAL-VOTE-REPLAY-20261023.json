@@ -1,0 +1,124 @@
+{
+  "checkedAt": "2026-10-23T13:01:56.724304+00:00",
+  "parentCommit": "f1fad61a970a4c10a4dc3fe703a7112c79838c50",
+  "status": "LOCAL_TESTED_NOT_NATIVE_IOS_QUALIFIED",
+  "finding": "Distinct creator vote requests replayed before the first verified roster threw Conflicting initial vote. Four of24 message orders fail in each of four script/output combinations.",
+  "fix": [
+    "Bound initial creator requests to32 distinct vote IDs, retaining first timestamps and rejecting different callers for the same ID.",
+    "No activation until existing roster ownership/chain/own-seat checks and atomic encrypted roster/first-vote save succeed.",
+    "Only then transfer remaining eligible requests to the following queue; cancelled requests are removed only after durable cancellation.",
+    "Stop clears both queues after durable journal cancellation, including when terminal encrypted storage fails.",
+    "Preserve the sanitized KJ-ORDER diagnostic for an actual initial identity conflict."
+  ],
+  "validation": {
+    "nodeBaseline": {
+      "total": 96,
+      "passed": 80,
+      "failed": 16,
+      "error": "Conflicting initial vote"
+    },
+    "fullUnit": {
+      "suitesPassed": 124,
+      "testsPassed": 2306,
+      "inheritedSkip": 1,
+      "newTests": 117,
+      "seconds": 196.175
+    },
+    "canonicalLint": {
+      "typeScript": "PASS",
+      "errors": 0,
+      "existingWarnings": 19
+    },
+    "diagnosticLint": "PASS",
+    "nodeCoverage": "All24 orders of roster/A/B/reopen-A x both scripts x1/5outputs. Twelve actual Kotlin fixture relay bursts with roster first and last. Persistence failures, duplicated deadlines, wrong authority/caller, expiry, ownership/chain/own-seat refusal, resource bound and queued Stop cleanup.",
+    "hermes": {
+      "version": "hermes-v250829098.0.10",
+      "binarySha256": "f9c60cce7d2750e6f829f03119124d4f9ce73867b970255c1bd9efcc7095b973",
+      "before": {
+        "passed": 168,
+        "failed": 48,
+        "errors": {
+          "Conflicting initial vote": 48
+        }
+      },
+      "after": {
+        "passed": 216,
+        "failed": 0
+      },
+      "coverage": "12 Kotlin fixtures x18 orders; both scripts,2/5participants,1/2/5outputs. Eight interleaved-roster orders plus ten prior post-roster cycles; unchanged reservations and zero publications/spending signatures."
+    }
+  },
+  "reference": {
+    "clarification": "User-supplied Kilombino replay/ordering clarification",
+    "protocol": "https://github.com/Kilombino/kilojoin/blob/master/docs/PROTOCOL.md",
+    "protocolBlobRead": "96d4af33bed14bec2ebdbf3e4bff9efc2e671dd9",
+    "protocolSectionsRead": [
+      "2",
+      "3",
+      "11",
+      "12"
+    ],
+    "kotlinSourceCommit": "233733def7e492084f4d57e5faa1d76b9ab2ce79"
+  },
+  "access": {
+    "zorin": "Offline, last seen16h",
+    "knowledgeTunnel": "working"
+  },
+  "limits": [
+    "A reproducible startup failure, not proof of the exact phone trigger.",
+    "First surviving initial request still requires a valid caller and unexpired deadline; all arbitrary histories are not claimed supported.",
+    "Queues are instance-local; no new automatic vote/reconnection/crash resume/spending authorization.",
+    "Local Linux Hermes and storage doubles do not qualify native iOS/Keychain.",
+    "No live joins, real funds, production broadcast, push/merge, signing/upload or Apple mutation."
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/redwallet-initial-votes-before-20261023.log",
+      "sha256": "28d53c5daa27153cda72b63e13fe8327610a6806e61387688bcf1b7c8bd62c84"
+    },
+    {
+      "path": "/tmp/redwallet-initial-votes-full-unit-final-20261023.log",
+      "sha256": "9d84951e504735fb87660e2dae8721e41d4d342e233130361301c952bfb4df59"
+    },
+    {
+      "path": "/tmp/redwallet-initial-votes-lint-final-20261023.log",
+      "sha256": "9ee8d37bcba94af2e7597fc8dd3e00abfb95a11ee73a0dfd08381156ed5a7dfa"
+    },
+    {
+      "path": "/tmp/redwallet-initial-votes-diagnostic-lint-20261023.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/redwallet-initial-votes-hermes-before-20261023.json",
+      "sha256": "4af5441701a292ef325a5bbd607951809e171aa50ae9cb9f2320825643d38e3c"
+    },
+    {
+      "path": "/tmp/redwallet-initial-votes-hermes-final-20261023.json",
+      "sha256": "a672ab36f88fb008d22d1126d38d57e2636d1f5c137fca84b1ef96cd21f98d26"
+    },
+    {
+      "path": "/tmp/redwallet-initial-votes-before.js",
+      "sha256": "3a50ff83e9a43a6fd33b26839544989a85aac9a947893b3b9afc3b8dda15e265"
+    },
+    {
+      "path": "/tmp/redwallet-initial-votes-final.js",
+      "sha256": "1d204fc12c3205a5ae2e91522a872b43eadebf23d8f5faeacc18403a87f618fb"
+    },
+    {
+      "path": "class/xbt/kilojoin/session.ts",
+      "sha256": "febdcec301225777ba9e66e5c0faa76dbf237c541298bf997ab2257f74c53be1"
+    },
+    {
+      "path": "class/xbt/kilojoin/relay-error.ts",
+      "sha256": "de4459c06571047ae71020e3a872f882456080ffcf791b0158cb37ce04304a13"
+    },
+    {
+      "path": "scripts/diagnostics/hermes-kilojoin-overlap.ts",
+      "sha256": "4df3dfb105ba9bbba21be615b9687cc3f5d1ece2139710c1bdac4a5674b6873b"
+    },
+    {
+      "path": "tests/unit/fixtures/kilojoin-kotlin-session.json",
+      "sha256": "6fb2450ca68e6b08798803da4f3f167f85c71a5041fa453432b56f9a61434d43"
+    }
+  ]
+}

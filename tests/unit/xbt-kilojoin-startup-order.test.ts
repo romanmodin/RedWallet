@@ -187,8 +187,8 @@ test.each(vectors)('startup burst with real Kotlin $terms.script / $terms.max_pe
   }
 });
 
-test.each(vectors)(
-  'relay burst preserves the next cycle across an older cancellation: $terms.script/$terms.max_peers/$mixes.length',
+test.each(vectors.flatMap(v => [false, true].map(delayedRoster => ({ ...v, delayedRoster }))))(
+  'relay burst preserves the next cycle across an older cancellation: $terms.script/$terms.max_peers/$mixes.length delayed roster $delayedRoster',
   async v => {
     const creator = Buffer.from('08'.padStart(64, '0'), 'hex');
     const pool = Buffer.from('02'.padStart(64, '0'), 'hex');
@@ -214,13 +214,12 @@ test.each(vectors)(
     try {
       await f.welcome();
       // Send as one burst through the real serialized relay, not direct session calls.
-      for (const event of [
-        events[1],
+      const votes = [
         events[2],
         envelope({ ...payloads[2], vote_id: 'bb'.repeat(8) }),
         envelope({ type: 'reopen', vote_id: payloads[2].vote_id }),
-      ])
-        f.deliver(event);
+      ];
+      for (const event of v.delayedRoster ? [...votes, events[1]] : [events[1], ...votes]) f.deliver(event);
       await f.drain();
       expect(f.errors).toEqual([]);
       expect(f.updates).toContainEqual({ phase: 'voting', seats: v.terms.max_peers });
