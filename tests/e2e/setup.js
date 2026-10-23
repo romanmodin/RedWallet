@@ -1,6 +1,8 @@
 /* eslint-env jest */
 /* global device */
 
+const { withDetoxLaunchBlacklist } = require('./detox-launch-options');
+
 // Detox's iOS network synchronization waits on all in-flight NSURLSession
 // requests before considering the app idle. The Arkade SDK's indexer opens
 // a long-lived SSE-style stream (`expo/fetch` →
@@ -17,8 +19,11 @@ beforeAll(async () => {
   const originalLaunchApp = device.launchApp.bind(device);
   device.launchApp = async (...args) => {
     let result;
+    // The post-launch setURLBlacklist call cannot break a startup deadlock:
+    // pass the same exclusions to the native Detox runtime before launch.
+    const launchOptions = withDetoxLaunchBlacklist(args[0]);
     try {
-      result = await originalLaunchApp(...args);
+      result = await originalLaunchApp(launchOptions, ...args.slice(1));
     } catch (error) {
       console.error('[detox-setup] launch failed:', error?.stack || error?.message || error);
       // iOS simulator Keychain resets can crash SpringBoard before the app
@@ -31,7 +36,7 @@ beforeAll(async () => {
       )
         throw error;
       console.error('[detox-setup] retrying launch after simulator system-shell failure');
-      result = await originalLaunchApp(...args);
+      result = await originalLaunchApp(launchOptions, ...args.slice(1));
     }
     try {
       await device.setURLBlacklist(URL_BLACKLIST);
@@ -40,13 +45,4 @@ beforeAll(async () => {
     }
     return result;
   };
-
-  if (process.env.REDWALLET_NATIVE_LIVE === '1') return;
-
-  // Detox auto-launches the app before the first beforeAll; cover that launch too.
-  try {
-    await device.setURLBlacklist(URL_BLACKLIST);
-  } catch (e) {
-    console.log('[detox-setup] initial setURLBlacklist failed:', e?.message ?? e);
-  }
 });
