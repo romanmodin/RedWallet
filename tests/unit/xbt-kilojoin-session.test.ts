@@ -523,6 +523,68 @@ test.each([1, 5])('relay serializes immediate roster/vote/closing while chain ch
   }
 });
 
+test('stop can finish after encrypted cancellation persistence fails following durable unsigned cancellation', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('synthetic encrypted write failure'));
+  await expect(f.session.cancel()).rejects.toThrow('Session persistence failed');
+  expect(f.round.snapshot().phase).toBe('aborted');
+  expect(f.round.snapshot().reserved).toEqual([]);
+  await expect(f.session.cancel()).resolves.toBeUndefined();
+  expect(f.session.snapshot().phase).toBe('aborted');
+  expect(f.published).toHaveLength(0);
+});
+
+test('durable cancellation closes the inbox even when the encrypted terminal write fails', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('synthetic encrypted write failure'));
+  await expect(f.session.cancel()).rejects.toThrow('Session persistence failed');
+  const before = f.session.snapshot();
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Session closed');
+  expect(f.session.snapshot()).toEqual(before);
+  expect(f.round.snapshot().phase).toBe('aborted');
+  expect(f.published).toHaveLength(0);
+});
+
+test('repeated Stop is idempotent after a durable unsigned cancellation', async () => {
+  const f = await fixture();
+  await f.session.cancel();
+  await expect(f.session.cancel()).resolves.toBeUndefined();
+  expect(f.round.snapshot().phase).toBe('aborted');
+  expect(f.round.snapshot().reserved).toEqual([]);
+  expect(f.session.snapshot().phase).toBe('aborted');
+  expect(f.published).toHaveLength(0);
+});
+
+test('concurrent Stop requests settle without reopening or cancelling the journal twice', async () => {
+  const f = await fixture();
+  await expect(Promise.all([f.session.cancel(), f.session.cancel(), f.session.cancel()])).resolves.toEqual([
+    undefined,
+    undefined,
+    undefined,
+  ]);
+  expect(f.round.snapshot().reserved).toEqual([]);
+  expect(f.session.snapshot().phase).toBe('aborted');
+  expect(f.published).toHaveLength(0);
+});
+
+test('failed encrypted cancellation after signing never releases reservations on Stop retry', async () => {
+  const f = await fixture();
+  await f.advance();
+  await f.session.signApproved(f.session.reviewed().commitment!, async p => new Map([[outpoint(p.coins[0]), f.signature(p, 0)]]));
+  const published = f.published.length;
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('synthetic encrypted write failure'));
+  await expect(f.session.cancel()).rejects.toThrow('Session persistence failed');
+  expect(f.round.snapshot().phase).toBe('uncertain');
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  await expect(f.session.cancel()).resolves.toBeUndefined();
+  expect(f.round.snapshot().phase).toBe('uncertain');
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  expect(f.session.snapshot().phase).toBe('aborted');
+  expect(f.published).toHaveLength(published);
+});
+
 test('stop waits for an in-flight roster check before cancelling an unsigned round', async () => {
   const f = await fixture();
   await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);

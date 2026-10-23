@@ -6,6 +6,9 @@ const esbuild = require(process.env.REDWALLET_ESBUILD_MODULE || 'esbuild');
 const root = path.resolve(__dirname, '../..');
 const destination = process.argv[2];
 const baseline = process.argv[3];
+const diagnostic = process.env.REDWALLET_HERMES_DIAGNOSTIC || 'startup';
+if (!['startup', 'stop'].includes(diagnostic)) throw new Error('Unknown Hermes diagnostic');
+const baselineModule = diagnostic === 'stop' ? 'session' : 'crypto';
 if (!destination || (baseline && !/^[0-9a-f]{40}$/.test(baseline))) {
   throw new Error('Usage: node build-hermes-kilojoin.cjs OUTPUT.js [BASELINE_FULL_COMMIT]');
 }
@@ -22,14 +25,17 @@ const globals = esbuild.buildSync({
 (async () => {
   const code = await esbuild.build({
     ...settings,
-    entryPoints: ['scripts/diagnostics/hermes-kilojoin-startup.ts'],
+    entryPoints: ['scripts/diagnostics/hermes-kilojoin-' + diagnostic + '.ts'],
     plugins: baseline
       ? [
           {
-            name: 'baseline-decrypt-only',
+            name: 'baseline-' + baselineModule + '-only',
             setup(build) {
-              build.onLoad({ filter: /class\/xbt\/kilojoin\/crypto\.ts$/ }, args => ({
-                contents: execFileSync('git', ['show', baseline + ':class/xbt/kilojoin/crypto.ts'], { cwd: root, encoding: 'utf8' }),
+              build.onLoad({ filter: new RegExp('class/xbt/kilojoin/' + baselineModule + '\\.ts$') }, args => ({
+                contents: execFileSync('git', ['show', baseline + ':class/xbt/kilojoin/' + baselineModule + '.ts'], {
+                  cwd: root,
+                  encoding: 'utf8',
+                }),
                 loader: 'ts',
                 resolveDir: path.dirname(args.path),
               }));

@@ -328,6 +328,37 @@ test.each(['initial-write', 'initial-key-create', 'ack-refused'] as const)(
   },
 );
 
+test.each((['p2wpkh', 'p2tr'] as const).flatMap(type => ['key-read', 'ciphertext-write'].map(fault => ({ type, fault }))))(
+  'full $type client can restart after a $fault failure during Stop without reusing the old attempt',
+  async ({ type, fault }) => {
+    const f = fixture(type, 5, true, true);
+    try {
+      const first = await f.join();
+      expect(first.view().session.phase).toBe('voting');
+      const failing = fault === 'key-read' ? Keychain.getGenericPassword : AsyncStorage.setItem;
+      (failing as jest.Mock).mockRejectedValueOnce(new Error('private synthetic cancellation detail'));
+      await expect(first.close()).rejects.toThrow('Session persistence failed');
+      expect(first.view().journal).toMatchObject({ phase: 'aborted', reserved: [] });
+      expect(f.sockets[0].closed).toBe(true);
+      await expect(first.close()).resolves.toBeUndefined();
+      const second = await f.join();
+      expect(second.view().error).toBeUndefined();
+      expect(second.view().session.phase).toBe('voting');
+      expect(new Set(f.identities).size).toBe(2);
+      expect(reservedCoins(f.wallet)).toEqual(new Set([outpoint(f.ownCoin)]));
+      const count = f.views.length;
+      f.sockets[0].deliver('kilojoin-participant-2', f.sockets[0].history[0]);
+      f.sockets[0].onerror?.();
+      await drain();
+      expect(f.views).toHaveLength(count);
+      expect(f.broadcast).not.toHaveBeenCalled();
+      expect(f.sockets.every(socket => socket.events.length === 1)).toBe(true);
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+
 test('an authentic creator rejection aborts the unsigned join rather than showing a participant-processing failure', async () => {
   const f = fixture('p2wpkh', 5);
   try {

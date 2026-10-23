@@ -1,0 +1,703 @@
+{
+  "checkedAt": "2026-10-23T11:05:14.098567+00:00",
+  "parentCommit": "63f276c75136580d94a1f9033a5ba95109fe255d",
+  "status": "LOCAL_TESTED_NOT_NATIVE_IOS_QUALIFIED",
+  "finding": "After durable unsigned cancellation, encrypted session persistence failure skipped inbox/secret cleanup; repeating session cancellation attempted an invalid journal transition.",
+  "fix": "Skip journal cancellation only if already aborted; always close inbox and wipe ephemeral join secret after attempted encrypted terminal save. Journal failure still fails before cleanup; signed uncertain reservations remain.",
+  "limits": [
+    "Not proof of the reported physical-phone first-join failure.",
+    "Actual MixingClient closes relay before cancellation; direct late-message tests do not imply a closed production relay delivers messages.",
+    "No native iOS Keychain qualification, live-fund join, push, signing, upload or Apple submission."
+  ],
+  "hermes": {
+    "tag": "hermes-v250829098.0.10",
+    "platform": "Linux x86_64 Release; actual VM with storage/environment doubles",
+    "engineSha256": "f9c60cce7d2750e6f829f03119124d4f9ce73867b970255c1bd9efcc7095b973",
+    "before": {
+      "hermes": true,
+      "passed": 36,
+      "failed": 36,
+      "results": [
+        {
+          "name": "p2wpkh-2-1-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-2-1-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-2-1-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2wpkh-2-1-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-1-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-1-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-2-2-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-2-2-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2wpkh-2-2-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-2-5-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-2-5-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2wpkh-2-5-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-5-1-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-5-1-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2wpkh-5-1-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-5-2-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-5-2-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2wpkh-5-2-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-5-5-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2wpkh-5-5-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2wpkh-5-5-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-2-1-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-2-1-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2tr-2-1-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-2-2-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-2-2-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2tr-2-2-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-2-5-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-2-5-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2tr-2-5-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-5-1-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-5-1-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2tr-5-1-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-5-2-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-5-2-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2tr-5-2-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-repeated",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-5-5-concurrent",
+          "ok": false,
+          "error": "Invalid round transition"
+        },
+        {
+          "name": "p2tr-5-5-encrypted-failure",
+          "ok": false,
+          "error": "Expected Session closed, received Session persistence failed"
+        },
+        {
+          "name": "p2tr-5-5-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-roster-pending",
+          "ok": true
+        }
+      ]
+    },
+    "after": {
+      "hermes": true,
+      "passed": 72,
+      "failed": 0,
+      "results": [
+        {
+          "name": "p2wpkh-2-1-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-1-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-1-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-1-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-1-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-1-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-2-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-2-5-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-1-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-2-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2wpkh-5-5-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-1-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-2-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-2-5-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-1-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-2-roster-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-repeated",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-concurrent",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-encrypted-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-journal-failure",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-welcome-pending",
+          "ok": true
+        },
+        {
+          "name": "p2tr-5-5-roster-pending",
+          "ok": true
+        }
+      ]
+    }
+  },
+  "validation": {
+    "baselineNewSessionTestsFailed": 3,
+    "relatedSuites": 4,
+    "relatedTestsPassed": 92,
+    "fullUnitSuitesPassed": 124,
+    "fullUnitTestsPassed": 1944,
+    "inheritedSkip": 1,
+    "additionalClientTestsPassed": 4,
+    "additionalClientTestsIncludedInFullCount": false,
+    "canonicalLintErrors": 0,
+    "canonicalLintExistingWarnings": 19,
+    "changedFileLintErrors": 0,
+    "typeScript": "PASS"
+  },
+  "artifacts": [
+    {
+      "path": "/tmp/redwallet-hermes-stop-before-final.js",
+      "sha256": "ee144c90ffa3250143a0d80d804211d51fd1894161c4aa1e80f55f9f42035d8f"
+    },
+    {
+      "path": "/tmp/redwallet-hermes-stop-after-final.js",
+      "sha256": "0e858c71eabd9de134cbb478363ebc23e6f868996c5ee0b69c69be9e167cadbf"
+    },
+    {
+      "path": "/tmp/redwallet-hermes-stop-before-final-20261023.json",
+      "sha256": "e94ff89e58eb10fba5d491dec26fb4a20e33d8f4414717fcdb3bf59fb98a9ace"
+    },
+    {
+      "path": "/tmp/redwallet-hermes-stop-after-final-20261023.json",
+      "sha256": "3025c37b08e88ad12f7a79a5befd6cf713e31c02b1af85ec0d5d9287961280da"
+    },
+    {
+      "path": "/tmp/redwallet-stop-persistence-before-20261023.log",
+      "sha256": "7e7e4f7cec9d1f282d34cb1742e25386d8782a02b13ea0ac3ace6b99d3502990"
+    },
+    {
+      "path": "/tmp/redwallet-stop-persistence-related-20261023.log",
+      "sha256": "47fc11bd152952883ca0710ce0d87ba5142c61ad07804ce5345e6fbfcb462432"
+    },
+    {
+      "path": "/tmp/redwallet-stop-full-unit-20261023.log",
+      "sha256": "c578332b74e378420a569b66325c19739cf501d8074c2ebb93271f523302a648"
+    },
+    {
+      "path": "/tmp/redwallet-stop-client-additional-20261023.log",
+      "sha256": "8441aa2c8dd4cf01fdce32d2165b83bcfdea41a8d0b449a05cf5885ef2510ad7"
+    },
+    {
+      "path": "/tmp/redwallet-stop-canonical-lint-20261023.log",
+      "sha256": "e1db22b187eeb8ca66dc3b7b2fb51008df07a32fc1da75ec0cc1a6f5243f1696"
+    },
+    {
+      "path": "/tmp/redwallet-stop-tsc-final-20261023.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/redwallet-stop-changed-lint-final-20261023.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

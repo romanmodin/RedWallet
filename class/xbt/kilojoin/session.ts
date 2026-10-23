@@ -628,11 +628,20 @@ export class ParticipantSession {
     // already waiting on that action may acquire the session first, so recheck.
     while (this.busy) await this.idle;
     return this.exclusive(async () => {
-      await this.round.cancel();
-      await this.save({ ...this.state, phase: 'aborted' });
-      this.pendingInitialVote = undefined;
-      this.inbox.close();
-      this.joinSecret.fill(0);
+      // The reservation journal can commit before the encrypted terminal write
+      // fails. A later Stop must finish cleanup without re-cancelling that
+      // already-aborted journal. Signed/uncertain reservations still use the
+      // round's conservative cancellation path and are never released here.
+      if (this.round.snapshot().phase !== 'aborted') await this.round.cancel();
+      try {
+        await this.save({ ...this.state, phase: 'aborted' });
+      } finally {
+        // Once journal cancellation is durable, late messages cannot revive
+        // this attempt, even if native encrypted storage is unavailable.
+        this.pendingInitialVote = undefined;
+        this.inbox.close();
+        this.joinSecret.fill(0);
+      }
     });
   }
 }
