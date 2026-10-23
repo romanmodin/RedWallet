@@ -47,11 +47,19 @@ export async function runKilojoinStartupSelfTest(): Promise<void> {
           },
         ]),
       );
+      let saved = 0,
+        observations = 0;
       const session = new ParticipantSession(terms, own, Buffer.from('07'.padStart(64, '0'), 'hex'), v.mixes, 10000, round, {
         now: () => now,
         random: nativeEntropy,
-        saveEncrypted: state => vault.save(state),
-        observe: async () => chain,
+        saveEncrypted: async state => {
+          saved++;
+          await vault.save(state);
+        },
+        observe: async () => {
+          observations++;
+          return chain;
+        },
         walletOutpoints: () => new Set(own.coins.map(outpoint)),
         publish: async () => {
           throw new Error('Offline startup attempted publication');
@@ -79,13 +87,13 @@ export async function runKilojoinStartupSelfTest(): Promise<void> {
           Object.keys(state.signatures).length !== 0
         )
           throw new Error('Native pool startup verification failed');
-        let replayRejected = false;
-        try {
-          await session.receive(v.events[1] as NostrEvent);
-        } catch (error) {
-          replayRejected = error instanceof Error && error.message === 'Replayed message';
-        }
-        if (!replayRejected || session.snapshot().phase !== 'voting') throw new Error('Native startup replay guard failed');
+        const beforeReplay = JSON.stringify({ state, journal: round.snapshot(), saved, observations });
+        // Replay is a no-op, not a protocol failure. Check the full state and
+        // reservation journal, plus absence of fresh storage/chain work.
+        for (const event of v.events) await session.receive(event as NostrEvent);
+        if (beforeReplay !== JSON.stringify({ state: session.snapshot(), journal: round.snapshot(), saved, observations }))
+          throw new Error('Native startup replay guard failed');
+        if (JSON.stringify(await vault.load()) !== JSON.stringify(persisted)) throw new Error('Native replay changed persisted state');
       } finally {
         await AsyncStorage.removeItem(service);
         await Keychain.resetGenericPassword({ service });

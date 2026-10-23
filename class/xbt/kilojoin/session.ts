@@ -5,7 +5,7 @@ import { script as bitcoinScript } from 'bitcoinjs-lib';
 import ecc from '../../../blue_modules/noble_ecc';
 import { blind, finalize, prepare, publicKey, RandomBytes } from './blind-rsa';
 import { conversationKey, encrypt, hash, hex, NostrEvent, signEvent } from './crypto';
-import { MessageInbox } from './messages';
+import { IgnoredEnvelope, MessageInbox } from './messages';
 import { changeMessage, memberMac, passwordKey, passwordProof, Terms, tokenHash, outputCount } from './protocol';
 import { ChainCoin, Seat, validateRoster } from './roster';
 import { Journal, Round } from './round';
@@ -60,7 +60,7 @@ export class ParticipantSession {
   private readonly terms: Readonly<Terms>;
   private readonly seat: Seat;
   private readonly mixScripts: string[];
-  private welcomeSequenceFloor = -1;
+  private welcomeCreatedAt?: number;
   private pendingInitialVote?: {
     by: string;
     voteId: string;
@@ -251,8 +251,23 @@ export class ParticipantSession {
     // A welcome can arrive before the relay acknowledges our join publication.
     await this.idle;
     return this.exclusive(async () => {
-      const message = this.inbox.receive(event, this.env.now()),
-        body = message.body;
+      let message;
+      try {
+        message = this.inbox.receive(event, this.env.now());
+      } catch (error) {
+        if (error instanceof IgnoredEnvelope) return;
+        throw error;
+      }
+      const body = message.body;
+      // A fresh join identity cannot belong to a control cycle that predates
+      // its creator-authenticated welcome. Rosters use their explicit sequence.
+      if (
+        message.channel === 'pool' &&
+        body.type !== 'roster' &&
+        this.welcomeCreatedAt !== undefined &&
+        message.createdAt < this.welcomeCreatedAt
+      )
+        return;
       switch (body.type) {
         case 'welcome': {
           this.require(['joining']);
@@ -277,8 +292,8 @@ export class ParticipantSession {
               token: body.token,
               sequence: (body.seq as number) - 1,
             });
-            this.welcomeSequenceFloor = (body.seq as number) - 1;
             this.inbox.installPoolSecret(poolSecret);
+            this.welcomeCreatedAt = message.createdAt;
           } finally {
             poolSecret.fill(0);
           }
@@ -291,9 +306,10 @@ export class ParticipantSession {
           break;
         case 'roster': {
           if (!Number.isSafeInteger(body.seq) || (body.seq as number) < 0) throw new Error('Invalid roster sequence');
-          // Authenticated relay history can predate our seat. It cannot update this round.
-          // Newer/current rosters still pass strict replay, ownership and chain validation.
-          if ((body.seq as number) <= this.welcomeSequenceFloor) break;
+          // History and freshly re-encrypted duplicates cannot roll back a roster.
+          // Only a newer sequence proceeds to ownership and chain validation.
+          if ((body.seq as number) <= this.state.sequence) break;
+          if (!['open', 'voting'].includes(this.state.phase)) break;
           this.require(['open', 'voting']);
           const seats = await this.checkedSeats(body.seats, body.seq as number);
           const next: SessionState = {
@@ -309,16 +325,21 @@ export class ParticipantSession {
           break;
         }
         case 'vote_open': {
-          this.require(['open']);
+          if (this.state.phase !== 'open') break;
           const vote = {
             by: hex(body.by as string, 32).toString('hex'),
             voteId: identifier(body.vote_id),
             createdAt: message.createdAt,
           };
+          if (vote.voteId === this.state.voteId) break;
+          this.require(['open']);
           if (this.state.seats.length === 0) {
             // The authenticated creator's one bounded pending request cannot
             // trigger voting, publishing or signing without a verified roster.
-            if (this.pendingInitialVote) throw new Error('Conflicting initial vote');
+            if (this.pendingInitialVote) {
+              if (vote.voteId === this.pendingInitialVote.voteId && vote.by === this.pendingInitialVote.by) break;
+              throw new Error('Conflicting initial vote');
+            }
             this.pendingInitialVote = vote;
             break;
           }
@@ -326,8 +347,8 @@ export class ParticipantSession {
           break;
         }
         case 'reopen':
+          if (this.state.phase !== 'voting' || body.vote_id !== this.state.voteId) break;
           this.require(['voting']);
-          if (body.vote_id !== this.state.voteId) throw new Error('Wrong vote');
           await this.save({
             ...this.state,
             phase: 'open',
@@ -336,6 +357,7 @@ export class ParticipantSession {
           });
           break;
         case 'closing': {
+          if (!['open', 'voting'].includes(this.state.phase)) break;
           this.require(['open', 'voting']);
           const roundId = identifier(body.round_id),
             seats = await this.checkedSeats(body.seats, this.state.sequence + 1);
@@ -368,9 +390,14 @@ export class ParticipantSession {
           break;
         }
         case 'blind_sig': {
+          if (
+            this.state.phase !== 'closing' ||
+            body.token_hash !== this.ownSeat().token_hash ||
+            body.round_id !== this.state.roundId ||
+            this.state.outputSignature
+          )
+            return;
           this.require(['closing']);
-          if (body.token_hash !== this.ownSeat().token_hash) return;
-          if (body.round_id !== this.state.roundId || this.state.outputSignature) throw new Error('Unexpected blind signature');
           const sigs = this.terms.v === 4 ? body.sigs : [body.sig];
           const pending = this.state.outputStates!;
           if (!Array.isArray(sigs) || sigs.length !== pending.length) throw new Error('Blind signature count mismatch');
@@ -398,6 +425,7 @@ export class ParticipantSession {
           break;
         }
         case 'outputs': {
+          if (this.state.phase !== 'closing' || body.round_id !== this.state.roundId) break;
           this.require(['closing']);
           if (
             !this.state.outputSignature ||
@@ -420,6 +448,9 @@ export class ParticipantSession {
           break;
         }
         case 'sig': {
+          // Pool history contains signatures from previous rounds. They only
+          // have meaning after we have independently reviewed the current plan.
+          if (!['review', 'signed'].includes(this.state.phase)) break;
           this.require(['review', 'signed']);
           const p = this.buildPlan(),
             index = p.coins.findIndex(c => outpoint(c) === body.outpoint);

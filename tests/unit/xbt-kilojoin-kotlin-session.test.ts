@@ -48,7 +48,7 @@ test.each(vectors)('replaying an actual Kotlin roster cannot change accepted sta
   await session.receive(v.events[0] as NostrEvent);
   await session.receive(v.events[1] as NostrEvent);
   const before = session.snapshot();
-  await expect(session.receive(v.events[1] as NostrEvent)).rejects.toThrow('Replayed message');
+  await expect(session.receive(v.events[1] as NostrEvent)).resolves.toBeUndefined();
   expect(session.snapshot()).toEqual(before);
   expect(round.snapshot().reserved).toHaveLength(v.rawSeat.coins.length);
 });

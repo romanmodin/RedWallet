@@ -11,6 +11,9 @@ export type Message = Readonly<{
   channel: 'direct' | 'pool';
   body: Readonly<Record<string, unknown>>;
 }>;
+// Public relay history includes other seats, duplicates and unreadable messages.
+// Dropping an envelope is distinct from a validated state/transaction failure.
+export class IgnoredEnvelope extends Error {}
 const creatorTypes = new Set(['roster', 'vote_open', 'reopen', 'closing', 'blind_sig', 'outputs', 'abort']);
 const memberTypes = new Set(['close_request', 'vote', 'blind', 'sig', 'tx', 'leave']);
 const pub = (secret: Uint8Array): string => {
@@ -52,16 +55,17 @@ export class MessageInbox {
       now < this.startedAt ||
       !verifyEvent(event) ||
       event.kind !== 2023 ||
-      event.created_at < this.startedAt - 60 ||
-      event.created_at < now - 2100 ||
+      // Direct invitations must be fresh. Pool replay is bounded by the
+      // welcome/roster sequence and active round identity in the controller.
+      (!this.poolSecret && (event.created_at < this.startedAt - 60 || event.created_at < now - 2100)) ||
       event.created_at > now + 60
     )
-      throw new Error('Invalid or stale message');
-    if (this.seen.has(event.id)) throw new Error('Replayed message');
+      throw new IgnoredEnvelope('Invalid or stale message');
+    if (this.seen.has(event.id)) throw new IgnoredEnvelope('Replayed message');
     // Fail closed rather than evict replay records and permit old messages again.
     if (this.seen.size >= 4096) throw new Error('Session message limit');
     const recipients = event.tags.filter(tag => tag[0] === 'p');
-    if (recipients.length !== 1 || recipients[0].length !== 2) throw new Error('Ambiguous message recipient');
+    if (recipients.length !== 1 || recipients[0].length !== 2) throw new IgnoredEnvelope('Ambiguous message recipient');
     const recipient = recipients[0][1];
     const isCreator = event.pubkey === this.creator;
     let key: Buffer;
@@ -72,18 +76,21 @@ export class MessageInbox {
     } else if (recipient === this.pool && this.poolSecret && (isCreator || event.pubkey === this.pool)) {
       channel = 'pool';
       key = conversationKey(this.poolSecret, event.pubkey);
-    } else throw new Error('Unauthorized message route');
+    } else throw new IgnoredEnvelope('Unauthorized message route');
     let body: Record<string, unknown>;
     try {
       body = JSON.parse(decrypt(event.content, key));
+    } catch {
+      throw new IgnoredEnvelope('Unreadable message body');
     } finally {
       key.fill(0);
     }
-    if (!body || typeof body !== 'object' || Array.isArray(body) || typeof body.type !== 'string') throw new Error('Invalid message body');
+    if (!body || typeof body !== 'object' || Array.isArray(body) || typeof body.type !== 'string')
+      throw new IgnoredEnvelope('Invalid message body');
     if (channel === 'direct') {
-      if (!['welcome', 'reject'].includes(body.type)) throw new Error('Invalid direct message type');
+      if (!['welcome', 'reject'].includes(body.type)) throw new IgnoredEnvelope('Invalid direct message type');
     } else if (!(isCreator ? creatorTypes : memberTypes).has(body.type)) {
-      throw new Error('Unauthorized message type');
+      throw new IgnoredEnvelope('Unauthorized message type');
     }
     // Shared pool keys prove membership, NOT the identity of a particular member.
     // Member MAC / input-signature validation remains mandatory in state handlers.

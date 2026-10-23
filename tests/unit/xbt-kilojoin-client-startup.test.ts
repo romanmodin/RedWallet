@@ -47,7 +47,7 @@ type Fault =
   | 'initial-key-create'
   | 'ack-refused';
 
-function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelcome = false) {
+function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelcome = false, replayNoise = false) {
   const wallet = type === 'p2wpkh' ? new XbtSegwitBech32Wallet() : new XbtTaprootWallet();
   wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
   wallet.next_free_address_index = 1;
@@ -121,7 +121,7 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
   );
   const peers = [3, 4, 5, 6].map(n => {
     const coin = makeCoin(n, 20000000, ecc.pointFromScalar(secret(n), true)!);
-    const join = pub(secret(n + 100));
+    const join = n === 3 ? terms.public_key : pub(secret(n + 100));
     const changeScript = type === 'p2wpkh' ? '0014' + n.toString(16).repeat(40) : '5120' + n.toString(16).repeat(64);
     return {
       token_hash: tokenHash(n.toString(16).repeat(32)),
@@ -152,6 +152,7 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
     closed = false;
     events: NostrEvent[] = [];
     history: NostrEvent[] = [];
+    filters: Record<string, unknown>[] = [];
     constructor() {
       sockets.push(this);
       queueMicrotask(() => this.onopen?.());
@@ -168,6 +169,7 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
     send(text: string) {
       const frame = JSON.parse(text);
       if (frame[0] === 'REQ') {
+        this.filters.push(frame[2]);
         if (frame[2]['#p'][0] === terms.public_key) {
           for (const event of reverse ? [...this.history].reverse() : this.history) this.deliver(frame[1], event);
           this.onmessage?.({ data: JSON.stringify(['EOSE', frame[1]]) });
@@ -184,6 +186,27 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
         envelope({ type: 'roster', seq: 5, seats: [...peers, own] }, terms.public_key),
         envelope({ type: 'vote_open', by: peers[0].token_hash, vote_id: 'ba'.repeat(8) }, terms.public_key),
       ];
+      if (replayNoise) {
+        const member = (messageType: string) =>
+          signEvent(
+            {
+              kind: 2023,
+              created_at: now,
+              tags: [['p', terms.public_key]],
+              content: encrypt(JSON.stringify({ type: messageType }), conversationKey(poolKey, terms.public_key), randomBytes(32)),
+            },
+            poolKey,
+            randomBytes(32),
+          );
+        this.history = [
+          ...['join', 'leave', 'vote', 'abort', 'sig', 'blind', 'close_request', 'tx'].map(member),
+          envelope({ type: 'roster', seq: 4, seats: peers }, terms.public_key),
+          envelope({ type: 'outputs', round_id: 'dd'.repeat(8), scripts: [] }, terms.public_key),
+          ...this.history,
+          ...this.history,
+          envelope({ type: 'roster', seq: 5, seats: [...peers, own] }, terms.public_key),
+        ];
+      }
       const welcome = envelope(
         fault === 'creator-reject'
           ? { type: 'reject', reason: 'private rejection detail' }
@@ -243,6 +266,29 @@ const startupMatrix = (['p2wpkh', 'p2tr'] as const).flatMap(type =>
   ),
 );
 test.each(startupMatrix)(
+  'upstream-confirmed noisy replay through full $type client / $outputs outputs / reverse=$reverse / early=$earlyWelcome',
+  async ({ type, outputs, reverse, earlyWelcome }) => {
+    const f = fixture(type, outputs, reverse, earlyWelcome, true);
+    try {
+      const client = await f.join();
+      expect(client.view().error).toBeUndefined();
+      expect(f.views.every(view => view.error === undefined)).toBe(true);
+      expect(client.view().session).toMatchObject({ phase: 'voting', sequence: 5 });
+      expect(client.view().session.seats).toHaveLength(5);
+      expect(client.view().session.seats[0].join_pub).toBe(f.terms.public_key);
+      expect(client.view().session.seats[0].join_pub).not.toBe(f.terms.creator);
+      const filter = f.sockets[0].filters.find(item => (item['#p'] as string[])[0] === f.terms.public_key)!;
+      expect(filter).toBeDefined();
+      expect(filter).not.toHaveProperty('since');
+      expect(reservedCoins(f.wallet)).toEqual(new Set([outpoint(f.ownCoin)]));
+      expect(f.sockets[0].events).toHaveLength(1); // join only; no automatic vote or signing
+      expect(f.broadcast).not.toHaveBeenCalled();
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+test.each(startupMatrix)(
   'full $type client / $outputs outputs / reverse=$reverse / welcome-before-ACK=$earlyWelcome starts and safely rejoins',
   async ({ type, outputs, reverse, earlyWelcome }) => {
     const f = fixture(type, outputs, reverse, earlyWelcome);
@@ -287,8 +333,11 @@ test.each([
     const first = await f.join();
     expect(first.view().session.phase).toBe(phase);
     expect(first.view().session.seats).toHaveLength(0);
-    expect(first.view().error).toContain(code);
-    expect(first.view().error).not.toMatch(/private|keychain detail|storage detail/);
+    if (fault === 'bad-welcome-mac') expect(first.view().error).toBeUndefined();
+    else {
+      expect(first.view().error).toContain(code);
+      expect(first.view().error).not.toMatch(/private|keychain detail|storage detail/);
+    }
     await first.close();
     expect(reservedCoins(f.wallet).size).toBe(0);
     f.setFault('none');

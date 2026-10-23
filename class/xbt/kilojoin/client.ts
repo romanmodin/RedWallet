@@ -161,7 +161,7 @@ export class MixingClient {
     const subscribe = () =>
       session.snapshot().phase === 'joining'
         ? relay.subscribe([terms.creator], [joinPub], start - 60)
-        : relay.subscribe([terms.creator, terms.public_key], [terms.public_key], start - 60);
+        : relay.subscribe([terms.creator, terms.public_key], [terms.public_key]);
     const relay = new KilojoinRelay(
       async event => {
         const before = session.snapshot().phase;

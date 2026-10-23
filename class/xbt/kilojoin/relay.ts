@@ -78,14 +78,13 @@ export class KilojoinRelay {
     this.socket.send(JSON.stringify(message));
   }
 
-  subscribe(authors: string[], recipients: string[], since: number): void {
+  subscribe(authors: string[], recipients: string[], since?: number): void {
     if (
       authors.length < 1 ||
       authors.length > 3 ||
       recipients.length < 1 ||
       recipients.length > 2 ||
-      !Number.isSafeInteger(since) ||
-      since < 0
+      (since !== undefined && (!Number.isSafeInteger(since) || since < 0))
     )
       throw new Error('Invalid relay subscription');
     authors.forEach(key => hex(key, 32));
@@ -93,7 +92,11 @@ export class KilojoinRelay {
     if (this.subscription) this.send(['CLOSE', this.subscription]);
     this.subscriptionKind = 2023;
     this.subscription = `kilojoin-participant-${++this.subscriptionGeneration}`;
-    this.send(['REQ', this.subscription, { kinds: [2023], authors, '#p': recipients, since, limit: 256 }]);
+    this.send([
+      'REQ',
+      this.subscription,
+      { kinds: [2023], authors, '#p': recipients, ...(since === undefined ? {} : { since }), limit: 256 },
+    ]);
   }
 
   discoverPools(since: number): Promise<void> {

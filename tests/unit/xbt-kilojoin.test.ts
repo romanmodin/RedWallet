@@ -28,6 +28,12 @@ const review = (): tx.Review => ({
 });
 
 describe('Kilojoin upstream interoperability', () => {
+  test.each([2048, 2049, 4096])('blind key parses integer hex, including odd-length modulus/exponent: %i bits', bits => {
+    const n = 2n ** BigInt(bits - 1) + 1n;
+    const encoded = n.toString(16) + ':10001';
+    expect(blind.publicKey(encoded)).toEqual({ n, e: 65537n, bits, length: Math.ceil(bits / 8) });
+    expect(() => blind.publicKey(n.toString(16) + ':10003')).toThrow('Invalid RSA key');
+  });
   test('canonical transaction, txid, both unified digests and signatures match Android byte for byte', () => {
     const p = makePlan();
     expect(tx.transaction(p).getId()).toBe(vectors.transaction.txid_before_signing);

@@ -7,8 +7,8 @@ const root = path.resolve(__dirname, '../..');
 const destination = process.argv[2];
 const baseline = process.argv[3];
 const diagnostic = process.env.REDWALLET_HERMES_DIAGNOSTIC || 'startup';
-if (!['startup', 'stop'].includes(diagnostic)) throw new Error('Unknown Hermes diagnostic');
-const baselineModule = diagnostic === 'stop' ? 'session' : 'crypto';
+if (!['startup', 'stop', 'replay'].includes(diagnostic)) throw new Error('Unknown Hermes diagnostic');
+const baselineModules = diagnostic === 'replay' ? ['session', 'messages'] : [diagnostic === 'stop' ? 'session' : 'crypto'];
 if (!destination || (baseline && !/^[0-9a-f]{40}$/.test(baseline))) {
   throw new Error('Usage: node build-hermes-kilojoin.cjs OUTPUT.js [BASELINE_FULL_COMMIT]');
 }
@@ -29,10 +29,10 @@ const globals = esbuild.buildSync({
     plugins: baseline
       ? [
           {
-            name: 'baseline-' + baselineModule + '-only',
+            name: 'baseline-selected-modules-only',
             setup(build) {
-              build.onLoad({ filter: new RegExp('class/xbt/kilojoin/' + baselineModule + '\\.ts$') }, args => ({
-                contents: execFileSync('git', ['show', baseline + ':class/xbt/kilojoin/' + baselineModule + '.ts'], {
+              build.onLoad({ filter: new RegExp('class/xbt/kilojoin/(' + baselineModules.join('|') + ')\\.ts$') }, args => ({
+                contents: execFileSync('git', ['show', baseline + ':class/xbt/kilojoin/' + path.basename(args.path)], {
                   cwd: root,
                   encoding: 'utf8',
                 }),

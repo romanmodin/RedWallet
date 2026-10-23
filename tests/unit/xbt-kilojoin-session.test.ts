@@ -152,6 +152,35 @@ test.each([1, 2, 5])('accepts upstream BigInteger welcome key for %i mixed outpu
   expect(f.round.snapshot().phase).toBe('joined');
 });
 
+test.each(['p2wpkh', 'p2tr'] as const)('creator ownership binds to pool join_pub, never creator authority key: %s', async type => {
+  const f = await fixture(type);
+  expect(f.rawSeats[1].join_pub).toBe(f.terms.public_key);
+  expect(f.terms.public_key).not.toBe(f.terms.creator);
+  expect(() => parseSeat(f.rawSeats[1], f.terms)).not.toThrow();
+  expect(() => parseSeat({ ...f.rawSeats[1], join_pub: f.terms.creator }, f.terms)).toThrow('Invalid ownership proof');
+});
+
+test.each([1, 5])('re-encrypted history after review cannot restart signing or output registration: %i outputs', async outputs => {
+  const f = await fixture('p2wpkh', outputs);
+  await f.advance();
+  const state = f.session.snapshot(),
+    journal = f.round.snapshot(),
+    count = f.published.length;
+  for (const body of [
+    { type: 'roster', seq: 1, seats: f.rawSeats },
+    { type: 'vote_open', vote_id: 'bb'.repeat(8), by: f.rawSeats[1].token_hash },
+    { type: 'reopen', vote_id: 'bb'.repeat(8) },
+    { type: 'closing', round_id: state.roundId, seats: f.rawSeats, deadline: state.deadline },
+    { type: 'blind_sig', round_id: state.roundId, token_hash: f.rawSeats[0].token_hash, sig: '00' },
+    { type: 'outputs', round_id: state.roundId, scripts: state.outputs },
+  ])
+    await f.receive(body);
+  expect(f.session.snapshot()).toEqual(state);
+  expect(f.round.snapshot()).toEqual(journal);
+  expect(f.published).toHaveLength(count);
+  expect(f.session.snapshot().signatures).toEqual({});
+});
+
 test.each(['', '0', '00', 'a', '-9', '+9', '0x9', ' 9', '9 ', 'G', '9'.repeat(65), 'f'.repeat(64)])(
   'rejects malformed, out-of-range or wrong-pool welcome key %s',
   async wireSecret => {
@@ -170,7 +199,8 @@ test('does not advance or install the welcome key when durable persistence fails
     'Session persistence failed',
   );
   expect(f.session.snapshot().phase).toBe('joining');
-  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Unauthorized message route');
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).resolves.toBeUndefined();
+  expect(f.session.snapshot().phase).toBe('joining');
   expect(f.published).toHaveLength(0);
 });
 
@@ -450,7 +480,8 @@ test.each([1, 5])('welcome sequence excludes pre-join roster history for %i-outp
   expect(accepted.seats).toHaveLength(2);
   await f.receive({ type: 'roster', seq: 1, seats: [] });
   expect(f.session.snapshot()).toEqual(accepted);
-  await expect(f.receive({ type: 'roster', seq: 2, seats: [f.rawSeats[1]] })).rejects.toThrow('replayed roster');
+  await expect(f.receive({ type: 'roster', seq: 2, seats: [f.rawSeats[1]] })).resolves.toBeUndefined();
+  expect(f.session.snapshot().seats).toHaveLength(2);
   await expect(f.receive({ type: 'roster', seq: 3, seats: [f.rawSeats[1]] })).rejects.toThrow();
   expect(f.session.snapshot()).toEqual(accepted);
   expect(f.round.snapshot().reserved).toHaveLength(1);
