@@ -1,3 +1,4 @@
+import { participantFailure, relayFailureMessage } from '../../class/xbt/kilojoin/relay-error';
 import { KilojoinRelay } from '../../class/xbt/kilojoin/relay';
 import { generateKeyPairSync, randomBytes } from 'crypto';
 import { ECPairFactory } from 'ecpair';
@@ -510,4 +511,25 @@ test('stop also waits for a participant message already waiting on signing', asy
   expect(await stopped).toBe('stopped');
   expect(f.round.snapshot().phase).toBe('uncertain');
   expect(f.round.snapshot().reserved).toHaveLength(1);
+});
+
+test.each(['proof', 'change', 'chain', 'own-seat'])('identifies a rejected first roster (%s) without advancing or signing', async fault => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const seats = JSON.parse(JSON.stringify(f.rawSeats));
+  if (fault === 'proof') seats[1].proofs[0] = seats[0].proofs[0];
+  if (fault === 'change') seats[1].change_value++;
+  if (fault === 'own-seat') seats[0].change_script = '0014' + '77'.repeat(20);
+  if (fault === 'chain') f.env.observe = async () => new Map();
+  const before = f.session.snapshot();
+  const error = await f.receive({ type: 'roster', seq: 1, seats }).then(
+    () => undefined,
+    failure => failure,
+  );
+  expect(error).toBeInstanceOf(Error);
+  const code = { proof: 'KJ-PROOF', change: 'KJ-CHANGE', chain: 'KJ-CHAIN', 'own-seat': 'KJ-OWN-SEAT' }[fault];
+  expect(relayFailureMessage(participantFailure(error))).toContain(`Diagnostic: ${code}.`);
+  expect(f.session.snapshot()).toEqual(before);
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  expect(f.published).toHaveLength(0);
 });

@@ -170,3 +170,22 @@ test('recovered signed rounds retain locks until corroborated confirmation and f
     app.wallets = previousWallets;
   }
 });
+
+test.each(['missing', 'duplicate', 'value', 'unconfirmed', 'future', 'history-missing', 'history-conflict'])(
+  'rejects corroboration failure %s before accepting a peer coin',
+  async fault => {
+    const f = fixture();
+    const utxo = { txid: f.coin.txid, vout: f.coin.vout, value: f.coin.value, height: 100 };
+    let entries = [utxo];
+    if (fault === 'missing') entries = [];
+    if (fault === 'duplicate') entries = [utxo, { ...utxo }];
+    if (fault === 'value') utxo.value++;
+    if (fault === 'unconfirmed') utxo.height = 0;
+    if (fault === 'future') utxo.height = 106;
+    (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({ [f.a]: entries });
+    if (fault === 'history-missing') (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({ [f.a]: [] });
+    if (fault === 'history-conflict')
+      (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({ [f.a]: [{ tx_hash: f.coin.txid, height: 99 }] });
+    await expect(observeCoins([f.coin], () => 1000)).rejects.toThrow('CoinJoin requires a verified confirmed unspent coin');
+  },
+);

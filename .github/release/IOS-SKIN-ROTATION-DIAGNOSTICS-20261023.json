@@ -1,0 +1,43 @@
+{
+  "status": "locally-validated-not-pushed",
+  "skinCommit": "84aeee6",
+  "skinRotation": [
+    "off",
+    "helmet",
+    "armour",
+    "off"
+  ],
+  "activation": "single logo tap; serialized preference writes",
+  "legacyPreference": "enabled restores helmet; invalid/disabled values off",
+  "asset": {
+    "path": "img/optional-skin/armour.jpeg",
+    "width": 415,
+    "height": 739,
+    "sha256": "44aaf7134a2e6d2c3b1c62b5aa5adb5b2bccd56a72cbfb1d2fcb408f1005988f",
+    "unmodifiedUpload": true,
+    "framing": "contain within measured surface"
+  },
+  "nativeVisuals": "not run; native smoke extended for portrait/landscape/return/off; existing helmet captures retained",
+  "diagnostics": "Allowlisted exact local error codes for proof/change/own seat/roster sequence/chain/tip/maturity/busy/phase/vote/round ID; unknown details remain suppressed",
+  "focused": "92 tests PASS: skin, session, backend adapter and sanitized diagnostics",
+  "limits": [
+    "No physical-device cause proven",
+    "No native build/upload/submission",
+    "Synthetic chain failures, no real funds or joins"
+  ],
+  "fullUnit": [
+    "Test Suites: 120 passed, 120 total",
+    "Tests:       1 skipped, 1804 passed, 1805 total",
+    "Time:        111.299 s, estimated 112 s"
+  ],
+  "verifiedAt": "2026-10-23T05:38:55.429533+00:00",
+  "typeScript": "pass",
+  "changedFileESLint": "pass",
+  "logsSHA256": {
+    "redwallet-skin-rotation.log": "d997d1973133388c1a097b818b2a94cfa140ac3ca441c9b4e8b497263cc08e30",
+    "redwallet-roster-diagnostics-focused.log": "a0b40ebbfa0a853a61190b55c642244f5061541e74fb188234a6ed1974d12504",
+    "redwallet-roster-diagnostics-tsc.log": "7125f194612fcff2f454c05d848e7cb71facc1967b4d5017e25b34fdee3ba74f",
+    "redwallet-skins-diagnostics-full.log": "5f658098b680e31574153532c52d5d6636865956fd23f678628b25624db45aba",
+    "redwallet-skins-diagnostics-lint.log": "7125f194612fcff2f454c05d848e7cb71facc1967b4d5017e25b34fdee3ba74f"
+  }
+}

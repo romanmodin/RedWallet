@@ -28,3 +28,22 @@ test.each(['private peer payload', 'constructor', '__proto__', 'Invalid welcome:
     expect(relayFailureMessage(failure)).not.toContain(message);
   },
 );
+
+test.each([
+  ['Invalid ownership proof', 'KJ-PROOF'],
+  ['Invalid seat change', 'KJ-CHANGE'],
+  ['Own seat missing or changed', 'KJ-OWN-SEAT'],
+  ['Invalid or replayed roster sequence', 'KJ-ROSTER-SEQ'],
+  ['CoinJoin requires a verified confirmed unspent coin', 'KJ-CHAIN'],
+  ['Unverified chain tip', 'KJ-TIP'],
+  ['Immature CoinJoin coinbase', 'KJ-MATURITY'],
+  ['Session action pending', 'KJ-BUSY'],
+  ['Invalid or expired session phase', 'KJ-PHASE'],
+  ['Invalid vote caller', 'KJ-VOTE'],
+  ['Invalid round/vote identifier', 'KJ-ROUND-ID'],
+])('distinguishes exact local failure %s without echoing details', (message, code) => {
+  expect(relayFailureMessage(participantFailure(new Error(message)))).toContain(`Diagnostic: ${code}.`);
+  const untrusted = `${message}: private peer details`;
+  expect(relayFailureMessage(participantFailure(new Error(untrusted)))).toContain('Diagnostic: KJ-PROCESS.');
+  expect(relayFailureMessage(participantFailure(new Error(untrusted)))).not.toContain('private peer details');
+});
