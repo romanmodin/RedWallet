@@ -1,0 +1,384 @@
+{
+  "verifiedAt": "2026-10-23T10:04:25.395275+00:00",
+  "parentCommit": "496d1433e415127592b0ee81b6e8cc24418a6414",
+  "status": "confirmed-Hermes-VM-defect-and-local-fix-not-iOS-qualified-or-shipped",
+  "productionChange": "Buffer.from(content).toString(utf8) restores the Buffer decoder after Hermes subarray returns Uint8Array; all validation unchanged",
+  "physicalDeviceCauseConfirmed": false,
+  "deliveredSource": "286e875cb488365eeb00799b6c04305994ab9db7",
+  "deliveredSourceCheck": "GitHub fetch confirms identical decoder logic and Hermes tag in ios/Podfile.lock; latest installed phone build not re-queried",
+  "hermes": {
+    "tag": "hermes-v250829098.0.10",
+    "commit": "becc964bd16002569bf74c4d8c190cfd2ad38985",
+    "platform": "standalone Linux x86_64 actual Hermes VM",
+    "binarySHA256": "f9c60cce7d2750e6f829f03119124d4f9ce73867b970255c1bd9efcc7095b973",
+    "build": "Release; Unicode-lite ON; Intl OFF; debugger OFF; no engine source modifications",
+    "buffer": "6.0.3",
+    "esbuild": "0.25.12",
+    "iOSNativeExecution": false
+  },
+  "actualEngineBefore": {
+    "runtime": {
+      "hermes": true,
+      "subarrayIsBuffer": false,
+      "subarrayString": "119,101,108,99,111,109,101"
+    },
+    "passed": 4,
+    "failed": 25,
+    "results": [
+      {
+        "name": "kotlin-nip44-1",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-31",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-32",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-33",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-63",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-64",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-65",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-255",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-256",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-257",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "kotlin-nip44-1024",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "actual-kotlin-inbox-and-replay",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "multibyte-utf8",
+        "ok": false,
+        "error": "Invalid UTF8"
+      },
+      {
+        "name": "tampered-mac-rejected",
+        "ok": true
+      },
+      {
+        "name": "rfc9474-blind-unblind-and-tamper",
+        "ok": true
+      },
+      {
+        "name": "kotlin-signed-transaction-p2wpkh",
+        "ok": true
+      },
+      {
+        "name": "kotlin-signed-transaction-p2tr",
+        "ok": true
+      },
+      {
+        "name": "kotlin-session-p2wpkh-1-2",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2wpkh-2-2",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2wpkh-5-2",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2wpkh-1-5",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2wpkh-2-5",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2wpkh-5-5",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2tr-1-2",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2tr-2-2",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2tr-5-2",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2tr-1-5",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2tr-2-5",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      },
+      {
+        "name": "kotlin-session-p2tr-5-5",
+        "ok": false,
+        "error": "Invalid UTF8",
+        "phase": "joining",
+        "participants": 0
+      }
+    ]
+  },
+  "actualEngineAfter": {
+    "runtime": {
+      "hermes": true,
+      "subarrayIsBuffer": false,
+      "subarrayString": "119,101,108,99,111,109,101"
+    },
+    "passed": 29,
+    "failed": 0,
+    "results": [
+      {
+        "name": "kotlin-nip44-1",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-31",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-32",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-33",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-63",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-64",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-65",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-255",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-256",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-257",
+        "ok": true
+      },
+      {
+        "name": "kotlin-nip44-1024",
+        "ok": true
+      },
+      {
+        "name": "actual-kotlin-inbox-and-replay",
+        "ok": true
+      },
+      {
+        "name": "multibyte-utf8",
+        "ok": true
+      },
+      {
+        "name": "tampered-mac-rejected",
+        "ok": true
+      },
+      {
+        "name": "rfc9474-blind-unblind-and-tamper",
+        "ok": true
+      },
+      {
+        "name": "kotlin-signed-transaction-p2wpkh",
+        "ok": true
+      },
+      {
+        "name": "kotlin-signed-transaction-p2tr",
+        "ok": true
+      },
+      {
+        "name": "kotlin-session-p2wpkh-1-2",
+        "ok": true,
+        "phase": "voting",
+        "participants": 2
+      },
+      {
+        "name": "kotlin-session-p2wpkh-2-2",
+        "ok": true,
+        "phase": "voting",
+        "participants": 2
+      },
+      {
+        "name": "kotlin-session-p2wpkh-5-2",
+        "ok": true,
+        "phase": "voting",
+        "participants": 2
+      },
+      {
+        "name": "kotlin-session-p2wpkh-1-5",
+        "ok": true,
+        "phase": "voting",
+        "participants": 5
+      },
+      {
+        "name": "kotlin-session-p2wpkh-2-5",
+        "ok": true,
+        "phase": "voting",
+        "participants": 5
+      },
+      {
+        "name": "kotlin-session-p2wpkh-5-5",
+        "ok": true,
+        "phase": "voting",
+        "participants": 5
+      },
+      {
+        "name": "kotlin-session-p2tr-1-2",
+        "ok": true,
+        "phase": "voting",
+        "participants": 2
+      },
+      {
+        "name": "kotlin-session-p2tr-2-2",
+        "ok": true,
+        "phase": "voting",
+        "participants": 2
+      },
+      {
+        "name": "kotlin-session-p2tr-5-2",
+        "ok": true,
+        "phase": "voting",
+        "participants": 2
+      },
+      {
+        "name": "kotlin-session-p2tr-1-5",
+        "ok": true,
+        "phase": "voting",
+        "participants": 5
+      },
+      {
+        "name": "kotlin-session-p2tr-2-5",
+        "ok": true,
+        "phase": "voting",
+        "participants": 5
+      },
+      {
+        "name": "kotlin-session-p2tr-5-5",
+        "ok": true,
+        "phase": "voting",
+        "participants": 5
+      }
+    ]
+  },
+  "unitRegression": {
+    "before": "25 failed / 6 passed; Invalid UTF8 at decoder and first welcome",
+    "after": "31 passed; npm Buffer with confirmed Hermes subarray semantics model",
+    "full": "124 suites / 1939 passed / 1 inherited skipped; 172.368 seconds"
+  },
+  "checks": {
+    "typeScript": "passed final",
+    "fullLint": "passed, 0 errors / 20 warnings before removing one newly added test bitwise warning",
+    "changedFileESLintFinal": "passed, 0 errors / 0 warnings; only prior 19 warnings remain elsewhere",
+    "diffCheck": "passed"
+  },
+  "audit": "Other Kilojoin subarray consumers use byte operations or explicitly restore Buffer. No other Buffer-only operation on a subarray result found in this module.",
+  "preserved": [
+    "MAC/padding/UTF8 validation",
+    "event signatures, canonical fields and replay checks",
+    "roster/coin/fee/output checks",
+    "no automatic vote, transaction signing or broadcast"
+  ],
+  "logsSHA256": {
+    "redwallet-hermes-regression-before.log": "2cf47cd772ca8db969e1aa7da202a52ea6839c34f1e5316cbb8249f6ad673b77",
+    "redwallet-hermes-regression-after.log": "217385913606ca1729f3fd631d75187989423034e170b33d3c7dae27a94f0a94",
+    "redwallet-hermes-regression-final.log": "e881c176ae1367230a7d38d25b373f764f45181a2f71856b7202d2184e98333d",
+    "redwallet-hermes-unit.log": "23b0cb7a5fcd84562c30a0d3b61ec1af0f4e50a153701e264243586c10171936",
+    "redwallet-hermes-lint-final.log": "cc628adeb85920c87c3184d5b789e8df6f2cf0cb7cd6c71cc3049d48b0cda3ba",
+    "redwallet-hermes-eslint-final.log": "b6fe3bbb213360f935705d12f86ba0c864d79b7fa383140b15ea2d331e284a3b",
+    "redwallet-hermes-tsc-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "redwallet-hermes-native-before-expanded.json": "504fb0ef22203a26db198a227c89ffbdb75131251ea75d30d3484c03a7946db5",
+    "redwallet-hermes-native-after-expanded.json": "c605f24903cb0fb7e62ad76086df9f0bb6af688cd5480228a63bdfb11c5942fa",
+    "redwallet-hermes-before-expanded.js": "a68a9d038d25936dd973b894c435aa612c810b3155178f77fe4130a3de718962",
+    "redwallet-hermes-after-expanded.js": "8c89bcbe56e79222d71f109441a3a1f358c42894badb00ee967968c577bd0e16"
+  },
+  "limits": [
+    "Actual engine reproduced locally, not an iPhone app/Keychain/native build",
+    "No live round or real funds used",
+    "No push, merge, signing, TestFlight upload or Apple submission",
+    "Exact-source CI/general/funded iOS gates and native self-test still required",
+    "Unrelated fastlane deletions in original worktree left untouched; correction isolated in separate worktree"
+  ]
+}

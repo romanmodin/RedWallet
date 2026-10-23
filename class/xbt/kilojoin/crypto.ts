@@ -66,7 +66,9 @@ export function decrypt(payload: string, key: Uint8Array): string {
   if (!length || padded.length !== 2 + paddedLength(length) || padded.subarray(length + 2).some(b => b !== 0))
     throw new Error('Invalid NIP44 padding');
   const content = padded.subarray(2, length + 2);
-  const text = content.toString('utf8');
+  // Hermes returns a plain Uint8Array from Buffer.subarray(). Restore Buffer
+  // explicitly before UTF-8 decoding; Uint8Array.toString() lists byte values.
+  const text = Buffer.from(content).toString('utf8');
   if (!equal(Buffer.from(text, 'utf8'), content)) throw new Error('Invalid UTF8');
   return text;
 }
