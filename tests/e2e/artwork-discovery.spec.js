@@ -72,9 +72,9 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       .toBeVisible()
       .whileElement(by.id('SettingsRoot'))
       .scroll(300, 'down');
-    await element(by.id('ArtworkSkinLogo')).multiTap(2);
+    await element(by.id('ArtworkSkinLogo')).tap();
     await waitFor(element(by.id('ArtworkSkinLogo')))
-      .toHaveLabel('Artwork skin enabled')
+      .toHaveLabel('Artwork skin: Helmet')
       .withTimeout(5000);
     await goBack();
     await waitForWalletsList();
@@ -86,6 +86,34 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await capture('01-helmet-portrait', 'portrait');
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
     await capture('02b-helmet-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
+    await element(by.id('SettingsButton')).tap();
+    await waitFor(element(by.id('ArtworkSkinLogo')))
+      .toBeVisible()
+      .whileElement(by.id('SettingsRoot'))
+      .scroll(300, 'down');
+    await element(by.id('ArtworkSkinLogo')).tap();
+    await waitFor(element(by.id('ArtworkSkinLogo')))
+      .toHaveLabel('Artwork skin: Armour')
+      .withTimeout(5000);
+    await goBack();
+    await waitForWalletsList();
+    await scrollUpOnHomeScreen();
+    await capture('02c-armour-portrait', 'portrait');
+    await capture('02d-armour-landscape', 'landscape', 'ArtworkSkinSurface', true);
+    await capture('02e-armour-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
+    await element(by.id('SettingsButton')).tap();
+    await waitFor(element(by.id('ArtworkSkinLogo')))
+      .toBeVisible()
+      .whileElement(by.id('SettingsRoot'))
+      .scroll(300, 'down');
+    await element(by.id('ArtworkSkinLogo')).tap();
+    await waitFor(element(by.id('ArtworkSkinLogo')))
+      .toHaveLabel('Artwork skin: Off')
+      .withTimeout(5000);
+    await goBack();
+    await waitForWalletsList();
+    await expect(element(by.id('ArtworkSkinBackground'))).not.toExist();
+
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('Tools')))
       .toBeVisible()

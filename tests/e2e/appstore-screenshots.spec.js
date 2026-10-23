@@ -64,9 +64,9 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
       .toBeVisible()
       .whileElement(by.id('SettingsRoot'))
       .scroll(300, 'down');
-    await element(by.id('ArtworkSkinLogo')).multiTap(2);
+    await element(by.id('ArtworkSkinLogo')).tap();
     await waitFor(element(by.id('ArtworkSkinLogo')))
-      .toHaveLabel('Artwork skin enabled')
+      .toHaveLabel('Artwork skin: Helmet')
       .withTimeout(5000);
     await goBack();
     await waitForWalletsList();
