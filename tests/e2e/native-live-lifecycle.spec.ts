@@ -134,6 +134,13 @@ async function dismissConnectionAlert(message: string): Promise<void> {
 async function configureNative(backend: KnotsFulcrumHarness, testRejections: boolean): Promise<void> {
   await waitForWalletsList();
   await element(by.id('SettingsButton')).tap();
+  if (device.getPlatform() === 'ios') {
+    // On the slow hosted simulator, querying the accessibility hierarchy while
+    // the initial DrawerRoot transition is still mounting can wedge that native
+    // request indefinitely. Let the successful tap finish its transition, then
+    // retain the original SettingsRoot assertion and timeout unchanged.
+    await sleep(12_000);
+  }
   await waitForId('SettingsRoot');
   await waitFor(element(by.id('NetworkSettings')))
     .toBeVisible()

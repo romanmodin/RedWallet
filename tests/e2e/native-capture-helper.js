@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 // Native local bounds describe the UIKit layout, unlike fixed-orientation
 // simulator framebuffer pixels. Missing or ambiguous attributes fail closed.
-export function nativeCaptureEvidence(png, before, after, orientation) {
+export function nativeCaptureEvidence(png, before, after, orientation, preCapture) {
   if (!['portrait', 'landscape'].includes(orientation)) throw new Error('Invalid requested orientation');
   if (png.length < 24 || png.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a' || png.toString('ascii', 12, 16) !== 'IHDR')
     throw new Error('Invalid native PNG capture');
@@ -17,6 +17,7 @@ export function nativeCaptureEvidence(png, before, after, orientation) {
   return {
     orientation,
     pixels,
+    ...(preCapture ? { preCapture: bounds(preCapture) } : {}),
     before: bounds(before),
     after: bounds(after),
     sha256: createHash('sha256').update(png).digest('hex'),

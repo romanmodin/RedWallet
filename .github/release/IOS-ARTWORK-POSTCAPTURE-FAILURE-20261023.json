@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-23T16:38:25Z",
+  "repository": "romanmodin/RedWallet",
+  "sourceCommit": "72f80c0cee3df58384d71ad5fedc5332efbd0aff",
+  "workflow": ".github/workflows/e2e-ios.yml",
+  "runId": 39982030382,
+  "attempt": 1,
+  "conclusion": "failure",
+  "buildJob": {
+    "id": 120511497766,
+    "conclusion": "success"
+  },
+  "testJob": {
+    "id": 120516830123,
+    "conclusion": "failure",
+    "firstActionableStep": "Verify artwork and read-only pool discovery",
+    "failure": "The landscape capture was visually and natively rotated, but the strict matcher compared one stale pre-capture portrait measurement with the correct post-capture landscape measurement."
+  },
+  "retainedEvidence": {
+    "failedLog": {
+      "path": "/tmp/redwallet-general-39982030382-failed.log",
+      "sha256": "6ebc459d1e46f3448271c3cecfcaa853204d5ef0df7926bb191ca97521a36d3a",
+      "bytes": 10773
+    },
+    "e2eArtifact": {
+      "id": 12514798110,
+      "zipSha256": "85a2acd83b19d86c811ae8de1c3fae169f9f3feb3a26a574b87c44da6c7e41cd",
+      "path": "/tmp/redwallet-general-39982030382-evidence"
+    },
+    "portrait": {
+      "nativeBefore": "402x874",
+      "nativeAfter": "402x874",
+      "pngSha256": "75fbaa7db53186d6c543e55369e30593ceddd124d1c66b9c0dd2da8e15ee34c1"
+    },
+    "landscape": {
+      "nativeBefore": "402x874",
+      "nativeAfter": "874x402",
+      "pngSha256": "1203dec45bdae7cc0a54dff8b58ff190ea3e7210a6290c94797895815cabb1c3"
+    }
+  },
+  "inspection": [
+    "The actual portrait frame was viewed and shows the centered helmet artwork and readable empty wallet.",
+    "The actual landscape frame was viewed and shows genuinely rotated UIKit content with correctly framed helmet artwork.",
+    "The Detox trace proves the screenshot request advanced the pending UIKit geometry update; the native post-capture value was 874x402."
+  ],
+  "boundedCorrection": {
+    "status": "candidate-until-hosted-proof",
+    "productionCodeChanged": false,
+    "assertionsChanged": false,
+    "protocolChanged": false,
+    "timeoutsChanged": false,
+    "detail": "Retain the stale pre-capture bounds in the sidecar, then require two matching post-capture native measurements. The unmodified screenshot, hash, portrait/landscape/return checks, 15-second deadline and human visual review remain mandatory."
+  }
+}

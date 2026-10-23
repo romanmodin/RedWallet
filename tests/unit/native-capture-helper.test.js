@@ -21,7 +21,13 @@ test('native rotated layout qualifies even when the simulator retains portrait f
   expect(matchesNativeOrientation(evidence)).toBe(true);
 });
 
-test('unchanged or still-transitioning UIKit layout cannot qualify as landscape', () => {
+test('post-capture confirmation qualifies while retaining a stale pre-capture measurement', () => {
+  const evidence = nativeCaptureEvidence(png, landscape, landscape, 'landscape', portrait);
+  expect(evidence.preCapture).toEqual({ width: 402, height: 780 });
+  expect(matchesNativeOrientation(evidence)).toBe(true);
+});
+
+test('unchanged or still-transitioning post-capture UIKit layout cannot qualify as landscape', () => {
   expect(matchesNativeOrientation(nativeCaptureEvidence(png, portrait, portrait, 'landscape'))).toBe(false);
   expect(matchesNativeOrientation(nativeCaptureEvidence(png, portrait, landscape, 'landscape'))).toBe(false);
   expect(matchesNativeOrientation(nativeCaptureEvidence(png, landscape, portrait, 'landscape'))).toBe(false);

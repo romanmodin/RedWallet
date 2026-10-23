@@ -21,11 +21,15 @@ const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurfac
   // when UIKit has rotated. Assert the actual native surface bounds, retain the
   // unmodified screenshot, and require human visual inspection of both views.
   do {
-    const before = await element(by.id(surfaceId)).getAttributes();
+    const preCapture = await element(by.id(surfaceId)).getAttributes();
     const file = await device.takeScreenshot(name);
     const png = fs.readFileSync(file);
+    // The screenshot request can advance a pending UIKit geometry update. Keep
+    // the stale pre-capture sample for evidence, then require two matching
+    // post-capture native measurements before accepting the orientation.
+    const before = await element(by.id(surfaceId)).getAttributes();
     const after = await element(by.id(surfaceId)).getAttributes();
-    evidence = nativeCaptureEvidence(png, before, after, orientation);
+    evidence = nativeCaptureEvidence(png, before, after, orientation, preCapture);
     // Retain the last observed native state on failure as well as success.
     fs.copyFileSync(file, path.join(directory, name + '.png'));
     fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, orientationRequests, ...evidence }, null, 2) + '\n');
