@@ -1,0 +1,47 @@
+{
+  "status": "locally-validated-not-pushed",
+  "upstreamCommit": "233733def7e492084f4d57e5faa1d76b9ab2ce79",
+  "referenceSourceSHA256": {
+    "coinjoin/Nip44.kt": "3ce17cceeea533de37025c6391a1cfe25c256f9712c2ce73e65adf212d119092",
+    "coinjoin/NostrEvent.kt": "f7bcff7c9bdb356b0ecca3ee0047f8c8e5055cf6a30e3d28e46b8eae30dc8607",
+    "crypto/Hashes.kt": "5f193faa4770f5d9c138e7b63c53752f0c2e381e42458c2a116e27b388bf7ab0",
+    "crypto/Ripemd160.kt": "6cfcb1e039cc60454229a2a37f2deab66c1a1214bff9b05e2e28f5299a8d6a53",
+    "crypto/Secp256k1.kt": "15fbab334b1702cea9f101d5a9f29c8bf2bc26cd065fcd452baba43e80df67bf",
+    "crypto/NativeSecp.kt": "4c1a24ed70d538263a1c6a35fbaed13310fa78b54981a291989ccc960c032cca",
+    "crypto/Ecdsa.kt": "afea04199b7751b83f8feca4acc86e66e980238d2d3336a38ea97cb35b183790",
+    "crypto/Schnorr.kt": "e0649ab521bbb77796b1024f1c0841906ec5d45b732b58917b77f1efddec2406",
+    "crypto/XChaCha20Poly1305.kt": "64b9ed32d5f59472264502861f65c8ea3605004dee062d9f043ad15c2543ae3a",
+    "ark/ArkNative.kt": "ea517cde8b0e3ceb9b6a672029987648a716574180fa610d8570fb56fdb0f616"
+  },
+  "fixtureSHA256": "0a582f37504a8078aaaebea2c941e78d655510fa58dabc79da5aec545d501d13",
+  "confirmedDefect": "Closed relay reported a late participant handler rejection through its error callback. Guard callback on closed state.",
+  "before": "relay tests: 12 passed, 1 failed; new late error regression reproduced",
+  "after": "relay + rejoin: 20 passed",
+  "crossImplementation": "13 passed using compiled actual upstream crypto/envelopes",
+  "timing": "34 session tests passed including real relay queue with delayed chain checks for 1 and 5 outputs",
+  "limits": [
+    "Not a confirmed diagnosis of user device",
+    "No full live Kilowallet participant round",
+    "No native iOS qualification",
+    "No push, build, upload or submission"
+  ],
+  "priorCandidate": "1fe48f4",
+  "verifiedAt": "2026-10-23T05:09:28Z",
+  "fullUnit": {
+    "suitesPassed": 119,
+    "testsPassed": 1124,
+    "inheritedSkipped": 1,
+    "seconds": 109.826,
+    "note": "Historical environment-dependent tests may return early; not physical/native qualification."
+  },
+  "typeScript": "pass",
+  "changedFileESLint": "pass",
+  "logsSHA256": {
+    "redwallet-late-error-before.log": "71c81bb6bc84595f3679747cd37023cb6c14b1a804f8a5fb3ec189f3939e4968",
+    "redwallet-late-error-after.log": "d5e3232f19d10d4cd5c46bb3d91029935417383e4a48e7e4c6b96f7801774db4",
+    "redwallet-kotlin-interop.log": "251c2f2ba89b4c05191da3647063a47f8b06bdba5e67dbeb3b31b6c9a1da2443",
+    "redwallet-rapid-messages.log": "d226fec597303dc4a71ec7ddc167e23d1fabb671e823893611c8afcc8b8428d1",
+    "redwallet-crosscheck-final-unit.log": "35d84c084f46abb82053d72308903215ac3a33d41d6b92255a4083583063296d",
+    "redwallet-crosscheck-tsc.log": "7125f194612fcff2f454c05d848e7cb71facc1967b4d5017e25b34fdee3ba74f"
+  }
+}

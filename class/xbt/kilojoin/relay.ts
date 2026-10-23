@@ -186,7 +186,10 @@ export class KilojoinRelay {
         .then(async () => {
           if (!this.closed && this.subscription === subscription) await this.onEvent(event);
         })
-        .catch(error => this.onError(participantFailure(error)))
+        .catch(error => {
+          // A stopped attempt must not overwrite the next attempt's UI with a late rejection.
+          if (!this.closed) this.onError(participantFailure(error));
+        })
         .finally(() => {
           this.queued--;
         });

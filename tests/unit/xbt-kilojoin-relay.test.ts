@@ -202,3 +202,26 @@ test('participant handler failure reaches diagnostics without echoing private ex
   expect(f.errors.mock.calls[0][0].message).toBe('Participant message rejected [KJ-PROCESS]');
   f.relay.close();
 });
+
+test('a stopped relay cannot report a late handler error into the next attempt', async () => {
+  let rejectHandler!: (reason: Error) => void;
+  const f = fixture(
+    jest.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectHandler = reject;
+        }),
+    ),
+  );
+  const connected = f.relay.connect();
+  f.socket.onopen!();
+  await connected;
+  f.relay.subscribe([event.pubkey], [event.pubkey], 0);
+  f.message(['EVENT', 'kilojoin-participant-1', event]);
+  await Promise.resolve();
+  expect(f.handler).toHaveBeenCalledTimes(1);
+  f.relay.close();
+  rejectHandler(new Error('late old-attempt failure'));
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  expect(f.errors).not.toHaveBeenCalled();
+});

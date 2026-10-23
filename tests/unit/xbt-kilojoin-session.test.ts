@@ -1,3 +1,4 @@
+import { KilojoinRelay } from '../../class/xbt/kilojoin/relay';
 import { generateKeyPairSync, randomBytes } from 'crypto';
 import { ECPairFactory } from 'ecpair';
 import { crypto as bitcoinCrypto, Transaction } from 'bitcoinjs-lib';
@@ -342,4 +343,71 @@ test.each([1, 5])('welcome sequence excludes pre-join roster history for %i-outp
   await expect(f.receive({ type: 'roster', seq: 3, seats: [f.rawSeats[1]] })).rejects.toThrow();
   expect(f.session.snapshot()).toEqual(accepted);
   expect(f.round.snapshot().reserved).toHaveLength(1);
+});
+
+test.each([1, 5])('relay serializes immediate roster/vote/closing while chain checks wait for %i outputs', async outputs => {
+  const f = await fixture('p2wpkh', outputs);
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const observe = f.env.observe;
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  f.env.observe = async coins => {
+    await gate;
+    return observe(coins);
+  };
+  const socket = {
+    onopen: undefined as undefined | (() => void),
+    onmessage: undefined as undefined | ((event: { data: string }) => void),
+    send: jest.fn(),
+    close: jest.fn(),
+  };
+  let processed = 0;
+  let finish!: () => void;
+  let fail!: (error: Error) => void;
+  const done = new Promise<void>((resolve, reject) => {
+    finish = resolve;
+    fail = reject;
+  });
+  const relay = new KilojoinRelay(
+    async event => {
+      await f.session.receive(event);
+      if (++processed === 3) finish();
+    },
+    fail,
+    () => socket as unknown as WebSocket,
+  );
+  const connected = relay.connect();
+  socket.onopen!();
+  await connected;
+  relay.subscribe([pub(creator)], [pub(pool)], 10000);
+  for (const body of [
+    { type: 'roster', seq: 1, seats: f.rawSeats },
+    { type: 'vote_open', vote_id: 'aa'.repeat(8), by: f.rawSeats[1].token_hash },
+    { type: 'closing', round_id: 'bb'.repeat(8), seats: f.rawSeats, deadline: 10300 },
+  ]) {
+    const event = signEvent(
+      {
+        kind: 2023,
+        created_at: 10000,
+        tags: [['p', pub(pool)]],
+        content: encrypt(JSON.stringify(body), conversationKey(creator, pub(pool)), randomBytes(32)),
+      },
+      creator,
+      randomBytes(32),
+    );
+    socket.onmessage!({ data: JSON.stringify(['EVENT', 'kilojoin-participant-1', event]) });
+  }
+  await Promise.resolve();
+  expect(f.session.snapshot().phase).toBe('open');
+  release();
+  try {
+    await done;
+    expect(f.session.snapshot().phase).toBe('closing');
+    expect(f.session.snapshot().seats).toHaveLength(2);
+    expect(f.published).toHaveLength(1);
+  } finally {
+    relay.close();
+  }
 });
