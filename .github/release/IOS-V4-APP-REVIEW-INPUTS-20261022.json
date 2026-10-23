@@ -1,0 +1,40 @@
+{
+  "sourceCommit": "286e875cb488365eeb00799b6c04305994ab9db7",
+  "verifiedAt": "2026-10-22T21:06:32.670Z",
+  "purpose": "Submit the qualified delivered V4 wallet build with an explicit disclosure of the known experimental CoinJoin join failure; verified actual IPA, beta, main screenshot and unchanged iMessage receipts.",
+  "receipts": [
+    {
+      "member": "ios-ipa-verification.json",
+      "runId": 39799087741,
+      "head": "b881585e528a9d06b20f67b28a774bd540f3fd20",
+      "artifactId": 12454964276,
+      "archiveSha256": "07d239fd6738e58e1727722f7e17b96ced93978a67af2e48f006540aa479e64c",
+      "sha256": "b1f52daff00e5ab0140d0707c471eac81c15e2215a53a207a2ba6b2333826150"
+    },
+    {
+      "member": "testflight-beta-verification.json",
+      "runId": 39848490670,
+      "head": "3eff5e4e15e2da5261ae8764effc284cbece68b7",
+      "artifactId": 12457380084,
+      "archiveSha256": "5c135adbc9a2185214ae3f7304fc7e106c2d2c92e3fb22cce7f3ba3b9ed54ecb",
+      "sha256": "08d5e2e787990f006b095191d00186b8af38de399e18f6ca4380b61c3a1f31b8"
+    },
+    {
+      "member": "store-screenshot-receipt.json",
+      "runId": 39853123397,
+      "head": "e262f0fb31be8c704e847d86b337b311701492e1",
+      "artifactId": 12458281797,
+      "archiveSha256": "aa2c3dd2b4641799a4d45802f325651a02f499b85cf691aeb937d8ea53c3c33c",
+      "sha256": "0115546b9ff126b5841e9b91ea55361f79797d9c181310ce48476a1d93493dd2"
+    },
+    {
+      "runId": 39330552821,
+      "head": "687c297eb466e890bee940e73901c6cc160d9014",
+      "artifactId": 12224825464,
+      "archiveSha256": "15c1f4bd28a3abbd70812c0646dfadb2df79d22b29606d5358290809d5ad4b11",
+      "member": "imessage-upload-receipt.json",
+      "sha256": "faadf6141de70a91eeda2313290f56eff2392b04c9ccbf075405dd357fcc9586"
+    }
+  ],
+  "build": "1792686194"
+}

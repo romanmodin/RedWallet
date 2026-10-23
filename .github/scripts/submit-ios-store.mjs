@@ -310,11 +310,14 @@ export async function verifyListing(api, candidate) {
 }
 export const V4_REVIEW_NOTE =
   "Kilojoin V4 update: Settings > Tools > CoinJoin remains Experimental with explicit live opt-in. V3 pools use one output; V4 pools use 2-5 equal outputs per participant, each to a fresh address. Review all outputs and the fee before signing. Sample mode and pool discovery need no funded wallet. Interrupted rounds retain coin reservations until safely resolved. Relay/backend privacy limits still apply. Powered by Kilojoin, by Kilombino.";
+export const COINJOIN_KNOWN_ISSUE_NOTE =
+  "Known issue in build 1792686194: Experimental CoinJoin can fail immediately after joining a pool with a participant-message processing error, sometimes after briefly showing participants. End-to-end mixing is not reliable in this build, and this error does not indicate a completed mix. We are submitting the wallet while correcting this optional experimental feature. Do not use real funds to test CoinJoin during review; sample mode and read-only pool discovery remain available.";
 export function v4ReviewNotes(notes) {
   check(present(notes), "Existing reviewer notes missing");
-  const next = notes.includes(V4_REVIEW_NOTE)
-    ? notes
-    : notes + "\n\n" + V4_REVIEW_NOTE;
+  const next = [V4_REVIEW_NOTE, COINJOIN_KNOWN_ISSUE_NOTE].reduce(
+    (text, note) => (text.includes(note) ? text : text + "\n\n" + note),
+    notes,
+  );
   check(
     next.length <= 4000,
     "Reviewer notes exceed Apple limit; preserve existing notes",
@@ -406,6 +409,9 @@ export async function submit(api, candidate, report) {
     );
   }
   report.v4ReviewerNotesVerified = true;
+  report.knownCoinJoinIssueDisclosed = reviewNotes.includes(
+    COINJOIN_KNOWN_ISSUE_NOTE,
+  );
   report.selectedBuild = candidate.appleBuildId;
   const infos = (
     await api("GET", "/v1/apps/" + APP_ID + "/appInfos", undefined, {

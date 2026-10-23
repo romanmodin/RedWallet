@@ -7,6 +7,7 @@ import {
   replaceAndSubmit,
   v4ReviewNotes,
   V4_REVIEW_NOTE,
+  COINJOIN_KNOWN_ISSUE_NOTE,
 } from "./submit-ios-store.mjs";
 import {
   REPLACEMENT_SOURCE,
@@ -458,10 +459,35 @@ test("V4 notes preserve prior text and are idempotent", () => {
   const n = v4ReviewNotes("Existing private contact and review context");
   assert.equal(
     n,
-    "Existing private contact and review context\n\n" + V4_REVIEW_NOTE,
+    "Existing private contact and review context\n\n" +
+      V4_REVIEW_NOTE +
+      "\n\n" +
+      COINJOIN_KNOWN_ISSUE_NOTE,
   );
   assert.equal(v4ReviewNotes(n), n);
   assert.throws(() => v4ReviewNotes("X".repeat(4000)), /limit/);
+});
+test("known CoinJoin issue is added once to existing V4 notes without losing prior text", () => {
+  const existing = "Existing review context\n\n" + V4_REVIEW_NOTE;
+  const result = v4ReviewNotes(existing);
+  assert.equal(result, existing + "\n\n" + COINJOIN_KNOWN_ISSUE_NOTE);
+  assert.equal(v4ReviewNotes(result), result);
+});
+test("known CoinJoin issue is confirmed by read-back before submission is reported", async () => {
+  const f = fixture(),
+    report = {};
+  await submit(f.api, f.c, report);
+  const noteWrites = f.writes.filter(
+    (w) => w.path === "/v1/appStoreReviewDetails/review-detail",
+  );
+  assert.equal(noteWrites.length, 1);
+  assert.ok(
+    noteWrites[0].payload.data.attributes.notes.includes(
+      COINJOIN_KNOWN_ISSUE_NOTE,
+    ),
+  );
+  assert.equal(report.knownCoinJoinIssueDisclosed, true);
+  assert.equal(report.submitted, true);
 });
 test("oversized notes stop before build selection or metadata writes", async () => {
   const f = fixture({ longNotes: true });
