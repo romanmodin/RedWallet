@@ -7,7 +7,7 @@ export const BUNDLE_ID = "com.romanmodin.redwallet";
 export const VERSION = "8.0.1";
 const ORIGIN = "https://api.appstoreconnect.apple.com";
 const allowedPath =
-  /^\/v1\/(?:apps\/6817118871(?:\/appStoreVersions)?|appStoreVersions\/[A-Za-z0-9-]+\/(?:build|appStoreReviewDetail|appStoreVersionLocalizations)|appStoreVersionLocalizations\/[A-Za-z0-9-]+\/appScreenshotSets|appScreenshotSets\/[A-Za-z0-9-]+\/appScreenshots)$/;
+  /^\/v1\/(?:apps\/6817118871(?:\/(?:appStoreVersions|appInfos))?|appInfos\/[A-Za-z0-9-]+\/appInfoLocalizations|appStoreVersions\/[A-Za-z0-9-]+\/(?:build|appStoreReviewDetail|appStoreVersionLocalizations)|appStoreVersionLocalizations\/[A-Za-z0-9-]+\/appScreenshotSets|appScreenshotSets\/[A-Za-z0-9-]+\/appScreenshots)$/;
 
 export function makeToken(config, now = Math.floor(Date.now() / 1000)) {
   try {
@@ -162,7 +162,35 @@ export async function inspect(get, now = new Date().toISOString()) {
       screenshots,
     });
   }
+  // App-wide metadata state is independent of a version's review state.
+  // Retain only public policy information and resource identities.
+  const infos = (
+    await get("/v1/apps/" + APP_ID + "/appInfos", {
+      limit: "200",
+      "fields[appInfos]": "appStoreState,state",
+    })
+  ).data;
+  const appInfos = [];
+  for (const info of infos) {
+    const localizations = (
+      await get("/v1/appInfos/" + resourceId(info) + "/appInfoLocalizations", {
+        limit: "200",
+        "fields[appInfoLocalizations]": "locale,privacyPolicyUrl",
+      })
+    ).data;
+    appInfos.push({
+      id: resourceId(info),
+      appStoreState: info.attributes?.appStoreState ?? null,
+      state: info.attributes?.state ?? null,
+      localizations: localizations.map((locale) => ({
+        id: resourceId(locale),
+        locale: locale.attributes?.locale ?? null,
+        privacyPolicyUrl: locale.attributes?.privacyPolicyUrl ?? null,
+      })),
+    });
+  }
   return {
+    appInfos,
     checkedAt: now,
     appId: APP_ID,
     bundleId: BUNDLE_ID,

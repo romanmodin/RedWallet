@@ -86,6 +86,30 @@ function fixture() {
     ["/v1/apps/" + APP_ID]: {
       data: { id: APP_ID, attributes: { bundleId: BUNDLE_ID } },
     },
+    ["/v1/apps/" + APP_ID + "/appInfos"]: {
+      data: [
+        {
+          id: "info-id",
+          attributes: {
+            appStoreState: "PREPARE_FOR_SUBMISSION",
+            state: "PREPARE_FOR_SUBMISSION",
+            privateField: "PRIVATE",
+          },
+        },
+      ],
+    },
+    "/v1/appInfos/info-id/appInfoLocalizations": {
+      data: [
+        {
+          id: "info-locale-id",
+          attributes: {
+            locale: "en-US",
+            privacyPolicyUrl: "https://example.com/privacy",
+            privateField: "PRIVATE",
+          },
+        },
+      ],
+    },
     ["/v1/apps/" + APP_ID + "/appStoreVersions"]: {
       data: [
         {
@@ -202,4 +226,36 @@ test("retains safe processing errors and checksums without signed delivery URLs"
   assert.equal(image.checksum, "abc");
   assert.equal(image.processingErrors[0].code, "IMAGE_INVALID_DIMENSIONS");
   assert.equal(JSON.stringify(result).includes("upload.apple.com"), false);
+});
+
+test("observes app information independently from version review status without exposing other fields", async () => {
+  const f = fixture();
+  f[
+    "/v1/apps/" + APP_ID + "/appStoreVersions"
+  ].data[0].attributes.appStoreState = "DEVELOPER_REJECTED";
+  const result = await inspect(async (path) => structuredClone(f[path]));
+  assert.equal(result.appStoreState, "DEVELOPER_REJECTED");
+  assert.deepEqual(result.appInfos, [
+    {
+      id: "info-id",
+      appStoreState: "PREPARE_FOR_SUBMISSION",
+      state: "PREPARE_FOR_SUBMISSION",
+      localizations: [
+        {
+          id: "info-locale-id",
+          locale: "en-US",
+          privacyPolicyUrl: "https://example.com/privacy",
+        },
+      ],
+    },
+  ]);
+  assert.equal(JSON.stringify(result).includes("PRIVATE"), false);
+  const calls = [];
+  const get = reader("fake", async (url, options) => {
+    calls.push(options.method);
+    return { ok: true, json: async () => ({ data: [] }) };
+  });
+  await get("/v1/apps/" + APP_ID + "/appInfos");
+  await get("/v1/appInfos/info-id/appInfoLocalizations");
+  assert.deepEqual(calls, ["GET", "GET"]);
 });
