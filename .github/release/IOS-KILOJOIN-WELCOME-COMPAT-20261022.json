@@ -1,0 +1,41 @@
+{
+  "status": "local-correction-not-shipped",
+  "base": "e262f0fb31be8c704e847d86b337b311701492e1",
+  "finding": "Welcome pool_secret emitted without leading zeroes by upstream BigInteger.toString(16) was rejected by fixed-width canonical hex parser.",
+  "upstream": {
+    "repository": "Kilombino/kilowallet",
+    "path": "app/src/main/java/com/kilombino/pyblockwatch/coinjoin/PoolSession.kt",
+    "blob": "de19b9f984992cec55e0ba0003163c43ae5a0011"
+  },
+  "before": {
+    "session_tests_passed": 28,
+    "session_tests_failed": 4,
+    "failure": "Invalid canonical hex on valid short welcome scalar"
+  },
+  "after": {
+    "session_tests_passed": 32,
+    "focused_tests_passed": 62,
+    "additional_transport_diagnostic_test_passed": true,
+    "typescript": "passed",
+    "full_unit": {
+      "suites_passed": 118,
+      "tests_passed": 1107,
+      "skipped": 1,
+      "duration_seconds": 135.119
+    },
+    "changed_file_lint": "passed"
+  },
+  "constraints": [
+    "Normalize only the authenticated welcome scalar; global canonical hex parser unchanged.",
+    "Reject invalid scalar range and wrong pool public key.",
+    "Persist state before installing pool key; wipe temporary buffer on failure and success.",
+    "No transaction-signing, fee, replay, routing, cancellation or reservation guard weakened.",
+    "Diagnostic codes never include raw exception or peer payload."
+  ],
+  "limits": [
+    "This reproduces a protocol compatibility bug, not a confirmed diagnosis of the user-reported physical-phone attempt.",
+    "Cross-implementation full round and hosted native qualification still pending.",
+    "No real-fund join performed.",
+    "Apple submission separately authorized despite experimental join issue."
+  ]
+}

@@ -238,26 +238,32 @@ export class ParticipantSession {
       switch (body.type) {
         case 'welcome': {
           this.require(['joining']);
-          const poolSecret = hex(body.pool_secret as string, 32);
-          if (
-            !ecc.isPrivate(poolSecret) ||
-            Buffer.from(ecc.pointFromScalar(poolSecret, true)!.slice(1)).toString('hex') !== this.terms.public_key ||
-            typeof body.token !== 'string' ||
-            !/^[0-9a-f]{32,128}$/.test(body.token) ||
-            !Number.isSafeInteger(body.seq) ||
-            (body.seq as number) < 0
-          )
-            throw new Error('Invalid welcome');
-          await this.save({
-            ...this.state,
-            phase: 'open',
-            poolSecret: poolSecret.toString('hex'),
-            token: body.token,
-            sequence: (body.seq as number) - 1,
-          });
-          this.welcomeSequenceFloor = (body.seq as number) - 1;
-          this.inbox.installPoolSecret(poolSecret);
-          poolSecret.fill(0);
+          // Kilowallet serializes this scalar with BigInteger.toString(16), without leading zeros.
+          // Normalize only this field; all other protocol hex remains canonical.
+          if (typeof body.pool_secret !== 'string' || !/^[0-9a-f]{1,64}$/.test(body.pool_secret)) throw new Error('Invalid welcome');
+          const poolSecret = hex(body.pool_secret.padStart(64, '0'), 32);
+          try {
+            if (
+              !ecc.isPrivate(poolSecret) ||
+              Buffer.from(ecc.pointFromScalar(poolSecret, true)!.slice(1)).toString('hex') !== this.terms.public_key ||
+              typeof body.token !== 'string' ||
+              !/^[0-9a-f]{32,128}$/.test(body.token) ||
+              !Number.isSafeInteger(body.seq) ||
+              (body.seq as number) < 0
+            )
+              throw new Error('Invalid welcome');
+            await this.save({
+              ...this.state,
+              phase: 'open',
+              poolSecret: poolSecret.toString('hex'),
+              token: body.token,
+              sequence: (body.seq as number) - 1,
+            });
+            this.welcomeSequenceFloor = (body.seq as number) - 1;
+            this.inbox.installPoolSecret(poolSecret);
+          } finally {
+            poolSecret.fill(0);
+          }
           break;
         }
         case 'reject':

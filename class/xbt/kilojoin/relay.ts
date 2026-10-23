@@ -1,6 +1,7 @@
 /** Bounded Nostr transport. No automatic reconnect, signing, approval or transaction broadcast. */
 import { hex, NostrEvent, verifyEvent } from './crypto';
 import { RELAY } from './protocol';
+import { participantFailure } from './relay-error';
 export type SocketFactory = (url: string) => WebSocket;
 export class KilojoinRelay {
   private socket?: WebSocket;
@@ -185,7 +186,7 @@ export class KilojoinRelay {
         .then(async () => {
           if (!this.closed && this.subscription === subscription) await this.onEvent(event);
         })
-        .catch(() => this.onError(new Error('Participant message rejected')))
+        .catch(error => this.onError(participantFailure(error)))
         .finally(() => {
           this.queued--;
         });

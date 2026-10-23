@@ -185,3 +185,20 @@ test('EOSE with no events completes an empty discovery', async () => {
   expect(f.errors).not.toHaveBeenCalled();
   f.relay.close();
 });
+
+test('participant handler failure reaches diagnostics without echoing private exception content', async () => {
+  const f = fixture(
+    jest.fn(async () => {
+      throw new Error('private payload');
+    }),
+  );
+  const connected = f.relay.connect();
+  f.socket.onopen!();
+  await connected;
+  f.relay.subscribe([event.pubkey], [event.pubkey], 0);
+  f.message(['EVENT', 'kilojoin-participant-1', event]);
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  expect(f.errors).toHaveBeenCalledTimes(1);
+  expect(f.errors.mock.calls[0][0].message).toBe('Participant message rejected [KJ-PROCESS]');
+  f.relay.close();
+});

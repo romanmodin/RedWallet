@@ -133,6 +133,42 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1) {
   };
   return { session, round, env, advance, receive, published, signature, rawSeats, terms };
 }
+test.each([1, 2, 5])('accepts upstream BigInteger welcome key for %i mixed outputs', async outputs => {
+  const f = await fixture('p2wpkh', outputs);
+  // Kilowallet PoolSession stores poolSecret with BigInteger.toString(16).
+  // It legitimately omits leading zeros and can contain an odd digit count.
+  const wireSecret = BigInt('0x' + pool.toString('hex')).toString(16);
+  await f.receive({ type: 'welcome', pool_secret: wireSecret, token: 'ab'.repeat(16), seq: 2 }, true);
+  expect(f.session.snapshot().phase).toBe('open');
+  expect(f.env.saveEncrypted).toHaveBeenCalledWith(expect.objectContaining({ poolSecret: pool.toString('hex') }));
+  await f.receive({ type: 'roster', seq: 2, seats: f.rawSeats });
+  expect(f.session.snapshot().seats).toHaveLength(2);
+  expect(f.published).toHaveLength(0);
+  expect(f.round.snapshot().phase).toBe('joined');
+});
+
+test.each(['', '0', '00', 'a', '-9', '+9', '0x9', ' 9', '9 ', 'G', '9'.repeat(65), 'f'.repeat(64)])(
+  'rejects malformed, out-of-range or wrong-pool welcome key %s',
+  async wireSecret => {
+    const f = await fixture();
+    await expect(f.receive({ type: 'welcome', pool_secret: wireSecret, token: 'ab'.repeat(16), seq: 1 }, true)).rejects.toThrow();
+    expect(f.session.snapshot().phase).toBe('joining');
+    expect(f.env.saveEncrypted).not.toHaveBeenCalled();
+    expect(f.published).toHaveLength(0);
+  },
+);
+
+test('does not advance or install the welcome key when durable persistence fails', async () => {
+  const f = await fixture();
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('Persistence unavailable'));
+  await expect(f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true)).rejects.toThrow(
+    'Persistence unavailable',
+  );
+  expect(f.session.snapshot().phase).toBe('joining');
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Unauthorized message route');
+  expect(f.published).toHaveLength(0);
+});
+
 test.each(['p2wpkh', 'p2tr'] as const)(
   'encrypted %s participant round verifies blind output, explicit approval and all signatures',
   async type => {

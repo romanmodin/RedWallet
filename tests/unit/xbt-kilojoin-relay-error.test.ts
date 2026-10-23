@@ -1,4 +1,4 @@
-import { relayFailureMessage } from '../../class/xbt/kilojoin/relay-error';
+import { participantFailure, relayFailureMessage } from '../../class/xbt/kilojoin/relay-error';
 
 describe('CoinJoin relay error display', () => {
   it('distinguishes connection failure from participant processing failure', () => {
@@ -16,3 +16,15 @@ describe('CoinJoin relay error display', () => {
     );
   });
 });
+
+test.each(['Invalid welcome', 'Replayed message', 'Unauthorized message route'])('provides a bounded diagnostic for %s', message => {
+  expect(relayFailureMessage(participantFailure(new Error(message)))).toMatch(/Diagnostic: KJ-(WELCOME|REPLAY|ROUTE)/);
+});
+test.each(['private peer payload', 'constructor', '__proto__', 'Invalid welcome: private payload'])(
+  'sanitizes participant exception %s',
+  message => {
+    const failure = participantFailure(new Error(message));
+    expect(failure.message).toBe('Participant message rejected [KJ-PROCESS]');
+    expect(relayFailureMessage(failure)).not.toContain(message);
+  },
+);
