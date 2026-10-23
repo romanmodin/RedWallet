@@ -8,9 +8,11 @@ async function resetSelftestDevice(device, preparedId = process.env.REDWALLET_FR
     if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Invalid self-test simulator identity');
     if (preparedId !== undefined) {
       if (preparedId !== id) throw new Error('Prepared self-test simulator does not match selected device');
-      // The workflow created this disposable simulator immediately before Detox.
-      // Erasing it again would repeat first-boot migration inside the test.
-      await device.launchApp({ delete: true });
+      // The workflow created this simulator and installed the app without
+      // launching it. There is no old process or wallet data to remove. Detox's
+      // delete/default-new-instance paths first terminate the absent process,
+      // which stalled simctl for 16 minutes in run 39988937458.
+      await device.launchApp({ newInstance: false });
       return;
     }
     await device.terminateApp();
