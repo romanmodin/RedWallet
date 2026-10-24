@@ -1,0 +1,186 @@
+{
+  "failedSource": "fbad12162b5001663cd8c6b1d95080eaaa5fd252",
+  "runId": 40047520739,
+  "attempt": 1,
+  "testJobId": 120734723352,
+  "artifactId": 12545089279,
+  "archiveSha256": "1cc9e4fda17e9dd251c213f29233ed3725ce6f23ef44533742535e9082ca227d",
+  "jobLogSha256": "ad18bb378410d034437cbfec7c36cbf66a40ad558ed6f6d743c2e6745ba85026",
+  "firstFailure": "Expired certificate scenario observed expected rejection with zero RPCs at01:38:20.905Z. Pending Detox request249 setSyncSettings enabled:true; busy main queue/run loop/27 layer animations. Test600s timeout at01:46:21Z. Six other scenarios passed. Jest did not exit at01:48:30Z; overall90min step timeout02:54:01Z. Pristine activation/native startup/fullwallet not reached.",
+  "diagnosisLimit": "Native origin of persistent animations is not proven. Evidence identifies cleanup synchronization stall; no TLS security failure or exact phone CoinJoin cause claimed.",
+  "correction": "Close disposable local listening/accepted sockets before native teardown; restart empty test app once before restoring synchronization as existing self-test cleanup does; always terminate in finally. Every existing seven TLS outcome/RPC/restart assertion remains unchanged. Cleanup errors still fail. No retries of tested operations, no production changes or increased deadlines.",
+  "validation": {
+    "focusedTests": 6,
+    "realSockets": true,
+    "nativeQualification": false,
+    "changedFileLint": "passed; final format correction checked separately"
+  },
+  "visualReview": {
+    "actuallyViewedAllSeven": true,
+    "findings": "Both skins centered in portrait and after returning; real landscape UIKit874x402 with portrait framebuffer1206x2622. Empty test wallet only. Discovery6 compatible pools, no joins. Artwork accepted for failed-source fbad only, not replacement qualification.",
+    "files": [
+      {
+        "file": "01-helmet-portrait.png",
+        "surfaceId": "ArtworkSkinSurface",
+        "orientationRequests": 0,
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "preCapture": {
+          "width": 402,
+          "height": 874
+        },
+        "before": {
+          "width": 402,
+          "height": 874
+        },
+        "after": {
+          "width": 402,
+          "height": 874
+        },
+        "sha256": "483d08a73e76c7eb6647786f2e898f473560d4b61c9df13fa6f4df868aa704f4"
+      },
+      {
+        "file": "02-helmet-landscape.png",
+        "surfaceId": "ArtworkSkinSurface",
+        "orientationRequests": 2,
+        "orientation": "landscape",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "preCapture": {
+          "width": 402,
+          "height": 874
+        },
+        "before": {
+          "width": 874,
+          "height": 402
+        },
+        "after": {
+          "width": 874,
+          "height": 402
+        },
+        "sha256": "1203dec45bdae7cc0a54dff8b58ff190ea3e7210a6290c94797895815cabb1c3"
+      },
+      {
+        "file": "02b-helmet-return-portrait.png",
+        "surfaceId": "ArtworkSkinSurface",
+        "orientationRequests": 1,
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "preCapture": {
+          "width": 402,
+          "height": 874
+        },
+        "before": {
+          "width": 402,
+          "height": 874
+        },
+        "after": {
+          "width": 402,
+          "height": 874
+        },
+        "sha256": "52bb8e06f7f8ff651456db7a6c61d502e1d24ac3c5df2fc9a1293fc3d9ba60f9"
+      },
+      {
+        "file": "02c-armour-portrait.png",
+        "surfaceId": "ArtworkSkinSurface",
+        "orientationRequests": 0,
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "preCapture": {
+          "width": 402,
+          "height": 874
+        },
+        "before": {
+          "width": 402,
+          "height": 874
+        },
+        "after": {
+          "width": 402,
+          "height": 874
+        },
+        "sha256": "6acc7650b7bf8448735e2259dfe3e01e2d506b89173ebe534c72430cf8f4a52a"
+      },
+      {
+        "file": "02d-armour-landscape.png",
+        "surfaceId": "ArtworkSkinSurface",
+        "orientationRequests": 1,
+        "orientation": "landscape",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "preCapture": {
+          "width": 874,
+          "height": 402
+        },
+        "before": {
+          "width": 874,
+          "height": 402
+        },
+        "after": {
+          "width": 874,
+          "height": 402
+        },
+        "sha256": "9e6920dca9f06a31f86c192c0bf09729e7a890b9741725748ddc8715001e07f9"
+      },
+      {
+        "file": "02e-armour-return-portrait.png",
+        "surfaceId": "ArtworkSkinSurface",
+        "orientationRequests": 1,
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "preCapture": {
+          "width": 402,
+          "height": 874
+        },
+        "before": {
+          "width": 402,
+          "height": 874
+        },
+        "after": {
+          "width": 402,
+          "height": 874
+        },
+        "sha256": "8a5d330d79296c2af9b7c0805e00fa0d48bc3f084e5b1989404f5aeba17343a7"
+      },
+      {
+        "file": "03-pool-discovery.png",
+        "surfaceId": "CoinjoinLiveScreen",
+        "orientationRequests": 0,
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "preCapture": {
+          "width": 402,
+          "height": 874
+        },
+        "before": {
+          "width": 402,
+          "height": 874
+        },
+        "after": {
+          "width": 402,
+          "height": 874
+        },
+        "sha256": "86bd81ed50341ad21b3a830c2c593ca9e3ebab2c60f3816510129aa1a41fd564"
+      }
+    ]
+  },
+  "failureScreenshotSha256": "a8c02dfad2bbbc0148672a36500e4e4cce340ef19effe7755d2e910b35e28906"
+}

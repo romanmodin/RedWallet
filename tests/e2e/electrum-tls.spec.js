@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
 const assert = require('assert').strict;
+const { cleanupTlsFixture } = require('./tls-fixture-cleanup');
 
 // Disposable local certificates and a public header; no seeds, funds, or external backend.
 const fixture = name => fs.readFileSync(path.join(__dirname, '../fixtures/tls', name));
@@ -168,10 +169,7 @@ describe('native Electrum TLS authentication', () => {
           .catch(() => {});
         throw error;
       } finally {
-        if (device.getPlatform() === 'ios') await device.enableSynchronization();
-        await device.terminateApp();
-        for (const socket of sockets) socket.destroy();
-        await new Promise(resolve => server.close(resolve));
+        await cleanupTlsFixture(device, server, sockets);
       }
     });
   }
