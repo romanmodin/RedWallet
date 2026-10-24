@@ -47,23 +47,43 @@ connection fail fast so the caller can retry.
 
 ## `react-native-notifications+5.2.2.patch`
 
-**What:** rewrites `FcmToken.sendTokenToJS()` (Android) to obtain the
-`ReactContext` from `ReactHost` first (bridgeless / New Architecture),
-falling back to `ReactInstanceManager` only if that fails — and wraps
-both lookups in `try/catch`.
+**What:** two Android fixes.
 
-**Why:** under the New Architecture (bridgeless, RN 0.76+) there is no
-`ReactInstanceManager`. The stock code calls
-`getReactNativeHost().getReactInstanceManager()` first, which throws
-`UnsupportedOperationException: ReactInstanceManager.createReactContext
-is unsupported` and crashes the app when the FCM push token is
-delivered.
+1. Rewrites `FcmToken.sendTokenToJS()` to obtain the `ReactContext` from
+   `ReactHost` first (bridgeless / New Architecture), falling back to
+   `ReactInstanceManager` only if that fails — and wraps both lookups in
+   `try/catch`.
+2. Makes `RNNotificationsModule.startFcmIntentService()` and
+   `FcmToken.refreshToken()` return early when
+   `FirebaseApp.getApps(context)` is empty.
 
-**Upstream:** https://github.com/wix/react-native-notifications/issues/1071 (open)
+**Why:**
 
-Added in BlueWallet PR https://github.com/BlueWallet/BlueWallet/pull/8424
-during a React Native bump. Remove once `react-native-notifications`
-ships New-Architecture-safe token delivery.
+1. Under the New Architecture (bridgeless, RN 0.76+) there is no
+   `ReactInstanceManager`. The stock code calls
+   `getReactNativeHost().getReactInstanceManager()` first, which throws
+   `UnsupportedOperationException: ReactInstanceManager.createReactContext
+   is unsupported` and crashes the app when the FCM push token is
+   delivered.
+2. RedWallet disables Firebase by not applying the `google-services`
+   Gradle plugin, so no default `FirebaseApp` exists. The native module
+   still enqueues `FcmInstanceIdRefreshHandlerService` on every init; when
+   JobScheduler runs it (often a minute or more later, or in the
+   background), `FirebaseMessaging.getInstance()` throws
+   `IllegalStateException: Default FirebaseApp is not initialized` and
+   kills the process. A pending job is re-run on the next launch, so the
+   app crashes again seconds after reopening. The `refreshToken()` guard
+   also covers jobs queued by an older build. Reported in
+   https://github.com/romanmodin/RedWallet/issues/38.
+
+**Upstream:**
+
+1. https://github.com/wix/react-native-notifications/issues/1071 (open).
+   Added in BlueWallet PR https://github.com/BlueWallet/BlueWallet/pull/8424
+   during a React Native bump. Remove once `react-native-notifications`
+   ships New-Architecture-safe token delivery.
+2. None; upstream assumes Firebase is configured. Remove if RedWallet
+   drops `react-native-notifications` on Android or re-enables Firebase.
 
 ---
 
