@@ -1,0 +1,14 @@
+{
+  "sourceCommit": "de401667d632ef2e29c783bca1263b4c941ae79c",
+  "failedRun": 40115190644,
+  "runAttempt": 1,
+  "failedJob": 120934917958,
+  "firstActionableFailure": "Detox invocation id25 tapping ActivateBitcoinButton remained unanswered until existing 600000ms limit",
+  "jobLogSha256": "602bfc6a845148eaa41b59adbcc3bd912e7f61053372dfc5ebafe46847600242",
+  "correction": "Extend existing iOS unsynchronized wallet-creation region through keyboard dismissal; retain element checks, helper, timeout and zero retries. Add family input to capture only failed iPad.",
+  "iphoneArtifact": 12568746663,
+  "iphoneArtifactSha256": "8d073a1e70e47bc64b8775804ffa2804d801356bc1dd12477b20f8ba69081c62",
+  "iphoneFramesVisuallyReviewed": true,
+  "nativeCorrectionVerified": false,
+  "appChanges": false
+}
