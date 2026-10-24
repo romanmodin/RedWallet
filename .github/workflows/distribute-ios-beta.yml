@@ -11,10 +11,10 @@ name: Assign verified combined iOS TestFlight beta
   workflow_dispatch:
     inputs:
       upload_run_id:
-        description: Reviewed completed combined iOS upload run for build 1792844414
+        description: Reviewed completed combined iOS upload run for build 1792862343
         required: true
         type: string
-        default: "40093078804"
+        default: "40115188795"
 permissions:
   contents: read
   actions: read
