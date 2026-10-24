@@ -21,7 +21,7 @@ beforeAll(async () => {
     let result;
     // The post-launch setURLBlacklist call cannot break a startup deadlock:
     // pass the same exclusions to the native Detox runtime before launch.
-    const launchOptions = withDetoxLaunchBlacklist(args[0]);
+    const launchOptions = withDetoxLaunchBlacklist(args[0], device.getPlatform());
     try {
       result = await originalLaunchApp(launchOptions, ...args.slice(1));
     } catch (error) {
