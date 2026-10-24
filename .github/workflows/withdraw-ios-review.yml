@@ -23,11 +23,11 @@ concurrency:
   group: redwallet-app-review-submission
   cancel-in-progress: false
 env:
-  SOURCE_COMMIT: 286e875cb488365eeb00799b6c04305994ab9db7
-  CI_RUN_ID: "39711126561"
-  IOS_RUN_ID: "39711126600"
-  FUNDED_IOS_RUN_ID: "39711154580"
-  UPLOAD_RUN_ID: "39799087741"
+  SOURCE_COMMIT: 9bc111733801849786a5026a04325afd269e20c0
+  CI_RUN_ID: "40084845943"
+  IOS_RUN_ID: "40084845962"
+  FUNDED_IOS_RUN_ID: "40084873225"
+  UPLOAD_RUN_ID: "40093078804"
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -67,13 +67,13 @@ jobs:
           "python3 -I .github/scripts/verify-ios-release-gates.py\npython3 .github/scripts/download-ios-review-receipts.py\
           \ .github/release/IOS-V4-WITHDRAWAL-INPUTS-20261022.json\npython3 - <<'PYCODE'\n\
           import subprocess,json\nfrom pathlib import Path\nm=json.loads(Path('.github/release/IOS-STORE-SCREENSHOTS-20261019.json').read_text())\n\
-          assert m['sourceCommit']=='286e875cb488365eeb00799b6c04305994ab9db7' and m['visuallyReviewed']\
-          \ is True and m['captureRunId']==39799093428\nr=json.loads(subprocess.check_output(['gh','api','repos/romanmodin/RedWallet/actions/runs/39799093428']))\n\
+          assert m['sourceCommit']=='9bc111733801849786a5026a04325afd269e20c0' and m['visuallyReviewed']\
+          \ is True and m['captureRunId']==40093081291\nr=json.loads(subprocess.check_output(['gh','api','repos/romanmodin/RedWallet/actions/runs/40093081291']))\n\
           assert r['repository']['full_name']=='romanmodin/RedWallet' and r['head_repository']['full_name']=='romanmodin/RedWallet'\n\
-          assert r['head_sha']=='b881585e528a9d06b20f67b28a774bd540f3fd20' and r['path']=='.github/workflows/capture-ios-store-screenshots.yml'\n\
+          assert r['head_sha']=='4b1f4acebbbaea5a173ca187f578fd7009206083' and r['path']=='.github/workflows/capture-ios-store-screenshots.yml'\n\
           assert r['event']=='workflow_dispatch' and r['head_branch']=='main' and r['run_attempt']==1\
           \ and r['status']=='completed' and r['conclusion']=='success'\nfor source\
-          \ in ['9f627fb87b4b6cc28cddcf6ad45e2edc721551a8','286e875cb488365eeb00799b6c04305994ab9db7']:\n\
+          \ in ['9f627fb87b4b6cc28cddcf6ad45e2edc721551a8','9bc111733801849786a5026a04325afd269e20c0']:\n\
           \ assert subprocess.check_output(['git','rev-parse',source+':ios'],text=True).strip()=='30e39cdee442e7d716cdc95de44ada6df2a523b7'\n\
           PYCODE\n"
       - name: Verify exact uploaded package against the qualified source

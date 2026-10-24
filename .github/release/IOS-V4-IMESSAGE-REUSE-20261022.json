@@ -1,9 +1,9 @@
 {
   "status": "UNCHANGED_NATIVE_IOS_SOURCE_VERIFIED",
-  "verifiedAt": "2026-10-22T14:52:11.889515+00:00",
+  "verifiedAt": "2026-10-24T14:25:39.446930+00:00",
   "publicRepository": "romanmodin/RedWallet",
   "previousSourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
-  "replacementSourceCommit": "286e875cb488365eeb00799b6c04305994ab9db7",
+  "replacementSourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
   "scope": "Entire tracked ios/ subtree, including sticker sources, assets, target, schemes and project settings",
   "previousIosTree": "30e39cdee442e7d716cdc95de44ada6df2a523b7",
   "replacementIosTree": "30e39cdee442e7d716cdc95de44ada6df2a523b7",
@@ -14,8 +14,9 @@
   "historicalReceiptRewritten": false,
   "reuseRequiresLiveAppleCompleteAssets": true,
   "newPackageVerificationPending": false,
-  "reason": "New signed main and sticker bundles both verified as 8.0.1 (1792686194), arm64, with passed signatures and exact source mapping. Native iOS tree is identical; reuse still requires actual accepted Apple assets COMPLETE.",
-  "signedPackageRunId": 39799087741,
-  "signedPackageBuild": "1792686194",
-  "signedPackageReceiptSha256": "023f55249619f3986e894548de932709ae8b0cf7d114682ecddb43a5acd460bd"
+  "reason": "New signed main/sticker arm64 bundles and source mapping verified. Native ios tree identical; actual Apple read-only inspection 40102015704 confirms both historical sticker assets COMPLETE.",
+  "signedPackageRunId": 40093078804,
+  "signedPackageBuild": "1792844414",
+  "signedPackageReceiptSha256": "4d3d1424c9700e60f77db6c671738d6147ee98ecb0548f10d824c1093343ebc7",
+  "liveAppleInspectionRunId": 40102015704
 }
