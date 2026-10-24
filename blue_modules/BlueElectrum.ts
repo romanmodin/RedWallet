@@ -1340,7 +1340,10 @@ export async function multiGetTransactionByTxid<T extends boolean>(
     const jsonString = realm.objectForPrimaryKey('Cache', txid + cacheKeySuffix); // search for a realm object with a primary key
     if (jsonString && jsonString.cache_value) {
       try {
-        ret[txid] = JSON.parse(jsonString.cache_value as string);
+        const cached = JSON.parse(jsonString.cache_value as string);
+        // Older oversized-response recovery could cache decoded JSON under the raw key.
+        // Treat that wrong shape as a miss; raw consumers must still verify the returned bytes.
+        if (verbose || typeof cached === 'string') ret[txid] = cached;
       } catch (error) {
         console.log('[electrum]', error, 'cache failed to parse', jsonString.cache_value);
       }
@@ -1440,8 +1443,8 @@ export async function multiGetTransactionByTxid<T extends boolean>(
         // response too large
         // lets do single call, that should go through okay:
         txdata.result = await mainClient.blockchainTransaction_get(txdata.param, false);
-        // since we used VERBOSE=false, server sent us plain txhex which we must decode on our end:
-        txdata.result = txhexToElectrumTransaction(txdata.result);
+        // Preserve the caller's requested format, including raw bytes for CoinJoin verification.
+        if (verbose) txdata.result = txhexToElectrumTransaction(txdata.result);
       }
       ret[txdata.param] = txdata.result;
       // @ts-ignore: hex property

@@ -288,7 +288,16 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
         ) : (
           <>
             <View style={card}>
-              <Text style={text}>Status: {journal?.phase === 'complete' ? 'Confirmed' : session?.phase}</Text>
+              <Text style={text}>
+                Status:{' '}
+                {journal?.phase === 'complete'
+                  ? 'Confirmed'
+                  : journal?.phase === 'aborted'
+                    ? 'Stopped'
+                    : journal?.phase === 'uncertain'
+                      ? 'Stopped · coins reserved'
+                      : session?.phase}
+              </Text>
               <Text style={text}>Participants: {session?.seats.length}</Text>
               <Text style={text}>
                 Signatures: {signatureCount}/{inputCount}
@@ -306,6 +315,9 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 </Text>
               )}
             </View>
+            {journal?.phase === 'aborted' && journal.reserved.length === 0 && (
+              <SettingsFootnote>Participation stopped. This round's coin reservations have been released.</SettingsFootnote>
+            )}
             {session?.phase === 'open' && (
               <Button title="Request round closing" disabled={busy} onPress={() => run(() => client.current!.requestClose())} />
             )}

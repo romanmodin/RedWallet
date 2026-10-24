@@ -16,6 +16,7 @@ import { SessionVault } from './vault';
 import { ParticipantSession, SessionState } from './session';
 import { reserveOutputAddresses } from './output-addresses';
 import { reservedCoins } from './wallet-store';
+import { Chain } from '../../../models/bitcoinUnits';
 const ECPair = ECPairFactory(ecc);
 const joining = new WeakSet<MixingWallet>();
 const clock = () => Math.floor(Date.now() / 1000);
@@ -45,10 +46,12 @@ export class MixingClient {
   }
 
   view(): ClientView {
+    const journal = this.round.snapshot();
     return {
       session: this.session.snapshot(),
-      journal: this.round.snapshot(),
-      error: this.error,
+      journal,
+      // Only the persisted journal establishes whether reservations were released.
+      error: ['aborted', 'complete'].includes(journal.phase) ? undefined : this.error,
       broadcastId: this.broadcastId,
       review: this.session.reviewSummary(),
     };
@@ -59,6 +62,8 @@ export class MixingClient {
   }
 
   private fail(message: string): void {
+    // Retain the first actionable failure; a later socket error must not hide it.
+    if (this.closed || this.error || ['aborted', 'complete'].includes(this.round.snapshot().phase)) return;
     this.error = message;
     this.update();
   }
@@ -181,7 +186,10 @@ export class MixingClient {
         new Set([
           ...config.selected,
           ...app.wallets.flatMap(w =>
-            'getDerivedUtxoFromOurTransaction' in w ? w.getDerivedUtxoFromOurTransaction(true).map(c => `${c.txid}:${c.vout}`) : [],
+            // Lightning wallets inherit this method but their payments have no on-chain outputs.
+            w.chain !== Chain.OFFCHAIN && 'getDerivedUtxoFromOurTransaction' in w
+              ? w.getDerivedUtxoFromOurTransaction(true).map(c => `${c.txid}:${c.vout}`)
+              : [],
           ),
         ]),
       publish: (event, isolated) => (isolated ? publishIsolated(event) : relay.publish(event)),

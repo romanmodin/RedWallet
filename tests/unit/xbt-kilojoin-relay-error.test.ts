@@ -1,4 +1,4 @@
-import { participantFailure, relayFailureMessage } from '../../class/xbt/kilojoin/relay-error';
+import { participantFailure, participantStageFailure, relayFailureMessage } from '../../class/xbt/kilojoin/relay-error';
 
 describe('CoinJoin relay error display', () => {
   it('distinguishes connection failure from participant processing failure', () => {
@@ -54,4 +54,23 @@ test.each([
   const untrusted = `${message}: private peer details`;
   expect(relayFailureMessage(participantFailure(new Error(untrusted)))).toContain('Diagnostic: KJ-PROCESS.');
   expect(relayFailureMessage(participantFailure(new Error(untrusted)))).not.toContain('private peer details');
+});
+
+test.each(['KJ-ROSTER-PARSE', 'KJ-BACKEND', 'KJ-WALLET-INPUTS', 'KJ-ROSTER-CHECK'] as const)(
+  'unknown failure at %s displays only the fixed stage, never the raw details',
+  stage => {
+    for (const error of [new Error('private peer or backend detail'), new TypeError('private native detail'), 'private rejection', null]) {
+      const classified = participantStageFailure(error, stage);
+      expect(classified.message).toBe('Participant stage failed');
+      const displayed = relayFailureMessage(participantFailure(classified));
+      expect(displayed).toContain(`Diagnostic: ${stage}.`);
+      expect(displayed).not.toContain('private');
+      expect(displayed).toContain('Coins remain reserved');
+    }
+  },
+);
+test('staged diagnostics preserve the exact known validation failure and its rejection', () => {
+  const error = new Error('Invalid ownership proof');
+  expect(participantStageFailure(error, 'KJ-ROSTER-PARSE')).toBe(error);
+  expect(relayFailureMessage(participantFailure(participantStageFailure(error, 'KJ-ROSTER-PARSE')))).toContain('KJ-PROOF');
 });
