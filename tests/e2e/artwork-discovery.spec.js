@@ -2,7 +2,13 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { element, waitFor } from 'detox';
-import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation, observeNativeRotation } from './native-capture-helper';
+import {
+  nativeCaptureEvidence,
+  matchesNativeOrientation,
+  shouldRepeatOrientation,
+  observeNativeRotation,
+  attachSimulatorForRotation,
+} from './native-capture-helper';
 import { getSwitchValue, goBack, helperCreateWallet, scrollUpOnHomeScreen, waitForId, waitForWalletsList } from './helperz';
 
 const smoke = process.env.REDWALLET_VISUAL_SMOKE === '1' ? describe : describe.skip;
@@ -85,7 +91,9 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     // Resetting Keychain or notification permissions can restart SpringBoard.
     // Attach after all resets/relaunches; native diagnostic 39691385530 verified
     // portrait, landscape and return-portrait bounds with this ordering.
-    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id], { timeout: 15000 });
+    const attachment = attachSimulatorForRotation(execFileSync, device.id);
+    fs.mkdirSync('artifacts/appearance-discovery', { recursive: true });
+    fs.writeFileSync('artifacts/appearance-discovery/simulator-attachment.json', JSON.stringify(attachment, null, 2) + '\n');
     await scrollUpOnHomeScreen();
     await capture('01-helmet-portrait', 'portrait');
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);

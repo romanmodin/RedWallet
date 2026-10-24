@@ -1,0 +1,32 @@
+{
+  "source": "775b4bb4e7270b4db2bf8a4fddbca18423c9dafb",
+  "run": 40037018468,
+  "attempt": 1,
+  "job": 120702646652,
+  "artifact": {
+    "id": 12538298273,
+    "sha256": "b6077ea27eccf5a08a4abcf92e148ee72390b955c41cc62775b098aad8f7f760"
+  },
+  "jobLogSHA256": "28733ccbbe0cf5da9ac161168c3131ff80da5544a393bc1337a858f5422af397",
+  "firstFailure": "Native landscape surface never settled. Both UIKit geometry requests timed out after Detox acknowledgements. Actual retained PNG inspected: portrait, not rotated.",
+  "nativeBounds": {
+    "width": 402,
+    "height": 874
+  },
+  "orientationRequests": 2,
+  "screenshotSHA256": "3cb5f89d8e4be94d889c02bcaa573079a7472f849f91e6c65d6f3f36345649cf",
+  "limits": "Root cause of UIKit request timeout remains unproven. No successful landscape/discovery/full-self-test qualification for this source.",
+  "candidate": "Test-only explicit new Simulator GUI instance via open -n for exact selected UUID after resets; inventory rejects zero/wrong/multiple booted devices. Retain requested attachment receipt. This is not evidence of successful attachment or rotation; fresh hosted native bounds and visual inspection are mandatory.",
+  "unchanged": "Production code, native bounds checks, 15s rotation observation, 10min smoke/90min full-suite deadlines, synchronization restoration, all wallet/funded assertions. No wallet-action retry.",
+  "localValidation": "15 focused native-capture/helper tests PASS; changed-file ESLint PASS with dependency resolution via existing RedWallet/node_modules (React autodetection warning only); git diff --check PASS. No new full local suite claim.",
+  "previousFunded": {
+    "run": 40037070070,
+    "attempt": 1,
+    "status": "success",
+    "artifact": 12538169785,
+    "archiveSHA256": "5010cc9e439cb541bdbdeb5276d0023a9ca4a688bb55fba0b607075491f0a738",
+    "nativeSHA256": "f6079ee52d293160c8901e93bb86c06e756fd99362775470dd0727a347bcf6c8",
+    "backendSHA256": "3aa2d9a5d35715582622280756368bab118e96f193f8819c40599f18bb5de714",
+    "verified": "Exact source/ios/segwit/rbf/hostedNativeUi/2 confirmations/high-fee-decline-blocked/decoded-review true; backend regtest, cleanup complete, unanswered methods empty. Not a full CoinJoin round or physical phone claim."
+  }
+}

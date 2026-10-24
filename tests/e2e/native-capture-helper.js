@@ -1,5 +1,28 @@
 import { createHash } from 'node:crypto';
 
+// open may reuse a running Simulator process and ignore its launch arguments.
+// Start a dedicated GUI instance for the exact Detox device after app resets.
+// This is driver setup, not proof of rotation: native bounds still must pass.
+export function attachSimulatorForRotation(run, deviceId) {
+  if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(deviceId)) throw new Error('Invalid simulator UUID');
+  const inventory = JSON.parse(
+    run('xcrun', ['simctl', 'list', 'devices', '-j'], {
+      encoding: 'utf8',
+      timeout: 15000,
+    }),
+  );
+  const booted = Object.values(inventory.devices)
+    .flat()
+    .filter(candidate => candidate.state === 'Booted');
+  if (booted.length !== 1 || booted[0].udid !== deviceId) throw new Error('Rotation requires only the exact selected simulator booted');
+  run('open', ['-n', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', deviceId], { timeout: 15000 });
+  return {
+    requestedDeviceId: deviceId,
+    bootedDeviceIds: booted.map(candidate => candidate.udid),
+    newGuiInstanceRequested: true,
+  };
+}
+
 // Native local bounds describe the UIKit layout, unlike fixed-orientation
 // simulator framebuffer pixels. Missing or ambiguous attributes fail closed.
 export function nativeCaptureEvidence(png, before, after, orientation, preCapture) {
