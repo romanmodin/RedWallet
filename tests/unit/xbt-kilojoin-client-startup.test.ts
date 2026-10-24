@@ -9,6 +9,7 @@ import { BlueApp } from '../../class/blue-app';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
 import { LightningCustodianWallet } from '../../class/wallets/lightning-custodian-wallet';
+import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import { ClientView, MixingClient } from '../../class/xbt/kilojoin/client';
 import { conversationKey, decrypt, encrypt, NostrEvent, signEvent } from '../../class/xbt/kilojoin/crypto';
 import { Terms, tokenHash } from '../../class/xbt/kilojoin/protocol';
@@ -25,6 +26,7 @@ jest.mock('../../blue_modules/BlueElectrum', () => ({
   multiGetUtxoByAddress: jest.fn(),
   multiGetHistoryByAddress: jest.fn(),
   getReportedBlockTip: jest.fn(),
+  estimateCurrentBlockheight: () => 110,
 }));
 jest.mock('../../class/xbt/kilojoin/wallet-adapter', () => ({
   ...jest.requireActual('../../class/xbt/kilojoin/wallet-adapter'),
@@ -582,3 +584,80 @@ test.each(['p2wpkh', 'p2tr'] as const)('full %s startup still rejects a roster u
     await f.cleanup();
   }
 });
+
+const watchOnlyMatrix = (['p2wpkh', 'p2tr'] as const).flatMap(type =>
+  (['p2wpkh', 'p2tr'] as const).flatMap(watchType => [false, true].map(xbt => ({ type, watchType, xbt }))),
+);
+
+function watchOnlyAccount(type: Coin['type'], xbt: boolean) {
+  const source = type === 'p2wpkh' ? new XbtSegwitBech32Wallet() : new XbtTaprootWallet();
+  source.setSecret('legal winner thank year wave sausage worth useful legal winner thank yellow');
+  const watch = new WatchOnlyWallet();
+  watch.xbt_network = xbt;
+  watch.segwitType = type;
+  watch.setSecret(source.getXpub());
+  watch.init();
+  return watch;
+}
+
+test.each(watchOnlyMatrix)(
+  'full $type startup accepts a saved $watchType HD watch-only account / XBT=$xbt',
+  async ({ type, watchType, xbt }) => {
+    const f = fixture(type, 1);
+    try {
+      const watch = watchOnlyAccount(watchType, xbt);
+      const hd = watch._hdWalletInstance!;
+      // Exercise real public derivation and cached history, without a spending key.
+      hd._txs_by_external_index[0] = [
+        {
+          txid: 'aa'.repeat(32),
+          outputs: [
+            {
+              n: 0,
+              value: 0.001,
+              scriptPubKey: { addresses: [hd._getExternalAddressByIndex(0)] },
+            },
+          ],
+          inputs: [],
+          confirmations: 10,
+        } as never,
+      ];
+      BlueApp.getInstance().wallets.push(watch);
+      const client = await f.join();
+      expect(client.view().error).toBeUndefined();
+      expect(client.view().session).toMatchObject({
+        phase: 'voting',
+        sequence: 5,
+      });
+      expect(client.view().session.seats).toHaveLength(5);
+      expect(reservedCoins(f.wallet)).toEqual(new Set([outpoint(f.ownCoin)]));
+      expect(f.sockets[0].events).toHaveLength(1);
+      expect(f.broadcast).not.toHaveBeenCalled();
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
+
+test.each(watchOnlyMatrix)(
+  'full $type startup rejects an input claimed by another $watchType HD watch-only account / XBT=$xbt',
+  async ({ type, watchType, xbt }) => {
+    const f = fixture(type, 1);
+    try {
+      const watch = watchOnlyAccount(watchType, xbt);
+      const inventory = jest
+        .spyOn(watch._hdWalletInstance!, 'getDerivedUtxoFromOurTransaction')
+        .mockReturnValue([f.peers[0].coin as never]);
+      BlueApp.getInstance().wallets.push(watch);
+      const client = await f.join();
+      expect(inventory).toHaveBeenCalledWith(true);
+      expect(client.view().error).toContain('KJ-WALLET-INPUTS');
+      expect(client.view().session).toMatchObject({ phase: 'open', seats: [] });
+      expect(reservedCoins(f.wallet)).toEqual(new Set([outpoint(f.ownCoin)]));
+      expect(f.sockets[0].events).toHaveLength(1);
+      expect(f.broadcast).not.toHaveBeenCalled();
+    } finally {
+      await f.cleanup();
+    }
+  },
+);
