@@ -1,31 +1,31 @@
 {
-  "sourceCommit": "286e875cb488365eeb00799b6c04305994ab9db7",
-  "verifiedAt": "2026-10-22T20:27:44.645216+00:00",
-  "purpose": "Withdraw only the old review after verified V4 tester availability and reviewed replacement captures; preserve historical assets until editable",
+  "sourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+  "verifiedAt": "2026-10-24T14:25:39.446930+00:00",
+  "purpose": "Preflight replacement of wallet-first review only after actual repaired TestFlight delivery, fresh reviewed captures and verified existing assets.",
   "receipts": [
     {
       "member": "ios-ipa-verification.json",
-      "runId": 39799087741,
-      "head": "b881585e528a9d06b20f67b28a774bd540f3fd20",
-      "artifactId": 12454964276,
-      "archiveSha256": "07d239fd6738e58e1727722f7e17b96ced93978a67af2e48f006540aa479e64c",
-      "sha256": "b1f52daff00e5ab0140d0707c471eac81c15e2215a53a207a2ba6b2333826150"
+      "runId": 40093078804,
+      "head": "4b1f4acebbbaea5a173ca187f578fd7009206083",
+      "artifactId": 12562171551,
+      "archiveSha256": "51d5aeaaeff31e850dd4a474286a4009e6afe5103e4104a577b50a18aefbd54e",
+      "sha256": "40bdf433a2853a8234b3836758d5381339823d7c6ec3629efbc1e67f79b6f77f"
     },
     {
       "member": "testflight-beta-verification.json",
-      "runId": 39848490670,
-      "head": "3eff5e4e15e2da5261ae8764effc284cbece68b7",
-      "artifactId": 12457380084,
-      "archiveSha256": "5c135adbc9a2185214ae3f7304fc7e106c2d2c92e3fb22cce7f3ba3b9ed54ecb",
-      "sha256": "08d5e2e787990f006b095191d00186b8af38de399e18f6ca4380b61c3a1f31b8"
+      "runId": 40102013957,
+      "head": "bbaaad2c9908384d11953241a89470f1221125c4",
+      "artifactId": 12562774186,
+      "archiveSha256": "20b25fe823f605e633adc7f4d3668c49b8f46f1d1322eda25bc6892a6e7e4faf",
+      "sha256": "adc6f9088ba57683aebf5da2642b5d2839bfeb8603fa7a5afcfb396b228abd64"
     },
     {
-      "runId": 39318465990,
-      "head": "2a75085cb930609501d0362afa1e0b48aee8e9ed",
-      "artifactId": 12219810127,
-      "archiveSha256": "66b67589a4c52286f6366aa8562048f40be5ff58acc57dd5a40969fcb50b7955",
       "member": "store-screenshot-receipt.json",
-      "sha256": "24a55e9a63e93c172904d9be06d7f7c29f863afea1b7a6de2a37169ffbd33b11"
+      "runId": 39853123397,
+      "head": "e262f0fb31be8c704e847d86b337b311701492e1",
+      "artifactId": 12458281797,
+      "archiveSha256": "aa2c3dd2b4641799a4d45802f325651a02f499b85cf691aeb937d8ea53c3c33c",
+      "sha256": "0115546b9ff126b5841e9b91ea55361f79797d9c181310ce48476a1d93493dd2"
     },
     {
       "runId": 39330552821,

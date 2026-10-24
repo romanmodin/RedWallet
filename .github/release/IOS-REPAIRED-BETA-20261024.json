@@ -1,0 +1,46 @@
+{
+  "betaRunId": 40102013957,
+  "betaArtifactId": 12562774186,
+  "betaArchiveSha256": "20b25fe823f605e633adc7f4d3668c49b8f46f1d1322eda25bc6892a6e7e4faf",
+  "betaReceiptSha256": "adc6f9088ba57683aebf5da2642b5d2839bfeb8603fa7a5afcfb396b228abd64",
+  "actualBetaReceipt": {
+    "appId": "6817118871",
+    "bundleId": "com.romanmodin.redwallet",
+    "version": "8.0.1",
+    "build": "1792844414",
+    "ipaSha256": "3857e451dd1f7dd164400b562d0524452738c8075823bcb0fba4274da182d6ee",
+    "publicSourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+    "sourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+    "orchestrationCommit": "4b1f4acebbbaea5a173ca187f578fd7009206083",
+    "uploadRunId": "40093078804",
+    "verifiedAt": "2026-10-24T14:22:15Z",
+    "appleBuildId": "2576d4ed-9623-48e0-9f07-fc0cf462a2c2",
+    "betaNotesUpdated": true,
+    "betaReviewSubmitted": true,
+    "status": "AVAILABLE_TO_TESTERS",
+    "processingState": "VALID",
+    "internalBuildState": "IN_BETA_TESTING",
+    "externalBuildState": "IN_BETA_TESTING",
+    "betaReviewState": "APPROVED",
+    "groups": [
+      {
+        "id": "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
+        "name": "Roman iPhone Testing",
+        "internal": true,
+        "assigned": true
+      },
+      {
+        "id": "463ff340-3283-4f17-949d-39c7aa929da2",
+        "name": "RedWallet Early Testers",
+        "internal": false,
+        "assigned": true
+      }
+    ]
+  },
+  "inspectionRunId": 40102015704,
+  "inspectionArtifactId": 12563441828,
+  "inspectionArchiveSha256": "5e29cfb5c29b672a748374875dc2f1768e3360cfefbe2fcd921b445072611e38",
+  "inspectionReceiptSha256": "c539fc9d9b0162e94debcf04d2729d7f32841b8502390d4dd750194425453f48",
+  "existingReviewPreserved": true,
+  "replacementSubmitted": false
+}
