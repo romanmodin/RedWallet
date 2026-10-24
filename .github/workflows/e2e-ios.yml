@@ -238,8 +238,9 @@ jobs:
           mkdir -p ios/build/Build/Products/Release-iphonesimulator
           tar -xzf BlueWallet.app.tar.gz -C ios/build/Build/Products/Release-iphonesimulator
 
-      # Pre-boot simulator so first detox launchApp lands warm.
-      - name: Pre-boot iOS simulator
+      # Select without booting: inventory/provision before first-boot migration.
+      # Create one pristine device and run its first-launch checks before other suites.
+      - name: Select original iOS simulator
         run: |
           DEVICE_TYPE=$(jq -r '.devices.simulator.device.type' .detoxrc.json)
           UDID=$(applesimutils --list --byType "$DEVICE_TYPE" | jq -r '.[0].udid // empty')
@@ -247,10 +248,10 @@ jobs:
             echo "ERROR: no simulator of type '$DEVICE_TYPE' found"
             exit 1
           fi
-          xcrun simctl boot "$UDID" 2>/dev/null || true
-          xcrun simctl bootstatus "$UDID" -b
           echo "REDWALLET_PREBOOT_SIMULATOR=$UDID" >> "$GITHUB_ENV"
-          xcrun simctl launch "$UDID" com.apple.springboard >/dev/null 2>&1 || true
+
+      - name: Prepare pristine self-test simulator
+        run: python3 .github/scripts/prepare-ios-selftest.py --fresh
 
       # Cut animations so detox sync stays steady on slow CI VMs; Reduce Motion makes reanimated skip to final value.
       - name: Disable simulator animations
@@ -259,6 +260,26 @@ jobs:
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl spawn booted notifyutil -p com.apple.Accessibility.ReduceMotionStatusDidChange
 
+      - name: Run pristine startup and wallet tests
+        timeout-minutes: 90
+        run: |
+          export REDWALLET_FRESH_SELFTEST_SIMULATOR="$(cat selftest-simulator-id.txt)"
+          # Retain supported inherited coverage; bluewallet2 requires a funded Bitcoin fixture.
+          npm run e2e:test:ios-release -- \
+            tests/e2e/bluewallet.spec.js --runTestsByPath \
+            --record-videos failing \
+            --record-logs failing \
+            --take-screenshots failing \
+            --headless \
+            --retries 0 \
+            --reuse \
+            --artifacts-location ./artifacts
+          unset REDWALLET_FRESH_SELFTEST_SIMULATOR
+          npm run e2e:test:ios-release -- \
+            tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js --runTestsByPath \
+            --record-videos failing --record-logs failing --take-screenshots failing \
+            --headless --retries 0 --reuse --artifacts-location ./artifacts
+
       - name: Verify artwork and read-only pool discovery
         timeout-minutes: 10
         env:
@@ -266,7 +287,7 @@ jobs:
         run: |
           npm run e2e:test:ios-release -- tests/e2e/artwork-discovery.spec.js --runTestsByPath --record-videos failing --record-logs failing --take-screenshots failing --retries 0 --artifacts-location ./artifacts/appearance-detox
 
-      - name: Run detox tests
+      - name: Run TLS tests
         timeout-minutes: 90
         env:
           IMPORT_DIAGNOSTICS: ${{ inputs.import_diagnostics }}
@@ -291,31 +312,12 @@ jobs:
               --loglevel verbose --headless --retries 0 --reuse \
               --artifacts-location ./artifacts/tls
           else
-          # Authenticate the native TLS transport before the longer wallet flows.
+          # Authenticate native TLS transport after the pristine wallet flows.
           npm run e2e:test:ios-release -- \
             tests/e2e/electrum-tls.spec.js --runTestsByPath \
             --record-videos failing --record-logs failing --take-screenshots failing \
             --headless --retries 0 --reuse --artifacts-location ./artifacts/tls
           fi
-          # Provision after TLS exits, before Detox owns a device or records artifacts.
-          # Failure stops the gate; never fall back to the reused simulator.
-          python3 .github/scripts/prepare-ios-selftest.py
-          export REDWALLET_FRESH_SELFTEST_SIMULATOR="$(cat selftest-simulator-id.txt)"
-          # Retain supported inherited coverage; bluewallet2 requires a funded Bitcoin fixture.
-          npm run e2e:test:ios-release -- \
-            tests/e2e/bluewallet.spec.js --runTestsByPath \
-            --record-videos failing \
-            --record-logs failing \
-            --take-screenshots failing \
-            --headless \
-            --retries 0 \
-            --reuse \
-            --artifacts-location ./artifacts
-          unset REDWALLET_FRESH_SELFTEST_SIMULATOR
-          npm run e2e:test:ios-release -- \
-            tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js --runTestsByPath \
-            --record-videos failing --record-logs failing --take-screenshots failing \
-            --headless --retries 0 --reuse --artifacts-location ./artifacts
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()

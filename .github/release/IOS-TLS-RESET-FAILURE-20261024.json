@@ -1,0 +1,13 @@
+{
+  "failedSource": "982fb5ebd009b4981b1d43674f25b6151bb87810",
+  "runId": 40059197448,
+  "attempt": 1,
+  "testJobId": 120770795462,
+  "artifactId": 12548506123,
+  "archiveSha256": "996bb1a9db9ea27e9bed05ef351fa68be7a8ef338fecbeb7e08f1e71742afc35",
+  "logSha256": "4b5cd2f1d7c6b5d851196c0372579b2a8e173fc4eaf47ce9d15ff7776420c8e8",
+  "failure": "Both accepted TLS cases passed expected connection and post-restart RPC checks (14 RPCs). New cleanup closed fixture then restarted with saved server settings. isReady timeout at04:17:46Z/04:27:50Z; actual failure PNG viewed showing Network Error connecting127.0.0.1 local fixture. Five negative TLS cases passed, including prior expired case. Jest exited failed normally04:36:52Z; full wallet/selftest not reached.",
+  "correction": "After local server closure, clear disposable test Keychain and launch delete:true with notifications:NO before restoring synchronization. Same empty-state reset as scenario setup. No production change, wallet retries, assertions removed or deadlines increased. Finally termination and closed sockets retained.",
+  "validation": "Eight focused real-socket/helper regression tests; native qualification pending. Tests model saved endpoint launch rejection, not actual iOS reproduction.",
+  "visualQualification": "Artwork/discovery step passed; current full visual review not yet done. Prior fbad visuals remain historical only."
+}

@@ -1,0 +1,122 @@
+{
+  "checkedAt": "2026-10-23T11:50:49.927903+00:00",
+  "parentCommit": "f68a3410d2ef05e76dd6c9cf86c34256cc85f4c2",
+  "status": "LOCAL_TESTED_NOT_NATIVE_IOS_QUALIFIED",
+  "reference": {
+    "repository": "https://github.com/Kilombino/Kilowallet",
+    "commit": "233733def7e492084f4d57e5faa1d76b9ab2ce79",
+    "files": [
+      "app/src/main/java/com/kilombino/pyblockwatch/coinjoin/PoolSession.kt",
+      "app/src/main/java/com/kilombino/pyblockwatch/coinjoin/Protocol.kt"
+    ],
+    "protocol": "https://github.com/Kilombino/kilojoin/blob/master/docs/PROTOCOL.md",
+    "voteSeconds": 600,
+    "resolutionGraceSeconds": 180
+  },
+  "findings": [
+    "Creator reopen arriving before its vote or roster was lost; re-encrypted old votes could reactivate after cancellation.",
+    "Creator roster/reopen/closing after vote timeout was rejected although upstream uses those controls to resolve timeout."
+  ],
+  "correction": [
+    "Durably retain up to 256 cancelled vote IDs without eviction; matching pending vote cleared only after successful encrypted save.",
+    "Creator resolution uses original pool deadline and at most upstream 180-second grace. Own vote and closing deadlines remain strict.",
+    "No changes to ownership, independent chain checks, output/fee/signature validation, reservations, explicit signing approval or broadcasting."
+  ],
+  "validation": {
+    "nodeBaseline": {
+      "failed": 28,
+      "passed": 64,
+      "total": 92,
+      "note": "33 new initial cases; 5 further guards and 3 grace-boundary cases added subsequently."
+    },
+    "fullUnit": {
+      "suitesPassed": 124,
+      "testsPassed": 2024,
+      "inheritedSkip": 1,
+      "newTests": 41,
+      "seconds": 169.044
+    },
+    "canonicalLint": {
+      "typeScript": "PASS",
+      "errors": 0,
+      "existingWarnings": 19
+    },
+    "diagnosticLint": "PASS",
+    "hermes": {
+      "version": "hermes-v250829098.0.10",
+      "binarySha256": "f9c60cce7d2750e6f829f03119124d4f9ce73867b970255c1bd9efcc7095b973",
+      "baseline": {
+        "passed": 0,
+        "failed": 108,
+        "failures": {
+          "Cancelled vote reactivated": 72,
+          "Invalid or expired session phase": 36
+        }
+      },
+      "final": {
+        "passed": 108,
+        "failed": 0
+      },
+      "coverage": "12 actual Kotlin startup fixtures \u00d7 (6 replay orders + 3 timeout resolutions); final timeout-roster cases additionally assert grace expiry. Both scripts, 2/5 participants, 1/2/5 outputs. Unchanged journal/reservations and zero spending signatures checked."
+    },
+    "discardedHarnessRuns": "Initial before/after filenames without -valid/-final had an extra async forwarding wrapper and an encrypted closing envelope passed as body. Excluded; corrected baseline directly returns receive Promise and decrypts Kotlin closing body. Early after-valid run predates final grace guard; final run qualifies actual final source.",
+    "negativeGuards": [
+      "wrong authority",
+      "cancel persistence failure",
+      "256-entry history bound without eviction",
+      "expired overall pool",
+      "expired resolution grace",
+      "invalid proof",
+      "missing chain observation",
+      "expired or excessive closing deadline",
+      "expired own vote"
+    ]
+  },
+  "access": {
+    "checkedAt": "2026-10-23T11:47:41Z",
+    "zorin": "Offline",
+    "lastSeenReported": "15h ago",
+    "knowledgeTunnel": "working"
+  },
+  "limits": [
+    "Exact physical-phone trigger remains unproven.",
+    "Linux Hermes VM and local tests, not native iOS/Keychain qualification.",
+    "Multiple conflicting uncancelled pending votes still fail closed; not a proof of all multi-cycle replay orderings.",
+    "No live joins, funds, spending signatures or network broadcast.",
+    "No push/merge/sign/upload/Apple actions."
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/redwallet-vote-reopen-before-20261023.log",
+      "sha256": "9fa1a31e7af3317936255ee4a1e9b7a87e837999c6aef1582373dd2e1371780e"
+    },
+    {
+      "path": "/tmp/redwallet-votes-hermes-before-valid-20261023.json",
+      "sha256": "b3ec121296b6a8ef6f65450cb8a2eed1774dc9ccd38ae2854fce6edc74fc4751"
+    },
+    {
+      "path": "/tmp/redwallet-votes-hermes-after-final-20261023.json",
+      "sha256": "9c57f18efd581019f17c09e81302620eae231caff430d534a6804e5a5fd6646e"
+    },
+    {
+      "path": "/tmp/redwallet-votes-before-valid.js",
+      "sha256": "4c011d5fa0bc3f99b2973acdfd467650b88bfdf16670d808ab6a5801822c2694"
+    },
+    {
+      "path": "/tmp/redwallet-votes-after-final.js",
+      "sha256": "61eb59e95cbb15ba0057142dfe4ea12b8e84adc6ca4271022c5fefde04a85bd6"
+    },
+    {
+      "path": "/tmp/redwallet-vote-reopen-full-unit-final-20261023.log",
+      "sha256": "4b903aae34568e8071e805065d8e0bcd5e26adface019926d19af3ad41af2c2a"
+    },
+    {
+      "path": "/tmp/redwallet-vote-reopen-lint-final-20261023.log",
+      "sha256": "9ee8d37bcba94af2e7597fc8dd3e00abfb95a11ee73a0dfd08381156ed5a7dfa"
+    },
+    {
+      "path": "/tmp/redwallet-vote-reopen-diagnostic-lint-final-20261023.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

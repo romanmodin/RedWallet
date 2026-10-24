@@ -1,0 +1,167 @@
+{
+  "observedAt": "2026-10-23T18:39:38.068520+00:00",
+  "repository": "romanmodin/RedWallet",
+  "sourceCommit": "dc86a9e6bb34bea62f17c06711b4f305885d502a",
+  "runId": 39988937458,
+  "workflow": ".github/workflows/e2e-ios.yml",
+  "attempt": 1,
+  "buildJob": {
+    "id": 120535356712,
+    "conclusion": "success"
+  },
+  "testJob": {
+    "id": 120542139540,
+    "conclusion": "failure"
+  },
+  "artifact": {
+    "id": 12522685748,
+    "name": "e2e-ios-videos",
+    "zipSha256": "aeea17397083ba6997356f4ff8a9b0c2f80f4caacdd41bee555a88098183ab77"
+  },
+  "detoxLogSha256": "5c16924b996df377ab0e7ff4de488677fb8eef8f5f5b36e2e806d1052c26f95d",
+  "jobLogSha256": "b8510876278909ef175ff3758ac610a79485458e64ea32b0d26c933a4966c9d3",
+  "failureFrame": {
+    "file": "ios.release.2026-10-23 17-31-53Z/\u2717 RedWallet UI Tests - no wallets selftest passes/testFnFailure.png",
+    "sha256": "ba1092ef56b82ec3a5496b1184f41088460776726132b1005f37833f84880852",
+    "visuallyInspected": true,
+    "observation": "SpringBoard home, no RedWallet self-test screen."
+  },
+  "firstActionableFailure": {
+    "operation": "simctl terminate fresh simulator com.romanmodin.redwallet from launchApp({delete:true})",
+    "startedAt": "2026-10-23T17:32:10.310Z",
+    "firstErrorAt": "2026-10-23T17:46:55.505Z",
+    "completedAt": "2026-10-23T17:48:17.085Z",
+    "error": "NSPOSIXErrorDomain code=3; found nothing to terminate",
+    "jestTimeoutAt": "2026-10-23T17:42:10.295Z",
+    "jestTimeoutMs": 600000,
+    "appSelftestReached": false,
+    "secondaryFailure": "Pending first test resumed after its Jest timeout and overlapped settings test: multiple Detox interactions simultaneously.",
+    "certainty": "Blocked command and absent target are evidenced; underlying CoreSimulator delay is not fully diagnosed. This run is not evidence of a CoinJoin calculation or self-test assertion defect."
+  },
+  "passedBeforeFailure": {
+    "tlsTests": 7,
+    "artworkAndReadOnlyDiscovery": true,
+    "supportedWalletTestsInSameSpec": 5
+  },
+  "notExecuted": [
+    "bluewallet3.spec.js",
+    "xbt-wallet.spec.js"
+  ],
+  "visualReview": {
+    "frames": [
+      {
+        "file": "appearance-discovery/01-helmet-portrait.png",
+        "sha256": "00208cc242eafb0ebb5c23c680f479aa1f295fd18432f46fbd063592b7f27bbb",
+        "nativeBoundsBefore": {
+          "width": 402,
+          "height": 874
+        },
+        "nativeBoundsAfter": {
+          "width": 402,
+          "height": 874
+        },
+        "visuallyInspected": true
+      },
+      {
+        "file": "appearance-discovery/02-helmet-landscape.png",
+        "sha256": "356a342c6462db7628d584692902d4533d18a8edd7c6fc2605cf87507158c846",
+        "nativeBoundsBefore": {
+          "width": 874,
+          "height": 402
+        },
+        "nativeBoundsAfter": {
+          "width": 874,
+          "height": 402
+        },
+        "visuallyInspected": true
+      },
+      {
+        "file": "appearance-discovery/02b-helmet-return-portrait.png",
+        "sha256": "218c20d42bac465f4d7a95b7820ff1cf405ac70b9ab7e5706b495395abf59b9d",
+        "nativeBoundsBefore": {
+          "width": 402,
+          "height": 874
+        },
+        "nativeBoundsAfter": {
+          "width": 402,
+          "height": 874
+        },
+        "visuallyInspected": true
+      },
+      {
+        "file": "appearance-discovery/02c-armour-portrait.png",
+        "sha256": "3ca04107d486748dfb3c74081b02a2896c9a920fb9b5510d79810cb18f4fe648",
+        "nativeBoundsBefore": {
+          "width": 402,
+          "height": 874
+        },
+        "nativeBoundsAfter": {
+          "width": 402,
+          "height": 874
+        },
+        "visuallyInspected": true
+      },
+      {
+        "file": "appearance-discovery/02d-armour-landscape.png",
+        "sha256": "9e6920dca9f06a31f86c192c0bf09729e7a890b9741725748ddc8715001e07f9",
+        "nativeBoundsBefore": {
+          "width": 874,
+          "height": 402
+        },
+        "nativeBoundsAfter": {
+          "width": 874,
+          "height": 402
+        },
+        "visuallyInspected": true
+      },
+      {
+        "file": "appearance-discovery/02e-armour-return-portrait.png",
+        "sha256": "061b86150ba22dd47d8a255f8904ed919192e5dc3d5a9afb46dac86105afe3d6",
+        "nativeBoundsBefore": {
+          "width": 402,
+          "height": 874
+        },
+        "nativeBoundsAfter": {
+          "width": 402,
+          "height": 874
+        },
+        "visuallyInspected": true
+      },
+      {
+        "file": "appearance-discovery/03-pool-discovery.png",
+        "sha256": "c634dcd914a661824b587f14c056259b2d69e89b6e910d16f0c601a4ce740e53",
+        "nativeBoundsBefore": {
+          "width": 402,
+          "height": 874
+        },
+        "nativeBoundsAfter": {
+          "width": 402,
+          "height": 874
+        },
+        "visuallyInspected": true
+      }
+    ],
+    "discoveryCompatiblePoolCount": 5,
+    "realFundsOrJoin": false,
+    "observation": "Both skins rendered in portrait, rotated landscape, and return portrait. Armour maintains a centered portrait image with black side margins in landscape. Empty-wallet cards and controls remain visible. Landscape balance font is small; no fabricated balances."
+  },
+  "boundedCorrection": [
+    "Install and verify the exact release app on the newly created disposable simulator before Detox, with a 120-second command deadline and no retry.",
+    "Launch that fresh installed app with newInstance:false to avoid terminating a nonexistent process. Existing non-fresh simulator and Android reset behavior is retained.",
+    "Record git HEAD as actual sourceCommit separately from GITHUB_SHA synthetic PR merge provenance."
+  ],
+  "unchanged": [
+    "production app code",
+    "self-test assertions",
+    "Jest 600-second test timeout",
+    "all TLS/general/funded gates",
+    "zero Detox retries"
+  ],
+  "localValidation": {
+    "pythonProvisioningTestsPassed": 10,
+    "jsResetTestsPassed": 9,
+    "changedJsEslint": "passed with dependency detection warning only",
+    "gitDiffCheck": "passed"
+  },
+  "qualification": "blocked until replacement exact-source software/general/funded runs and actual native evidence pass"
+}

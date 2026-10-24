@@ -3,6 +3,7 @@ import {
   matchesNativeOrientation,
   shouldRepeatOrientation,
   observeNativeRotation,
+  attachSimulatorForRotation,
 } from '../e2e/native-capture-helper';
 
 const png = Buffer.alloc(24);
@@ -21,7 +22,13 @@ test('native rotated layout qualifies even when the simulator retains portrait f
   expect(matchesNativeOrientation(evidence)).toBe(true);
 });
 
-test('unchanged or still-transitioning UIKit layout cannot qualify as landscape', () => {
+test('post-capture confirmation qualifies while retaining a stale pre-capture measurement', () => {
+  const evidence = nativeCaptureEvidence(png, landscape, landscape, 'landscape', portrait);
+  expect(evidence.preCapture).toEqual({ width: 402, height: 780 });
+  expect(matchesNativeOrientation(evidence)).toBe(true);
+});
+
+test('unchanged or still-transitioning post-capture UIKit layout cannot qualify as landscape', () => {
   expect(matchesNativeOrientation(nativeCaptureEvidence(png, portrait, portrait, 'landscape'))).toBe(false);
   expect(matchesNativeOrientation(nativeCaptureEvidence(png, portrait, landscape, 'landscape'))).toBe(false);
   expect(matchesNativeOrientation(nativeCaptureEvidence(png, landscape, portrait, 'landscape'))).toBe(false);
@@ -100,4 +107,57 @@ test('a synchronization transport failure prevents observation and still attempt
   await expect(observeNativeRotation(device, observation)).rejects.toBe(error);
   expect(observation).not.toHaveBeenCalled();
   expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
+});
+
+const selectedSimulator = 'F94FB7BA-C33C-4B3B-B505-F0FB478DB847';
+const parkedSimulator = '35645D16-2FFD-44E1-BA44-5774817F1687';
+const simulatorInventory = devices => JSON.stringify({ devices: { 'iOS-26-5': devices } });
+test('rotation GUI launch forces a new instance for the sole booted selected device, ignoring a parked twin', () => {
+  const run = jest.fn().mockReturnValueOnce(
+    simulatorInventory([
+      { udid: selectedSimulator, state: 'Booted' },
+      { udid: parkedSimulator, state: 'Shutdown' },
+    ]),
+  );
+  expect(attachSimulatorForRotation(run, selectedSimulator)).toEqual({
+    requestedDeviceId: selectedSimulator,
+    bootedDeviceIds: [selectedSimulator],
+    newGuiInstanceRequested: true,
+  });
+  expect(run.mock.calls).toEqual([
+    ['xcrun', ['simctl', 'list', 'devices', '-j'], { encoding: 'utf8', timeout: 15000 }],
+    ['open', ['-n', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', selectedSimulator], { timeout: 15000 }],
+  ]);
+});
+
+test.each([
+  [],
+  [{ udid: parkedSimulator, state: 'Booted' }],
+  [
+    { udid: selectedSimulator, state: 'Booted' },
+    { udid: parkedSimulator, state: 'Booted' },
+  ],
+  [{ udid: selectedSimulator, state: 'Booting' }],
+])('ambiguous or wrong boot state never opens a GUI', (...devices) => {
+  const run = jest.fn().mockReturnValue(simulatorInventory(devices));
+  expect(() => attachSimulatorForRotation(run, selectedSimulator)).toThrow();
+  expect(run).toHaveBeenCalledTimes(1);
+});
+
+test('invalid UUID and inventory/launch errors fail closed without retries', () => {
+  const run = jest.fn();
+  expect(() => attachSimulatorForRotation(run, 'bad')).toThrow('UUID');
+  expect(run).not.toHaveBeenCalled();
+  run.mockReturnValueOnce('not JSON');
+  expect(() => attachSimulatorForRotation(run, selectedSimulator)).toThrow();
+  expect(run).toHaveBeenCalledTimes(1);
+  const failure = new Error('launch timeout');
+  const launch = jest
+    .fn()
+    .mockReturnValueOnce(simulatorInventory([{ udid: selectedSimulator, state: 'Booted' }]))
+    .mockImplementationOnce(() => {
+      throw failure;
+    });
+  expect(() => attachSimulatorForRotation(launch, selectedSimulator)).toThrow(failure);
+  expect(launch).toHaveBeenCalledTimes(2);
 });

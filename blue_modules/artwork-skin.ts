@@ -3,13 +3,14 @@ import DefaultPreference from 'react-native-default-preference';
 import { GROUP_IO_BLUEWALLET } from './currency';
 
 export const ARTWORK_SKIN_KEY = 'optional_artwork_skin_v1';
-export const ARTWORK_DOUBLE_TAP_MS = 450;
-let enabled = false;
+export type ArtworkSkin = 'off' | 'helmet' | 'armour';
+export const ARTWORK_SKINS: readonly ArtworkSkin[] = ['off', 'helmet', 'armour'];
+let selected: ArtworkSkin = 'off';
 let loaded: Promise<void> | undefined;
 let queue = Promise.resolve();
 const listeners = new Set<() => void>();
 
-const snapshot = () => enabled;
+const snapshot = () => selected;
 export const getArtworkSkin = snapshot;
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
@@ -23,11 +24,11 @@ export function loadArtworkSkin(): Promise<void> {
     try {
       await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
       const saved = await DefaultPreference.get(ARTWORK_SKIN_KEY);
-      enabled = saved === 'enabled';
+      selected = saved === 'enabled' || saved === 'helmet' ? 'helmet' : saved === 'armour' ? 'armour' : 'off';
       listeners.forEach(listener => listener());
     } catch {
       // Cosmetic persistence failures keep the original appearance.
-      enabled = false;
+      selected = 'off';
     }
   })();
   return loaded;
@@ -36,25 +37,24 @@ export function loadArtworkSkin(): Promise<void> {
 export function toggleArtworkSkin(): Promise<void> {
   const next = queue.then(async () => {
     await loadArtworkSkin();
-    const value = !enabled;
+    const value = ARTWORK_SKINS[(ARTWORK_SKINS.indexOf(selected) + 1) % ARTWORK_SKINS.length];
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
-    await DefaultPreference.set(ARTWORK_SKIN_KEY, value ? 'enabled' : 'disabled');
-    enabled = value;
+    await DefaultPreference.set(ARTWORK_SKIN_KEY, value);
+    selected = value;
     listeners.forEach(listener => listener());
   });
   queue = next.catch(() => {});
   return next;
 }
 
-export function useArtworkSkin(): boolean {
-  const active = useSyncExternalStore(subscribe, snapshot, () => false);
+export function useArtworkSkinSelection(): ArtworkSkin {
+  const selection = useSyncExternalStore(subscribe, snapshot, () => 'off' as const);
   useEffect(() => {
     loadArtworkSkin().catch(() => {});
   }, []);
-  return active;
+  return selection;
 }
 
-/** Single taps or unrelated taps never change the skin. */
-export function isArtworkDoubleTap(previous: number | undefined, current: number): boolean {
-  return previous !== undefined && current >= previous && current - previous <= ARTWORK_DOUBLE_TAP_MS;
+export function useArtworkSkin(): boolean {
+  return useArtworkSkinSelection() !== 'off';
 }

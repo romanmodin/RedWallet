@@ -1,0 +1,425 @@
+{
+  "checkedAt": "2026-10-23T11:21:05.124414+00:00",
+  "parentCommit": "5595d71a1ee2059b845c69094b0a37998709eabb",
+  "status": "LOCAL_TESTED_NOT_NATIVE_IOS_QUALIFIED",
+  "sourceOfClarification": "User supplied Kilombino developer reply; retrieved GitHub protocol sections 2\u20133,11\u201312",
+  "upstreamProtocol": {
+    "url": "https://github.com/Kilombino/kilojoin/blob/master/docs/PROTOCOL.md",
+    "connectorModifiedAt": "2026-10-20T07:55:39Z"
+  },
+  "findings": {
+    "alreadyCorrect": [
+      "1\u201364 hex pool secret normalization with public-key verification",
+      "RSA modulus bigint and canonical odd-length exponent10001",
+      "Creator seat proof uses seat.join_pub=pool public key"
+    ],
+    "corrected": [
+      "Duplicate/irrelevant/unreadable envelope processing no longer raises a participant error",
+      "Roster seq<=last accepted is a no-op, including differently encrypted duplicate",
+      "Pool subscription omits since; direct identity remains fresh",
+      "Controls before welcome and irrelevant phases/rounds cannot alter current session"
+    ],
+    "preserved": [
+      "Current ownership and independently observed coin checks",
+      "Current blind/output/signature/fee validation",
+      "No automatic vote, spending signature, broadcast or wallet-action retry",
+      "Queue/message/replay-set resource bounds",
+      "Closed session and durable storage failures still surface"
+    ]
+  },
+  "validation": {
+    "nodeReplayBaseline": {
+      "failed": 12,
+      "log": "/tmp/redwallet-upstream-replay-before-valid-20261023.log",
+      "discardedFixtureErrorNotEvidence": "Earlier before log used wrong disposable fixture key; corrected baseline retained separately"
+    },
+    "hermesReplayBefore": {
+      "hermes": true,
+      "passed": 0,
+      "failed": 24,
+      "results": [
+        {
+          "name": "p2wpkh-2-1-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-2-1-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-2-2-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-2-2-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-2-5-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-2-5-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-5-1-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-5-1-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-5-2-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-5-2-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-5-5-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2wpkh-5-5-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-2-1-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-2-1-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-2-2-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-2-2-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-2-5-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-2-5-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-5-1-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-5-1-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-5-2-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-5-2-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-5-5-forward",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        },
+        {
+          "name": "p2tr-5-5-reverse",
+          "ok": false,
+          "error": "Unauthorized message route",
+          "phase": "joining"
+        }
+      ]
+    },
+    "hermesReplayAfter": {
+      "hermes": true,
+      "passed": 24,
+      "failed": 0,
+      "results": [
+        {
+          "name": "p2wpkh-2-1-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2wpkh-2-1-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2wpkh-2-2-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2wpkh-2-2-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2wpkh-2-5-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2wpkh-2-5-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2wpkh-5-1-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2wpkh-5-1-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2wpkh-5-2-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2wpkh-5-2-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2wpkh-5-5-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2wpkh-5-5-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2tr-2-1-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2tr-2-1-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2tr-2-2-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2tr-2-2-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2tr-2-5-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2tr-2-5-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 2
+        },
+        {
+          "name": "p2tr-5-1-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2tr-5-1-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2tr-5-2-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2tr-5-2-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2tr-5-5-forward",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        },
+        {
+          "name": "p2tr-5-5-reverse",
+          "ok": true,
+          "phase": "voting",
+          "participants": 5
+        }
+      ]
+    },
+    "fullUnit": {
+      "suitesPassed": 124,
+      "testsPassed": 1983,
+      "inheritedSkip": 1,
+      "seconds": 154.894
+    },
+    "canonicalLint": {
+      "errors": 0,
+      "existingWarnings": 19,
+      "typeScript": "PASS"
+    },
+    "diagnosticLint": "PASS",
+    "nativeSelfTestInHermes": {
+      "checkedAt": "2026-10-23T11:19:11.411Z",
+      "nativeBoundary": "in-memory diagnostic doubles; not native iOS",
+      "hermesSha256": "f9c60cce7d2750e6f829f03119124d4f9ce73867b970255c1bd9efcc7095b973",
+      "bundleSha256": "6b5a4dfe0d5e21f507b1db846871eebce0fc2fc4eb0cc5468b1971555f6a732f",
+      "ok": true,
+      "hermes": true,
+      "metrics": {
+        "writes": 16,
+        "reads": 16,
+        "keyCreates": 5,
+        "keyDeletes": 5,
+        "plaintextLeaks": 0
+      },
+      "leftovers": {
+        "data": 0,
+        "keys": 0
+      }
+    },
+    "updatedReplayAssertions": "Old throw expectation replaced by full unchanged session/journal/persisted-state and no extra storage/chain-work assertions, per required idempotent semantics"
+  },
+  "access": {
+    "checkedAt": "2026-10-23T11:18:13Z",
+    "zorinDevice": "b21a1074-5b54-465c-a355-fdecb7995283",
+    "status": "Offline",
+    "lastSeenReported": "14 hours ago"
+  },
+  "limits": [
+    "No proof of the exact physical-phone event",
+    "Hermes Linux engine, not native iOS/Keychain qualification",
+    "No live relay or real-fund join",
+    "No push/merge/sign/upload/Apple actions"
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/redwallet-upstream-replay-before-valid-20261023.log",
+      "sha256": "dd40205bf8b205178498bd81105dd99526fff9ae3852347eeeb4b6c69c0f5962"
+    },
+    {
+      "path": "/tmp/redwallet-hermes-replay-before-20261023.json",
+      "sha256": "bbbfc7e041483de1f8513040250efe7920f2f74fa19a6f4f2885c6f4fb7a6b09"
+    },
+    {
+      "path": "/tmp/redwallet-hermes-replay-after-final-20261023.json",
+      "sha256": "1ffa8e760d155bfc0395a7eb7410a2f92e13f28a6453e09631a41b760336ac31"
+    },
+    {
+      "path": "/tmp/redwallet-hermes-replay-before.js",
+      "sha256": "ee12721b66b51fb656cdbb54d0cdfedbe1dd35bcf37c2ff9c0a56ba04fa2bd37"
+    },
+    {
+      "path": "/tmp/redwallet-hermes-replay-after-final.js",
+      "sha256": "2053d68322506446f455f6e1c3afd02001fa30d94370d45ebbb018753a6cf0ca"
+    },
+    {
+      "path": "/tmp/redwallet-upstream-full-unit-final-20261023.log",
+      "sha256": "8c2d7064766e5bb759d73ce570724b5700779c21b34b517b1ca872a5cef0b467"
+    },
+    {
+      "path": "/tmp/redwallet-upstream-canonical-lint-complete-20261023.log",
+      "sha256": "9ee8d37bcba94af2e7597fc8dd3e00abfb95a11ee73a0dfd08381156ed5a7dfa"
+    },
+    {
+      "path": "/tmp/redwallet-upstream-diagnostic-lint-20261023.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/redwallet-upstream-hermes-native-20261023.json",
+      "sha256": "2ea7d0d9e6f02520e4e8ef3a365925ccd1feda8c8a826e428bc0783f1f026ad9"
+    },
+    {
+      "path": "/tmp/redwallet-upstream-protocol-20261023.md",
+      "sha256": "40f8d9b9e098fc1f163cad11c3c013bfeeeef47bb01bc0ab3f87b20a40109e97"
+    }
+  ]
+}

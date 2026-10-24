@@ -1,0 +1,39 @@
+{
+  "recordedAt": "2026-10-23T19:44:59.151247+00:00",
+  "repository": "romanmodin/RedWallet",
+  "failedSource": "e32b27744b18d7cdc7234cdb3a0351921ea06161",
+  "attempt": 1,
+  "general": {
+    "runId": 40005250282,
+    "buildJob": 120591397206,
+    "testJob": 120594404001,
+    "artifactId": 12525968591,
+    "archiveSha256": "e883c772b53e8cde8578c8840e62742a9e9449852e9b422c912970d450d41d87",
+    "jobLogSha256": "f52f90a4eec75ce7207286f248c435a5ded9c28876f375b2483f5756408a71a3",
+    "passed": "artwork/discovery smoke and all seven TLS tests",
+    "firstFailure": "Fresh simulator bootstatus exceeded 300 seconds during continuing CoreLocationMigrator data migration; self-test and remaining wallet specs not reached."
+  },
+  "funded": {
+    "runId": 40005329318,
+    "buildJob": 120591676998,
+    "testJob": 120597372504,
+    "artifactId": 12527060347,
+    "archiveSha256": "2ba299ece29dc2b584f4d40c842db4b3c55c5e5a568fb0b65993ea5218bac168",
+    "jobLogSha256": "538c27e3b467ff347999035311a6c3491b233ba7a2e6b4cc8faa73a8da156935",
+    "firstFailure": "Initial delete:true launch sends termination at 19:06:28.407Z; SpringBoard receives at 19:18:49.830Z and returns no such process. Jest case expires before app launch finishes. Wallet transaction assertions not reached.",
+    "failureFrameSha256": "6f04a47b44c9968bfd61ba45113dddfe4b6b86a71430f3a63fe59cb1e90831ba",
+    "failureFrameInspected": true,
+    "failureFrameObservation": "SpringBoard home with RedWallet icon; no wallet UI."
+  },
+  "correction": {
+    "status": "candidate until hosted proof",
+    "productionChanged": false,
+    "testAssertionsChanged": false,
+    "timeoutsChanged": false,
+    "retriesAdded": false,
+    "funded": "Preserve clearKeychain and explicit uninstall/install; launch newInstance:false without terminating nonexistent app. Android launch unchanged.",
+    "general": "Prepare/install/park a fresh simulator before artwork/TLS load; later activate exact identity/source/runtime/container. Keep 300-second boot deadline and all coverage. No reused wallet state.",
+    "causalLimit": "Absent-process termination delay is proven; underlying CoreSimulator service delay is not fully diagnosed. Earlier migration scheduling is an environment mitigation, not proof of cause or success."
+  },
+  "localValidation": "15 Python provisioning tests and 5 focused clean-launch tests passed; changed-file ESLint, YAML parse and git diff check passed."
+}

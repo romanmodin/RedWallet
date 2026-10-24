@@ -5,7 +5,7 @@ import { script as bitcoinScript } from 'bitcoinjs-lib';
 import ecc from '../../../blue_modules/noble_ecc';
 import { blind, finalize, prepare, publicKey, RandomBytes } from './blind-rsa';
 import { conversationKey, encrypt, hash, hex, NostrEvent, signEvent } from './crypto';
-import { MessageInbox } from './messages';
+import { IgnoredEnvelope, MessageInbox } from './messages';
 import { changeMessage, memberMac, passwordKey, passwordProof, Terms, tokenHash, outputCount } from './protocol';
 import { ChainCoin, Seat, validateRoster } from './roster';
 import { Journal, Round } from './round';
@@ -21,6 +21,7 @@ type OutputState = {
   submitted?: boolean;
 };
 type Phase = 'joining' | 'open' | 'voting' | 'closing' | 'review' | 'signed' | 'aborted';
+type PendingVote = { by: string; voteId: string; createdAt: number };
 export type SessionState = {
   phase: Phase;
   sequence: number;
@@ -28,6 +29,7 @@ export type SessionState = {
   token?: string;
   poolSecret?: string;
   voteId?: string;
+  retiredVoteIds?: string[];
   roundId?: string;
   deadline: number;
   prepared?: string;
@@ -60,7 +62,10 @@ export class ParticipantSession {
   private readonly terms: Readonly<Terms>;
   private readonly seat: Seat;
   private readonly mixScripts: string[];
-  private welcomeSequenceFloor = -1;
+  private welcomeCreatedAt?: number;
+  private pendingInitialVotes = new Map<string, PendingVote>();
+  private followingVotes = new Map<string, PendingVote>();
+
   private busy = false;
   private idle: Promise<void> = Promise.resolve();
   constructor(
@@ -177,9 +182,54 @@ export class ParticipantSession {
     if (!phases.includes(this.state.phase) || this.env.now() >= this.state.deadline) throw new Error('Invalid or expired session phase');
   }
 
+  private requireOpenPool(): void {
+    // The vote deadline stops our votes, not the creator's resolution. Upstream
+    // sends roster/reopen/closing after that deadline. Match its three-minute
+    // resolution grace, without extending the pool's original deadline.
+    const journal = this.round.snapshot();
+    const deadline = Math.min(journal.deadline, this.state.phase === 'voting' ? this.state.deadline + 180 : journal.deadline);
+    if (!['open', 'voting'].includes(this.state.phase) || journal.phase !== 'joined' || this.env.now() >= deadline)
+      throw new Error('Invalid or expired session phase');
+  }
+
   private async save(next: SessionState): Promise<void> {
-    await this.env.saveEncrypted(copy(next));
+    try {
+      await this.env.saveEncrypted(copy(next));
+    } catch {
+      // Persist no raw native error text: it can contain storage identifiers.
+      throw new Error('Session persistence failed');
+    }
     this.state = copy(next);
+  }
+
+  private votingState(base: SessionState, vote: PendingVote): SessionState {
+    if (base.seats.length < this.terms.min_peers || !base.seats.some(s => s.token_hash === vote.by)) throw new Error('Invalid vote caller');
+    const deadline = Math.min(base.deadline, vote.createdAt + 600);
+    if (this.env.now() >= deadline) throw new Error('Invalid or expired session phase');
+    return { ...base, phase: 'voting', voteId: vote.voteId, deadline };
+  }
+
+  private liveVote(vote: PendingVote): boolean {
+    return this.env.now() < Math.min(this.round.snapshot().deadline, vote.createdAt + 600);
+  }
+
+  private canFollowVote(vote: PendingVote, state = this.state): boolean {
+    return state.seats.length >= this.terms.min_peers && state.seats.some(s => s.token_hash === vote.by) && this.liveVote(vote);
+  }
+
+  private followingState(base: SessionState, votes: Map<string, PendingVote>): { next: SessionState; following: Map<string, PendingVote> } {
+    let next = base;
+    const following = new Map(votes);
+    for (const [id, vote] of following) {
+      if (next.retiredVoteIds?.includes(id) || !this.liveVote(vote)) following.delete(id);
+      else if (next.phase === 'open' && this.canFollowVote(vote, next)) {
+        next = this.votingState(next, vote);
+        following.delete(id);
+      }
+      // An authenticated request may precede the roster that establishes its
+      // caller/quorum. Keep it bounded and inactive until that roster verifies.
+    }
+    return { next, following };
   }
 
   private async publish(body: Record<string, unknown>, isolated = false): Promise<void> {
@@ -233,31 +283,52 @@ export class ParticipantSession {
     // A welcome can arrive before the relay acknowledges our join publication.
     await this.idle;
     return this.exclusive(async () => {
-      const message = this.inbox.receive(event, this.env.now()),
-        body = message.body;
+      let message;
+      try {
+        message = this.inbox.receive(event, this.env.now());
+      } catch (error) {
+        if (error instanceof IgnoredEnvelope) return;
+        throw error;
+      }
+      const body = message.body;
+      // A fresh join identity cannot belong to a control cycle that predates
+      // its creator-authenticated welcome. Rosters use their explicit sequence.
+      if (
+        message.channel === 'pool' &&
+        body.type !== 'roster' &&
+        this.welcomeCreatedAt !== undefined &&
+        message.createdAt < this.welcomeCreatedAt
+      )
+        return;
       switch (body.type) {
         case 'welcome': {
           this.require(['joining']);
-          const poolSecret = hex(body.pool_secret as string, 32);
-          if (
-            !ecc.isPrivate(poolSecret) ||
-            Buffer.from(ecc.pointFromScalar(poolSecret, true)!.slice(1)).toString('hex') !== this.terms.public_key ||
-            typeof body.token !== 'string' ||
-            !/^[0-9a-f]{32,128}$/.test(body.token) ||
-            !Number.isSafeInteger(body.seq) ||
-            (body.seq as number) < 0
-          )
-            throw new Error('Invalid welcome');
-          await this.save({
-            ...this.state,
-            phase: 'open',
-            poolSecret: poolSecret.toString('hex'),
-            token: body.token,
-            sequence: (body.seq as number) - 1,
-          });
-          this.welcomeSequenceFloor = (body.seq as number) - 1;
-          this.inbox.installPoolSecret(poolSecret);
-          poolSecret.fill(0);
+          // Kilowallet serializes this scalar with BigInteger.toString(16), without leading zeros.
+          // Normalize only this field; all other protocol hex remains canonical.
+          if (typeof body.pool_secret !== 'string' || !/^[0-9a-f]{1,64}$/.test(body.pool_secret)) throw new Error('Invalid welcome');
+          const poolSecret = hex(body.pool_secret.padStart(64, '0'), 32);
+          try {
+            if (
+              !ecc.isPrivate(poolSecret) ||
+              Buffer.from(ecc.pointFromScalar(poolSecret, true)!.slice(1)).toString('hex') !== this.terms.public_key ||
+              typeof body.token !== 'string' ||
+              !/^[0-9a-f]{32,128}$/.test(body.token) ||
+              !Number.isSafeInteger(body.seq) ||
+              (body.seq as number) < 0
+            )
+              throw new Error('Invalid welcome');
+            await this.save({
+              ...this.state,
+              phase: 'open',
+              poolSecret: poolSecret.toString('hex'),
+              token: body.token,
+              sequence: (body.seq as number) - 1,
+            });
+            this.inbox.installPoolSecret(poolSecret);
+            this.welcomeCreatedAt = message.createdAt;
+          } finally {
+            poolSecret.fill(0);
+          }
           break;
         }
         case 'reject':
@@ -267,42 +338,105 @@ export class ParticipantSession {
           break;
         case 'roster': {
           if (!Number.isSafeInteger(body.seq) || (body.seq as number) < 0) throw new Error('Invalid roster sequence');
-          // Authenticated relay history can predate our seat. It cannot update this round.
-          // Newer/current rosters still pass strict replay, ownership and chain validation.
-          if ((body.seq as number) <= this.welcomeSequenceFloor) break;
-          this.require(['open', 'voting']);
+          // History and freshly re-encrypted duplicates cannot roll back a roster.
+          // Only a newer sequence proceeds to ownership and chain validation.
+          if ((body.seq as number) <= this.state.sequence) break;
+          if (!['open', 'voting'].includes(this.state.phase)) break;
+          this.requireOpenPool();
           const seats = await this.checkedSeats(body.seats, body.seq as number);
-          await this.save({
+          const next: SessionState = {
             ...this.state,
             seats,
             sequence: body.seq as number,
-          });
+          };
+          // A fresh pool subscription can return stored vote_open before roster
+          // (NIP-01 newest-first history, including timestamp ties). Accept the
+          // vote only after all roster/ownership/chain checks, in one durable save.
+          const queued = new Map(this.followingVotes);
+          // Replay may begin with an expired cycle or an absent caller. Such a
+          // request must not invalidate an otherwise verified roster or block a
+          // later eligible request. The same strict eligibility checks apply to
+          // every initial and following vote before any can become active.
+          for (const vote of this.pendingInitialVotes.values()) {
+            if (this.liveVote(vote)) queued.set(vote.voteId, vote);
+          }
+          const promoted = this.followingState(next, queued);
+          await this.save(promoted.next);
+          this.followingVotes = promoted.following;
+          this.pendingInitialVotes.clear();
           break;
         }
         case 'vote_open': {
-          this.require(['open']);
-          if (this.state.seats.length < this.terms.min_peers || !this.state.seats.some(s => s.token_hash === body.by))
-            throw new Error('Invalid vote caller');
-          await this.save({
-            ...this.state,
-            phase: 'voting',
+          if (!['open', 'voting'].includes(this.state.phase)) break;
+          const vote = {
+            by: hex(body.by as string, 32).toString('hex'),
             voteId: identifier(body.vote_id),
-            deadline: Math.min(this.state.deadline, message.createdAt + 600),
-          });
+            createdAt: message.createdAt,
+          };
+          if (vote.voteId === this.state.voteId || this.state.retiredVoteIds?.includes(vote.voteId)) break;
+          if (this.state.phase === 'voting' || this.state.seats.length > 0) {
+            // A creator vote may precede either the current vote's cancellation
+            // or a newer roster. Retain it without activating an unverified caller.
+            this.requireOpenPool();
+            const pending = this.followingVotes.get(vote.voteId);
+            if (pending) {
+              if (pending.by !== vote.by) throw new Error('Conflicting pending vote identity');
+              break;
+            }
+            if (!this.liveVote(vote)) break;
+            if (this.state.phase === 'open' && this.canFollowVote(vote)) await this.save(this.votingState(this.state, vote));
+            else {
+              if (this.followingVotes.size >= 32) throw new Error('Pending vote limit');
+              this.followingVotes.set(vote.voteId, vote);
+            }
+            break;
+          }
+          this.require(['open']);
+          if (this.state.seats.length === 0) {
+            // Distinct creator vote IDs are replayed cycles, not an identity
+            // conflict. Bound them without activating any before the roster.
+            const pending = this.pendingInitialVotes.get(vote.voteId);
+            if (pending) {
+              if (vote.by !== pending.by) throw new Error('Conflicting initial vote identity');
+              break;
+            }
+            if (this.pendingInitialVotes.size >= 32) throw new Error('Initial vote limit');
+            this.pendingInitialVotes.set(vote.voteId, vote);
+            break;
+          }
+          await this.save(this.votingState(this.state, vote));
           break;
         }
-        case 'reopen':
-          this.require(['voting']);
-          if (body.vote_id !== this.state.voteId) throw new Error('Wrong vote');
-          await this.save({
+        case 'reopen': {
+          if (!['open', 'voting'].includes(this.state.phase)) break;
+          const voteId = identifier(body.vote_id);
+          const retired = this.state.retiredVoteIds ?? [];
+          if (retired.includes(voteId)) break;
+          this.requireOpenPool();
+          // Do not evict cancellations: replay must never revive an ended vote.
+          // Bound this encrypted metadata independently of the envelope cache.
+          if (retired.length >= 256) throw new Error('Session vote history limit');
+          const active = this.state.voteId === voteId;
+          const following = new Map(this.followingVotes);
+          following.delete(voteId);
+          const next: SessionState = {
             ...this.state,
-            phase: 'open',
-            voteId: undefined,
-            deadline: this.round.snapshot().deadline,
-          });
+            retiredVoteIds: [...retired, voteId],
+            ...(active ? { phase: 'open', voteId: undefined, deadline: this.round.snapshot().deadline } : {}),
+          };
+          const promoted = this.followingState(next, following);
+          // Cancellation and promotion are one durable transition. Failed saves
+          // leave both the active vote and the pending queue unchanged.
+          await this.save(promoted.next);
+          this.followingVotes = promoted.following;
+          // Cancellation may precede vote_open or its required roster. Clear a
+          // matching pending request only after the cancellation is durable.
+          this.pendingInitialVotes.delete(voteId);
           break;
+        }
         case 'closing': {
-          this.require(['open', 'voting']);
+          if (!['open', 'voting'].includes(this.state.phase)) break;
+          this.requireOpenPool();
           const roundId = identifier(body.round_id),
             seats = await this.checkedSeats(body.seats, this.state.sequence + 1);
           if (seats.length < this.terms.min_peers) throw new Error('Too few participants');
@@ -334,9 +468,14 @@ export class ParticipantSession {
           break;
         }
         case 'blind_sig': {
+          if (
+            this.state.phase !== 'closing' ||
+            body.token_hash !== this.ownSeat().token_hash ||
+            body.round_id !== this.state.roundId ||
+            this.state.outputSignature
+          )
+            return;
           this.require(['closing']);
-          if (body.token_hash !== this.ownSeat().token_hash) return;
-          if (body.round_id !== this.state.roundId || this.state.outputSignature) throw new Error('Unexpected blind signature');
           const sigs = this.terms.v === 4 ? body.sigs : [body.sig];
           const pending = this.state.outputStates!;
           if (!Array.isArray(sigs) || sigs.length !== pending.length) throw new Error('Blind signature count mismatch');
@@ -364,6 +503,7 @@ export class ParticipantSession {
           break;
         }
         case 'outputs': {
+          if (this.state.phase !== 'closing' || body.round_id !== this.state.roundId) break;
           this.require(['closing']);
           if (
             !this.state.outputSignature ||
@@ -386,6 +526,9 @@ export class ParticipantSession {
           break;
         }
         case 'sig': {
+          // Pool history contains signatures from previous rounds. They only
+          // have meaning after we have independently reviewed the current plan.
+          if (!['review', 'signed'].includes(this.state.phase)) break;
           this.require(['review', 'signed']);
           const p = this.buildPlan(),
             index = p.coins.findIndex(c => outpoint(c) === body.outpoint);
@@ -589,11 +732,26 @@ export class ParticipantSession {
   }
 
   async cancel(): Promise<void> {
+    // The client closes the relay first. Let the active action settle before
+    // deciding whether its coins are unsigned or must remain reserved. A handler
+    // already waiting on that action may acquire the session first, so recheck.
+    while (this.busy) await this.idle;
     return this.exclusive(async () => {
-      await this.round.cancel();
-      await this.save({ ...this.state, phase: 'aborted' });
-      this.inbox.close();
-      this.joinSecret.fill(0);
+      // The reservation journal can commit before the encrypted terminal write
+      // fails. A later Stop must finish cleanup without re-cancelling that
+      // already-aborted journal. Signed/uncertain reservations still use the
+      // round's conservative cancellation path and are never released here.
+      if (this.round.snapshot().phase !== 'aborted') await this.round.cancel();
+      try {
+        await this.save({ ...this.state, phase: 'aborted' });
+      } finally {
+        // Once journal cancellation is durable, late messages cannot revive
+        // this attempt, even if native encrypted storage is unavailable.
+        this.pendingInitialVotes.clear();
+        this.followingVotes.clear();
+        this.inbox.close();
+        this.joinSecret.fill(0);
+      }
     });
   }
 }

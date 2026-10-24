@@ -254,7 +254,11 @@ const CoinControl: React.FC = () => {
 
   const tipCoins = () => {
     if (utxos.length === 0) return null;
-    return <AnimatedTip text={tipText} />;
+    return (
+      <AnimatedTip
+        text={`${tipText}\n\nCircle colors: visual identifiers based on the transaction ID, not mixed, frozen or reserved status.\n✓ Checkmark: selected coin. Frozen and change status appear as separate labels.`}
+      />
+    );
   };
 
   const handleChoose = (item: Utxo) => navigation.navigate('CoinControlOutput', { walletID, utxo: item });

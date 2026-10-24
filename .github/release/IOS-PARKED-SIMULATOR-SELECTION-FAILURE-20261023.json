@@ -1,0 +1,39 @@
+{
+  "recordedAt": "2026-10-23T21:15:52.700107+00:00",
+  "repository": "romanmodin/RedWallet",
+  "sourceCommit": "77fc3701100482e955886da4d64d41e615c9df46",
+  "runId": 40013904694,
+  "attempt": 1,
+  "buildJob": 120620935261,
+  "testJob": 120625713863,
+  "artifactId": 12529202165,
+  "archiveSha256": "46c32c188b83313a4bd5ca2fbb43f96fcc92f21279fbba7d6d480f2d68d0093c",
+  "jobLogSha256": "d9dc8d15f6e9153ee939ddd805723912b4873d45384ceb5529557bd49bbc8c79",
+  "preparedReceiptSha256": "cfe90db5730fe8a5093df7fc0a291e91983186124379be222db6940e700882de",
+  "observed": {
+    "warmSimulator": "10B884BF-749F-4E8B-AFCD-26AB8F1DBD01",
+    "parkedSimulator": "536B5483-11C7-4A00-ACBC-78040647593B",
+    "detoxSelectedSimulator": "536B5483-11C7-4A00-ACBC-78040647593B",
+    "detoxStarted": "2026-10-23T20:07:11.333Z",
+    "deviceAssigned": "2026-10-23T20:15:19.309Z",
+    "stepTimeout": "2026-10-23T20:17:26.723Z",
+    "nativeScreenshotsRetained": false,
+    "fullWalletSuitesRan": false
+  },
+  "cause": "Park helper restored original simulator but left model-only Detox selection; actual assignment picked the parked fresh twin. About eight minutes elapsed before device assignment. Underlying simulator service latency is not fully explained.",
+  "correction": "After original boot readiness, pin configuration to original UUID. Activation requires that exact original selection before switching to the parked UUID. No assertion, gate, deadline or app code changes.",
+  "regression": {
+    "before": "New exact-selection test fails on parent with type:iPhone17 instead of expected original ID",
+    "after": "All18 Python provisioning tests PASS; diff check PASS"
+  },
+  "historicalFundedPass": {
+    "runId": 40013936188,
+    "artifactId": 12528219148,
+    "archiveSha256": "b07befff56ea2011348aa9f578966b4b9f0a13d78c334f5fe6966c9da76432d6",
+    "nativeReceiptSha256": "0459e1ba085dba7a763249473f06a7117212373683e0605958e79755f4412b8d",
+    "backendReceiptSha256": "6ab8ae414419dcb84d9b5b7b5bd22a7975090446c5fc9ac92249e290d5a5bcfe",
+    "verified": true,
+    "qualifiesReplacementSource": false
+  },
+  "qualification": "Replacement pending all3 exact-source gates and actual native evidence"
+}

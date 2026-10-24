@@ -1,0 +1,215 @@
+{
+  "checkedAt": "2026-10-23T14:09:02.103092+00:00",
+  "parentCommit": "66b5a93cbeb611452ffacd42b1e260cfc59dc013",
+  "status": "LOCAL_TESTED_NOT_NATIVE_IOS_QUALIFIED",
+  "finding": "An expired first vote or a first vote naming an absent caller could reject a valid initial roster, blocking a newer eligible vote. Same inputs succeed under other arrival orders.",
+  "fix": [
+    "Use the existing strict eligibility/promotion path for every deferred initial vote after verified roster acceptance.",
+    "Discard expired requests; retain live absent-caller requests inactive until a fully verified roster admits them.",
+    "Preserve original deadlines, quorum, creator/duplicate identity, ownership, chain/own-seat checks, bounded queues and reservation semantics.",
+    "Persist roster and promotion atomically before updating queues. No automatic vote/sign/broadcast."
+  ],
+  "testChangeDisclosure": "Two prior negative tests expected an exception on the otherwise valid roster. They now assert roster acceptance with invalid vote inactive, vote/sign rejection, no signer invocation/publication and preserved reservations. No invalid vote is allowed.",
+  "validation": {
+    "nodeBaseline": {
+      "total": 48,
+      "passed": 32,
+      "failed": 16,
+      "errorKinds": ["Invalid vote caller", "Invalid or expired session phase"]
+    },
+    "fullUnit": {
+      "suitesPassed": 124,
+      "testsPassed": 2406,
+      "inheritedSkip": 1,
+      "newTests": 51,
+      "seconds": 208.194
+    },
+    "canonicalLint": {
+      "typeScript": "PASS",
+      "errors": 0,
+      "existingWarnings": 19
+    },
+    "diagnosticLint": "PASS",
+    "formatAndDiffCheck": "PASS",
+    "hermes": {
+      "version": "hermes-v250829098.0.10",
+      "binarySha256": "f9c60cce7d2750e6f829f03119124d4f9ce73867b970255c1bd9efcc7095b973",
+      "before": {
+        "passed": 48,
+        "failed": 48,
+        "errors": {
+          "Invalid vote caller": 24,
+          "Invalid or expired session phase": 24
+        }
+      },
+      "after": {
+        "passed": 96,
+        "failed": 0
+      },
+      "coverage": "12 Kotlin fixtures, both scripts, 2/5 peers, 1/2/5 outputs; absent-caller/expired initial history with roster interleavings. Re-enveloped public fixture messages and synthetic chain observations."
+    },
+    "existingHermesDiagnostics": {
+      "startup": {
+        "passed": 29,
+        "failed": 0,
+        "hermes": true
+      },
+      "stop": {
+        "passed": 72,
+        "failed": 0,
+        "hermes": true
+      },
+      "replay": {
+        "passed": 24,
+        "failed": 0,
+        "hermes": true
+      },
+      "votes": {
+        "passed": 108,
+        "failed": 0,
+        "hermes": true
+      },
+      "overlap": {
+        "passed": 216,
+        "failed": 0,
+        "hermes": true
+      },
+      "roster": {
+        "passed": 60,
+        "failed": 0,
+        "hermes": true
+      }
+    },
+    "kotlinHermesDialogue": {
+      "startedAt": "2026-10-23T13:58:58.181Z",
+      "checkedAt": "2026-10-23T14:05:40.277Z",
+      "bundleSha256": "56dede80ebf33e5794d3c7ae6fb9c067680f12ceb74ebe590a9608a4dc86be35",
+      "entrySha256": "d6d0f50c581d572d6938aae5606050265aa22895d6a4ed54b72b61472647f0b0",
+      "globalsSha256": "70c7a7101ac75ae7d710185ecf90727d646fc2bb412cd4e380dc2a5bd5da1d07",
+      "transcriptDirectory": "/tmp/redwallet-hermes-dialogue-t5Ah4s",
+      "passed": 12,
+      "failed": 0,
+      "allFinalPhase": "review",
+      "cases": [
+        {
+          "script": "p2wpkh",
+          "peers": 2,
+          "outputs": 1,
+          "checks": 33,
+          "transcriptSha256": "02bf4436ef8dbc53843f1c122030a1e279d9d6918ed071ddd2932d5e3b98adcd"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 2,
+          "outputs": 2,
+          "checks": 33,
+          "transcriptSha256": "b5b038b03618a4e1caaaafb6839b5012ee5a89b16b902192dcd0b3c18e19feab"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 2,
+          "outputs": 5,
+          "checks": 33,
+          "transcriptSha256": "d29839f5e34d2b12dbdfb441f1ac0b2e5624ad5aeb1354718350f2408f293c93"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 5,
+          "outputs": 1,
+          "checks": 37,
+          "transcriptSha256": "6f96ff1289d815e22d714deddf9b6386a834be02a69ea15cf7d73ce80a5bb695"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 5,
+          "outputs": 2,
+          "checks": 37,
+          "transcriptSha256": "bdab8ceebfde416224f750fd62d3f7a6b7420bb8dd2ca21f99272da5570398f2"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 5,
+          "outputs": 5,
+          "checks": 37,
+          "transcriptSha256": "fda5fed27df719ae57849aec00aab285b2a96069c54aed2c9aff5a1fae6d7278"
+        },
+        {
+          "script": "p2tr",
+          "peers": 2,
+          "outputs": 1,
+          "checks": 33,
+          "transcriptSha256": "33347cb55ff5421f792970dfc6c0821fb804dd076adeca5276b53b6d1849f501"
+        },
+        {
+          "script": "p2tr",
+          "peers": 2,
+          "outputs": 2,
+          "checks": 33,
+          "transcriptSha256": "352f91deea2e09d569d5c2f8ce709a2bd8f8a9fee7a68a5f0a33307c0f9021de"
+        },
+        {
+          "script": "p2tr",
+          "peers": 2,
+          "outputs": 5,
+          "checks": 33,
+          "transcriptSha256": "24f35524d12c92284ddf307afc30e8b4d35a0c3979f0dd3532b14ccce4a5d008"
+        },
+        {
+          "script": "p2tr",
+          "peers": 5,
+          "outputs": 1,
+          "checks": 37,
+          "transcriptSha256": "90bd62ab166a5b2a66eae8979f49a42fbdee7a3e273b8570f3daac604ba51265"
+        },
+        {
+          "script": "p2tr",
+          "peers": 5,
+          "outputs": 2,
+          "checks": 37,
+          "transcriptSha256": "f2bd7128c154bfe123038a1037e0f3a20c12469ccaec7dbd9ad3da78834dc949"
+        },
+        {
+          "script": "p2tr",
+          "peers": 5,
+          "outputs": 5,
+          "checks": 37,
+          "transcriptSha256": "8e0d13bf605bc2ff9d488573dc711e8256bf308d5fa27575a07393331675913c"
+        }
+      ]
+    }
+  },
+  "sourceFileSha256": {
+    "class/xbt/kilojoin/session.ts": "3a2d9387dcb5de238191b4b2b158e5ccbff266a5e240a7e7e6595ae3f0f81019",
+    "tests/unit/xbt-kilojoin-session.test.ts": "ef530d392b74200bc430ef7f49033cd68ee814f6b0d3a53344aa1f411bf69b73",
+    "scripts/diagnostics/build-hermes-kilojoin.cjs": "6c7796aaf9832215514ac1d611c99eb2bec93bdfc37c8039ec327adfbd68c5bd",
+    "scripts/diagnostics/hermes-kilojoin-history.ts": "a1903e8e2b8da24f5b79cf6a68a6aacc8e2ae9eacc399ea026fe2dfcc357d1d3"
+  },
+  "artifactSha256": {
+    "/tmp/redwallet-initial-history-before-20261023.log": "eb15f26092f0a434964bb3ef44f0424088932758a41b146ff23f2ad16e85acbf",
+    "/tmp/redwallet-initial-history-session-20261023.log": "d940d58a799a4f78242c0d19f6e8bae65963d4f78dfc48c27193242247cff239",
+    "/tmp/redwallet-initial-history-unit-20261023.log": "59258faee8b1d107ae622a3e60fe61fe4e9b72cfcddc1b2fa0e9b5b8022bcb9d",
+    "/tmp/redwallet-initial-history-lint-20261023.log": "9ee8d37bcba94af2e7597fc8dd3e00abfb95a11ee73a0dfd08381156ed5a7dfa",
+    "/tmp/redwallet-initial-history-diagnostic-lint-20261023.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/redwallet-initial-history-hermes-before-20261023.json": "e403c9505564e795a7709cfb9c7b830bd3a4b5d787ad7f26ab8d8e5e76b8d6d4",
+    "/tmp/redwallet-initial-history-hermes-final-20261023.json": "e1e15729e4b41e176ce64978a41957e483389fb1de187845b9c8b56cb82cdaf3",
+    "/tmp/redwallet-initial-history-dialogue-20261023.json": "e6484ae72cbf3725fbd855e7ba3c906a6412afdd3331aa4d05944d846f59e96d",
+    "/tmp/redwallet-initial-history-dialogue-20261023.log": "6ad7305695f37c581fb4dbae94426ca5eab0c959153d3e8d1f25c2b50149a5fb",
+    "/tmp/redwallet-history-regression-startup-20261023.json": "c605f24903cb0fb7e62ad76086df9f0bb6af688cd5480228a63bdfb11c5942fa",
+    "/tmp/redwallet-history-regression-stop-20261023.json": "3025c37b08e88ad12f7a79a5befd6cf713e31c02b1af85ec0d5d9287961280da",
+    "/tmp/redwallet-history-regression-replay-20261023.json": "1ffa8e760d155bfc0395a7eb7410a2f92e13f28a6453e09631a41b760336ac31",
+    "/tmp/redwallet-history-regression-votes-20261023.json": "9c57f18efd581019f17c09e81302620eae231caff430d534a6804e5a5fd6646e",
+    "/tmp/redwallet-history-regression-overlap-20261023.json": "a672ab36f88fb008d22d1126d38d57e2636d1f5c137fca84b1ef96cd21f98d26",
+    "/tmp/redwallet-history-regression-roster-20261023.json": "2126d56eb04437b6cc0abbdbc1f83bf6ca67e842605616279550d7d56647346b"
+  },
+  "limits": [
+    "Physical-phone root cause still unobserved. These reproducible defects do not prove every one occurred in the reported round.",
+    "Linux Hermes is not native iOS/Hermes/Keychain qualification. No new signed IPA, TestFlight delivery or Apple submission.",
+    "No real wallet, real funds, live relay or transaction broadcast in the cross-runtime diagnostics. Unit tests may use disposable synthetic signatures.",
+    "Pending queues remain controller-local; no new crash-resume guarantee."
+  ],
+  "reference": {
+    "repository": "Kilombino/Kilowallet",
+    "commit": "233733def7e492084f4d57e5faa1d76b9ab2ce79"
+  },
+  "handoff": "scripts/diagnostics/IOS-STARTUP-HANDOFF-20261023.md"
+}

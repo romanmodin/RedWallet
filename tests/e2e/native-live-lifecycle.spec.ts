@@ -28,6 +28,7 @@ import {
   waitForText,
   waitForWalletsList,
 } from './lifecycle-helperz';
+import { launchNativeClean } from './launch-native-clean';
 import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
@@ -134,6 +135,13 @@ async function dismissConnectionAlert(message: string): Promise<void> {
 async function configureNative(backend: KnotsFulcrumHarness, testRejections: boolean): Promise<void> {
   await waitForWalletsList();
   await element(by.id('SettingsButton')).tap();
+  if (device.getPlatform() === 'ios') {
+    // On the slow hosted simulator, querying the accessibility hierarchy while
+    // the initial DrawerRoot transition is still mounting can wedge that native
+    // request indefinitely. Let the successful tap finish its transition, then
+    // retain the original SettingsRoot assertion and timeout unchanged.
+    await sleep(12_000);
+  }
   await waitForId('SettingsRoot');
   await waitFor(element(by.id('NetworkSettings')))
     .toBeVisible()
@@ -451,8 +459,7 @@ native('isolated native live wallet stages and final acceptance', () => {
           markStep('clear keychain');
           await device.clearKeychain();
           markStep('launch app');
-          await device.launchApp({
-            delete: true,
+          await launchNativeClean(device, {
             permissions: { notifications: 'NO' },
             launchArgs: { detoxEnableSynchronization: 0 },
           });

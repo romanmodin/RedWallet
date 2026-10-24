@@ -1,0 +1,89 @@
+{
+  "verifiedAt": "2026-10-23T08:06:28.354157+00:00",
+  "parentCommit": "3efe6ff37e96cc862f0cd4a60f46838181e47881",
+  "status": "local-test-evidence-only-not-native-qualified-or-shipped",
+  "productionCodeChangedThisPass": false,
+  "physicalDeviceCauseConfirmed": false,
+  "test": {
+    "file": "tests/unit/xbt-kilojoin-client-startup.test.ts",
+    "newTestsPassed": 25,
+    "relatedSuitesPassed": 8,
+    "relatedTestsPassed": 183,
+    "elapsedSeconds": 16.741,
+    "boundaries": "Real MixingClient, ParticipantSession, KilojoinRelay, SessionVault, wallet derivation, journal and raw-parent/UTXO/history validator; simulated socket/backend/native storage/native entropy/disk",
+    "matrix": "P2WPKH/P2TR x 1/5 outputs x chronological/reversed history x welcome-before/after-ACK; each followed by Stop/rejoin",
+    "successfulChecks": [
+      "Five accepted seats, voting state and encrypted persistence",
+      "Fresh attempt identity and advanced output address indices after Stop",
+      "Late stopped-socket events/errors cannot contaminate next attempt",
+      "Only join published; no transaction signing or broadcast"
+    ],
+    "fingerprints": {
+      "welcomeWrite": "JOINING/0 KJ-STORAGE",
+      "welcomeKeychainRead": "JOINING/0 KJ-STORAGE",
+      "invalidWelcomeMAC": "JOINING/0 KJ-DECRYPT",
+      "wrongPoolSecret": "JOINING/0 KJ-WELCOME",
+      "peerUnspentCheck": "OPEN/0 KJ-CHAIN",
+      "initialStorageFailure": "Join rejects; unsigned reservation released; no session view",
+      "refusedPublicationACK": "Join rejects; unsigned reservation released; no session view",
+      "authenticCreatorRejection": "ABORTED; unsigned reservation released; no participant-processing error"
+    },
+    "harnessCorrection": "Initial fixture vote caller was join public key; changed to upstream token hash after KJ-VOTE rejection. No production code/assertion weakened."
+  },
+  "nodeReferenceParity": {
+    "nodeCommit": "9a073beb7e8f5e59966fcd1a0641fa7e012d68cb",
+    "nodeVersion": "0.8.0",
+    "kilowalletSubmoduleCommit": "9165628aa872f13de3ffe2ef8422a7795dbc2dde",
+    "previouslyTestedKilowalletCommit": "233733def7e492084f4d57e5faa1d76b9ab2ce79",
+    "buildURL": "https://github.com/Kilombino/kilojoin/blob/9a073beb7e8f5e59966fcd1a0641fa7e012d68cb/build.gradle.kts",
+    "files": [
+      {
+        "file": "PoolSession.kt",
+        "exactMatch": true,
+        "nodeSha256": "b962b3e32460ad3482e239bf44ba758bdfb471f3661d66b11989196ca3b3decd",
+        "testedSha256": "b962b3e32460ad3482e239bf44ba758bdfb471f3661d66b11989196ca3b3decd"
+      },
+      {
+        "file": "Nip44.kt",
+        "exactMatch": true,
+        "nodeSha256": "3ce17cceeea533de37025c6391a1cfe25c256f9712c2ce73e65adf212d119092",
+        "testedSha256": "3ce17cceeea533de37025c6391a1cfe25c256f9712c2ce73e65adf212d119092"
+      },
+      {
+        "file": "Protocol.kt",
+        "exactMatch": true,
+        "nodeSha256": "84eddab9c5a26720bad4c866f164e6425e3f14e7b896c369292a83bd047e0bfa",
+        "testedSha256": "84eddab9c5a26720bad4c866f164e6425e3f14e7b896c369292a83bd047e0bfa"
+      },
+      {
+        "file": "CoinjoinTx.kt",
+        "exactMatch": true,
+        "nodeSha256": "eea2fae05a501d2943c064e012933b607412daab3698f7c1facb2cc9663ba44c",
+        "testedSha256": "eea2fae05a501d2943c064e012933b607412daab3698f7c1facb2cc9663ba44c"
+      }
+    ],
+    "deployedPoolVersionVerified": false
+  },
+  "checks": {
+    "typeScript": "passed",
+    "changedFileESLint": "0 errors / 0 warnings",
+    "diffCheck": "passed"
+  },
+  "logsSHA256": {
+    "redwallet-client-startup-first.log": "ac1951e1860af8706aa940c9c1b98676a95d66a3ff340ed3523a15883483c24d",
+    "redwallet-client-startup-harness.log": "1b63d8cf7379a98dab9652624265918d4d44c40ced918ab05e633d7e277684cd",
+    "redwallet-client-startup-corrected-harness.log": "45daad4fd5388db7507888bc6d4d874bd2b714e36365b2a37f3d969325ea6462",
+    "redwallet-client-startup-matrix.log": "033d34047bd550fe267d2bd36b21c92842d721aaa6c80f5c11bdaee19877ed92",
+    "redwallet-client-startup-boundaries.log": "bc716f2de7c9e0597f7120a9e5b55f8795977f37b65fa0ce1d5168f4185dda81",
+    "redwallet-client-startup-related.log": "ad1487922dc70d3cea9939eb6ffea8610c77d9ca9f992c1a14c08b872b4d458b",
+    "redwallet-client-startup-tsc.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "redwallet-client-startup-lint-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "limits": [
+    "Fault injection reproduces states, not the specific physical-phone failure",
+    "No iOS/Hermes/native Keychain execution this pass",
+    "No live relay/chain data or real funds used",
+    "No push, merge, build, TestFlight upload or Apple submission",
+    "Existing local fixes still require exact-source software/general/funded iOS gates plus native evidence"
+  ]
+}

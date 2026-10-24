@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-23T15:51:15Z",
+  "repository": "romanmodin/RedWallet",
+  "sourceCommit": "e02468385d3a48cf0ad43e3c69b4a18f35d0fe27",
+  "workflow": ".github/workflows/e2e-ios.yml",
+  "runId": 39970892137,
+  "attempt": 1,
+  "conclusion": "failure",
+  "buildJob": {
+    "id": 120472945992,
+    "conclusion": "success"
+  },
+  "testJob": {
+    "id": 120485544963,
+    "conclusion": "failure",
+    "firstActionableStep": "Verify artwork and read-only pool discovery",
+    "failure": "The ten-minute step deadline expired while Detox launch synchronization remained busy before the first screenshot."
+  },
+  "retainedEvidence": {
+    "failedLog": {
+      "path": "/tmp/redwallet-general-39970892137-failed.log",
+      "sha256": "f09313f802bc9e140d14f0c2f04176d710b91c5976021db365422c657a7f4d47",
+      "bytes": 8526
+    },
+    "simulatorAppArtifact": {
+      "id": 12509434758,
+      "name": "bluewallet-ios-app",
+      "sha256": "7f71fd48f880175bebb8fe90631a6ca41ce8ffa47021f78a8cbc70fb8daab538"
+    },
+    "e2eArtifactUploaded": false
+  },
+  "observations": [
+    "The pre-launch setURLBlacklist request could not be delivered because the app had not connected.",
+    "The app later remained busy with pending main-queue work and a recurring native timer until the workflow killed the step.",
+    "No artwork, CoinJoin discovery, wallet transaction, or signing assertion failed in this run."
+  ],
+  "boundedCorrection": {
+    "status": "candidate-until-hosted-proof",
+    "productionCodeChanged": false,
+    "assertionsChanged": false,
+    "protocolChanged": false,
+    "timeoutsChanged": false,
+    "detail": "Inject Detox's documented detoxURLBlacklistRegex launch argument before every app launch, retain the post-launch exclusion, and remove the undeliverable pre-connection request."
+  },
+  "independentFundedGate": {
+    "runId": 39971042372,
+    "conclusion": "success",
+    "evidenceArtifactId": 12511008675,
+    "evidenceSha256": "8bcb9dd7ce748e2f37bc9b66b1e93c8ded07a6ea9a1ebaff394ecf20a28f8b2e"
+  }
+}

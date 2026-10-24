@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useReducer, useRef, useMemo } from 'react';
 import ArtworkSkinSurface from '../../components/ArtworkSkinSurface';
-import { useArtworkSkin } from '../../blue_modules/artwork-skin';
+import { useArtworkSkinSelection } from '../../blue_modules/artwork-skin';
 import { useFocusEffect, useIsFocused, useRoute, RouteProp } from '@react-navigation/native';
 import { Alert, findNodeHandle, Image, InteractionManager, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { getClipboardContent } from '../../blue_modules/clipboard';
@@ -117,7 +117,8 @@ const WalletsList: React.FC = () => {
   const { wallets, getTransactions, refreshAllWalletTransactions } = useStorage();
   const { isTotalBalanceEnabled, isElectrumDisabled } = useSettings();
   const { width, height, fontScale } = useWindowDimensions();
-  const artworkSkin = useArtworkSkin();
+  const selectedSkin = useArtworkSkinSelection();
+  const artworkSkin = selectedSkin !== 'off';
   const artworkHeroHeight = artworkSkin && !isLarge ? Math.round(Math.min(240, height * 0.26)) : 0;
   const insets = useSafeAreaInsets();
   const carouselHeight = getWalletCarouselHeight(fontScale);
@@ -553,7 +554,7 @@ const WalletsList: React.FC = () => {
   );
 
   return (
-    <ArtworkSkinSurface active={artworkSkin}>
+    <ArtworkSkinSurface active={artworkSkin} skin={selectedSkin}>
       <SafeAreaSectionList<any | string, SectionData>
         testID="Wallets"
         style={artworkSkin ? artworkStyles.transparent : undefined}

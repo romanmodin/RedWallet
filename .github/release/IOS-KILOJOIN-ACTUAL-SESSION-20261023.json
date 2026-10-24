@@ -1,0 +1,52 @@
+{
+  "verifiedAt": "2026-10-23T07:03:56.213639+00:00",
+  "status": "offline-interoperability-passed-not-native-qualified",
+  "appParent": "1408c1ec4f244871a05003af61edd2442bd58b06",
+  "upstreamCommit": "233733def7e492084f4d57e5faa1d76b9ab2ce79",
+  "poolSessionSHA256": "b962b3e32460ad3482e239bf44ba758bdfb471f3661d66b11989196ca3b3decd",
+  "actualCode": "Unmodified Kotlin PoolSession plus Protocol/CoinjoinTx/crypto in same compiler module",
+  "testDoubles": [
+    "offline relay/socket acknowledgments",
+    "synthetic confirmed coin observations",
+    "in-memory persistence",
+    "authenticated votes for seeded synthetic participants"
+  ],
+  "cases": 12,
+  "matrix": {
+    "script": [
+      "p2wpkh",
+      "p2tr"
+    ],
+    "outputs": [
+      1,
+      2,
+      5
+    ],
+    "participants": [
+      2,
+      5
+    ]
+  },
+  "twoParticipant": "Actual RedWallet-to-Kotlin exchange through unsigned transaction review; two inputs",
+  "fiveParticipant": "One 35-million-sat input; denomination3million; up to15million mixed; all join/roster/vote/closing/blind signatures/output submissions accepted; remaining seeded peer outputs pending",
+  "replay": "Actual creator ignores already-accepted join; RedWallet replay rejection leaves state and reservations unchanged",
+  "manualHarness": "2 Jest groups containing12 scenarios PASS38.499s",
+  "regularRegression": "24 saved exchange checks; focused4suites86testsPASS7.307s",
+  "typeScript": "pass",
+  "limits": [
+    "No physical-device cause proven",
+    "No real network/coins/funds",
+    "No native iOS/Hermes",
+    "Five-participant round not completed",
+    "No app changes in this pass; no push/upload/submission"
+  ],
+  "fixtureSHA256": "6fb2450ca68e6b08798803da4f3f167f85c71a5041fa453432b56f9a61434d43",
+  "logsSHA256": {
+    "redwallet-actual-session.log": "4b627e6fa866f275a7be61e547f90a05362226749326d440808be883d13cdb3f",
+    "redwallet-actual-session-round.log": "f98f1abd6361b96fb15fc2c727d734db05a3e2360ebfbf87a8a410f4fec40258",
+    "redwallet-actual-session-fullpool.log": "d4c57b8db337126e59a2b77dda079fd9a46e3cde86c8179d5a27e2f91f11e10d",
+    "redwallet-actual-session-fullpool-final.log": "2dfa1f9402c6f8514031e682d68dde0f6856761953a23693e4e6d56cdb405297",
+    "redwallet-kotlin-fullpool-regression.log": "2fca3728eaa665a541afefb5b7f100bea00cf5618e139d8c5b3244101ac34784",
+    "redwallet-kotlin-fullpool-tsc.log": "7125f194612fcff2f454c05d848e7cb71facc1967b4d5017e25b34fdee3ba74f"
+  }
+}

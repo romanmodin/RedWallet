@@ -1,0 +1,241 @@
+{
+  "checkedAt": "2026-10-23T13:36:51.475957+00:00",
+  "parentCommit": "7ccebfed99bf3d8cf848ed4faa0f9677902a27bd",
+  "status": "LOCAL_TESTED_NOT_NATIVE_IOS_QUALIFIED",
+  "finding": "After a verified roster, a creator vote naming a member of a newer roster threw Invalid vote caller while open, or was dropped while voting. Quorum-forming updates had the same race.",
+  "fix": [
+    "Reuse the bounded 32-request following queue for unexpired creator-authenticated votes awaiting a newer roster.",
+    "Activate only after unchanged sequence, ownership, chain, own-seat, quorum and caller checks; keep the original vote timestamp.",
+    "Apply roster/cancellation and promotion in one encrypted save, replacing the local queue only after success.",
+    "Discard cancelled/expired requests; retain unverified callers inactive within the existing bound; no automatic vote/sign/broadcast.",
+    "Preserve initial first-vote validation, identity conflicts, resource limits and reservation semantics. No existing test assertions or release gates weakened."
+  ],
+  "validation": {
+    "nodeBaseline": {
+      "total": 40,
+      "passed": 20,
+      "failed": 20
+    },
+    "fullUnit": {
+      "suitesPassed": 124,
+      "testsPassed": 2355,
+      "inheritedSkip": 1,
+      "newTests": 49,
+      "seconds": 218.66
+    },
+    "canonicalLint": {
+      "typeScript": "PASS",
+      "errors": 0,
+      "existingWarnings": 19
+    },
+    "diagnosticLint": "PASS",
+    "formatAndDiffCheck": "PASS",
+    "nodeCoverage": "Both roster/vote orders while open, six roster/vote/cancellation orders while voting, and quorum-forming updates; both scripts and 1/5 outputs. Stale roster, invalid proof/chain/own seat, storage failure, cancellation, expiry, identity, deadline and capacity safety cases.",
+    "hermes": {
+      "version": "hermes-v250829098.0.10",
+      "binarySha256": "f9c60cce7d2750e6f829f03119124d4f9ce73867b970255c1bd9efcc7095b973",
+      "before": {
+        "passed": 30,
+        "failed": 30,
+        "errors": {
+          "Invalid vote caller": 18,
+          "Following vote lost": 12
+        }
+      },
+      "after": {
+        "passed": 60,
+        "failed": 0
+      },
+      "coverage": "12 Kotlin fixtures, both scripts, 2/5 peers and 1/2/5 outputs. Creator-vote/new-roster/cancellation permutations. Original verified fixture coins and proofs; no publications or reservation changes."
+    },
+    "kotlinHermesDialogue": {
+      "startedAt": "2026-10-23T13:28:27.619Z",
+      "checkedAt": "2026-10-23T13:35:20.698Z",
+      "passed": 12,
+      "failed": 0,
+      "allFinalPhase": "review",
+      "coverage": "Actual Kotlin creator and actual Hermes participant exchanges through join, welcome, roster, explicit vote, blinded output credentials, isolated output requests and unsigned review; negative changed-review and spent-input signer checks.",
+      "bundleSha256": "ff89466f0cab6f378970911e93aac597a2c6fb56d2b2dc53919f36ef85d2fe31",
+      "entrySha256": "d6d0f50c581d572d6938aae5606050265aa22895d6a4ed54b72b61472647f0b0",
+      "globalsSha256": "70c7a7101ac75ae7d710185ecf90727d646fc2bb412cd4e380dc2a5bd5da1d07",
+      "transcriptDirectory": "/tmp/redwallet-hermes-dialogue-C3xgSz",
+      "cases": [
+        {
+          "script": "p2wpkh",
+          "peers": 2,
+          "outputs": 1,
+          "checks": 33,
+          "transcriptSha256": "6d4f1dfced5e420785514137e1d5e4cae8cf16862ce728a852317a54ba427bb6"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 2,
+          "outputs": 2,
+          "checks": 33,
+          "transcriptSha256": "e2e06f1e9c8033b21ac80d137fdb7a366296859ba9ba6f478f2f16533e41dcb5"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 2,
+          "outputs": 5,
+          "checks": 33,
+          "transcriptSha256": "0ad0fd1ea5cc805fa41b1fd0b4b0065905726e7663e2830c04c78fbc1a667321"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 5,
+          "outputs": 1,
+          "checks": 37,
+          "transcriptSha256": "d432e35dcebf531e9439d0befd50040b640365c21ca6db0c1ca28cd981c2e8d6"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 5,
+          "outputs": 2,
+          "checks": 37,
+          "transcriptSha256": "454b986d4d02d7b42a2ccd5781f12433d240cd5eee65a7b11fa2e223b3fd36c2"
+        },
+        {
+          "script": "p2wpkh",
+          "peers": 5,
+          "outputs": 5,
+          "checks": 37,
+          "transcriptSha256": "a49171fc9cb438350722d920d596d6428fb8e5e9b9ef5caf1dee86c798f6aee4"
+        },
+        {
+          "script": "p2tr",
+          "peers": 2,
+          "outputs": 1,
+          "checks": 33,
+          "transcriptSha256": "eaf3833b22bfa13df372338cb6151f36777de6fc13ac32accfc6f75d2a64526e"
+        },
+        {
+          "script": "p2tr",
+          "peers": 2,
+          "outputs": 2,
+          "checks": 33,
+          "transcriptSha256": "eeac818ca3bf7a1e555046768d009e24489d8b8f17948713cf41b3181282dee1"
+        },
+        {
+          "script": "p2tr",
+          "peers": 2,
+          "outputs": 5,
+          "checks": 33,
+          "transcriptSha256": "dfbc5b6063c6ea84da1b89a9709c30e46bfd36fd687148b2af419a66b5bf5794"
+        },
+        {
+          "script": "p2tr",
+          "peers": 5,
+          "outputs": 1,
+          "checks": 37,
+          "transcriptSha256": "f9b4f74ad5f1754c4a78bbd786dd254b979b4e0a213c4403a1795ad9b1d52b2b"
+        },
+        {
+          "script": "p2tr",
+          "peers": 5,
+          "outputs": 2,
+          "checks": 37,
+          "transcriptSha256": "795c587b0be833ad98b98250a81317daf15ed550ab3a41804c98f772f0d80304"
+        },
+        {
+          "script": "p2tr",
+          "peers": 5,
+          "outputs": 5,
+          "checks": 37,
+          "transcriptSha256": "b4df98c33a1828f4a2cecffee70bd6fdecf2522eb7797572826d484b04b892cc"
+        }
+      ]
+    },
+    "excludedDevelopmentRuns": "The initial Hermes roster harness selected own seat by a pre-welcome placeholder token and failed setup (12 Invalid roster size / 48 Own seat missing or changed), on both old and new code. Corrected harness uses the proven join key. Initial lint caught prefer-const and was corrected before final validation."
+  },
+  "reference": {
+    "clarification": "User-supplied Kilombino creator/roster/replay clarification",
+    "kotlinSourceCommit": "233733def7e492084f4d57e5faa1d76b9ab2ce79",
+    "filesRead": [
+      "coinjoin/PoolSession.kt",
+      "coinjoin/CoinjoinHub.kt",
+      "chain/ElectrumClient.kt",
+      "ui/CoinjoinScreen.kt",
+      "ui/WalletViewModel.kt",
+      "coinjoin/PerfectCoin.kt"
+    ],
+    "confirmationPolicyFinding": "Reference peer check accepts matching unspent outputs, but normal coin picker filters height > 0 and perfect-coin waits for confirmation. No evidence ties this difference to phone failure. RedWallet confirmed-input validation unchanged."
+  },
+  "access": {
+    "zorin": "Offline, last seen 17h during final check",
+    "knowledgeTunnel": "working"
+  },
+  "limits": [
+    "Reproducible message-order defects do not establish the exact phone trigger.",
+    "Initial first request before any verified roster still strictly requires a valid caller and deadline; no claim that arbitrary history is supported.",
+    "Queued requests remain instance-local; no crash resume or automatic wallet actions added.",
+    "Linux Hermes and mocked native storage/backend observations do not qualify native iOS/Keychain or prove real relay delivery.",
+    "No real-fund joins/spends, production infrastructure changes, push/merge, iOS signing/upload or Apple writes this turn."
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/redwallet-roster-vote-before-20261023.log",
+      "sha256": "608270005d581913585586ef23dc0820db61ce6fd7272c73407b7bb3a1f3b227"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-unit-20261023.log",
+      "sha256": "41784c0e7aff1b6e35e49b594fb67add2e994e74fa4c353d3c2d6cd005f9d0f3"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-lint-final-20261023.log",
+      "sha256": "9ee8d37bcba94af2e7597fc8dd3e00abfb95a11ee73a0dfd08381156ed5a7dfa"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-diagnostic-lint-20261023.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-hermes-before-final-20261023.json",
+      "sha256": "fd705dc7c0a4653b6af59416d4efda0f9ea2aae912f4830de0d3e2d11bf69ff1"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-hermes-final-20261023.json",
+      "sha256": "2126d56eb04437b6cc0abbdbc1f83bf6ca67e842605616279550d7d56647346b"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-before-final-20261023.js",
+      "sha256": "e060ca07a8a0c700d6df01bb6e2a6fdae551e1e538247952c3fde47a776fa736"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-final-20261023.js",
+      "sha256": "825af2b79cc29c6b7f75dc59208d435fd3321206a9bf2fc9f39a2714214acd8c"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-dialogue-20261023.json",
+      "sha256": "bf15874bbae83d3b199f9c6f951285794fb35d97e8ecd3a384d08790c078d4bb"
+    },
+    {
+      "path": "/tmp/redwallet-roster-vote-dialogue-20261023.log",
+      "sha256": "6ad7305695f37c581fb4dbae94426ca5eab0c959153d3e8d1f25c2b50149a5fb"
+    },
+    {
+      "path": "/tmp/redwallet-post-replay-dialogue-20261023.json",
+      "sha256": "1f284b5023e707f4cf2c325d80ec9f614293b7df12b935d7f309644fa621a91a"
+    },
+    {
+      "path": "class/xbt/kilojoin/session.ts",
+      "sha256": "fbc48e44df543ff6756aba65101bea0658413e775a78755b76c990bca0bd6dc0"
+    },
+    {
+      "path": "scripts/diagnostics/hermes-kilojoin-roster.ts",
+      "sha256": "6e488ba7b9eea85cac10e4de5316468611e7897b11278f50274983072c25289c"
+    },
+    {
+      "path": "scripts/diagnostics/build-hermes-kilojoin.cjs",
+      "sha256": "bdb0370d78787a23238ffb2b2adfbea238b2c62b0f2ccf95ff39c5c8756500a0"
+    },
+    {
+      "path": "tests/unit/xbt-kilojoin-session.test.ts",
+      "sha256": "fb484de5e9b6397b48d1ce35cfcb484fd5d834f4845b247d596df89afbe0c1c0"
+    },
+    {
+      "path": "tests/unit/fixtures/kilojoin-kotlin-session.json",
+      "sha256": "6fb2450ca68e6b08798803da4f3f167f85c71a5041fa453432b56f9a61434d43"
+    }
+  ]
+}

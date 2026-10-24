@@ -2,17 +2,26 @@ import React, { createContext, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from './themes';
+import { ArtworkSkin } from '../blue_modules/artwork-skin';
 
 /** Only rows on the artwork-backed wallet dashboard become translucent. */
 export const ArtworkSurfaceContext = createContext(false);
 
-export default function ArtworkSkinSurface({ active, children }: { active: boolean; children: React.ReactNode }) {
+export default function ArtworkSkinSurface({
+  active,
+  skin = 'helmet',
+  children,
+}: {
+  active: boolean;
+  skin?: ArtworkSkin;
+  children: React.ReactNode;
+}) {
   const { dark } = useTheme();
   const [bounds, setBounds] = useState({ width: 0, height: 0 });
   const backdrop = dark ? '#080605' : '#FFFFFF';
-  // Fit the landscape artwork into a portrait hero, not the entire scrolling
-  // screen. Measure this surface so split-view and rotation stay centered.
-  const artworkHeight = Math.min(bounds.height, bounds.width * 1.15);
+  // Keep the original landscape crop bounded; fit the new portrait image whole.
+  // Measure this surface so split-view and rotation stay centered.
+  const artworkHeight = Math.min(bounds.height, bounds.width * (skin === 'armour' ? 739 / 415 : 1.15));
   return (
     <ArtworkSurfaceContext.Provider value={active}>
       <View
@@ -30,8 +39,8 @@ export default function ArtworkSkinSurface({ active, children }: { active: boole
             <View style={{ width: bounds.width, height: artworkHeight }}>
               <Image
                 testID="ArtworkSkinBackground"
-                source={require('../img/optional-skin/background.jpeg')}
-                resizeMode="cover"
+                source={skin === 'armour' ? require('../img/optional-skin/armour.jpeg') : require('../img/optional-skin/background.jpeg')}
+                resizeMode={skin === 'armour' ? 'contain' : 'cover'}
                 style={[StyleSheet.absoluteFill, { width: bounds.width, height: artworkHeight }]}
               />
               <LinearGradient

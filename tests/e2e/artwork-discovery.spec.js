@@ -2,7 +2,13 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { element, waitFor } from 'detox';
-import { nativeCaptureEvidence, matchesNativeOrientation, shouldRepeatOrientation, observeNativeRotation } from './native-capture-helper';
+import {
+  nativeCaptureEvidence,
+  matchesNativeOrientation,
+  shouldRepeatOrientation,
+  observeNativeRotation,
+  attachSimulatorForRotation,
+} from './native-capture-helper';
 import { getSwitchValue, goBack, helperCreateWallet, scrollUpOnHomeScreen, waitForId, waitForWalletsList } from './helperz';
 
 const smoke = process.env.REDWALLET_VISUAL_SMOKE === '1' ? describe : describe.skip;
@@ -21,11 +27,15 @@ const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurfac
   // when UIKit has rotated. Assert the actual native surface bounds, retain the
   // unmodified screenshot, and require human visual inspection of both views.
   do {
-    const before = await element(by.id(surfaceId)).getAttributes();
+    const preCapture = await element(by.id(surfaceId)).getAttributes();
     const file = await device.takeScreenshot(name);
     const png = fs.readFileSync(file);
+    // The screenshot request can advance a pending UIKit geometry update. Keep
+    // the stale pre-capture sample for evidence, then require two matching
+    // post-capture native measurements before accepting the orientation.
+    const before = await element(by.id(surfaceId)).getAttributes();
     const after = await element(by.id(surfaceId)).getAttributes();
-    evidence = nativeCaptureEvidence(png, before, after, orientation);
+    evidence = nativeCaptureEvidence(png, before, after, orientation, preCapture);
     // Retain the last observed native state on failure as well as success.
     fs.copyFileSync(file, path.join(directory, name + '.png'));
     fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, orientationRequests, ...evidence }, null, 2) + '\n');
@@ -72,20 +82,50 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       .toBeVisible()
       .whileElement(by.id('SettingsRoot'))
       .scroll(300, 'down');
-    await element(by.id('ArtworkSkinLogo')).multiTap(2);
+    await element(by.id('ArtworkSkinLogo')).tap();
     await waitFor(element(by.id('ArtworkSkinLogo')))
-      .toHaveLabel('Artwork skin enabled')
+      .toHaveLabel('Artwork skin: Helmet')
       .withTimeout(5000);
     await goBack();
     await waitForWalletsList();
     // Resetting Keychain or notification permissions can restart SpringBoard.
     // Attach after all resets/relaunches; native diagnostic 39691385530 verified
     // portrait, landscape and return-portrait bounds with this ordering.
-    execFileSync('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', device.id], { timeout: 15000 });
+    const attachment = attachSimulatorForRotation(execFileSync, device.id);
+    fs.mkdirSync('artifacts/appearance-discovery', { recursive: true });
+    fs.writeFileSync('artifacts/appearance-discovery/simulator-attachment.json', JSON.stringify(attachment, null, 2) + '\n');
     await scrollUpOnHomeScreen();
     await capture('01-helmet-portrait', 'portrait');
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
     await capture('02b-helmet-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
+    await element(by.id('SettingsButton')).tap();
+    await waitFor(element(by.id('ArtworkSkinLogo')))
+      .toBeVisible()
+      .whileElement(by.id('SettingsRoot'))
+      .scroll(300, 'down');
+    await element(by.id('ArtworkSkinLogo')).tap();
+    await waitFor(element(by.id('ArtworkSkinLogo')))
+      .toHaveLabel('Artwork skin: Armour')
+      .withTimeout(5000);
+    await goBack();
+    await waitForWalletsList();
+    await scrollUpOnHomeScreen();
+    await capture('02c-armour-portrait', 'portrait');
+    await capture('02d-armour-landscape', 'landscape', 'ArtworkSkinSurface', true);
+    await capture('02e-armour-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
+    await element(by.id('SettingsButton')).tap();
+    await waitFor(element(by.id('ArtworkSkinLogo')))
+      .toBeVisible()
+      .whileElement(by.id('SettingsRoot'))
+      .scroll(300, 'down');
+    await element(by.id('ArtworkSkinLogo')).tap();
+    await waitFor(element(by.id('ArtworkSkinLogo')))
+      .toHaveLabel('Artwork skin: Off')
+      .withTimeout(5000);
+    await goBack();
+    await waitForWalletsList();
+    await expect(element(by.id('ArtworkSkinBackground'))).not.toExist();
+
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('Tools')))
       .toBeVisible()

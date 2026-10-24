@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-23T16:38:25Z",
+  "repository": "romanmodin/RedWallet",
+  "sourceCommit": "72f80c0cee3df58384d71ad5fedc5332efbd0aff",
+  "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
+  "runId": 39982086674,
+  "attempt": 1,
+  "conclusion": "failure",
+  "buildJob": {
+    "id": 120511697298,
+    "conclusion": "success"
+  },
+  "nativeJob": {
+    "id": 120515090959,
+    "conclusion": "failure",
+    "firstActionableStep": "Run native stage rbf",
+    "failure": "After a successful SettingsButton tap, the first SettingsRoot hierarchy expectation was issued while DrawerRoot was still mounting and never returned; the 15-minute case deadline expired before native wallet setup."
+  },
+  "retainedEvidence": {
+    "artifact": {
+      "id": 12516760046,
+      "name": "native-lifecycle-ios-rbf-evidence",
+      "path": "/tmp/redwallet-funded-39982086674-evidence"
+    },
+    "detoxTraceSha256": "952dd350ce32c248a090dc4103596f72436c82bcc3ffd061fa20b8f20294da71",
+    "deviceLogSha256": "89ca3b1d10568b559d360774074af0a3f555c82b7e8b88e201679de0ead90171",
+    "failurePngSha256": "4373e6be74dc55df2fc3cd64cf0a8bed8ee4f3324d95a8c8f31afeb3dc712d08"
+  },
+  "observations": [
+    "The launch blacklist was present before app launch and the app connected to Detox.",
+    "WalletsList and SettingsButton were visible; the tap returned successfully and the app logged navigation to DrawerRoot.",
+    "The SettingsRoot request began immediately during the slow transition, remained pending, and the retained failure frame still shows the fresh empty wallet home screen.",
+    "No recovery, send, replacement preparation, signing or broadcast assertion ran or failed."
+  ],
+  "boundedCorrection": {
+    "status": "candidate-until-hosted-proof",
+    "productionCodeChanged": false,
+    "assertionsChanged": false,
+    "protocolChanged": false,
+    "timeoutsChanged": false,
+    "detail": "On iOS only, allow the already-successful Settings tap a bounded 12-second transition interval before issuing the unchanged SettingsRoot assertion. Android and every wallet action remain unchanged."
+  },
+  "historicalControl": {
+    "sourceCommit": "e02468385d3a48cf0ad43e3c69b4a18f35d0fe27",
+    "runId": 39971042372,
+    "conclusion": "success",
+    "nativeStageElapsedMs": 308947
+  }
+}

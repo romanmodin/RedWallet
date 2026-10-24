@@ -1,0 +1,122 @@
+{
+  "checkedAt": "2026-10-23T12:36:59.652351+00:00",
+  "parentCommit": "6bcf4d422bee8f38554e1ecda8b2abc733271817",
+  "status": "LOCAL_TESTED_NOT_NATIVE_IOS_QUALIFIED",
+  "finding": "After a verified roster, vote A / vote B / reopen A dropped B and left the participant open. Replay of multiple creator vote cycles could stall the session.",
+  "fix": [
+    "Bounded queue of up to32 creator-authenticated following votes, with current verified caller and original deadline required.",
+    "Current active vote cannot be replaced by arrival of another request. Only matching creator cancellation permits promotion.",
+    "Cancellation and promotion saved atomically; queue updated only after durable storage succeeds.",
+    "Expired, cancelled and removed-caller requests cannot take over; duplicates retain original deadline; conflict and resource bounds fail closed."
+  ],
+  "preserved": [
+    "Initial pre-roster conflicting-vote rejection",
+    "Encrypted journal and unsigned/signed reservation handling",
+    "Ownership and independent coin observations",
+    "Output/fee/signature validation and explicit approval",
+    "No automatic vote, reconnect, spending signature or broadcast"
+  ],
+  "validation": {
+    "nodeBaseline": {
+      "failed": 38,
+      "passed": 206,
+      "total": 244
+    },
+    "focusedSession": {
+      "passed": 253
+    },
+    "focusedRelay": {
+      "passed": 64,
+      "newKotlinFixtureCases": 12
+    },
+    "fullUnit": {
+      "suitesPassed": 124,
+      "testsPassed": 2189,
+      "inheritedSkip": 1,
+      "newTests": 165,
+      "seconds": 176.255
+    },
+    "canonicalLint": {
+      "typeScript": "PASS",
+      "errors": 0,
+      "existingWarnings": 19
+    },
+    "diagnosticLint": "PASS",
+    "replayCoverage": "All six two-vote/one-cancellation orders in both scripts and1/5outputs; all120 three-vote/two-cancellation orders after a verified roster; deadlines/storage/authority/resource negative controls.",
+    "hermes": {
+      "version": "hermes-v250829098.0.10",
+      "binarySha256": "f9c60cce7d2750e6f829f03119124d4f9ce73867b970255c1bd9efcc7095b973",
+      "before": {
+        "passed": 84,
+        "failed": 36,
+        "failures": {
+          "Following vote lost": 36
+        }
+      },
+      "after": {
+        "passed": 120,
+        "failed": 0
+      },
+      "coverage": "12 public Kotlin fixtures x10 replay sequences; both scripts,2/5participants,1/2/5outputs; unchanged reservations, zero publications and zero spending signatures."
+    }
+  },
+  "reference": {
+    "clarification": "User-supplied Kilombino replay/ordering explanation",
+    "protocol": "https://github.com/Kilombino/kilojoin/blob/master/docs/PROTOCOL.md",
+    "kotlinFixtureSourceCommit": "233733def7e492084f4d57e5faa1d76b9ab2ce79"
+  },
+  "access": {
+    "zorin": "Offline",
+    "lastSeenReported": "16h ago",
+    "knowledgeTunnel": "working"
+  },
+  "limits": [
+    "Does not establish exact phone joining/zero-participant trigger.",
+    "Initial conflicting requests before a verified roster still fail closed; not a claim about all arbitrary histories.",
+    "Pending queue is instance-local; no new crash-resume feature.",
+    "Linux Hermes and local tests are not native iOS/Keychain qualification.",
+    "No live joins/funds/signing/broadcast or push/merge/upload/Apple actions."
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/redwallet-overlap-before-20261023.log",
+      "sha256": "960ce0f635b83094c1913fe901504a7ede617f2bfd032819e3d452404b7fa323"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-focused-final-20261023.log",
+      "sha256": "df0ab98772ce3b2b12e2e4be275ed2aa611fb5c116ad3b8c0effe0f3d6b5395c"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-relay-20261023.log",
+      "sha256": "474efa8d9abf26e3128c896bbe29bfaa51b9107bfdfed0f708d0832f28deb35e"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-full-unit-20261023.log",
+      "sha256": "497394302657e94be8af3f5781dd1b95532cc32f4bfcf63d145af9e20a68dcb9"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-lint-20261023.log",
+      "sha256": "9ee8d37bcba94af2e7597fc8dd3e00abfb95a11ee73a0dfd08381156ed5a7dfa"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-diagnostic-lint-20261023.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-hermes-before-20261023.json",
+      "sha256": "6045d464b7b4e3f73949503a6ce62cb179a243b805d31e0d2823251f07e567a1"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-hermes-after-20261023.json",
+      "sha256": "513c9f5d0a1b7454bca3a2c23e4c5ebff406a055b96be5a1eba0dbf7d3f6c42f"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-before.js",
+      "sha256": "d77927072fded786420fc36846bdf15179513d1eb8380a1e6368cf84e645c0d3"
+    },
+    {
+      "path": "/tmp/redwallet-overlap-after.js",
+      "sha256": "58c8f3793854e39bee4d4f40f061b1957f324b95de8551e2e044b1cbd75a95e1"
+    }
+  ]
+}

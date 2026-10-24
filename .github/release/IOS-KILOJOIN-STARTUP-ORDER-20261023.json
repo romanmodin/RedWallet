@@ -1,0 +1,70 @@
+{
+  "verifiedAt": "2026-10-23T07:46:44.982779+00:00",
+  "parentCommit": "f65bb05b039b0ebfa67eae26e56c68d6f17a4ee6",
+  "status": "local-correction-tested-not-native-qualified-or-shipped",
+  "upstreamCommit": "233733def7e492084f4d57e5faa1d76b9ab2ce79",
+  "primaryTransportSpecification": "https://github.com/nostr-protocol/nips/blob/master/01.md",
+  "reproduction": {
+    "boundary": "Real KilojoinRelay plus ParticipantSession; socket offline; callbacks mirror MixingClient welcome-to-pool subscription; recorded actual Kotlin creator envelopes",
+    "before": {
+      "chronologicalCasesPassed": 12,
+      "forcedVoteBeforeRosterFailures": 12,
+      "nip01TimestampDescendingIdAscendingFailures": 7,
+      "nip01Cases": 12,
+      "error": "KJ-VOTE; open; initially zero seats; later roster accepted but vote was lost"
+    },
+    "otherFingerprints": {
+      "duplicateRoster": "KJ-REPLAY; open; accepted participants retained",
+      "welcomePersistenceFailure": "KJ-STORAGE after new diagnostic; joining; zero seats",
+      "backendFirstRosterFailure": "KJ-CHAIN; open; zero seats",
+      "welcomeBeforeJoinAck": "waits for acknowledgment, then succeeds"
+    },
+    "physicalPhoneCauseConfirmed": false,
+    "note": "User screenshot joining/zero seats differs from ordering failure open state. Brief 5/5 may be advertised pool count; cannot establish its origin from screenshot."
+  },
+  "correction": [
+    "Defer at most one authenticated creator vote_open while initial roster is absent",
+    "Validate full roster, proofs, own seat, independent chain observations and caller membership before one atomic durable roster/vote save",
+    "Keep original vote timestamp and deadline; reject expired/conflicting/malformed requests; replay rejection unchanged",
+    "No automatic vote, signature, publication, broadcast, fee or reservation changes",
+    "Sanitize persistence failures to KJ-STORAGE and exact decryption errors to KJ-DECRYPT; no raw native errors displayed"
+  ],
+  "nativeSelfTest": {
+    "added": true,
+    "actuallyRunOniOS": false,
+    "cases": "Both P2WPKH/P2TR, 5 peers, 5 outputs, chronological/reversed startup envelopes; actual signature/decryption/session/vault code, independent known synthetic chain map",
+    "networkOrWalletAccess": false,
+    "spendingSignaturesOrBroadcast": false,
+    "cleanup": "Four unique disposable startup storage/keychain records plus original RFC/storage record; unrelated record preserved",
+    "unitHarnessPassed": true,
+    "fixtureOrigin": "Exact subset of existing actual Kotlin session fixture, retaining original signed envelopes; all keys/coins synthetic public test constants"
+  },
+  "validation": {
+    "focused": "3 suites /120 tests pass7.882s",
+    "full": "122 suites/1883 tests pass,1 inherited skip124.807s",
+    "actualKilowallet": "12 cases in2 Jest groups pass40.925s; two-peer unsigned review; five-peer accepted own outputs, remaining seed outputs pending",
+    "typeScript": "pass",
+    "changedFilesESLint": "pass0errors0warnings",
+    "diffCheck": "pass"
+  },
+  "fixtureSHA256": "6fb2450ca68e6b08798803da4f3f167f85c71a5041fa453432b56f9a61434d43",
+  "nativeFixtureSHA256": "42270a85b83dca6eefd8e3ef0072bd22c660c5ac098227f824f79931777126c9",
+  "logsSHA256": {
+    "redwallet-startup-order-first.log": "cd92cd63da7b7f2a4154f4e1c17086b10c0d8bb57cf7b333c572daaab608d4a0",
+    "redwallet-startup-order-correction.log": "0ada448d555624c63037c8ba56555b6ef55c70fcfcabd9eb1fdb95802b91e298",
+    "redwallet-startup-native-selftest.log": "c636b9487f591423e118ac14a2981ead14ffdd2de47ce28c7521571ea11eb336",
+    "redwallet-startup-order-full.log": "dd22cdecf07c61cf02f82a65ad536d6f7dcec8dd23771f2682450fcf72e2a907",
+    "redwallet-startup-order-upstream.log": "7d0424db5dd6ba40d2cc69a3c005c4811d1450be728cd4961e01a7600b74d500",
+    "redwallet-startup-order-tsc.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "redwallet-startup-order-lint-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "limits": [
+    "Not proof of physical-device cause",
+    "No native iOS/Hermes execution this pass",
+    "Actual network/chain observations synthetic",
+    "No real funds or pool participation",
+    "Does not implement general history reconciliation; duplicate/replay protections unchanged",
+    "Not pushed/merged/uploaded/submitted; reconcile latest remote and qualify exact new production source after access restoration"
+  ],
+  "formattingNote": "Initial formatter defaults produced unrelated formatting changes; restored project style and kept semantic changes only; final ESLint clean"
+}

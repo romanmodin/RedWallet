@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, renderHook, fireEvent, act } from '@testing-library/react-native';
 import DefaultPreference from 'react-native-default-preference';
-import { isArtworkDoubleTap, loadArtworkSkin, toggleArtworkSkin, useArtworkSkin, ARTWORK_SKIN_KEY } from '../../blue_modules/artwork-skin';
+import { loadArtworkSkin, toggleArtworkSkin, useArtworkSkin, ARTWORK_SKIN_KEY } from '../../blue_modules/artwork-skin';
 import ArtworkSkinToggle from '../../components/ArtworkSkinToggle';
 import ArtworkSkinSurface from '../../components/ArtworkSkinSurface';
 import { StyleSheet, Text } from 'react-native';
@@ -22,13 +22,6 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-it('requires a genuine pair of taps within the gesture window', () => {
-  expect(isArtworkDoubleTap(undefined, 100)).toBe(false);
-  expect(isArtworkDoubleTap(100, 550)).toBe(true);
-  expect(isArtworkDoubleTap(100, 551)).toBe(false);
-  expect(isArtworkDoubleTap(100, 99)).toBe(false);
-});
-
 it('restores an explicitly saved enabled choice on a fresh app load', async () => {
   let module: typeof import('../../blue_modules/artwork-skin');
   jest.isolateModules(() => {
@@ -37,7 +30,7 @@ it('restores an explicitly saved enabled choice on a fresh app load', async () =
     module = require('../../blue_modules/artwork-skin');
   });
   await module!.loadArtworkSkin();
-  expect(module!.getArtworkSkin()).toBe(true);
+  expect(module!.getArtworkSkin()).toBe('helmet');
 });
 
 it('does not enable the skin for invalid saved values', async () => {
@@ -48,7 +41,7 @@ it('does not enable the skin for invalid saved values', async () => {
     module = require('../../blue_modules/artwork-skin');
   });
   await module!.loadArtworkSkin();
-  expect(module!.getArtworkSkin()).toBe(false);
+  expect(module!.getArtworkSkin()).toBe('off');
 });
 
 it('defaults to the normal appearance and changes only the cosmetic preference on toggle', async () => {
@@ -61,12 +54,17 @@ it('defaults to the normal appearance and changes only the cosmetic preference o
     await toggleArtworkSkin();
   });
   expect(hook.result.current).toBe(true);
-  expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'enabled');
+  expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'helmet');
+  await act(async () => {
+    await toggleArtworkSkin();
+  });
+  expect(hook.result.current).toBe(true);
+  expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'armour');
   await act(async () => {
     await toggleArtworkSkin();
   });
   expect(hook.result.current).toBe(false);
-  expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'disabled');
+  expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'off');
   hook.unmount();
 });
 
@@ -99,34 +97,51 @@ it('retains wallet content and renders no artwork when disabled', () => {
   ).toBeTruthy();
 });
 
-it('single-tapping the logo never enables the skin', async () => {
+it('each logo tap cycles Helmet, Armour, Off and rapid taps are serialized', async () => {
   const screen = render(<ArtworkSkinToggle />);
   await act(async () => {});
-  fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
-  expect(DefaultPreference.set).not.toHaveBeenCalled();
+  for (const name of ['Helmet', 'Armour', 'Off']) {
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
+    });
+    expect(screen.getByLabelText(`Artwork skin: ${name}`)).toBeTruthy();
+  }
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
+    fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
+    fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
+  });
+  expect(screen.getByLabelText('Artwork skin: Off')).toBeTruthy();
   screen.unmount();
 });
 
-it('a double-tap toggles on and a second double-tap restores default', async () => {
-  let now = 1000;
-  jest.spyOn(Date, 'now').mockImplementation(() => now);
-  const screen = render(<ArtworkSkinToggle />);
-  await act(async () => {});
-  fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
-  now += 200;
-  await act(async () => {
-    fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
+it('restores the second skin after app restart', async () => {
+  let module: typeof import('../../blue_modules/artwork-skin');
+  jest.isolateModules(() => {
+    require('react-native-default-preference').get.mockResolvedValue('armour');
+    module = require('../../blue_modules/artwork-skin');
   });
-  expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'enabled');
-  now += 1000;
-  fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
-  now += 200;
-  await act(async () => {
-    fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
-  });
-  expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'disabled');
-  screen.unmount();
-  jest.restoreAllMocks();
+  await module!.loadArtworkSkin();
+  expect(module!.getArtworkSkin()).toBe('armour');
+});
+
+it.each([
+  [390, 740],
+  [740, 390],
+  [768, 1024],
+])('fits the entire portrait armour at %s x %s', (width, height) => {
+  const screen = render(
+    <ArtworkSkinSurface active skin="armour">
+      <Text>Wallet content</Text>
+    </ArtworkSkinSurface>,
+  );
+  fireEvent(screen.getByTestId('ArtworkSkinSurface'), 'layout', { nativeEvent: { layout: { width, height } } });
+  const image = screen.getByTestId('ArtworkSkinBackground', { includeHiddenElements: true });
+  const style = StyleSheet.flatten(image.props.style);
+  expect(image.props.source).toEqual(require('../../img/optional-skin/armour.jpeg'));
+  expect(image.props.resizeMode).toBe('contain');
+  expect(style.width).toBe(width);
+  expect(style.height).toBe(Math.min(height, (width * 739) / 415));
 });
 
 it.each([
