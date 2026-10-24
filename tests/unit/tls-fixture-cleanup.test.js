@@ -13,10 +13,16 @@ async function fixture() {
 
 function nativeDevice(server, failure) {
   let restarted = false;
+  let cleared = false;
   return {
     getPlatform: () => 'ios',
+    clearKeychain: jest.fn(async () => {
+      if (failure === 'clear') throw new Error('clear failed');
+      cleared = true;
+    }),
     launchApp: jest.fn(async options => {
-      expect(options).toEqual({ newInstance: true });
+      if (!cleared || !options.delete) throw new Error('saved endpoint reconnect after server closure');
+      expect(options).toEqual({ delete: true, permissions: { notifications: 'NO' } });
       expect(server.listening).toBe(false);
       if (failure === 'launch') throw new Error('launch failed');
       restarted = true;
@@ -66,7 +72,7 @@ test('closes real listening and accepted sockets before restoring synchronizatio
   }
 });
 
-test.each(['launch', 'sync', 'terminate'])('native %s failure still closes the real server and fails the check', async failure => {
+test.each(['clear', 'launch', 'sync', 'terminate'])('native %s failure still closes the real server and fails the check', async failure => {
   const { server, sockets, client } = await fixture();
   const device = nativeDevice(server, failure);
   try {
@@ -74,7 +80,7 @@ test.each(['launch', 'sync', 'terminate'])('native %s failure still closes the r
     expect(server.listening).toBe(false);
     expect([...sockets].every(socket => socket.destroyed)).toBe(true);
     expect(device.terminateApp).toHaveBeenCalledTimes(1);
-    if (failure === 'launch') expect(device.enableSynchronization).not.toHaveBeenCalled();
+    if (failure === 'clear' || failure === 'launch') expect(device.enableSynchronization).not.toHaveBeenCalled();
   } finally {
     client.destroy();
   }
@@ -90,6 +96,19 @@ test('Android teardown closes the server without adding an app restart', async (
     expect(device.launchApp).not.toHaveBeenCalled();
     expect(device.enableSynchronization).not.toHaveBeenCalled();
     expect(device.terminateApp).toHaveBeenCalledTimes(1);
+  } finally {
+    client.destroy();
+  }
+});
+
+test('previous new-process-only cleanup retains the now-closed endpoint and cannot finish launch', async () => {
+  const { server, sockets, client } = await fixture();
+  const device = nativeDevice(server);
+  try {
+    for (const socket of sockets) socket.destroy();
+    await new Promise(resolve => server.close(resolve));
+    await expect(device.launchApp({ newInstance: true })).rejects.toThrow('saved endpoint reconnect');
+    expect(device.enableSynchronization).not.toHaveBeenCalled();
   } finally {
     client.destroy();
   }
