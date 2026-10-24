@@ -38,7 +38,18 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
     await goBack();
     await goBack();
 
-    await helperCreateWallet('Demo Taproot Wallet', 'taproot');
+    // The iPad capture stalled on ActivateBitcoinButton before the shared helper
+    // disables synchronization for Create. Keep explicit element checks active
+    // through keyboard dismissal too; iOS 26 animation idleness is not a screen
+    // readiness signal. No wallet-creation retry or longer timeout is introduced.
+    await device.disableSynchronization();
+    try {
+      console.log('[store-capture] creating empty demo wallet');
+      await helperCreateWallet('Demo Taproot Wallet', 'taproot');
+      console.log('[store-capture] empty demo wallet visible');
+    } finally {
+      await device.enableSynchronization();
+    }
     await device.launchApp({ newInstance: true });
     await waitForWalletsList();
     await scrollUpOnHomeScreen();
