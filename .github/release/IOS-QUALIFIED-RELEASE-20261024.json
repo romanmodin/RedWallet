@@ -1,0 +1,85 @@
+{
+  "verifiedAt": "2026-10-24T12:07:42.949838+00:00",
+  "status": "NATIVE_GATES_PASSED_RELEASE_PENDING",
+  "candidateSource": "9bc111733801849786a5026a04325afd269e20c0",
+  "mergedMain": "585d326bf7a96ca3288bc01c090687a7ea72cfb3",
+  "pullRequest": 81,
+  "qualification": {
+    "verifiedAt": "2026-10-24T12:04:03.360918+00:00",
+    "sourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+    "gates": [
+      {
+        "id": 40084845943,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084845943",
+        "workflow": ".github/workflows/ci.yml",
+        "source": "9bc111733801849786a5026a04325afd269e20c0",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 40084845962,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084845962",
+        "workflow": ".github/workflows/e2e-ios.yml",
+        "source": "9bc111733801849786a5026a04325afd269e20c0",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 40084873225,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084873225",
+        "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
+        "source": "9bc111733801849786a5026a04325afd269e20c0",
+        "conclusion": "success",
+        "runAttempt": 1
+      }
+    ],
+    "androidQualified": false
+  },
+  "mergedSourceMapping": {
+    "publicRepository": "https://github.com/romanmodin/RedWallet",
+    "publicSourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+    "sourceCommit": "585d326bf7a96ca3288bc01c090687a7ea72cfb3",
+    "productionTreeSha256": "3531f2f87b5b1c4e878aaadd1456c09f7ccbe16ee3e9baf85903b0f56adcb2d1",
+    "productionPathCount": 1008,
+    "sourceMappingVerification": "passed",
+    "treeDefinition": "git ls-tree -r COMMIT, excluding .github/, tests/, fastlane/metadata/, zapstore.yaml and *.md; includes mode, object ID, path and trailing newline",
+    "binaryReproducibilityVerified": false
+  },
+  "generalEvidence": {
+    "artifactId": 12558447484,
+    "zipSha256": "d5e70c8660c208df20ca6735b26e358d47fff3d04063adc0df02d3d8e86074a7",
+    "actualJobLogSha256": "efb4294a44347236a5fecc911ed84f5527844f91babe84e9410b396a8bbd73bc",
+    "startupSelfTestPassed": true,
+    "fullWalletSuitesPassed": true,
+    "tlsTestsPassed": 7,
+    "artworkDiscoveryPassed": true,
+    "allSevenActualPngsVisuallyReviewed": true
+  },
+  "fundedEvidence": {
+    "artifactId": 12558675976,
+    "zipSha256": "452cbd06d451af11567600c0b4965031c3dfc57f2946bba05d4a212b0475950d",
+    "nativeReceiptSha256": "318aa327a124fe59fdf11e401e12c6696abc23582f1a7c74706f23aede2358f6",
+    "backendReceiptSha256": "1d26e902ed27ca7c384f11efd6a8fc3412201a3e93dd5e6a1f17ddde07411bb7",
+    "scope": "Hosted native iOS BIP84 RBF regtest; decoded review, high-fee decline, two confirmations",
+    "physicalPhone": false,
+    "fullCoinJoinRoundProven": false,
+    "backendUnansweredAtSocketClose": {
+      "blockchain.scripthash.get_balance": 43
+    },
+    "transactionGetResponses": 48,
+    "broadcastResponses": 2,
+    "disconnectFaults": 0,
+    "cleanupComplete": true
+  },
+  "imessage": {
+    "iosTreeUnchangedFromPreviouslyAcceptedSource": true,
+    "iosTree": "30e39cdee442e7d716cdc95de44ada6df2a523b7",
+    "previousSource": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
+    "reuseRequiresNewSignedBundleVerificationAndLiveAppleCompleteAssets": true,
+    "historicalReceiptsUnchanged": true
+  },
+  "newSignedBuild": null,
+  "newTestFlightAvailability": false,
+  "newAppReviewSubmission": false,
+  "walletFirstReviewPreserved": true
+}
