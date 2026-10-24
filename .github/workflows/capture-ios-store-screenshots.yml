@@ -1,6 +1,13 @@
 name: Capture approved iOS App Store screenshots
 on:
   workflow_dispatch:
+    inputs:
+      family:
+        description: Device family requiring fresh screenshots
+        type: choice
+        options: [both, iphone, ipad]
+        default: both
+        required: true
 permissions:
   contents: read
   actions: read
@@ -19,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        family: [iphone, ipad]
+        family: ${{ fromJSON(inputs.family == 'ipad' && '["ipad"]' || inputs.family == 'iphone' && '["iphone"]' || '["iphone","ipad"]') }}
     steps:
       - name: Checkout pinned app
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
