@@ -1,0 +1,101 @@
+{
+  "sourceCommit": "de401667d632ef2e29c783bca1263b4c941ae79c",
+  "mergedMain": "e1adc1f3fca0c8cb88cd527138a7f9533218015e",
+  "productionTreeSha256": "646e6e3007198be41a59fcf4eff348415a752bb6c764d50c838e4bb9f78d0a12",
+  "qualification": {
+    "verifiedAt": "2026-10-24T17:06:37.465555+00:00",
+    "sourceCommit": "de401667d632ef2e29c783bca1263b4c941ae79c",
+    "gates": [
+      {
+        "id": 40105469751,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40105469751",
+        "workflow": ".github/workflows/ci.yml",
+        "source": "de401667d632ef2e29c783bca1263b4c941ae79c",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 40105469745,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40105469745",
+        "workflow": ".github/workflows/e2e-ios.yml",
+        "source": "de401667d632ef2e29c783bca1263b4c941ae79c",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 40105526944,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40105526944",
+        "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
+        "source": "de401667d632ef2e29c783bca1263b4c941ae79c",
+        "conclusion": "success",
+        "runAttempt": 1
+      }
+    ],
+    "androidQualified": false
+  },
+  "generalEvidence": {
+    "sourceCommit": "de401667d632ef2e29c783bca1263b4c941ae79c",
+    "runId": 40105469745,
+    "runAttempt": 1,
+    "artifactId": 12567173558,
+    "zipSha256": "0d2e38a5d5a398bfefa717af6943ef1b42701f39d98760a12f2afc4e62992150",
+    "logSha256": "6bf6573de65d00a6ea224e41ea735d3ebcc0e5d3386c99901c5ac180e480120e",
+    "nativeStartupSelftestPassed": true,
+    "walletTestsPassed": 15,
+    "inheritedSkippedWalletTests": 5,
+    "artworkDiscoveryTestsPassed": 1,
+    "tlsTestsPassed": 7,
+    "images": [
+      {
+        "file": "01-helmet-portrait.png",
+        "sha256": "1e8dac5f8644135674f9153607b55b944c055f6ad26846133bf9e69ed2845476",
+        "visuallyInspected": true
+      },
+      {
+        "file": "02-helmet-landscape.png",
+        "sha256": "1203dec45bdae7cc0a54dff8b58ff190ea3e7210a6290c94797895815cabb1c3",
+        "visuallyInspected": true
+      },
+      {
+        "file": "02b-helmet-return-portrait.png",
+        "sha256": "c06476200a68d333f214dda0487c8bfd06488240d92354619310eb268bff4414",
+        "visuallyInspected": true
+      },
+      {
+        "file": "02c-armour-portrait.png",
+        "sha256": "a04bd79be4217a8a1b01199b7a41e81f47e55e4d0b739dd36f02407c62ce6fb9",
+        "visuallyInspected": true
+      },
+      {
+        "file": "02d-armour-landscape.png",
+        "sha256": "9e6920dca9f06a31f86c192c0bf09729e7a890b9741725748ddc8715001e07f9",
+        "visuallyInspected": true
+      },
+      {
+        "file": "02e-armour-return-portrait.png",
+        "sha256": "154c2f7e6d6cda18d734828c8a35f741e758407b214e94dfc31ef9f91e0a5d9b",
+        "visuallyInspected": true
+      },
+      {
+        "file": "03-pool-discovery.png",
+        "sha256": "acb36ca0edea181ccd2c00da3025912b74635919461477417a9d819d08466bd4",
+        "visuallyInspected": true
+      }
+    ],
+    "visualObservation": "Both skins visible and centered in portrait and landscape, return to portrait preserved; actual pool discovery shows five compatible pools. No join performed. Existing empty-state text partially covered by Scan control retained as cosmetic observation, not a new PR89 change.",
+    "physicalPhoneInteroperabilityVerified": false,
+    "verifiedAt": "2026-10-24T17:08:24.960874+00:00"
+  },
+  "fundedEvidence": {
+    "runId": 40105526944,
+    "artifactId": 12565363093,
+    "zipSha256": "1d94d57edb75d4cc3bc1877143d17c1efee3d907f9906372840547437848dcf7",
+    "confirmations": 2,
+    "highFeeDeclineBlockedBroadcast": true,
+    "decodedReviewVerified": true,
+    "cleanupComplete": true
+  },
+  "phoneFailureExactCauseProven": false,
+  "existingAppleReviewPreserved": true,
+  "newSigningUploadOrDeliveryCompleted": false
+}
