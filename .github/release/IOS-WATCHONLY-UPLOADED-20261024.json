@@ -1,0 +1,19 @@
+{
+  "uploadRun": 40134250623,
+  "runAttempt": 1,
+  "orchestrationCommit": "45f2683465a41eb203796cd12af1400689d2fb7b",
+  "sourceCommit": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+  "build": "1792877655",
+  "version": "8.0.1",
+  "ipaSha256": "daec8b9888a41ad1242210ca6ee0c278813e3c0989a10189da925e5e1f34248f",
+  "artifactId": 12576808782,
+  "artifactSha256": "850a02b20d67b47e9edf8f7a1e2f56b6e416305ab9095d04b5c19a81a89b3357",
+  "memberSha256": "b96c604291c606e8ef97d0b7de5313ca1d044743e5d796947583036c6c10bd0b",
+  "uploadJob": 120996945884,
+  "uploadCompletedAt": "2026-10-24T21:54:51Z",
+  "signatureVerification": "passed",
+  "sourceMappingVerification": "passed",
+  "productionTreeSha256": "40a05608727555d301e6ad0c5d74a25679b6ad3c5179d1209b0f32bbd23fc479",
+  "testerAvailabilityVerified": false,
+  "walletFirstReviewPreserved": true
+}

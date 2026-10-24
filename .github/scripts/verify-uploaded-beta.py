@@ -7,9 +7,9 @@ import subprocess
 from pathlib import Path
 
 REPO = 'romanmodin/RedWallet'
-PUBLIC = 'de401667d632ef2e29c783bca1263b4c941ae79c'
-ORCHESTRATION = '3bbf309f600f09e40ff438c7db07a66e064d1491'
-UPLOAD_RUN = '40115188795'
+PUBLIC = '2faf7bbf74dbad33adcb81ae024611b161429e68'
+ORCHESTRATION = '45f2683465a41eb203796cd12af1400689d2fb7b'
+UPLOAD_RUN = '40134250623'
 
 
 def api(path):
@@ -38,7 +38,7 @@ for required in ('build', 'testflight-upload'):
 verifier = runpy.run_path(str(Path(__file__).with_name('verify-ios-release-gates.py')))
 gate_receipts = []
 for rid, (_, workflow, required_jobs) in zip(
-    ('40105469751', '40105469745', '40105526944'), verifier['GATES']
+    ('40126258807', '40126258783', '40126257565'), verifier['GATES']
 ):
     gate = api(f'repos/{REPO}/actions/runs/{rid}')
     gate_jobs = api(f"repos/{REPO}/actions/runs/{rid}/attempts/{gate['run_attempt']}/jobs?per_page=100")['jobs']
@@ -46,11 +46,11 @@ for rid, (_, workflow, required_jobs) in zip(
 
 receipt = json.loads(Path(os.environ['UPLOAD_RECEIPT_PATH']).read_text())
 expected = {
-    'ipaSha256': '02032e6203fdb99e1e65395b576636d8fe4e3cf049876e7ebdca8cecdc2dbf9f',
+    'ipaSha256': 'daec8b9888a41ad1242210ca6ee0c278813e3c0989a10189da925e5e1f34248f',
     'publicSourceCommit': PUBLIC,
     'sourceCommit': PUBLIC,
     'orchestrationCommit': ORCHESTRATION,
-    'productionTreeSha256': '646e6e3007198be41a59fcf4eff348415a752bb6c764d50c838e4bb9f78d0a12',
+    'productionTreeSha256': '40a05608727555d301e6ad0c5d74a25679b6ad3c5179d1209b0f32bbd23fc479',
     'productionPathCount': 1008,
     'signatureVerification': 'passed',
     'sourceMappingVerification': 'passed'
@@ -60,5 +60,5 @@ assert receipt['qualification']['sourceCommit'] == PUBLIC
 assert receipt['qualification']['gates'] == gate_receipts, 'Package qualification differs from current gate attempts'
 bundles = receipt['bundles']
 assert len(bundles) == 2 and {b['bundleId'] for b in bundles} == {'com.romanmodin.redwallet', 'com.romanmodin.redwallet.Stickers'}
-assert all(b['version'] == '8.0.1' and b['build'] == '1792862343' and b['architectures'] == ['arm64'] for b in bundles), 'Wrong iPhone package'
+assert all(b['version'] == '8.0.1' and b['build'] == '1792877655' and b['architectures'] == ['arm64'] for b in bundles), 'Wrong iPhone package'
 print('PASS: uploaded IPA, exact production source, and completed iOS/software gates verified')
