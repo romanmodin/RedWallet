@@ -9,6 +9,7 @@ import { IgnoredEnvelope, MessageInbox } from './messages';
 import { changeMessage, memberMac, passwordKey, passwordProof, Terms, tokenHash, outputCount } from './protocol';
 import { ChainCoin, Seat, validateRoster } from './roster';
 import { Journal, Round } from './round';
+import { participantStageFailure } from './relay-error';
 import { assemble, coinScript, isType, outpoint, Plan, plan, Review, verifySignature } from './transaction';
 
 type OutputState = {
@@ -266,17 +267,37 @@ export class ParticipantSession {
 
   private async checkedSeats(seats: unknown, seq: number): Promise<Seat[]> {
     // Parse/ownership-check first, before making network requests for arbitrary relay data.
-    const { parseSeat } = await import('./roster');
-    if (!Array.isArray(seats) || seats.length > this.terms.max_peers) throw new Error('Invalid seats');
-    const parsed = seats.map(s => parseSeat(s, this.terms));
-    const chain = await this.env.observe(parsed.flatMap(s => s.coins));
-    return validateRoster({ type: 'roster', seq, seats }, this.terms, {
-      previousSeq: this.state.sequence,
-      ownSeat: this.ownSeat(),
-      walletOutpoints: this.env.walletOutpoints(),
-      chain,
-      now: this.env.now(),
-    }).seats;
+    let parsed: Seat[];
+    try {
+      const { parseSeat } = await import('./roster');
+      if (!Array.isArray(seats) || seats.length > this.terms.max_peers) throw new Error('Invalid seats');
+      parsed = seats.map(s => parseSeat(s, this.terms));
+    } catch (error) {
+      throw participantStageFailure(error, 'KJ-ROSTER-PARSE');
+    }
+    let chain: ReadonlyMap<string, ChainCoin>;
+    try {
+      chain = await this.env.observe(parsed.flatMap(s => s.coins));
+    } catch (error) {
+      throw participantStageFailure(error, 'KJ-BACKEND');
+    }
+    let walletOutpoints: ReadonlySet<string>;
+    try {
+      walletOutpoints = this.env.walletOutpoints();
+    } catch (error) {
+      throw participantStageFailure(error, 'KJ-WALLET-INPUTS');
+    }
+    try {
+      return validateRoster({ type: 'roster', seq, seats }, this.terms, {
+        previousSeq: this.state.sequence,
+        ownSeat: this.ownSeat(),
+        walletOutpoints,
+        chain,
+        now: this.env.now(),
+      }).seats;
+    } catch (error) {
+      throw participantStageFailure(error, 'KJ-ROSTER-CHECK');
+    }
   }
 
   async receive(event: NostrEvent): Promise<void> {

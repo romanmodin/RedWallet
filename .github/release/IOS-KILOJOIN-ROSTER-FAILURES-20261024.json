@@ -1,0 +1,70 @@
+{
+  "observedAt": "2026-10-24T15:05:56.442309+00:00",
+  "baseCommit": "bbaaad2c9908384d11953241a89470f1221125c4",
+  "branch": "fix/kilojoin-stop-status-20261024",
+  "testedFileSha256": {
+    "blue_modules/BlueElectrum.ts": "86e201d8b4c152731adee3372b10ac42abd374996bab71e098e2254d31fb9ab9",
+    "class/xbt/kilojoin/client.ts": "ec19d60c878bbab1d957967e1278d7b223daa1d960c9e068c07089a7019abd94",
+    "class/xbt/kilojoin/relay-error.ts": "56d688db316c694d614d3d08b4d2dedbe25f4503e482df0691fbbbdf435dc5b3",
+    "class/xbt/kilojoin/session.ts": "cd30ba23ecd3e41657e52f053f9585a12b58172fa0e84c6d4d32edc22e5e48bc",
+    "screen/settings/CoinjoinLive.tsx": "15ef0e5710067b0a2cbb6aa33561c8b3ab43c2d04e7c341b14b41555c99b0766",
+    "tests/unit/blueElectrum-lifecycle.test.ts": "6b20aff1a749924b7f0a19c7ed8f40cdd7aa24854f0dd7e29117edc3fc330478",
+    "tests/unit/xbt-kilojoin-client-startup.test.ts": "434536498d0b903bec50becd5756f8cccbe34cf8c538cc0d4d62eb081a9a114a",
+    "tests/unit/xbt-kilojoin-live-screen.test.tsx": "fffc59a83a39b56c129bf7b937e6ac2d59ecce51a9714ced8f4b6ee986b52eea",
+    "tests/unit/xbt-kilojoin-relay-error.test.ts": "278adcff9caaa9b23ee7d57f5e07637ef54c06c8b0d7b622cb87e3df2358ed30"
+  },
+  "logs": {
+    "exactParent": {
+      "pathOnZorin": "/tmp/redwallet-stop-status-exact-parent-20261024.log",
+      "sha256": "3ff870c483d0c3fe29a89d59a642f0bd0ceca11b37c80d91a7923aedd7bdbf81"
+    },
+    "focused": {
+      "pathOnZorin": "/tmp/redwallet-roster-secondary-after-20261024.log",
+      "sha256": "17277fb4d99c86e956e91559bc3ebf28bf0cf192d5c3f209cf20a2e6361c0838"
+    },
+    "unit": {
+      "pathOnZorin": "/tmp/redwallet-roster-final-unit-20261024.log",
+      "sha256": "a570290d64015d6d2fe8a4fe53aaf7d42a20f1dc448d94dffa487e5d1f54cfa3"
+    },
+    "lint": {
+      "pathOnZorin": "/tmp/redwallet-roster-final-lint-20261024.log",
+      "sha256": "a17107d31ddd51011f3a714ef34ddfc0a4faa2cdb3b6b8cd106ac61ff6d60739"
+    }
+  },
+  "exactParentRegression": {
+    "productionCodeUnchanged": true,
+    "failed": 6,
+    "passed": 1,
+    "filteredOut": 93,
+    "scope": "Copied only the two regression test files into a detached worktree of the exact base. Synthetic fixtures and mocked network/native boundaries; no user funds."
+  },
+  "localQualification": {
+    "unitSuitesPassed": 127,
+    "unitTestsPassed": 2449,
+    "inheritedTestsSkipped": 1,
+    "unitSeconds": 226.318,
+    "focusedTestsPassed": 100,
+    "focusedSuitesPassed": 2,
+    "lintAndTypecheckExitCode": 0,
+    "lintWarnings": 19
+  },
+  "confirmedConditionalDefects": [
+    "An unrelated Lightning wallet with payment history triggers the inherited on-chain inventory parser during first-roster validation; the deployed parent reports KJ-PROCESS. Both p2wpkh and p2tr reproductions now reach voting with five accepted seats.",
+    "Oversized Electrum response fallback returned decoded JSON to raw-transaction callers. The repair preserves requested raw bytes and refetches the legacy wrong-shaped raw-cache value.",
+    "A relay error persists after durable unsigned cancellation and later socket errors can replace the first diagnostic. Terminal display now follows the persisted journal; uncertain/signed reservations remain protected."
+  ],
+  "guardChecks": [
+    "Unselected inputs from another on-chain wallet still reject for both script types.",
+    "Mismatched raw transaction IDs still reject.",
+    "Failed journal persistence retains reservations and warning.",
+    "Uncertain signed rounds retain warning and confirmation control.",
+    "Unknown error detail replaced by fixed stage code only."
+  ],
+  "limitations": [
+    "Exact cause on the reported phone is unproven.",
+    "Installed phone build number not visible.",
+    "No new native iOS or funded regtest qualification yet.",
+    "No signing, upload, tester delivery, replacement review submission or publication authorized by this local receipt.",
+    "Existing wallet-first Apple review remains preserved."
+  ]
+}

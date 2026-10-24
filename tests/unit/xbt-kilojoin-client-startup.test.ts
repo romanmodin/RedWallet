@@ -8,6 +8,7 @@ import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { BlueApp } from '../../class/blue-app';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
+import { LightningCustodianWallet } from '../../class/wallets/lightning-custodian-wallet';
 import { ClientView, MixingClient } from '../../class/xbt/kilojoin/client';
 import { conversationKey, decrypt, encrypt, NostrEvent, signEvent } from '../../class/xbt/kilojoin/crypto';
 import { Terms, tokenHash } from '../../class/xbt/kilojoin/protocol';
@@ -41,6 +42,9 @@ type Fault =
   | 'welcome-key-read'
   | 'bad-welcome-mac'
   | 'peer-unspent'
+  | 'peer-raw-missing'
+  | 'peer-backend-rejected'
+  | 'wallet-inventory'
   | 'wrong-pool-secret'
   | 'creator-reject'
   | 'initial-write'
@@ -55,12 +59,22 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
   const key = ECPair.fromWIF(wallet._getWifForAddress(ownAddress)!);
   const parents = new Map<string, { raw: Transaction; coin: Coin; address: string }>();
   const makeCoin = (n: number, value: number, publicKey: Uint8Array) => {
-    const preliminary = { type, txid: '00'.repeat(32), vout: 0, value, pubkey: Buffer.from(publicKey).toString('hex') };
+    const preliminary = {
+      type,
+      txid: '00'.repeat(32),
+      vout: 0,
+      value,
+      pubkey: Buffer.from(publicKey).toString('hex'),
+    };
     const raw = new Transaction();
     raw.addInput(Buffer.alloc(32, n), 0);
     raw.addOutput(coinScript(preliminary), BigInt(value));
     const coin = { ...preliminary, txid: raw.getId() };
-    parents.set(coin.txid, { raw, coin, address: address.fromOutputScript(coinScript(coin)) });
+    parents.set(coin.txid, {
+      raw,
+      coin,
+      address: address.fromOutputScript(coinScript(coin)),
+    });
     return coin;
   };
   const ownCoin = makeCoin(1, 35000000, key.publicKey);
@@ -69,9 +83,16 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
   jest.spyOn(wallet, 'getChangeAddressAsync').mockResolvedValue(wallet._getInternalAddressByIndex(0));
   const broadcast = jest.spyOn(wallet, 'broadcastTx').mockRejectedValue(new Error('Offline test must never broadcast'));
   let fault: Fault = 'none';
-  (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (ids: string[]) =>
-    Object.fromEntries(ids.map(id => [id, parents.get(id)?.raw.toHex()])),
-  );
+  (BlueElectrum.multiGetTransactionByTxid as jest.Mock).mockImplementation(async (ids: string[]) => {
+    if (ids.length > 1 && fault === 'peer-backend-rejected') throw new Error('private backend response');
+    return Object.fromEntries(
+      ids.map(id => [id, fault === 'peer-raw-missing' && id !== ownCoin.txid ? undefined : parents.get(id)?.raw.toHex()]),
+    );
+  });
+  jest.spyOn(wallet, 'getDerivedUtxoFromOurTransaction').mockImplementation(() => {
+    if (fault === 'wallet-inventory') throw new TypeError('private wallet detail');
+    return [];
+  });
   (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockImplementation(async (addresses: string[]) =>
     Object.fromEntries(
       addresses.map(a => [
@@ -135,7 +156,12 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
   });
   const envelope = (body: unknown, recipient: string, encryptionKey = conversationKey(creatorKey, recipient)) =>
     signEvent(
-      { kind: 2023, created_at: now, tags: [['p', recipient]], content: encrypt(JSON.stringify(body), encryptionKey, randomBytes(32)) },
+      {
+        kind: 2023,
+        created_at: now,
+        tags: [['p', recipient]],
+        content: encrypt(JSON.stringify(body), encryptionKey, randomBytes(32)),
+      },
       creatorKey,
       randomBytes(32),
     );
@@ -184,7 +210,14 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
       const own = { ...join.seat, token_hash: tokenHash('ab'.repeat(16)) };
       this.history = [
         envelope({ type: 'roster', seq: 5, seats: [...peers, own] }, terms.public_key),
-        envelope({ type: 'vote_open', by: peers[0].token_hash, vote_id: 'ba'.repeat(8) }, terms.public_key),
+        envelope(
+          {
+            type: 'vote_open',
+            by: peers[0].token_hash,
+            vote_id: 'ba'.repeat(8),
+          },
+          terms.public_key,
+        ),
       ];
       if (replayNoise) {
         const member = (messageType: string) =>
@@ -210,7 +243,12 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
       const welcome = envelope(
         fault === 'creator-reject'
           ? { type: 'reject', reason: 'private rejection detail' }
-          : { type: 'welcome', pool_secret: fault === 'wrong-pool-secret' ? '8' : '9', token: 'ab'.repeat(16), seq: 5 },
+          : {
+              type: 'welcome',
+              pool_secret: fault === 'wrong-pool-secret' ? '8' : '9',
+              token: 'ab'.repeat(16),
+              seq: 5,
+            },
         event.pubkey,
         fault === 'bad-welcome-mac' ? Buffer.alloc(32, 7) : undefined,
       );
@@ -218,7 +256,9 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
       if (fault === 'welcome-key-read')
         (Keychain.getGenericPassword as jest.Mock).mockRejectedValueOnce(new Error('private keychain detail'));
       if (earlyWelcome) this.deliver(this.direct, welcome);
-      this.onmessage?.({ data: JSON.stringify(['OK', event.id, fault !== 'ack-refused', '']) });
+      this.onmessage?.({
+        data: JSON.stringify(['OK', event.id, fault !== 'ack-refused', '']),
+      });
       if (!earlyWelcome) this.deliver(this.direct, welcome);
     }
   }
@@ -231,6 +271,7 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
     views,
     sockets,
     identities,
+    peers,
     broadcast,
     setFault: (value: Fault) => {
       fault = value;
@@ -262,7 +303,14 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
 
 const startupMatrix = (['p2wpkh', 'p2tr'] as const).flatMap(type =>
   ([1, 5] as const).flatMap(outputs =>
-    [false, true].flatMap(reverse => [false, true].map(earlyWelcome => ({ type, outputs, reverse, earlyWelcome }))),
+    [false, true].flatMap(reverse =>
+      [false, true].map(earlyWelcome => ({
+        type,
+        outputs,
+        reverse,
+        earlyWelcome,
+      })),
+    ),
   ),
 );
 test.each(startupMatrix)(
@@ -273,7 +321,10 @@ test.each(startupMatrix)(
       const client = await f.join();
       expect(client.view().error).toBeUndefined();
       expect(f.views.every(view => view.error === undefined)).toBe(true);
-      expect(client.view().session).toMatchObject({ phase: 'voting', sequence: 5 });
+      expect(client.view().session).toMatchObject({
+        phase: 'voting',
+        sequence: 5,
+      });
       expect(client.view().session.seats).toHaveLength(5);
       expect(client.view().session.seats[0].join_pub).toBe(f.terms.public_key);
       expect(client.view().session.seats[0].join_pub).not.toBe(f.terms.creator);
@@ -295,7 +346,10 @@ test.each(startupMatrix)(
     try {
       const first = await f.join();
       expect(first.view().error).toBeUndefined();
-      expect(first.view()).toMatchObject({ session: { phase: 'voting' }, journal: { phase: 'joined' } });
+      expect(first.view()).toMatchObject({
+        session: { phase: 'voting' },
+        journal: { phase: 'joined' },
+      });
       expect(first.view().session.seats).toHaveLength(5);
       expect(await new SessionVault(f.wallet.getID(), f.terms.id, f.identities[0]).load()).toMatchObject({ phase: 'voting' });
       expect(f.wallet.next_free_address_index).toBe(1 + outputs);
@@ -326,6 +380,9 @@ test.each([
   ['bad-welcome-mac', 'joining', 'KJ-DECRYPT'],
   ['wrong-pool-secret', 'joining', 'KJ-WELCOME'],
   ['peer-unspent', 'open', 'KJ-CHAIN'],
+  ['peer-raw-missing', 'open', 'KJ-BACKEND'],
+  ['peer-backend-rejected', 'open', 'KJ-BACKEND'],
+  ['wallet-inventory', 'open', 'KJ-WALLET-INPUTS'],
 ] as const)('full client isolates %s and permits a fresh unsigned attempt after Stop', async (fault, phase, code) => {
   const f = fixture('p2wpkh', 5);
   try {
@@ -337,8 +394,17 @@ test.each([
     else {
       expect(first.view().error).toContain(code);
       expect(first.view().error).not.toMatch(/private|keychain detail|storage detail/);
+      const firstError = first.view().error;
+      f.sockets[0].onerror?.();
+      expect(first.view().error).toBe(firstError);
     }
     await first.close();
+    expect(first.view().journal).toMatchObject({
+      phase: 'aborted',
+      reserved: [],
+    });
+    expect(first.view().error).toBeUndefined();
+    expect(f.views[f.views.length - 1].error).toBeUndefined();
     expect(reservedCoins(f.wallet).size).toBe(0);
     f.setFault('none');
     const second = await f.join();
@@ -360,7 +426,10 @@ test.each(['initial-write', 'initial-key-create', 'ack-refused'] as const)(
       f.setFault(fault);
       await expect(f.join()).rejects.toThrow(fault === 'ack-refused' ? 'Relay rejected publication' : 'Session persistence failed');
       await drain();
-      expect(f.wallet._kilojoinJournals![f.terms.id]).toMatchObject({ phase: 'aborted', reserved: [] });
+      expect(f.wallet._kilojoinJournals![f.terms.id]).toMatchObject({
+        phase: 'aborted',
+        reserved: [],
+      });
       expect(reservedCoins(f.wallet).size).toBe(0);
       expect(f.sockets[0].closed).toBe(true);
       expect(f.views).toEqual([]);
@@ -387,7 +456,10 @@ test.each((['p2wpkh', 'p2tr'] as const).flatMap(type => ['key-read', 'ciphertext
       const failing = fault === 'key-read' ? Keychain.getGenericPassword : AsyncStorage.setItem;
       (failing as jest.Mock).mockRejectedValueOnce(new Error('private synthetic cancellation detail'));
       await expect(first.close()).rejects.toThrow('Session persistence failed');
-      expect(first.view().journal).toMatchObject({ phase: 'aborted', reserved: [] });
+      expect(first.view().journal).toMatchObject({
+        phase: 'aborted',
+        reserved: [],
+      });
       expect(f.sockets[0].closed).toBe(true);
       await expect(first.close()).resolves.toBeUndefined();
       const second = await f.join();
@@ -413,9 +485,97 @@ test('an authentic creator rejection aborts the unsigned join rather than showin
   try {
     f.setFault('creator-reject');
     const client = await f.join();
-    expect(client.view()).toMatchObject({ session: { phase: 'aborted', seats: [] }, journal: { phase: 'aborted', reserved: [] } });
+    expect(client.view()).toMatchObject({
+      session: { phase: 'aborted', seats: [] },
+      journal: { phase: 'aborted', reserved: [] },
+    });
     expect(client.view().error).toBeUndefined();
     expect(reservedCoins(f.wallet).size).toBe(0);
+    expect(f.sockets[0].events).toHaveLength(1);
+    expect(f.broadcast).not.toHaveBeenCalled();
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('stopping after a relay failure clears the obsolete reservation warning only after durable cancellation', async () => {
+  const f = fixture('p2wpkh', 1);
+  try {
+    const client = await f.join();
+    f.sockets[0].onerror?.();
+    expect(client.view().error).toContain('Could not connect');
+    expect(reservedCoins(f.wallet).size).toBe(1);
+    const app = BlueApp.getInstance();
+    (app.saveToDisk as jest.Mock).mockRejectedValueOnce(new Error('synthetic journal write failure'));
+    await expect(client.close()).rejects.toThrow();
+    expect(client.view().journal.phase).toBe('joined');
+    expect(client.view().error).toContain('Coins remain reserved');
+    expect(reservedCoins(f.wallet).size).toBe(1);
+    await client.close();
+    expect(client.view().journal).toMatchObject({
+      phase: 'aborted',
+      reserved: [],
+    });
+    expect(client.view().error).toBeUndefined();
+    expect(f.views[f.views.length - 1].error).toBeUndefined();
+    expect(reservedCoins(f.wallet).size).toBe(0);
+    const count = f.views.length;
+    f.sockets[0].onerror?.();
+    await drain();
+    expect(f.views).toHaveLength(count);
+    expect(f.broadcast).not.toHaveBeenCalled();
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('a terminal creator rejection cannot be replaced by a later relay reservation warning', async () => {
+  const f = fixture('p2wpkh', 1);
+  try {
+    f.setFault('creator-reject');
+    const client = await f.join();
+    expect(client.view().journal).toMatchObject({
+      phase: 'aborted',
+      reserved: [],
+    });
+    f.sockets[0].onerror?.();
+    expect(client.view().error).toBeUndefined();
+    expect(reservedCoins(f.wallet).size).toBe(0);
+    expect(f.broadcast).not.toHaveBeenCalled();
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test.each(['p2wpkh', 'p2tr'] as const)('full %s startup tolerates an unrelated Lightning wallet with payment history', async type => {
+  const f = fixture(type, 1);
+  try {
+    const lightning = new LightningCustodianWallet();
+    lightning.transactions_raw = [{ type: 'paid_invoice', amt: 1, fee: 0, timestamp: 1000 }];
+    BlueApp.getInstance().wallets.push(lightning);
+    const client = await f.join();
+    expect(client.view().error).toBeUndefined();
+    expect(client.view().session).toMatchObject({ phase: 'voting', sequence: 5 });
+    expect(client.view().session.seats).toHaveLength(5);
+    expect(reservedCoins(f.wallet)).toEqual(new Set([outpoint(f.ownCoin)]));
+    expect(f.sockets[0].events).toHaveLength(1);
+    expect(f.broadcast).not.toHaveBeenCalled();
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test.each(['p2wpkh', 'p2tr'] as const)('full %s startup still rejects a roster using another on-chain wallet input', async type => {
+  const f = fixture(type, 1);
+  try {
+    const other = new XbtSegwitBech32Wallet();
+    jest.spyOn(other, 'getDerivedUtxoFromOurTransaction').mockReturnValue([f.peers[0].coin as never]);
+    BlueApp.getInstance().wallets.push(other);
+    const client = await f.join();
+    expect(other.getDerivedUtxoFromOurTransaction).toHaveBeenCalledWith(true);
+    expect(client.view().error).toContain('KJ-WALLET-INPUTS');
+    expect(client.view().session).toMatchObject({ phase: 'open', seats: [] });
+    expect(reservedCoins(f.wallet)).toEqual(new Set([outpoint(f.ownCoin)]));
     expect(f.sockets[0].events).toHaveLength(1);
     expect(f.broadcast).not.toHaveBeenCalled();
   } finally {

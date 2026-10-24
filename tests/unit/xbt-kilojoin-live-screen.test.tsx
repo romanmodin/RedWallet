@@ -28,7 +28,9 @@ const mockView = {
 };
 const mockApprove = jest.fn(async () => {}),
   mockClose = jest.fn(async () => {});
+let mockEmit: ((view: unknown) => void) | undefined;
 const mockJoin = jest.fn(async (config: { onUpdate: (view: unknown) => void }) => {
+  mockEmit = config.onUpdate;
   config.onUpdate(mockView);
   return { view: () => mockView, approve: mockApprove, close: mockClose };
 });
@@ -77,6 +79,8 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 beforeEach(() => {
+  jest.clearAllMocks();
+  mockEmit = undefined;
   mockSearchMode = 'pool';
   mockFinishSearch = undefined;
 });
@@ -154,3 +158,51 @@ test('shows rejected discovery and allows a successful retry', async () => {
   expect(screen.getByText('1 compatible open pool found. Listening for updates.')).toBeTruthy();
   expect(screen.queryByText('Relay rejected the subscription')).toBeNull();
 });
+
+test.each(['aborted', 'uncertain', 'joined'] as const)(
+  'stopped-session display follows the durable %s journal, not the session phase',
+  async phase => {
+    jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
+    jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([{ txid: '11'.repeat(32), vout: 0, value: 50000 } as never]);
+    const screen = render(<CoinjoinLive experimentalAcknowledged />);
+    await act(async () => {
+      fireEvent.press(screen.getByText('○ Test wallet'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByText('Find pools'));
+    });
+    fireEvent.press(screen.getByText('○ 10,000 sats · 2/5 · 2 sats/vB'));
+    fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
+    await act(async () => {
+      fireEvent.press(screen.getByText('Join pool and reserve coins'));
+    });
+    await act(async () => {
+      mockEmit!({
+        session: {
+          phase: phase === 'joined' ? 'open' : 'aborted',
+          seats: [],
+          signatures: {},
+        },
+        journal: {
+          phase,
+          reserved: phase === 'aborted' ? [] : ['11'.repeat(32) + ':0'],
+        },
+      });
+    });
+    const released = "Participation stopped. This round's coin reservations have been released.";
+    if (phase === 'aborted') {
+      expect(screen.getByText('Status: Stopped')).toBeTruthy();
+      expect(screen.getByText(released)).toBeTruthy();
+      expect(screen.queryByText('Stop participation')).toBeNull();
+    } else {
+      expect(screen.queryByText(released)).toBeNull();
+      expect(screen.getByText('Stop participation')).toBeTruthy();
+      if (phase === 'uncertain') {
+        expect(screen.getByText('Status: Stopped · coins reserved')).toBeTruthy();
+        expect(screen.getByText('Check retained round confirmation')).toBeTruthy();
+        expect(screen.getByText(/Your signature may have been shared/)).toBeTruthy();
+      } else expect(screen.getByText('Status: open')).toBeTruthy();
+    }
+    expect(mockApprove).not.toHaveBeenCalled();
+  },
+);

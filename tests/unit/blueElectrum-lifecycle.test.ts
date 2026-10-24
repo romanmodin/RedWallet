@@ -1,4 +1,6 @@
 import DefaultPreference from 'react-native-default-preference';
+import Realm from 'realm';
+import { parseVerifiedParentTransaction } from '../../class/xbt/verified-transaction';
 /**
  * Unit tests for the BlueElectrum connection lifecycle / state machine.
  *
@@ -248,6 +250,44 @@ describe('BlueElectrum lifecycle', () => {
       const tx = (await BlueElectrum.multiGetTransactionByTxid(['ef'.repeat(32)], true))['ef'.repeat(32)];
       expect(tx.vin.length).toBeGreaterThan(0);
       expect(tx.vout.length).toBeGreaterThan(0);
+    });
+
+    it.each([false, true])('preserves requested verbose=%s format after an oversized transaction response', async verbose => {
+      const client = created[0] as FakeClient & Record<string, jest.Mock>;
+      const id = bitcoin.Transaction.fromHex(fixture.signed.goodHex).getId();
+      client.blockchainTransaction_getBatch = jest.fn(async () => [{ param: id, error: { code: -32600, message: 'response too large' } }]);
+      client.blockchainTransaction_get.mockResolvedValue(fixture.signed.goodHex);
+      const result = (await BlueElectrum.multiGetTransactionByTxid([id], verbose))[id];
+      if (verbose) expect(result).toMatchObject({ txid: id, vin: expect.any(Array), vout: expect.any(Array) });
+      else {
+        expect(result).toBe(fixture.signed.goodHex);
+        expect(parseVerifiedParentTransaction(id, result as string).getId()).toBe(id);
+      }
+      expect(client.blockchainTransaction_getBatch).toHaveBeenCalledTimes(1);
+      expect(client.blockchainTransaction_get).toHaveBeenCalledTimes(1);
+      expect(client.blockchainTransaction_get).toHaveBeenCalledWith(id, false);
+    });
+
+    it('refetches a decoded object left in the raw-transaction cache by the old oversized-response fallback', async () => {
+      const client = created[0] as FakeClient & Record<string, jest.Mock>;
+      const id = bitcoin.Transaction.fromHex(fixture.signed.goodHex).getId();
+      await BlueElectrum.multiGetTransactionByTxid([], false);
+      const realm = await (Realm.open as jest.Mock).mock.results.at(-1)!.value;
+      expect(realm.isClosed).toBe(false);
+      const lookup = jest.spyOn(realm, 'objectForPrimaryKey').mockReturnValueOnce({
+        cache_value: JSON.stringify(BlueElectrum.txhexToElectrumTransaction(fixture.signed.goodHex)),
+      } as never);
+      client.blockchainTransaction_getBatch = jest.fn(async () => [{ param: id, result: fixture.signed.goodHex }]);
+      try {
+        const result = (await BlueElectrum.multiGetTransactionByTxid([id], false))[id];
+        expect(lookup).toHaveBeenCalledWith('Cache', id + '_non_verbose');
+        expect(result).toBe(fixture.signed.goodHex);
+        expect(client.blockchainTransaction_getBatch).toHaveBeenCalledTimes(1);
+        expect(parseVerifiedParentTransaction(id, result).getId()).toBe(id);
+        expect(() => parseVerifiedParentTransaction('ff'.repeat(32), result)).toThrow('does not match');
+      } finally {
+        lookup.mockRestore();
+      }
     });
 
     it('does not turn an authentication/network error into a retry or empty history', async () => {

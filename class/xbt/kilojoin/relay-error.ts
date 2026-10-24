@@ -1,7 +1,31 @@
+const participantStages = ['KJ-ROSTER-PARSE', 'KJ-BACKEND', 'KJ-WALLET-INPUTS', 'KJ-ROSTER-CHECK'] as const;
+type ParticipantStage = (typeof participantStages)[number];
+class ParticipantStageError extends Error {
+  readonly code: string;
+  constructor(stage: ParticipantStage) {
+    super('Participant stage failed');
+    this.code = participantStages.includes(stage) ? stage : 'KJ-PROCESS';
+  }
+}
 // Classify only known local errors; never retain or display raw peer payloads.
 export function participantFailure(error: unknown): Error {
   const codes: Record<string, string> = {
     'Invalid welcome': 'KJ-WELCOME',
+    'Invalid roster object': 'KJ-ROSTER-SHAPE',
+    'Invalid seats': 'KJ-ROSTER-SHAPE',
+    'Invalid roster size': 'KJ-ROSTER-SHAPE',
+    'Invalid seat input count': 'KJ-ROSTER-SHAPE',
+    'Ambiguous first coin': 'KJ-ROSTER-SHAPE',
+    'Invalid integer/amount': 'KJ-COIN-FORMAT',
+    'Invalid coin public key': 'KJ-COIN-FORMAT',
+    'Unsupported script type': 'KJ-COIN-FORMAT',
+    'Duplicate seat identity': 'KJ-ROSTER-DUPLICATE',
+    'Duplicate change script': 'KJ-ROSTER-DUPLICATE',
+    'Duplicate roster input': 'KJ-ROSTER-DUPLICATE',
+    'Unselected wallet input': 'KJ-WALLET-INPUTS',
+    'Invalid observation request': 'KJ-OBSERVATION',
+    'Invalid observation time': 'KJ-OBSERVATION',
+    'Electrum returned a raw transaction that does not match the requested txid': 'KJ-PARENT',
     'Invalid canonical hex': 'KJ-HEX',
     'Replayed message': 'KJ-REPLAY',
     'Unauthorized message route': 'KJ-ROUTE',
@@ -30,8 +54,19 @@ export function participantFailure(error: unknown): Error {
     'Invalid NIP44 padding': 'KJ-DECRYPT',
     'Invalid UTF8': 'KJ-DECRYPT',
   };
-  const code = error instanceof Error && Object.prototype.hasOwnProperty.call(codes, error.message) ? codes[error.message] : 'KJ-PROCESS';
+  const code =
+    error instanceof ParticipantStageError
+      ? error.code
+      : error instanceof Error && Object.prototype.hasOwnProperty.call(codes, error.message)
+        ? codes[error.message]
+        : 'KJ-PROCESS';
   return new Error('Participant message rejected [' + code + ']');
+}
+
+/** Preserve recognized validation failures; replace unknown details with a fixed stage only. */
+export function participantStageFailure(error: unknown, stage: ParticipantStage): Error {
+  if (participantFailure(error).message !== 'Participant message rejected [KJ-PROCESS]') return error as Error;
+  return new ParticipantStageError(stage);
 }
 
 // Never display raw peer messages or exception details: they may contain private data.
@@ -44,6 +79,12 @@ export function relayFailureMessage(error: Error): string {
     'Relay message queue exceeded': 'The CoinJoin relay sent more messages than the app could safely process.',
   };
   for (const code of [
+    ...participantStages,
+    'KJ-ROSTER-SHAPE',
+    'KJ-COIN-FORMAT',
+    'KJ-ROSTER-DUPLICATE',
+    'KJ-OBSERVATION',
+    'KJ-PARENT',
     'KJ-WELCOME',
     'KJ-HEX',
     'KJ-REPLAY',
