@@ -1,0 +1,16 @@
+{
+  "uploadRun": 40115188795,
+  "runAttempt": 1,
+  "orchestrationCommit": "3bbf309f600f09e40ff438c7db07a66e064d1491",
+  "sourceCommit": "de401667d632ef2e29c783bca1263b4c941ae79c",
+  "build": "1792862343",
+  "ipaSha256": "02032e6203fdb99e1e65395b576636d8fe4e3cf049876e7ebdca8cecdc2dbf9f",
+  "uploadJob": 120938392244,
+  "uploadJobLogSha256": "7fe01235a54034435424957af72a07342196d0aa7ce8e0ee88b3f3a31482b050",
+  "artifact": 12570050760,
+  "artifactSha256": "a3abf1f8ce72dab0750fd0e284d6bd6e4784b42111b93d983d419f91cec4af49",
+  "memberSha256": "4c7894be8f5f187e9052d2129f87e270b69bfe383f9bf44e2678cd5304095417",
+  "uploadCompletedAt": "2026-10-24T17:43:44Z",
+  "testerAvailabilityVerified": false,
+  "walletFirstReviewPreserved": true
+}

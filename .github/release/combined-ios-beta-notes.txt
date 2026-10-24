@@ -1,9 +1,7 @@
-RedWallet XBT 8.0.1 (1792844414) — Kilojoin v4
+RedWallet XBT 8.0.1 (1792862343)
 
-CoinJoin under Settings > Tools now supports compatible v3 single-output pools and v4 pools with 2–5 equal mixed outputs per participant, with fresh receiving addresses and separate blinded output registration. Built in collaboration with Kilombino's Kilojoin protocol.
+Repairs conditional CoinJoin roster failures involving an unrelated Lightning wallet and oversized Electrum transaction responses. Preserves transaction identity checks and on-chain wallet input protections. Clears stale failure text only after a durably resolved round and adds privacy-safe diagnostic stage codes.
 
-Repairs CoinJoin welcome parsing, replayed roster/vote handling, creator-seat verification, and stop/rejoin state handling. Adds logo-tap rotation through off, helmet and armour skins. Includes native entropy and protected identity-storage checks and existing wallet/security improvements.
+Includes earlier Kilojoin welcome, replay, creator-seat and v4 compatibility repairs, plus logo-tap artwork rotation and existing wallet improvements.
 
-CoinJoin remains Experimental and requires explicit live opt-in. Review amounts, recipients and fees before signing. Mixing does not guarantee anonymity; the relay can see your IP and your configured backend can see address queries. Reserved coins and change require the displayed recovery/confirmation steps.
-
-Use a fresh wallet and small test amounts. Hosted iOS and funded regtest tests passed; this does not establish physical-device, ColdWallet, or full mainnet CoinJoin interoperability. Coin color labels and automatic privacy-aware suggestions are not included in this build.
+CoinJoin remains Experimental. The reported physical-iPhone join failure is still under investigation; do not treat these regression fixes as confirmation that live mixing works. Hosted native iOS, funded regtest and software tests passed, but they do not establish full mainnet CoinJoin or physical-device interoperability. Review amounts, recipients and fees before signing. Mixing does not guarantee anonymity; the relay can see your IP and your backend can see address queries. Follow the displayed reservation and change recovery steps.
