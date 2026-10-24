@@ -1,0 +1,216 @@
+{
+  "observedAt": "2026-10-24T19:40:18.846845+00:00",
+  "repository": "romanmodin/RedWallet",
+  "sourceCommit": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+  "baseCommit": "243d298fb45298c730e0a17caa30fc5d95575a63",
+  "sourceTree": "0d65bc64649765ff1ef7aca2d41b28729e757da0",
+  "productionTreeSha256": "40a05608727555d301e6ad0c5d74a25679b6ad3c5179d1209b0f32bbd23fc479",
+  "localQualification": {
+    "unitSuitesPassed": 127,
+    "unitTestsPassed": 2465,
+    "inheritedTestsSkipped": 1,
+    "focusedTestsPassed": 145,
+    "focusedSuitesPassed": 5,
+    "lintAndTypecheckExitCode": 0,
+    "lintWarnings": 19
+  },
+  "exactParentRegression": {
+    "productionCodeUnchanged": true,
+    "failed": 16,
+    "filteredOut": 54,
+    "matchingDiagnosticCases": 8,
+    "safetyDelegationCases": 8
+  },
+  "logs": {
+    "exactParent": {
+      "sha256": "42489149b7d8c5b77c317b34a3eb243bae2d36e83540b77de826a1d64c0f422a"
+    },
+    "focused": {
+      "sha256": "d476daf3867f1be81dd6bbe645e3cf55bfb9ee3eb65bc28edc06dcaea09f3890"
+    },
+    "unit": {
+      "sha256": "1b674a73e1db261ce2b29ac802655c3ddb82b73fb0149d804b9bf31e5415aa59"
+    },
+    "lint": {
+      "sha256": "e861ae967e07652eacd35b9d5a9c1b3da2d410f1de8a4e3ce51e0708175491e5"
+    }
+  },
+  "confirmedConditionalDefect": "HD watch-only wallets inherit a single-address inventory implementation that calls getAddress(), which HD accounts reject. Delegate to the existing HD account; preserve unselected-input rejection.",
+  "limits": [
+    "The matching conditional defect is reproduced; the exact physical-phone CoinJoin cause remains unconfirmed.",
+    "Hosted iOS/regtest qualification does not establish full mainnet CoinJoin, physical-phone or cold-device interoperability.",
+    "Five inherited general wallet UI skips and one inherited unit skip remain.",
+    "Native iOS qualification applies to source 2faf7bb; Android native launcher validation on test-only PR94 does not claim an Android app delivery."
+  ],
+  "nativeAttempt1Failure": {
+    "runId": 40126257565,
+    "attempt": 1,
+    "jobId": 120973723137,
+    "artifactId": 12574662024,
+    "artifactZipSha256": "29562d863db4cc98476b7790577da17d9f6f9ab3a547e180f9802d7d658c9af0",
+    "failedAt": "Add-wallet import control: native observation did not respond",
+    "transactionStageReached": false,
+    "backendCleanupComplete": true,
+    "observations": [
+      "Screenshot remains on empty-wallet home screen after navigation tap.",
+      "Simulator log contains keyboard task-queue timeout; no app exception proving a production defect was identified."
+    ],
+    "resolution": "Unchanged full workflow rerun requested on a fresh hosted runner; original failure retained. No assertions, time limits or retry counts changed."
+  },
+  "fundedEvidence": {
+    "runId": 40126257565,
+    "runAttempt": 2,
+    "artifactId": 12574283915,
+    "zipSha256": "5d058396c01751debd7bfc075500cb912e91faecd03846906e54026704c16e58",
+    "backendReceiptSha256": "c3af5deec65fd406db125da1379cf502dc6584f8bbe959a4e3d726371a4a38d4",
+    "nativeReceiptSha256": "d915e4dca5658a6ba3763f37030c817405cb4d0e2ffe75d8e26604352ce4923b",
+    "sourceCommit": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+    "confirmations": 2,
+    "highFeeDeclineBlockedBroadcast": true,
+    "decodedReviewVerified": true,
+    "backendCleanupComplete": true,
+    "physicalPhone": false,
+    "coldDeviceInteroperability": false
+  },
+  "verifiedAt": "2026-10-24T21:24:14.921006+00:00",
+  "mergedMain": "2e6d25a88e28e6c0c9c71fa29b93a14668bb8d18",
+  "mainProductionMatchesQualifiedSource": true,
+  "qualification": {
+    "verifiedAt": "2026-10-24T21:19:15.870535+00:00",
+    "sourceCommit": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+    "gates": [
+      {
+        "id": 40126258807,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40126258807",
+        "workflow": ".github/workflows/ci.yml",
+        "source": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 40126258783,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40126258783",
+        "workflow": ".github/workflows/e2e-ios.yml",
+        "source": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 40126257565,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40126257565",
+        "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
+        "source": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+        "conclusion": "success",
+        "runAttempt": 2
+      }
+    ],
+    "androidQualified": false
+  },
+  "generalEvidence": {
+    "sourceCommit": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+    "runId": 40126258783,
+    "runAttempt": 1,
+    "artifactId": 12575199894,
+    "zipSha256": "9db0fcafc210d956dccb5b7e3ff2af593c8b362c568132b6a39f44f6b6968aea",
+    "jobId": 120974436454,
+    "logSha256": "9f97335f2b02155e0ae425eb84c7d643c7445be001a69a6d3a8ec366dcdba6dd",
+    "nativeStartupSelftestPassed": true,
+    "testSummaries": [
+      "2026-10-24T20:34:49.0711190Z Test Suites: 1 passed, 1 total",
+      "2026-10-24T20:34:49.0711530Z Tests:       5 skipped, 7 passed, 12 total",
+      "2026-10-24T20:53:19.1024490Z Test Suites: 2 passed, 2 total",
+      "2026-10-24T20:53:19.1026480Z Tests:       8 passed, 8 total",
+      "2026-10-24T20:57:06.5717310Z Test Suites: 1 passed, 1 total",
+      "2026-10-24T20:57:06.5718430Z Tests:       1 passed, 1 total",
+      "2026-10-24T21:18:03.2077720Z Test Suites: 1 passed, 1 total",
+      "2026-10-24T21:18:03.2078280Z Tests:       7 passed, 7 total"
+    ],
+    "images": [
+      {
+        "file": "01-helmet-portrait.png",
+        "sha256": "456c6f61fde451794206e34d0239f880610b48def18e97ad0c2f737588eaebd0",
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "nativeBoundsVerified": true,
+        "visuallyInspected": true
+      },
+      {
+        "file": "02-helmet-landscape.png",
+        "sha256": "61a2f8f45de281f486f35cc80e36e584e30466fcfbb0a10381bb6cb588a0411c",
+        "orientation": "landscape",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "nativeBoundsVerified": true,
+        "visuallyInspected": true
+      },
+      {
+        "file": "02b-helmet-return-portrait.png",
+        "sha256": "cb4bd18a26af90e1f6c37667f2d26c6878873e4fed0966458e1e7d8eb78c0ee7",
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "nativeBoundsVerified": true,
+        "visuallyInspected": true
+      },
+      {
+        "file": "02c-armour-portrait.png",
+        "sha256": "eb39307eaf3cee7d65b7a9b7d131497239d2528373c021463b0d4d26acfa6d35",
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "nativeBoundsVerified": true,
+        "visuallyInspected": true
+      },
+      {
+        "file": "02d-armour-landscape.png",
+        "sha256": "9e6920dca9f06a31f86c192c0bf09729e7a890b9741725748ddc8715001e07f9",
+        "orientation": "landscape",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "nativeBoundsVerified": true,
+        "visuallyInspected": true
+      },
+      {
+        "file": "02e-armour-return-portrait.png",
+        "sha256": "c10cc42967d471114e010457624bf35a312c24ccfa86fe489dd748491d8a8fe0",
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "nativeBoundsVerified": true,
+        "visuallyInspected": true
+      },
+      {
+        "file": "03-pool-discovery.png",
+        "sha256": "cd1477b745f38f53677a1a25ef45d412093b639cbcb8a95c24ef6d55cb5b1c3f",
+        "orientation": "portrait",
+        "pixels": {
+          "width": 1206,
+          "height": 2622
+        },
+        "nativeBoundsVerified": true,
+        "visuallyInspected": true
+      }
+    ],
+    "physicalPhoneInteroperabilityVerified": false,
+    "walletTestsPassed": 15,
+    "inheritedSkippedWalletTests": 5,
+    "artworkDiscoveryTestsPassed": 1,
+    "tlsTestsPassed": 7,
+    "visualObservation": "Both artwork variants and portrait returns inspected; native portrait/landscape bounds and image hashes verified. Live read-only discovery reports six compatible pools. Existing empty-state text/Scan overlap is unchanged. No live join was performed."
+  },
+  "existingAppleReviewPreserved": true,
+  "newSigningUploadOrDeliveryCompleted": false
+}
