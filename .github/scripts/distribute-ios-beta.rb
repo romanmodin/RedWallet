@@ -12,7 +12,7 @@ class BetaReleaseError < StandardError; end
 class RedWalletBetaRelease
   APP_ID = '6817118871'
   BUNDLE_ID = 'com.romanmodin.redwallet'
-  BUILD = '1792686194'
+  BUILD = '1792844414'
   VERSION = '8.0.1'
   GROUPS = [
     { id: '0bc2722a-48b6-4520-871d-dd5a4a8988cb', name: 'Roman iPhone Testing', internal: true },
