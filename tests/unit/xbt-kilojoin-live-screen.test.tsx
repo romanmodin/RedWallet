@@ -201,7 +201,18 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
         expect(screen.getByText('Status: Stopped · coins reserved')).toBeTruthy();
         expect(screen.getByText('Check retained round confirmation')).toBeTruthy();
         expect(screen.getByText(/Your signature may have been shared/)).toBeTruthy();
-      } else expect(screen.getByText('Status: open')).toBeTruthy();
+      } else {
+        expect(screen.getByText('Status: open')).toBeTruthy();
+        expect(screen.getByText('Participants: Awaiting validation')).toBeTruthy();
+        expect(screen.queryByText('Participants: 0')).toBeNull();
+        await act(async () => {
+          mockEmit!({
+            session: { phase: 'open', seats: [{ coins: [] }, { coins: [] }], signatures: {} },
+            journal: { phase: 'joined', reserved: ['11'.repeat(32) + ':0'] },
+          });
+        });
+        expect(screen.getByText('Participants: 2')).toBeTruthy();
+      }
     }
     expect(mockApprove).not.toHaveBeenCalled();
   },

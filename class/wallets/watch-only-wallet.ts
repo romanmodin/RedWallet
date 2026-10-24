@@ -176,6 +176,12 @@ export class WatchOnlyWallet extends LegacyWallet {
     return super.getTransactions();
   }
 
+  getDerivedUtxoFromOurTransaction(returnSpentUtxoAsWell = false) {
+    // The single-address implementation calls getAddress(), which HD accounts reject.
+    if (this._hdWalletInstance) return this._hdWalletInstance.getDerivedUtxoFromOurTransaction(returnSpentUtxoAsWell);
+    return super.getDerivedUtxoFromOurTransaction(returnSpentUtxoAsWell);
+  }
+
   async fetchBalance() {
     if (this.secret.startsWith('xpub') || this.secret.startsWith('ypub') || this.secret.startsWith('zpub')) {
       if (!this._hdWalletInstance) this.init();

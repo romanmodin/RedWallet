@@ -298,7 +298,12 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                       ? 'Stopped · coins reserved'
                       : session?.phase}
               </Text>
-              <Text style={text}>Participants: {session?.seats.length}</Text>
+              <Text style={text}>
+                Participants:{' '}
+                {session && !session.seats.length && ['joining', 'open'].includes(session.phase)
+                  ? 'Awaiting validation'
+                  : session?.seats.length}
+              </Text>
               <Text style={text}>
                 Signatures: {signatureCount}/{inputCount}
               </Text>
