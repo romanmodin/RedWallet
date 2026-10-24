@@ -7,11 +7,36 @@ import sys
 from pathlib import Path
 import subprocess
 import uuid
+import time
+
+
+def traced_command(run, args, timeout):
+    """Retain provisioning output without retrying or changing command deadlines."""
+    started = time.monotonic()
+    row = {'command': args, 'timeoutSeconds': timeout}
+    try:
+        result = run(args, text=True, timeout=timeout, stderr=subprocess.STDOUT)
+        row.update(status='success', output=result)
+        return result.strip()
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        output = error.output or ''
+        if isinstance(output, bytes):
+            output = output.decode(errors='replace')
+        row.update(status='failure', errorType=type(error).__name__, output=output)
+        raise
+    finally:
+        row['elapsedSeconds'] = round(time.monotonic() - started, 3)
+        trace = os.environ.get('REDWALLET_SIMULATOR_TRACE')
+        if trace:
+            path = Path(trace)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open('a') as stream:
+                stream.write(json.dumps(row) + '\n')
 
 
 def prepare(run=subprocess.check_output, config_path=Path('.detoxrc.json'), prototype_id=None, park=False):
     def command(*args, timeout=30):
-        return run(['xcrun', 'simctl', *args], text=True, timeout=timeout, stderr=subprocess.STDOUT).strip()
+        return traced_command(run, ['xcrun', 'simctl', *args], timeout)
 
     prototype_id = prototype_id or os.environ.get('REDWALLET_PREBOOT_SIMULATOR')
     uuid.UUID(prototype_id or '')
@@ -76,7 +101,7 @@ def prepare(run=subprocess.check_output, config_path=Path('.detoxrc.json'), prot
 
 def activate(receipt, source, run=subprocess.check_output, config_path=Path('.detoxrc.json')):
     def command(*args, timeout=30):
-        return run(['xcrun', 'simctl', *args], text=True, timeout=timeout, stderr=subprocess.STDOUT).strip()
+        return traced_command(run, ['xcrun', 'simctl', *args], timeout)
 
     device_id, prototype_id = receipt['deviceId'], receipt['prototypeId']
     uuid.UUID(device_id)
@@ -139,6 +164,7 @@ def record_failure(error, source, directory=Path('artifacts')):
 
 
 if __name__ == '__main__':
+    os.environ['REDWALLET_SIMULATOR_TRACE'] = 'artifacts/selftest-command-trace.jsonl'
     source = None
     try:
         source = checked_out_source()

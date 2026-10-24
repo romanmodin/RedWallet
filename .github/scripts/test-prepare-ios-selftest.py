@@ -292,5 +292,32 @@ class ParkedPreparationTests(unittest.TestCase):
             module.prepare(run, config, OLD, park=True)
         self.assertEqual(config.read_text(), before)
 
+class CommandTraceTests(unittest.TestCase):
+    def test_success_output_and_deadline_are_retained(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = Path(tmp) / 'trace.jsonl'
+            with patch.dict(module.os.environ, {'REDWALLET_SIMULATOR_TRACE': str(trace)}):
+                run = Mock(return_value='Boot finished\n')
+                self.assertEqual(module.traced_command(run, ['xcrun', 'simctl', 'bootstatus', ID, '-b'], 300), 'Boot finished')
+            row = json.loads(trace.read_text())
+            self.assertEqual(row['output'], 'Boot finished\n')
+            self.assertEqual(row['timeoutSeconds'], 300)
+            self.assertEqual(row['status'], 'success')
+            run.assert_called_once()
+
+    def test_timeout_preserves_partial_output_and_original_error_without_retry(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = Path(tmp) / 'trace.jsonl'
+            error = subprocess.TimeoutExpired(['container'], 30, output=b'partial')
+            run = Mock(side_effect=error)
+            with patch.dict(module.os.environ, {'REDWALLET_SIMULATOR_TRACE': str(trace)}):
+                with self.assertRaises(subprocess.TimeoutExpired) as caught:
+                    module.traced_command(run, ['container'], 30)
+            self.assertIs(caught.exception, error)
+            self.assertEqual(json.loads(trace.read_text())['output'], 'partial')
+            run.assert_called_once()
+
 if __name__ == '__main__':
     unittest.main()
