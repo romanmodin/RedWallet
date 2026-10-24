@@ -34,7 +34,7 @@ def traced_command(run, args, timeout):
                 stream.write(json.dumps(row) + '\n')
 
 
-def prepare(run=subprocess.check_output, config_path=Path('.detoxrc.json'), prototype_id=None, park=False):
+def prepare(run=subprocess.check_output, config_path=Path('.detoxrc.json'), prototype_id=None, park=False, cold=False):
     def command(*args, timeout=30):
         return traced_command(run, ['xcrun', 'simctl', *args], timeout)
 
@@ -56,13 +56,14 @@ def prepare(run=subprocess.check_output, config_path=Path('.detoxrc.json'), prot
     if len(matches) != 1:
         raise ValueError('Expected exactly one preboot simulator')
     runtime, prototype = matches[0]
-    allowed_states = {'Booted', 'Shutdown'} if park else {'Booted'}
+    allowed_states = {'Booted', 'Shutdown'} if park or cold else {'Booted'}
     if prototype.get('state') not in allowed_states or prototype.get('deviceTypeIdentifier') != selected:
         raise ValueError('Preboot simulator type/state does not match')
     # In park mode, inventory and prepare the disposable simulator before the
     # original's first boot. Listing types after first-boot migration stalled in
     # 40025524053. Keep the same bounded commands and reject transitional states.
-    # Direct mode still requires a booted original, as before.
+    # Explicit --fresh also accepts a shutdown prototype, using the new device
+    # immediately without the park/reboot handoff. Legacy direct mode is unchanged.
     if prototype['state'] == 'Booted':
         command('shutdown', prototype_id)
     device_id = command('create', 'RedWallet-selftest-' + uuid.uuid4().hex, selected, runtime)
@@ -171,8 +172,8 @@ if __name__ == '__main__':
         mode = sys.argv[1] if len(sys.argv) == 2 else ''
         if mode == '--activate':
             receipt = activate(json.loads(Path('artifacts/selftest-prepared.json').read_text()), source)
-        elif mode in ['', '--park']:
-            receipt = prepare(park=mode == '--park')
+        elif mode in ['', '--park', '--fresh']:
+            receipt = prepare(park=mode == '--park', cold=mode == '--fresh')
         else:
             raise ValueError('Unexpected simulator preparation mode')
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:

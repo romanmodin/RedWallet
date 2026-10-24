@@ -1,0 +1,9 @@
+{
+  "source": "d17d856dff08c0f0954dcbcad4a9263c7b2a4bfe",
+  "run": 40077469722,
+  "attempt": 1,
+  "artifact": 12555098402,
+  "sha256": "bf2bae6cf6380d063b419c835643c8b200f31b63f83c8c8a9ae1112f540f8366",
+  "finding": "All seven TLS tests passed. Fresh-device first install/container lookup succeeded (4.097s). After parking and reactivation, bootstatus finished (69.372s), but get_app_container timed out with empty output (33.657s elapsed, 30s deadline). Native selftest never reached. OS cause unknown.",
+  "correction": "Use freshly created/installed/verified simulator immediately for unchanged startup and wallet tests, then artwork/discovery and unchanged TLS cases. No park/reactivation handoff. No deadline/retry/assertion changes. Native qualification pending."
+}

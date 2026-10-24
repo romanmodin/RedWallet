@@ -292,6 +292,41 @@ class ParkedPreparationTests(unittest.TestCase):
             module.prepare(run, config, OLD, park=True)
         self.assertEqual(config.read_text(), before)
 
+class ImmediatePreparationTests(unittest.TestCase):
+    scenario = PreparationTests.scenario
+
+    def test_cold_prototype_stays_off_and_fresh_device_is_used_without_reboot(self):
+        config, run = self.scenario()
+        replies = list(run.side_effect)
+        devices = json.loads(replies[1])
+        devices['devices']['com.apple.iOS-26-5'][0]['state'] = 'Shutdown'
+        replies[1] = json.dumps(devices)
+        del replies[2]
+        run.side_effect = replies
+        receipt = module.prepare(run, config, OLD, cold=True)
+        calls = [c.args[0][2:] for c in run.call_args_list]
+        self.assertEqual([c for c in calls if c[0] == 'boot'], [['boot', ID]])
+        self.assertFalse(any(c[0] == 'shutdown' for c in calls))
+        self.assertEqual(json.loads(config.read_text())['devices']['simulator']['device'], {'id': ID})
+        self.assertFalse(receipt['parked'])
+        self.assertFalse(receipt['appLaunched'])
+        self.assertTrue(receipt['appInstalled'])
+        self.assertEqual(run.call_count, 7)
+
+    def test_transitional_prototype_fails_before_creating_device(self):
+        for state in ['Booting', 'Shutting Down']:
+            config, run = self.scenario()
+            replies = list(run.side_effect)
+            devices = json.loads(replies[1])
+            devices['devices']['com.apple.iOS-26-5'][0]['state'] = state
+            replies[1] = json.dumps(devices)
+            run.side_effect = replies
+            before = config.read_text()
+            with self.assertRaises(ValueError):
+                module.prepare(run, config, OLD, cold=True)
+            self.assertEqual(run.call_count, 2)
+            self.assertEqual(config.read_text(), before)
+
 class CommandTraceTests(unittest.TestCase):
     def test_success_output_and_deadline_are_retained(self):
         from unittest.mock import patch
