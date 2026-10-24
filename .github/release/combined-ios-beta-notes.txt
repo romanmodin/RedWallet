@@ -1,8 +1,8 @@
-RedWallet XBT 8.0.1 (1792686194) — Kilojoin v4
+RedWallet XBT 8.0.1 (1792844414) — Kilojoin v4
 
 CoinJoin under Settings > Tools now supports compatible v3 single-output pools and v4 pools with 2–5 equal mixed outputs per participant, with fresh receiving addresses and separate blinded output registration. Built in collaboration with Kilombino's Kilojoin protocol.
 
-Includes CoinJoin join/recovery fixes, native entropy and protected identity-storage checks, corrected optional artwork framing, pool discovery progress/errors, and the combined wallet/security improvements.
+Repairs CoinJoin welcome parsing, replayed roster/vote handling, creator-seat verification, and stop/rejoin state handling. Adds logo-tap rotation through off, helmet and armour skins. Includes native entropy and protected identity-storage checks and existing wallet/security improvements.
 
 CoinJoin remains Experimental and requires explicit live opt-in. Review amounts, recipients and fees before signing. Mixing does not guarantee anonymity; the relay can see your IP and your configured backend can see address queries. Reserved coins and change require the displayed recovery/confirmation steps.
 

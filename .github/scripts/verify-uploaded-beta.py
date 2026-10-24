@@ -7,9 +7,9 @@ import subprocess
 from pathlib import Path
 
 REPO = 'romanmodin/RedWallet'
-PUBLIC = '286e875cb488365eeb00799b6c04305994ab9db7'
-ORCHESTRATION = 'b881585e528a9d06b20f67b28a774bd540f3fd20'
-UPLOAD_RUN = '39799087741'
+PUBLIC = '9bc111733801849786a5026a04325afd269e20c0'
+ORCHESTRATION = '4b1f4acebbbaea5a173ca187f578fd7009206083'
+UPLOAD_RUN = '40093078804'
 
 
 def api(path):
@@ -38,7 +38,7 @@ for required in ('build', 'testflight-upload'):
 verifier = runpy.run_path(str(Path(__file__).with_name('verify-ios-release-gates.py')))
 gate_receipts = []
 for rid, (_, workflow, required_jobs) in zip(
-    ('39711126561', '39711126600', '39711154580'), verifier['GATES']
+    ('40084845943', '40084845962', '40084873225'), verifier['GATES']
 ):
     gate = api(f'repos/{REPO}/actions/runs/{rid}')
     gate_jobs = api(f"repos/{REPO}/actions/runs/{rid}/attempts/{gate['run_attempt']}/jobs?per_page=100")['jobs']
@@ -46,12 +46,12 @@ for rid, (_, workflow, required_jobs) in zip(
 
 receipt = json.loads(Path(os.environ['UPLOAD_RECEIPT_PATH']).read_text())
 expected = {
-    'ipaSha256': '4d0dc7e91c2acd01eac6d9efe07c574724c28c1483c663e013a8259d2bf5e77e',
+    'ipaSha256': '3857e451dd1f7dd164400b562d0524452738c8075823bcb0fba4274da182d6ee',
     'publicSourceCommit': PUBLIC,
     'sourceCommit': PUBLIC,
     'orchestrationCommit': ORCHESTRATION,
-    'productionTreeSha256': '8a9e96245cbc910bf5e30031728ac9345ff480787fa62158122108c53039b1fe',
-    'productionPathCount': 989,
+    'productionTreeSha256': '3531f2f87b5b1c4e878aaadd1456c09f7ccbe16ee3e9baf85903b0f56adcb2d1',
+    'productionPathCount': 1008,
     'signatureVerification': 'passed',
     'sourceMappingVerification': 'passed'
 }
@@ -60,5 +60,5 @@ assert receipt['qualification']['sourceCommit'] == PUBLIC
 assert receipt['qualification']['gates'] == gate_receipts, 'Package qualification differs from current gate attempts'
 bundles = receipt['bundles']
 assert len(bundles) == 2 and {b['bundleId'] for b in bundles} == {'com.romanmodin.redwallet', 'com.romanmodin.redwallet.Stickers'}
-assert all(b['version'] == '8.0.1' and b['build'] == '1792686194' and b['architectures'] == ['arm64'] for b in bundles), 'Wrong iPhone package'
+assert all(b['version'] == '8.0.1' and b['build'] == '1792844414' and b['architectures'] == ['arm64'] for b in bundles), 'Wrong iPhone package'
 print('PASS: uploaded IPA, exact production source, and completed iOS/software gates verified')

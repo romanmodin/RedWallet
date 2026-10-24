@@ -1,0 +1,73 @@
+{
+  "uploadRunId": 40093078804,
+  "artifactId": 12562171551,
+  "zipSha256": "51d5aeaaeff31e850dd4a474286a4009e6afe5103e4104a577b50a18aefbd54e",
+  "receiptSha256": "40bdf433a2853a8234b3836758d5381339823d7c6ec3629efbc1e67f79b6f77f",
+  "actualUploadReceipt": {
+    "ipaSha256": "3857e451dd1f7dd164400b562d0524452738c8075823bcb0fba4274da182d6ee",
+    "bundles": [
+      {
+        "bundleId": "com.romanmodin.redwallet",
+        "version": "8.0.1",
+        "build": "1792844414",
+        "architectures": [
+          "arm64"
+        ],
+        "profileExpires": "2027-09-28T21:32:14"
+      },
+      {
+        "bundleId": "com.romanmodin.redwallet.Stickers",
+        "version": "8.0.1",
+        "build": "1792844414",
+        "architectures": [
+          "arm64"
+        ],
+        "profileExpires": "2027-09-28T21:32:14"
+      }
+    ],
+    "signatureVerification": "passed",
+    "sourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+    "publicRepository": "https://github.com/romanmodin/RedWallet",
+    "publicSourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+    "productionTreeSha256": "3531f2f87b5b1c4e878aaadd1456c09f7ccbe16ee3e9baf85903b0f56adcb2d1",
+    "productionPathCount": 1008,
+    "sourceMappingVerification": "passed",
+    "treeDefinition": "git ls-tree -r COMMIT, excluding .github/, tests/, fastlane/metadata/, zapstore.yaml and *.md; includes mode, object ID, path and trailing newline",
+    "binaryReproducibilityVerified": false,
+    "qualification": {
+      "verifiedAt": "2026-10-24T13:35:49.844909+00:00",
+      "sourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+      "gates": [
+        {
+          "id": 40084845943,
+          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084845943",
+          "workflow": ".github/workflows/ci.yml",
+          "source": "9bc111733801849786a5026a04325afd269e20c0",
+          "conclusion": "success",
+          "runAttempt": 1
+        },
+        {
+          "id": 40084845962,
+          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084845962",
+          "workflow": ".github/workflows/e2e-ios.yml",
+          "source": "9bc111733801849786a5026a04325afd269e20c0",
+          "conclusion": "success",
+          "runAttempt": 1
+        },
+        {
+          "id": 40084873225,
+          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084873225",
+          "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
+          "source": "9bc111733801849786a5026a04325afd269e20c0",
+          "conclusion": "success",
+          "runAttempt": 1
+        }
+      ],
+      "androidQualified": false
+    },
+    "orchestrationCommit": "4b1f4acebbbaea5a173ca187f578fd7009206083"
+  },
+  "testerAvailabilityVerified": false,
+  "appReviewReplacementSubmitted": false,
+  "walletFirstReviewPreserved": true
+}
