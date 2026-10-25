@@ -1,3 +1,4 @@
+import { rejectionDetails, safeRosterFailureCode, rosterInputDetail } from './feedback';
 import { chainDiagnostics, ChainDiagnostic } from './chain-error';
 import type { Journal } from './round';
 import type { SessionState } from './session';
@@ -11,10 +12,21 @@ export function coinjoinProgress(session: SessionState, journal: Journal): { tit
     };
   if (journal.phase === 'aborted') {
     if (session.terminalCause === 'creator-rejected')
-      return { title: 'Rejected by pool', detail: 'The pool creator rejected this participation attempt.' };
+      return {
+        title: 'Rejected by pool',
+        detail:
+          session.terminalReason && Object.prototype.hasOwnProperty.call(rejectionDetails, session.terminalReason)
+            ? rejectionDetails[session.terminalReason]
+            : rejectionDetails.unknown,
+      };
     if (session.terminalCause === 'creator-aborted') return { title: 'Aborted by pool', detail: 'The pool creator aborted the round.' };
     return { title: 'Stopped', detail: 'Participation has ended.' };
   }
+  if (session.lastRosterFailure && ['open', 'voting'].includes(session.phase))
+    return {
+      title: 'Validation failed (' + safeRosterFailureCode(session.lastRosterFailure) + ')',
+      detail: 'The latest participant list failed validation. Coins remain reserved.' + rosterInputDetail(session.lastRosterFailureInput),
+    };
   switch (session.phase) {
     case 'joining':
       return { title: 'Joining pool', detail: 'Waiting for the pool creator to accept the join request.' };

@@ -41,6 +41,7 @@ export function participantFailure(error: unknown): Error {
     'Missing, stale or mismatched chain observation': 'KJ-CHAIN',
     'CoinJoin requires a verified confirmed unspent coin': 'KJ-CHAIN',
     'Unverified chain tip': 'KJ-TIP',
+    'CoinJoin backend observations unavailable': 'KJ-BACKEND',
     'Immature CoinJoin coinbase': 'KJ-MATURITY',
     'Session action pending': 'KJ-BUSY',
     'Invalid or expired session phase': 'KJ-PHASE',

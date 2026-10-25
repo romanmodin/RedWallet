@@ -22,6 +22,7 @@ export class ChainValidationError extends Error {
   constructor(
     readonly code: ChainDiagnostic,
     message: string,
+    readonly inputIndex?: number,
   ) {
     super(message);
   }

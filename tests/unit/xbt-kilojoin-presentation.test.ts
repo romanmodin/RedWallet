@@ -54,3 +54,34 @@ test('unknown details cannot appear in the fixed explanation', () => {
 test('selected-coin failure is distinct from the whole-wallet inventory', () => {
   expect(coinjoinIssue('Selected coins are no longer available').category).toBe('Coin selection');
 });
+
+test.each(['private peer text', 'KJ-PRIVATE', '__proto__'])('offline review: untrusted persisted diagnostic cannot leak: %s', code => {
+  const state = {
+    phase: 'open',
+    sequence: 0,
+    deadline: 12000,
+    signatures: {},
+    seats: [],
+    lastRosterFailure: code,
+    lastRosterFailureInput: { seat: 1, coinPrefix: 'private peer text' },
+  } as SessionState;
+  const result = coinjoinProgress(state, { phase: 'joined' } as Journal);
+  expect(result.title).toBe('Validation failed (KJ-PROCESS)');
+  expect(result.detail).not.toContain('private');
+});
+test.each(['complete', 'uncertain', 'aborted'])('offline review: journal %s still takes precedence over roster failure', phase => {
+  const state = { phase: 'open', sequence: 0, deadline: 12000, signatures: {}, seats: [], lastRosterFailure: 'KJ-CHAIN' } as SessionState;
+  expect(coinjoinProgress(state, { phase } as Journal).title).toBe(progress('open', 0, phase).title);
+});
+test('offline review: shows only bounded local seat and shortened outpoint', () => {
+  const state = {
+    phase: 'open',
+    sequence: 0,
+    deadline: 12000,
+    signatures: {},
+    seats: [],
+    lastRosterFailure: 'KJ-CHAIN-CONFIRMATION',
+    lastRosterFailureInput: { seat: 2, coinPrefix: '012345abcdef:1' },
+  } as SessionState;
+  expect(coinjoinProgress(state, { phase: 'joined' } as Journal).detail).toContain('Seat 2, coin 012345abcdef:1');
+});
