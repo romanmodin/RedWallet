@@ -1,0 +1,107 @@
+{
+  "runId": 40186113362,
+  "artifactId": 12596018290,
+  "zipSha256": "0961f7c5141c252499d52a1e9f01a318d64442cd687bccb1ed50035436199263",
+  "memberSha256": "f71e2106e79f33631b4f7002cb95af58584c99b071f82e66d44194850953e480",
+  "actualReceipt": {
+    "appId": "6817118871",
+    "version": "8.0.1",
+    "appStoreVersionId": "65cd6bc4-9962-4b77-a3ca-78c115f3a615",
+    "images": [
+      {
+        "family": "iphone",
+        "id": "e1800019-654f-8a97-802d-6d7bd53b2728",
+        "sha256": "23a12d307fe80e7b6a2412b5408cc3f3e9e0c395d3fee310c8528a8f51324d72",
+        "state": "COMPLETE",
+        "reused": true
+      },
+      {
+        "family": "iphone",
+        "id": "01c00019-654f-8a97-8036-f117b25eb41a",
+        "sha256": "1a64d4ae18c12ffe25e349456886536da67dd4076a73fde1b71e153468e04860",
+        "state": "COMPLETE",
+        "reused": false
+      },
+      {
+        "family": "iphone",
+        "id": "b1c00019-654f-8a97-801a-98c963a082f2",
+        "sha256": "1d687e67eb49acc91da0dc030e3eb4bccb3d3b4ac498d7c7d02a590e5dc6d7e9",
+        "state": "COMPLETE",
+        "reused": true
+      },
+      {
+        "family": "iphone",
+        "id": "0cc00019-654f-8a97-803a-1c634df1a317",
+        "sha256": "18d5d1d6532617e97ba2ea613591e40298d657f423f98c163fc8c759a5ce0857",
+        "state": "COMPLETE",
+        "reused": false
+      },
+      {
+        "family": "ipad",
+        "id": "95c00019-654f-8a97-8032-231e54c726a0",
+        "sha256": "f949fbacf7729ac958988a63d3a1878078e9ab8394afaf64bda4be73d4857298",
+        "state": "COMPLETE",
+        "reused": false
+      },
+      {
+        "family": "ipad",
+        "id": "6d400019-654f-8a97-8010-406c33c08e02",
+        "sha256": "7e7c98e621667f2e1a289db2e13b6e5ed184b016ef8a244f74e90cd8b5728fdd",
+        "state": "COMPLETE",
+        "reused": false
+      },
+      {
+        "family": "ipad",
+        "id": "28000019-654f-8a97-801e-27c8f6b9c020",
+        "sha256": "001ed0b530f19e8a2aa9515449fcaed42f55f2286c1894d3537cca611263a62c",
+        "state": "COMPLETE",
+        "reused": false
+      },
+      {
+        "family": "ipad",
+        "id": "4ec00019-654f-8a97-800c-3ee02d3f970b",
+        "sha256": "bb2064c93a0425ddc3910e88b5ae2ca93aeb45fa919655f2da2af8b6eda3b592",
+        "state": "COMPLETE",
+        "reused": false
+      }
+    ],
+    "submitted": false,
+    "checkedAt": "2026-10-25T10:47:40.544Z",
+    "retired": [
+      "83000019-654f-8a97-8004-c2485cf67912",
+      "57c00019-654f-8a97-803b-2bc40acff777",
+      "5a400019-654f-8a97-8038-70b3d0c5063b",
+      "2c000019-654f-8a97-8011-51db148d21ec",
+      "54800019-654f-8a97-803b-a82a76cd66a4",
+      "24400019-654f-8a97-8018-d7d951019b6e"
+    ],
+    "families": [
+      {
+        "displayType": "APP_IPAD_PRO_3GEN_129",
+        "ids": [
+          "95c00019-654f-8a97-8032-231e54c726a0",
+          "6d400019-654f-8a97-8010-406c33c08e02",
+          "28000019-654f-8a97-801e-27c8f6b9c020",
+          "4ec00019-654f-8a97-800c-3ee02d3f970b"
+        ],
+        "state": "COMPLETE"
+      },
+      {
+        "displayType": "APP_IPHONE_67",
+        "ids": [
+          "e1800019-654f-8a97-802d-6d7bd53b2728",
+          "01c00019-654f-8a97-8036-f117b25eb41a",
+          "b1c00019-654f-8a97-801a-98c963a082f2",
+          "0cc00019-654f-8a97-803a-1c634df1a317"
+        ],
+        "state": "COMPLETE"
+      }
+    ],
+    "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+    "captureRunId": 40184204898,
+    "status": "SCREENSHOTS_REPLACED"
+  },
+  "oldReviewRemovalObserver": 40186011096,
+  "appReviewSubmissionPending": true,
+  "phoneFeedback": "Pool accepted; participant validation reports KJ-CHAIN. No confirmed live mix or exact cause."
+}
