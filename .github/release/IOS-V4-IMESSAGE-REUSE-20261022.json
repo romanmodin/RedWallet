@@ -1,9 +1,9 @@
 {
   "status": "UNCHANGED_NATIVE_IOS_SOURCE_VERIFIED",
-  "verifiedAt": "2026-10-25T17:49:04.141704+00:00",
+  "verifiedAt": "2026-10-25T23:16:46.125734+00:00",
   "publicRepository": "romanmodin/RedWallet",
   "previousSourceCommit": "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8",
-  "replacementSourceCommit": "7ac04a84f818fcd31879ee44fc57ddde4a64feb5",
+  "replacementSourceCommit": "814c1ebaccb9ba45544344b3cb7b8534a10ae2a9",
   "scope": "Entire tracked ios/ subtree, including sticker sources, assets, target, schemes and project settings",
   "previousIosTree": "30e39cdee442e7d716cdc95de44ada6df2a523b7",
   "replacementIosTree": "30e39cdee442e7d716cdc95de44ada6df2a523b7",
@@ -14,9 +14,9 @@
   "historicalReceiptRewritten": false,
   "reuseRequiresLiveAppleCompleteAssets": true,
   "newPackageVerificationPending": false,
-  "reason": "Actual new signed main/sticker arm64 bundles and source mapping verified. Entire native ios tree unchanged; prior Apple read-only inspection 40211718193 confirms both historical sticker assets COMPLETE. Live completeness must be checked again before submission.",
-  "signedPackageRunId": 40206122168,
-  "signedPackageBuild": "1792942297",
-  "signedPackageReceiptSha256": "4690f34a2bac1b8451d9729b4030889b9579eb84097b0f036336379fe9b757d9",
-  "liveAppleInspectionRunId": 40211718193
+  "reason": "Actual new signed main/sticker arm64 bundles verified; entire ios subtree unchanged from historical receipt source. Fresh GET40243643531 confirms both original iMessage assets COMPLETE. Check again before submission.",
+  "signedPackageRunId": 40235088029,
+  "signedPackageBuild": "1792963623",
+  "signedPackageReceiptSha256": "a80dc34cfdd8ee8b991ec9a9cd1992a043018f8d3d3e5301f7900257ba3844f7",
+  "liveAppleInspectionRunId": 40243643531
 }

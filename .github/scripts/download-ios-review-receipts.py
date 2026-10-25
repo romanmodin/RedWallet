@@ -8,7 +8,7 @@ import sys
 import zipfile
 from pathlib import Path
 REPO = "romanmodin/RedWallet"
-SOURCE = "7ac04a84f818fcd31879ee44fc57ddde4a64feb5"
+SOURCE = "814c1ebaccb9ba45544344b3cb7b8534a10ae2a9"
 EXPECTED = {
  "ios-ipa-verification.json": (".github/workflows/build-ios-approved-source.yml", "ios-ipa-verification"),
  "testflight-beta-verification.json": (".github/workflows/distribute-ios-beta.yml", "testflight-beta-verification"),
@@ -31,7 +31,7 @@ def main():
   assert run["event"] == "workflow_dispatch" and run["head_branch"] == "main" and run["run_attempt"] == 1
   assert run["status"] == "completed" and run["conclusion"] == "success"
   if receipt["member"] == "ios-ipa-verification.json":
-   assert run["id"] == 40206122168 and run["head_sha"] == "0c4885f252ac36596d28933552fa8bc2a73a4049"
+   assert run["id"] == 40235088029 and run["head_sha"] == "6553a247d6ea73b2e5de47c41e7d5de02c6e3da0"
   artifact = api(f"actions/artifacts/{receipt['artifactId']}")
   assert not artifact["expired"] and artifact["workflow_run"]["id"] == run["id"] and artifact["name"] == name
   assert artifact["digest"] == "sha256:" + receipt["archiveSha256"]
