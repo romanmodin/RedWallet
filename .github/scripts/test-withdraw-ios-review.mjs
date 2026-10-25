@@ -8,11 +8,11 @@ import { REPLACEMENT_SOURCE, OLD_REVIEW } from "./replace-ios-review.mjs";
 function fixture() {
   const prior = "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8";
   const hash =
-    "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc";
+    "6551e126be45b9267d3fc54cf289c146b46a0ff39fcfcd2b233a8c5f323708aa";
   const ipa = {
     sourceCommit: REPLACEMENT_SOURCE,
     publicSourceCommit: REPLACEMENT_SOURCE,
-    orchestrationCommit: "d9af98430004a04e521a98b52780b8e79be1565f",
+    orchestrationCommit: "0c4885f252ac36596d28933552fa8bc2a73a4049",
     ipaSha256: hash,
     signatureVerification: "passed",
     sourceMappingVerification: "passed",
@@ -22,17 +22,17 @@ function fixture() {
     ].map((bundleId) => ({
       bundleId,
       version: "8.0.1",
-      build: "1792915404",
+      build: "1792942297",
       architectures: ["arm64"],
     })),
   };
   const beta = {
     sourceCommit: REPLACEMENT_SOURCE,
-    uploadRunId: "40174840984",
+    uploadRunId: "40206122168",
     ipaSha256: hash,
     appId: "6817118871",
     version: "8.0.1",
-    build: "1792915404",
+    build: "1792942297",
     appleBuildId: "fixture-new-build",
     processingState: "VALID",
     status: "AVAILABLE_TO_TESTERS",
@@ -55,8 +55,8 @@ function fixture() {
   });
   const main = {
     ...shots(8, "main"),
-    sourceCommit: "286e875cb488365eeb00799b6c04305994ab9db7",
-    captureRunId: 39799093428,
+    sourceCommit: "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+    captureRunId: 40184204898,
     status: "SCREENSHOTS_REPLACED",
   };
   const stickers = {
@@ -66,7 +66,7 @@ function fixture() {
   };
   const capture = {
     sourceCommit: REPLACEMENT_SOURCE,
-    captureRunId: 40184204898,
+    captureRunId: 40206124543,
     captureAttempt: 1,
     visuallyReviewed: true,
     images: Array(8).fill({}),
@@ -160,4 +160,20 @@ test("safe withdrawal diagnostics retain only controlled errors", async () => {
     safeWithdrawalError(new Error("PRIVATE TOKEN SECRET")),
     "Unexpected withdrawal failure; private raw diagnostics omitted",
   );
+});
+
+test("the previously withdrawn historical review cannot be canceled again", async () => {
+  let calls = 0;
+  const api = withdrawalClient("fixture", async () => {
+    calls++;
+    return { ok: true, status: 200, json: async () => ({ data: {} }) };
+  });
+  const id = "c2891ecc-4a54-4389-bf6a-05015df8d80f";
+  await assert.rejects(
+    api("PATCH", "/v1/reviewSubmissions/" + id, {
+      data: { type: "reviewSubmissions", id, attributes: { canceled: true } },
+    }),
+    /cannot select/,
+  );
+  assert.equal(calls, 0);
 });

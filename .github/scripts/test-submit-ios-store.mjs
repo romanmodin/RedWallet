@@ -21,7 +21,7 @@ const APP = "6817118871",
   L = "67c79fa3-be47-4fc0-94c5-713836f9d262";
 function fixture(options = {}) {
   const c = {
-      build: options.replacement ? "1792700000" : "new-build-number",
+      build: options.replacement ? "1792942297" : "new-build-number",
       sourceCommit: options.replacement ? REPLACEMENT_SOURCE : undefined,
       appleBuildId: "new-build-id",
       ipaSha256: "hash",
@@ -284,28 +284,28 @@ test("submission client rejects agreements, other apps, build uploads, and arbit
 
 // Negative receipt cases cover stale or unrelated captures before any Apple write.
 test("submission receipts must belong to the exact signed release and both reviewed screenshot families", () => {
-  const source = "14b44bf69a346e1a0787e6aed1f3d3343950a0f1";
+  const source = "7ac04a84f818fcd31879ee44fc57ddde4a64feb5";
   const ipa = {
     sourceCommit: source,
     publicSourceCommit: source,
-    orchestrationCommit: "d9af98430004a04e521a98b52780b8e79be1565f",
+    orchestrationCommit: "0c4885f252ac36596d28933552fa8bc2a73a4049",
     signatureVerification: "passed",
     sourceMappingVerification: "passed",
     ipaSha256:
-      "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc",
+      "6551e126be45b9267d3fc54cf289c146b46a0ff39fcfcd2b233a8c5f323708aa",
     bundles: [
       "com.romanmodin.redwallet",
       "com.romanmodin.redwallet.Stickers",
     ].map((bundleId) => ({
       bundleId,
       version: "8.0.1",
-      build: "1792915404",
+      build: "1792942297",
       architectures: ["arm64"],
     })),
   };
   const beta = {
     sourceCommit: source,
-    uploadRunId: "40174840984",
+    uploadRunId: "40206122168",
     ipaSha256: ipa.ipaSha256,
     processingState: "VALID",
     status: "AVAILABLE_TO_TESTERS",
@@ -319,7 +319,7 @@ test("submission receipts must belong to the exact signed release and both revie
     bundleId: "com.romanmodin.redwallet",
     version: "8.0.1",
     appleBuildId: "new-build-id",
-    build: "1792915404",
+    build: "1792942297",
   };
   const identity = {
     appId: APP,
@@ -330,7 +330,7 @@ test("submission receipts must belong to the exact signed release and both revie
   const shots = {
     ...identity,
     status: "SCREENSHOTS_REPLACED",
-    captureRunId: 40184204898,
+    captureRunId: 40206124543,
     images: ["iphone", "ipad"].flatMap((family) =>
       Array.from({ length: 4 }, (_, i) => ({
         family,
@@ -356,11 +356,11 @@ test("submission receipts must belong to the exact signed release and both revie
     previousIosTree: "30e39cdee442e7d716cdc95de44ada6df2a523b7",
     replacementIosTree: "30e39cdee442e7d716cdc95de44ada6df2a523b7",
     newPackageVerificationPending: false,
-    signedPackageRunId: 40174840984,
+    signedPackageRunId: 40206122168,
     signedPackageBuild: beta.build,
   };
   const verify = (i, b, s, m, r = reuse) => verifyReceipts(i, b, s, m, r);
-  assert.equal(verify(ipa, beta, shots, message).build, "1792915404");
+  assert.equal(verify(ipa, beta, shots, message).build, "1792942297");
   assert.throws(
     () => verify(ipa, beta, shots, { ...message, sourceCommit: "old" }),
     /iMessage/,
@@ -472,7 +472,7 @@ test("V4 notes preserve prior text and are idempotent", () => {
       V4_REVIEW_NOTE +
       "\n\n" +
       COINJOIN_KNOWN_ISSUE_NOTE,
-  SUPERSEDED_COINJOIN_NOTES,
+    SUPERSEDED_COINJOIN_NOTES,
   );
   assert.equal(v4ReviewNotes(n), n);
   assert.throws(() => v4ReviewNotes("X".repeat(4000)), /limit/);
@@ -494,7 +494,7 @@ test("known CoinJoin issue is confirmed by read-back before submission is report
   assert.ok(
     noteWrites[0].payload.data.attributes.notes.includes(
       COINJOIN_KNOWN_ISSUE_NOTE,
-  SUPERSEDED_COINJOIN_NOTES,
+      SUPERSEDED_COINJOIN_NOTES,
     ),
   );
   assert.equal(report.knownCoinJoinIssueDisclosed, true);
@@ -601,20 +601,24 @@ test("multiple matching app-info records still stop before policy or submission 
 });
 
 test("refreshes only exact historical CoinJoin disclosure without accumulating notes", () => {
- for (const old of SUPERSEDED_COINJOIN_NOTES) {
-  const original = "PRIVATE instructions and contact details\n\n" + V4_REVIEW_NOTE + "\n\n" + old;
-  const updated = v4ReviewNotes(original);
-  assert.equal(updated, original.replaceAll(old, COINJOIN_KNOWN_ISSUE_NOTE));
-  assert.equal(v4ReviewNotes(updated), updated);
-  assert.ok(updated.includes("KJ-CHAIN"));
- }
+  for (const old of SUPERSEDED_COINJOIN_NOTES) {
+    const original =
+      "PRIVATE instructions and contact details\n\n" +
+      V4_REVIEW_NOTE +
+      "\n\n" +
+      old;
+    const updated = v4ReviewNotes(original);
+    assert.equal(updated, original.replaceAll(old, COINJOIN_KNOWN_ISSUE_NOTE));
+    assert.equal(v4ReviewNotes(updated), updated);
+    assert.ok(updated.includes("KJ-CHAIN"));
+  }
 });
 test("preserves unrelated near-limit notes while replacing the old build disclosure", () => {
- const old = SUPERSEDED_COINJOIN_NOTES[0];
- const prefix = "N".repeat(3990 - V4_REVIEW_NOTE.length - old.length - 4);
- const original = prefix + "\n\n" + V4_REVIEW_NOTE + "\n\n" + old;
- const updated = v4ReviewNotes(original);
- assert.ok(updated.length <= 4000);
- assert.ok(updated.startsWith(prefix + "\n\n"));
- assert.equal(v4ReviewNotes(updated), updated);
+  const old = SUPERSEDED_COINJOIN_NOTES[0];
+  const prefix = "N".repeat(3990 - V4_REVIEW_NOTE.length - old.length - 4);
+  const original = prefix + "\n\n" + V4_REVIEW_NOTE + "\n\n" + old;
+  const updated = v4ReviewNotes(original);
+  assert.ok(updated.length <= 4000);
+  assert.ok(updated.startsWith(prefix + "\n\n"));
+  assert.equal(v4ReviewNotes(updated), updated);
 });

@@ -22,7 +22,7 @@ function fixture(overrides = {}) {
   const c = {
     sourceCommit: REPLACEMENT_SOURCE,
     appleBuildId: "new-build-id",
-    build: "1792915404",
+    build: "1792942297",
   };
   const writes = [];
   let reads = 0;
@@ -221,4 +221,13 @@ test("retained uncertain-write report prevents a second cancellation even if App
     /Prior withdrawal outcome/,
   );
   assert.equal(f.writes.length, 1);
+});
+
+test("the previously submitted build cannot qualify as its own replacement", async () => {
+  const f = fixture();
+  await assert.rejects(
+    withdrawSupersededReview(f.api, { ...f.c, build: "1792915404" }, {}),
+    /qualified release/,
+  );
+  assert.equal(f.writes.length, 0);
 });
