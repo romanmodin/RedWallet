@@ -1,4 +1,6 @@
-RedWallet iOS diagnostic update.
+RedWallet iOS active-pool navigation and diagnostic update.
+
+You can leave the pool screen and use Return to active pool to reopen the same participation while the app remains running. Leaving the screen no longer stops participation. Explicit Stop participation keeps its existing safety behavior. Keep the app open during a round.
 
 CoinJoin remains experimental. This build adds specific coin, backend, validation and pool-rejection diagnostics, shows failed validation distinctly from waiting, and preserves coin reservations and every signing guard. It also handles a reported-tip race and distinguishes incomplete backend responses.
 
