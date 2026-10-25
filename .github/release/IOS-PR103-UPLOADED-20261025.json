@@ -1,0 +1,15 @@
+{
+  "run": 40174840984,
+  "attempt": 1,
+  "orchestration": "d9af98430004a04e521a98b52780b8e79be1565f",
+  "build": "1792915404",
+  "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+  "ipaSha256": "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc",
+  "uploadArtifact": 12592948954,
+  "uploadZipSha256": "27d7e7e1dade3f7548622984e5f40e03daac9d210d8ddb845d05d0894026149b",
+  "uploadMemberSha256": "c40311f77ffa3566beec49e0302c8ce0e0344d4eddb15aeb4c6d3c9f11462d04",
+  "uploadLogSha256": "4d545a0dcd6d837860869754c5c905903a0159ee0acd28bc152a8ad0e63c3912",
+  "packageUploadedAt": "2026-10-25T08:54:04Z",
+  "processingFinishedAt": "2026-10-25T09:02:09Z",
+  "testerAvailabilityVerified": false
+}

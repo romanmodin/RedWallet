@@ -1,9 +1,7 @@
-RedWallet XBT 8.0.1 (1792877655)
+RedWallet XBT 8.0.1 (1792915404)
 
-Repairs early CoinJoin roster validation when another saved account is an HD watch-only wallet. The account's HD inventory is now used while preserving ownership and unselected-input protections. Before the first accepted roster, participants show Awaiting validation instead of a misleading zero.
+Adds distinct CoinJoin progress and error messages for connection, participant validation and local wallet inventory. Preserves the original failure when participation is stopped, and distinguishes reserved coins from released reservations.
 
-Includes earlier Lightning-wallet inventory, raw transaction fallback, welcome/replay/v4 compatibility and stopped-state reservation repairs, plus the existing wallet and artwork improvements.
+Includes prior roster, watch-only and Lightning inventory, transaction fallback and v3/v4 compatibility repairs. CoinJoin remains Experimental. The exact physical-iPhone failure is still under investigation; hosted iOS startup, wallet, TLS and funded regtest checks passed for this source. This does not establish a successful live CoinJoin round.
 
-CoinJoin remains Experimental. The exact physical-iPhone join failure still needs retesting. Required software, hosted iOS wallet/TLS and funded regtest checks passed for this app source; live CoinJoin and physical-device interoperability still require verification. If the previous failed participation remains listed, use Stop participation before starting a fresh attempt. Signed or uncertain reservations retain the displayed recovery requirements.
-
-Review amounts, recipients and fees before signing. Mixing does not guarantee anonymity; the relay can see your IP and your backend can see address queries. Follow the displayed reservation and change recovery steps.
+Review amounts, recipients and fees before signing. Mixing does not guarantee anonymity; the relay can see your IP and your backend can see address queries. Follow displayed reservation and recovery requirements.
