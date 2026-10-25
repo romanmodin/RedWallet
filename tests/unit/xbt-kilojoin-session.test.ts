@@ -1,3 +1,4 @@
+import { coinjoinProgress } from '../../class/xbt/kilojoin/presentation';
 import { participantFailure, relayFailureMessage } from '../../class/xbt/kilojoin/relay-error';
 import { KilojoinRelay } from '../../class/xbt/kilojoin/relay';
 import { generateKeyPairSync, randomBytes } from 'crypto';
@@ -686,7 +687,7 @@ test.each(['roster', 'closing'] as const)('late creator %s still rejects invalid
     await expect(f.receive(body)).rejects.toThrow(
       failure === 'proof' ? 'Invalid ownership proof' : 'Missing, stale or mismatched chain observation',
     );
-    expect(f.session.snapshot()).toEqual(before);
+    expect(f.session.snapshot()).toEqual({ ...before, lastRosterFailure: failure === 'proof' ? 'KJ-PROOF' : 'KJ-CHAIN-OBSERVATION' });
     expect(f.published).toHaveLength(0);
   }
 });
@@ -867,7 +868,11 @@ test.each(['proof', 'chain', 'own-seat', 'persist'] as const)(
     if (fault === 'own-seat') seats[0].token_hash = 'ee'.repeat(32);
     if (fault === 'persist') (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('synthetic storage failure'));
     await expect(f.receive({ type: 'roster', seq: 2, seats })).rejects.toThrow();
-    expect(f.session.snapshot()).toEqual(before);
+    expect(f.session.snapshot()).toEqual(
+      fault === 'persist'
+        ? before
+        : { ...before, lastRosterFailure: { proof: 'KJ-PROOF', chain: 'KJ-CHAIN-OBSERVATION', 'own-seat': 'KJ-WALLET-INPUTS' }[fault] },
+    );
     await expect(f.session.vote(true)).rejects.toThrow('phase');
     expect(f.published).toHaveLength(0);
     expect(f.round.snapshot().reserved).toHaveLength(1);
@@ -1163,7 +1168,7 @@ test.each([1, 5])('welcome sequence excludes pre-join roster history for %i-outp
   await expect(f.receive({ type: 'roster', seq: 2, seats: [f.rawSeats[1]] })).resolves.toBeUndefined();
   expect(f.session.snapshot().seats).toHaveLength(2);
   await expect(f.receive({ type: 'roster', seq: 3, seats: [f.rawSeats[1]] })).rejects.toThrow();
-  expect(f.session.snapshot()).toEqual(accepted);
+  expect(f.session.snapshot()).toEqual({ ...accepted, lastRosterFailure: 'KJ-OWN-SEAT' });
   expect(f.round.snapshot().reserved).toHaveLength(1);
 });
 
@@ -1411,9 +1416,97 @@ test.each(['proof', 'change', 'chain', 'own-seat'])('identifies a rejected first
     failure => failure,
   );
   expect(error).toBeInstanceOf(Error);
-  const code = { proof: 'KJ-PROOF', change: 'KJ-CHANGE', chain: 'KJ-CHAIN', 'own-seat': 'KJ-OWN-SEAT' }[fault];
+  const code = { proof: 'KJ-PROOF', change: 'KJ-CHANGE', chain: 'KJ-CHAIN-OBSERVATION', 'own-seat': 'KJ-OWN-SEAT' }[fault];
   expect(relayFailureMessage(participantFailure(error))).toContain(`Diagnostic: ${code}.`);
+  expect(f.session.snapshot()).toEqual({ ...before, lastRosterFailure: code });
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  expect(f.published).toHaveLength(0);
+});
+
+test('offline review: retains safe pool rejection code while joining', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'reject', reason: 'that coin is not unspent on the chain' }, true);
+  expect(f.session.snapshot()).toMatchObject({ phase: 'aborted', terminalCause: 'creator-rejected', terminalReason: 'coin-not-unspent' });
+  expect(f.env.saveEncrypted).toHaveBeenLastCalledWith(expect.objectContaining({ terminalReason: 'coin-not-unspent' }));
+  expect(coinjoinProgress(f.session.snapshot(), f.round.snapshot()).detail).toContain('not unspent');
+  expect(f.round.snapshot().reserved).toHaveLength(0);
+  expect(f.published).toHaveLength(0);
+});
+test.each(['private address secret', '__proto__', '', null, 42])('offline review: unknown reject reasons never leak: %s', async reason => {
+  const f = await fixture();
+  await f.receive({ type: 'reject', reason }, true);
+  expect(f.session.snapshot()).toHaveProperty('terminalReason', 'unknown');
+  expect(JSON.stringify(f.session.snapshot())).not.toContain('private address secret');
+  expect(JSON.stringify((f.env.saveEncrypted as jest.Mock).mock.calls)).not.toContain('private address secret');
+});
+test('offline review: failed first roster persists a fixed diagnostic, retains locks, then clears on successful newer roster', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const healthyObserve = f.env.observe;
+  f.env.observe = async () => new Map();
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('chain observation');
+  expect(f.session.snapshot()).toHaveProperty('lastRosterFailure', expect.stringMatching(/^KJ-CHAIN/));
+  expect(f.session.snapshot()).toMatchObject({ phase: 'open', seats: [], sequence: 0 });
+  expect(coinjoinProgress(f.session.snapshot(), f.round.snapshot()).title).toContain('Validation failed');
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  expect(f.published).toHaveLength(0);
+  f.env.observe = healthyObserve;
+  await f.receive({ type: 'roster', seq: 2, seats: f.rawSeats });
+  expect(f.session.snapshot()).not.toHaveProperty('lastRosterFailure');
+  expect(f.session.snapshot().seats).toHaveLength(2);
+  expect(coinjoinProgress(f.session.snapshot(), f.round.snapshot()).title).toBe('In pool');
+  expect(f.published).toHaveLength(0);
+});
+test('offline review: failed diagnostic persistence cannot replace valid session state or release reservations', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const before = f.session.snapshot();
+  f.env.observe = async () => new Map();
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValue(new Error('private storage detail'));
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow('Session persistence failed');
   expect(f.session.snapshot()).toEqual(before);
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  expect(f.published).toHaveLength(0);
+});
+
+test('offline review: direct rejection after welcome remains ignored under existing routing guards', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const before = f.session.snapshot();
+  await f.receive({ type: 'reject', reason: 'that coin is not unspent on the chain' }, true);
+  expect(f.session.snapshot()).toEqual(before);
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+  expect(f.published).toHaveLength(0);
+});
+
+test.each([
+  ["the coin's signature is wrong", 'invalid-proof'],
+  ["the change does not match the pool's fee", 'invalid-change'],
+])('offline review: maps fixed upstream rejection %s', async (reason, code) => {
+  const f = await fixture();
+  await f.receive({ type: 'reject', reason }, true);
+  expect(f.session.snapshot().terminalReason).toBe(code);
+  expect(f.round.snapshot().reserved).toHaveLength(0);
+  expect(f.published).toHaveLength(0);
+});
+
+test('records the precise local chain failure seat and shortened outpoint without publishing', async () => {
+  const { ChainValidationError } = await import('../../class/xbt/kilojoin/chain-error');
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  const coin = f.rawSeats[1].coin;
+  f.env.observe = async () => {
+    throw new ChainValidationError('KJ-CHAIN-CONFIRMATION', 'CoinJoin requires a verified confirmed unspent coin', 1);
+  };
+  await expect(f.receive({ type: 'roster', seq: 1, seats: f.rawSeats })).rejects.toThrow();
+  expect(f.session.snapshot()).toMatchObject({
+    lastRosterFailure: 'KJ-CHAIN-CONFIRMATION',
+    lastRosterFailureInput: { seat: 2, coinPrefix: coin.txid.slice(0, 12) + ':' + coin.vout },
+  });
+  expect(coinjoinProgress(f.session.snapshot(), f.round.snapshot()).detail).toContain('Seat 2');
+  expect(coinjoinProgress(f.session.snapshot(), f.round.snapshot()).detail).not.toContain(coin.txid);
+  expect(f.session.snapshot().sequence).toBe(0);
+  expect(f.session.snapshot().seats).toHaveLength(0);
   expect(f.round.snapshot().reserved).toHaveLength(1);
   expect(f.published).toHaveLength(0);
 });

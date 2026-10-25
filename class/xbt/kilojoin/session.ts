@@ -1,3 +1,5 @@
+import { ChainValidationError } from './chain-error';
+import { rejectionReason, RejectionReason, rosterFailureCode, RosterInputFailure } from './feedback';
 /** Participant-only v3/v4 controller. Transport and secure persistence are injected.
  * This controller never automatically signs or broadcasts a transaction.
  */
@@ -27,6 +29,9 @@ type PendingVote = { by: string; voteId: string; createdAt: number };
 export type SessionState = {
   phase: Phase;
   terminalCause?: TerminalCause;
+  terminalReason?: RejectionReason;
+  lastRosterFailure?: string;
+  lastRosterFailureInput?: { seat: number; coinPrefix: string };
   sequence: number;
   seats: Seat[];
   token?: string;
@@ -268,6 +273,19 @@ export class ParticipantSession {
   }
 
   private async checkedSeats(seats: unknown, seq: number): Promise<Seat[]> {
+    try {
+      return await this.validateSeats(seats, seq);
+    } catch (error) {
+      await this.save({
+        ...this.state,
+        lastRosterFailure: rosterFailureCode(error),
+        lastRosterFailureInput: error instanceof RosterInputFailure ? { seat: error.seat, coinPrefix: error.coinPrefix } : undefined,
+      });
+      throw error;
+    }
+  }
+
+  private async validateSeats(seats: unknown, seq: number): Promise<Seat[]> {
     // Parse/ownership-check first, before making network requests for arbitrary relay data.
     let parsed: Seat[];
     try {
@@ -281,7 +299,13 @@ export class ParticipantSession {
     try {
       chain = await this.env.observe(parsed.flatMap(s => s.coins));
     } catch (error) {
-      throw participantStageFailure(error, 'KJ-BACKEND');
+      const failure = participantStageFailure(error, 'KJ-BACKEND');
+      if (error instanceof ChainValidationError && Number.isSafeInteger(error.inputIndex) && error.inputIndex! >= 0) {
+        const coin = parsed.flatMap(s => s.coins)[error.inputIndex!];
+        const seat = parsed.findIndex(s => s.coins.includes(coin));
+        if (coin && seat >= 0) throw new RosterInputFailure(error, seat + 1, coin.txid.slice(0, 12) + ':' + coin.vout);
+      }
+      throw failure;
     }
     let walletOutpoints: ReadonlySet<string>;
     try {
@@ -358,7 +382,12 @@ export class ParticipantSession {
         case 'abort': {
           const terminalCause: TerminalCause = body.type === 'reject' ? 'creator-rejected' : 'creator-aborted';
           await this.round.cancel();
-          await this.save({ ...this.state, phase: 'aborted', terminalCause });
+          await this.save({
+            ...this.state,
+            phase: 'aborted',
+            terminalCause,
+            terminalReason: body.type === 'reject' ? rejectionReason(body.reason) : undefined,
+          });
           break;
         }
         case 'roster': {
@@ -372,6 +401,8 @@ export class ParticipantSession {
           const next: SessionState = {
             ...this.state,
             seats,
+            lastRosterFailure: undefined,
+            lastRosterFailureInput: undefined,
             sequence: body.seq as number,
           };
           // A fresh pool subscription can return stored vote_open before roster
@@ -482,6 +513,8 @@ export class ParticipantSession {
             ...this.state,
             phase: 'closing',
             seats,
+            lastRosterFailure: undefined,
+            lastRosterFailureInput: undefined,
             roundId,
             deadline: Math.min(deadline as number, this.round.snapshot().deadline),
             prepared: outputStates[0].prepared,
