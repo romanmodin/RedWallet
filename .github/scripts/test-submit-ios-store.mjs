@@ -8,6 +8,7 @@ import {
   v4ReviewNotes,
   V4_REVIEW_NOTE,
   COINJOIN_KNOWN_ISSUE_NOTE,
+  SUPERSEDED_COINJOIN_NOTES,
 } from "./submit-ios-store.mjs";
 import {
   REPLACEMENT_SOURCE,
@@ -471,6 +472,7 @@ test("V4 notes preserve prior text and are idempotent", () => {
       V4_REVIEW_NOTE +
       "\n\n" +
       COINJOIN_KNOWN_ISSUE_NOTE,
+  SUPERSEDED_COINJOIN_NOTES,
   );
   assert.equal(v4ReviewNotes(n), n);
   assert.throws(() => v4ReviewNotes("X".repeat(4000)), /limit/);
@@ -492,6 +494,7 @@ test("known CoinJoin issue is confirmed by read-back before submission is report
   assert.ok(
     noteWrites[0].payload.data.attributes.notes.includes(
       COINJOIN_KNOWN_ISSUE_NOTE,
+  SUPERSEDED_COINJOIN_NOTES,
     ),
   );
   assert.equal(report.knownCoinJoinIssueDisclosed, true);
@@ -595,4 +598,23 @@ test("multiple matching app-info records still stop before policy or submission 
     ),
     false,
   );
+});
+
+test("refreshes only exact historical CoinJoin disclosure without accumulating notes", () => {
+ for (const old of SUPERSEDED_COINJOIN_NOTES) {
+  const original = "PRIVATE instructions and contact details\n\n" + V4_REVIEW_NOTE + "\n\n" + old;
+  const updated = v4ReviewNotes(original);
+  assert.equal(updated, original.replaceAll(old, COINJOIN_KNOWN_ISSUE_NOTE));
+  assert.equal(v4ReviewNotes(updated), updated);
+  assert.ok(updated.includes("KJ-CHAIN"));
+ }
+});
+test("preserves unrelated near-limit notes while replacing the old build disclosure", () => {
+ const old = SUPERSEDED_COINJOIN_NOTES[0];
+ const prefix = "N".repeat(3990 - V4_REVIEW_NOTE.length - old.length - 4);
+ const original = prefix + "\n\n" + V4_REVIEW_NOTE + "\n\n" + old;
+ const updated = v4ReviewNotes(original);
+ assert.ok(updated.length <= 4000);
+ assert.ok(updated.startsWith(prefix + "\n\n"));
+ assert.equal(v4ReviewNotes(updated), updated);
 });
