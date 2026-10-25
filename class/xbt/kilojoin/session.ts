@@ -287,7 +287,7 @@ export class ParticipantSession {
     try {
       walletOutpoints = this.env.walletOutpoints();
     } catch (error) {
-      throw participantStageFailure(error, 'KJ-WALLET-INPUTS');
+      throw participantStageFailure(error, 'KJ-WALLET-INVENTORY');
     }
     try {
       return validateRoster({ type: 'roster', seq, seats }, this.terms, {
