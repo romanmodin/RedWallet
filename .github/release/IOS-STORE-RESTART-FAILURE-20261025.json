@@ -1,0 +1,13 @@
+{
+  "runId": 40160281167,
+  "attempt": 1,
+  "head": "58b1a26ca5aefa798e8ec8ad6caa990e88eabff1",
+  "appSource": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+  "failure": "iPhone: no response to WalletsList expectation after restart; complete test reached 600000ms deadline",
+  "firstPendingRequest": 65,
+  "logSha256": "c434fd3d157af2fd9389ac2c90fba9f5ce77e0a13abea7bc413c4ed22d0a32a1",
+  "ipadSucceeded": true,
+  "ipadArtifactId": 12586781610,
+  "correction": "Disable synchronization after both capture-only app restarts; preserve screen/toolbar assertions and timeouts. Restore after final capture.",
+  "qualification": "Not yet run; no new screenshot or release claim"
+}
