@@ -430,17 +430,10 @@ describe('RedWallet UI Tests - no wallets', () => {
     await waitForKeyboardToClose();
     await confirmPasswordDialog();
 
-    // trying new password
-    await element(by.id('PasswordInput')).clearText();
-    await element(by.id('PasswordInput')).replaceText('passwordForFakeStorage');
-    await element(by.id('PasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await element(by.id('ConfirmPasswordInput')).clearText();
-    await element(by.id('ConfirmPasswordInput')).replaceText('passwordForFakeStorage'); // retyping
-    await element(by.id('ConfirmPasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await confirmPasswordDialog(); // first time might not always work
-    await sleep(1000); // propagate
+    // After the expected mismatch, focus and fill both secure inputs with
+    // the same platform-safe driver used by the encryption tests. Restore
+    // synchronization before asserting the actual fake-wallet destination.
+    await submitStoragePassword('passwordForFakeStorage', true, () => waitForWalletsList());
     await scrollUpOnHomeScreen();
 
     // created fake storage.
