@@ -1,3 +1,4 @@
+import { ChainValidationError } from './chain-error';
 /** Strict v3 roster validation. Chain observations MUST come from our backend, never the relay. */
 import { hex } from './crypto';
 import { Terms, outputCount } from './protocol';
@@ -110,16 +111,18 @@ export function validateRoster(
       if (context.walletOutpoints.has(id) && (!mine.has(id) || seat.token_hash !== context.ownSeat.token_hash))
         throw new Error('Unselected wallet input');
       const known = context.chain.get(id);
-      if (
-        !known ||
-        !known.unspent ||
-        known.value !== coin.value ||
-        known.script !== coinScript(coin).toString('hex') ||
-        !Number.isSafeInteger(known.checkedAt) ||
-        known.checkedAt > context.now ||
-        known.checkedAt < context.now - 60
-      )
-        throw new Error('Missing, stale or mismatched chain observation');
+      if (!known) throw new ChainValidationError('KJ-CHAIN-OBSERVATION', 'Missing, stale or mismatched chain observation');
+      if (!known.unspent) throw new ChainValidationError('KJ-CHAIN-SPENT', 'Missing, stale or mismatched chain observation');
+      if (known.value !== coin.value)
+        throw new ChainValidationError('KJ-CHAIN-OBSERVATION-VALUE', 'Missing, stale or mismatched chain observation');
+      if (known.script !== coinScript(coin).toString('hex'))
+        throw new ChainValidationError('KJ-CHAIN-OBSERVATION-SCRIPT', 'Missing, stale or mismatched chain observation');
+      if (!Number.isSafeInteger(known.checkedAt))
+        throw new ChainValidationError('KJ-CHAIN-TIME', 'Missing, stale or mismatched chain observation');
+      if (known.checkedAt > context.now)
+        throw new ChainValidationError('KJ-CHAIN-FUTURE', 'Missing, stale or mismatched chain observation');
+      if (known.checkedAt < context.now - 60)
+        throw new ChainValidationError('KJ-CHAIN-STALE', 'Missing, stale or mismatched chain observation');
     }
   }
   const own = seats.find(s => s.token_hash === context.ownSeat.token_hash);

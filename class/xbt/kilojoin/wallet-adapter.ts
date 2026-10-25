@@ -1,3 +1,4 @@
+import { ChainValidationError } from './chain-error';
 /** XBT backend and spending-key adapters. Only the explicitly approved session calls the signer. */
 import { address, crypto as bitcoinCrypto } from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
@@ -22,7 +23,7 @@ export async function observeCoins(coins: Coin[], now = () => Math.floor(Date.no
   if (!coins.length || coins.length > 200 || new Set(coins.map(outpoint)).size !== coins.length)
     throw new Error('Invalid observation request');
   const addresses = [...new Set(coins.map(c => address.fromOutputScript(coinScript(c))))];
-  const [raw, unspent, history, tip] = await Promise.all([
+  const [raw, unspent, history, initialTip] = await Promise.all([
     BlueElectrum.multiGetTransactionByTxid(
       coins.map(c => c.txid),
       false,
@@ -33,29 +34,52 @@ export async function observeCoins(coins: Coin[], now = () => Math.floor(Date.no
     BlueElectrum.multiGetHistoryByAddress(addresses),
     BlueElectrum.getReportedBlockTip(),
   ]);
+  let tip = initialTip;
+  let tipRefreshed = false;
+  if (
+    !addresses.every(
+      a =>
+        Object.prototype.hasOwnProperty.call(unspent, a) &&
+        Array.isArray(unspent[a]) &&
+        Object.prototype.hasOwnProperty.call(history, a) &&
+        Array.isArray(history[a]),
+    )
+  )
+    throw new Error('CoinJoin backend observations unavailable');
   if (tip === null || !Number.isSafeInteger(tip) || tip < 1) throw new Error('Unverified chain tip');
   const checkedAt = now(),
     result = new Map<string, ChainCoin>();
-  for (const c of coins) {
+  for (const [inputIndex, c] of coins.entries()) {
     const tx = parseVerifiedParentTransaction(c.txid, raw[c.txid]),
       script = coinScript(c);
     const a = address.fromOutputScript(script),
       output = tx.outs[c.vout];
     const matches = (unspent[a] || []).filter(u => u.txid === c.txid && u.vout === c.vout);
     const entries = (history[a] || []).filter(h => h.tx_hash === c.txid);
-    if (
-      !output ||
-      output.value !== BigInt(c.value) ||
-      Buffer.compare(Buffer.from(output.script), script) !== 0 ||
-      matches.length !== 1 ||
-      entries.length !== 1 ||
-      matches[0].value !== c.value ||
-      !Number.isSafeInteger(matches[0].height) ||
-      matches[0].height <= 0 ||
-      matches[0].height > tip ||
-      entries[0].height !== matches[0].height
-    )
-      throw new Error('CoinJoin requires a verified confirmed unspent coin');
+    if (!output) throw new ChainValidationError('KJ-CHAIN-OUTPUT', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
+    if (output.value !== BigInt(c.value))
+      throw new ChainValidationError('KJ-CHAIN-VALUE', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
+    if (Buffer.compare(Buffer.from(output.script), script) !== 0)
+      throw new ChainValidationError('KJ-CHAIN-SCRIPT', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
+    if (matches.length !== 1)
+      throw new ChainValidationError('KJ-CHAIN-UNSPENT', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
+    if (entries.length !== 1)
+      throw new ChainValidationError('KJ-CHAIN-HISTORY', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
+    if (matches[0].value !== c.value)
+      throw new ChainValidationError('KJ-CHAIN-UTXO-VALUE', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
+    if (!Number.isSafeInteger(matches[0].height) || matches[0].height <= 0)
+      throw new ChainValidationError('KJ-CHAIN-CONFIRMATION', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
+    if (matches[0].height > tip) {
+      if (!tipRefreshed) {
+        tipRefreshed = true;
+        const freshTip = await BlueElectrum.getReportedBlockTip();
+        if (freshTip !== null && Number.isSafeInteger(freshTip) && freshTip >= tip) tip = freshTip;
+      }
+      if (matches[0].height > tip)
+        throw new ChainValidationError('KJ-CHAIN-TIP-HEIGHT', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
+    }
+    if (entries[0].height !== matches[0].height)
+      throw new ChainValidationError('KJ-CHAIN-HEIGHT-MISMATCH', 'CoinJoin requires a verified confirmed unspent coin', inputIndex);
     if (tx.isCoinbase() && !isMatureXbtCoinbase(tip - matches[0].height + 1)) throw new Error('Immature CoinJoin coinbase');
     result.set(outpoint(c), { value: c.value, script: script.toString('hex'), unspent: true, checkedAt });
   }

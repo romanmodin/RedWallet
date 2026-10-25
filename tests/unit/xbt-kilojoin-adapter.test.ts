@@ -189,3 +189,106 @@ test.each(['missing', 'duplicate', 'value', 'unconfirmed', 'future', 'history-mi
     await expect(observeCoins([f.coin], () => 1000)).rejects.toThrow('CoinJoin requires a verified confirmed unspent coin');
   },
 );
+
+// Preserve all existing rejections while exposing only the failed fixed check.
+test.each([
+  ['missing', 'KJ-CHAIN-UNSPENT'],
+  ['duplicate', 'KJ-CHAIN-UNSPENT'],
+  ['utxo-value', 'KJ-CHAIN-UTXO-VALUE'],
+  ['unconfirmed', 'KJ-CHAIN-CONFIRMATION'],
+  ['invalid-height', 'KJ-CHAIN-CONFIRMATION'],
+  ['future', 'KJ-CHAIN-TIP-HEIGHT'],
+  ['history-missing', 'KJ-CHAIN-HISTORY'],
+  ['history-duplicate', 'KJ-CHAIN-HISTORY'],
+  ['history-conflict', 'KJ-CHAIN-HEIGHT-MISMATCH'],
+  ['output-missing', 'KJ-CHAIN-OUTPUT'],
+  ['parent-value', 'KJ-CHAIN-VALUE'],
+  ['parent-script', 'KJ-CHAIN-SCRIPT'],
+])('reports precise chain rejection %s without accepting the input', async (fault, code) => {
+  const f = fixture();
+  const utxo = {
+    txid: f.coin.txid,
+    vout: f.coin.vout,
+    value: f.coin.value,
+    height: 100,
+  };
+  let list = [utxo];
+  if (fault === 'missing') list = [];
+  if (fault === 'duplicate') list = [utxo, { ...utxo }];
+  if (fault === 'utxo-value') utxo.value++;
+  if (fault === 'unconfirmed') utxo.height = 0;
+  if (fault === 'invalid-height') utxo.height = 100.5;
+  if (fault === 'future') utxo.height = 106;
+  (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({
+    [f.a]: list,
+  });
+  if (fault === 'history-missing')
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
+      [f.a]: [],
+    });
+  if (fault === 'history-duplicate')
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
+      [f.a]: [
+        { tx_hash: f.coin.txid, height: 100 },
+        { tx_hash: f.coin.txid, height: 100 },
+      ],
+    });
+  if (fault === 'history-conflict')
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
+      [f.a]: [{ tx_hash: f.coin.txid, height: 99 }],
+    });
+  if (fault === 'output-missing') f.coin.vout = 1;
+  if (fault === 'parent-value') f.coin.value++;
+  if (fault === 'parent-script') {
+    f.coin.pubkey = Buffer.from(ECPair.fromPrivateKey(Buffer.alloc(32, 2)).publicKey).toString('hex');
+    const requested = address.fromOutputScript(coinScript(f.coin));
+    (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({ [requested]: list });
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({ [requested]: [{ tx_hash: f.coin.txid, height: 100 }] });
+  }
+  await expect(observeCoins([f.coin], () => 1000)).rejects.toMatchObject({
+    message: 'CoinJoin requires a verified confirmed unspent coin',
+    code,
+  });
+});
+
+test('offline review: advances a stale tip snapshot once before accepting a newly confirmed input', async () => {
+  const f = fixture();
+  (BlueElectrum.getReportedBlockTip as jest.Mock).mockReset().mockResolvedValueOnce(99).mockResolvedValue(100);
+  await expect(observeCoins([f.coin], () => 1000)).resolves.toBeInstanceOf(Map);
+  expect(BlueElectrum.getReportedBlockTip).toHaveBeenCalledTimes(2);
+});
+test.each([99, null, 98, 99.5])('offline review: tip refresh never accepts an unverified or still-future height %s', async refreshed => {
+  const f = fixture();
+  (BlueElectrum.getReportedBlockTip as jest.Mock).mockReset().mockResolvedValueOnce(99).mockResolvedValue(refreshed);
+  await expect(observeCoins([f.coin], () => 1000)).rejects.toThrow('verified confirmed');
+  expect(BlueElectrum.getReportedBlockTip).toHaveBeenCalledTimes(2);
+});
+test('offline review: missing UTXO response is backend failure, not proof the coin is spent', async () => {
+  const f = fixture();
+  (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({});
+  await expect(observeCoins([f.coin])).rejects.toThrow('CoinJoin backend observations unavailable');
+});
+test('offline review: empty but explicit unspent result still rejects the coin', async () => {
+  const f = fixture();
+  (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({ [f.a]: [] });
+  await expect(observeCoins([f.coin])).rejects.toThrow('verified confirmed');
+});
+test('offline review: observation time is sampled after the backend requests complete', async () => {
+  const f = fixture();
+  let now = 1000;
+  (BlueElectrum.getReportedBlockTip as jest.Mock).mockImplementation(async () => {
+    now = 1100;
+    return 105;
+  });
+  const result = await observeCoins([f.coin], () => now);
+  expect(result.get(outpoint(f.coin))?.checkedAt).toBe(1100);
+});
+
+test('refreshing the tip never bypasses conflicting history', async () => {
+  const f = fixture();
+  (BlueElectrum.getReportedBlockTip as jest.Mock).mockReset();
+  (BlueElectrum.getReportedBlockTip as jest.Mock).mockResolvedValueOnce(99).mockResolvedValueOnce(100);
+  (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({ [f.a]: [{ tx_hash: f.coin.txid, height: 99 }] });
+  await expect(observeCoins([f.coin], () => 1000)).rejects.toMatchObject({ code: 'KJ-CHAIN-HEIGHT-MISMATCH' });
+  expect(BlueElectrum.getReportedBlockTip).toHaveBeenCalledTimes(2);
+});
