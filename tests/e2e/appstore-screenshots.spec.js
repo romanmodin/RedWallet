@@ -7,7 +7,6 @@ import {
   goBack,
   helperCreateWallet,
   scrollUpOnHomeScreen,
-  tapAndTapAgainIfElementIsNotVisible,
   waitForId,
   waitForWalletsList,
 } from './helperz';
@@ -73,7 +72,10 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
       await waitForId('Demo Taproot Wallet');
       await capture('01-wallet');
 
-      await tapAndTapAgainIfElementIsNotVisible('Demo Taproot Wallet', 'ReceiveButton');
+      // A successful wallet navigation removes the home card. Do not tap it
+      // again while the native receive toolbar is still mounting.
+      await element(by.id('Demo Taproot Wallet')).tap();
+      await waitForId('ReceiveButton');
       await device.disableSynchronization();
       try {
         await element(by.id('ReceiveButton')).tap();
