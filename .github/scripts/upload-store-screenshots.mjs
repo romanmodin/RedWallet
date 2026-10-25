@@ -7,16 +7,16 @@ const VERSION_ID = "65cd6bc4-9962-4b77-a3ca-78c115f3a615";
 const LOCALE_ID = "67c79fa3-be47-4fc0-94c5-713836f9d262";
 export const OLD = {
   APP_IPAD_PRO_3GEN_129: [
-    "83000019-654f-8a97-8004-c2485cf67912",
-    "57c00019-654f-8a97-803b-2bc40acff777",
-    "5a400019-654f-8a97-8038-70b3d0c5063b",
-    "2c000019-654f-8a97-8011-51db148d21ec",
+    "95c00019-654f-8a97-8032-231e54c726a0",
+    "6d400019-654f-8a97-8010-406c33c08e02",
+    "28000019-654f-8a97-801e-27c8f6b9c020",
+    "4ec00019-654f-8a97-800c-3ee02d3f970b",
   ],
   APP_IPHONE_67: [
     "e1800019-654f-8a97-802d-6d7bd53b2728",
+    "01c00019-654f-8a97-8036-f117b25eb41a",
     "b1c00019-654f-8a97-801a-98c963a082f2",
-    "54800019-654f-8a97-803b-a82a76cd66a4",
-    "24400019-654f-8a97-8018-d7d951019b6e",
+    "0cc00019-654f-8a97-803a-1c634df1a317",
   ],
 };
 
@@ -151,8 +151,8 @@ async function main() {
       ),
     );
     check(
-      manifest.sourceCommit === "14b44bf69a346e1a0787e6aed1f3d3343950a0f1" &&
-        manifest.captureRunId === 40184204898 &&
+      manifest.sourceCommit === "7ac04a84f818fcd31879ee44fc57ddde4a64feb5" &&
+        manifest.captureRunId === 40206124543 &&
         manifest.visuallyReviewed === true,
       "Unreviewed screenshot provenance",
     );

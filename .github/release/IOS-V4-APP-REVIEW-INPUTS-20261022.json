@@ -1,23 +1,23 @@
 {
-  "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
-  "verifiedAt": "2026-10-25T10:50:01.502952+00:00",
-  "purpose": "Submit actual delivered PR103 build1792915404 with verified new complete Apple main screenshots and unchanged iMessage assets. Known physical-phone CoinJoin chain-validation failure remains disclosed.",
+  "sourceCommit": "7ac04a84f818fcd31879ee44fc57ddde4a64feb5",
+  "verifiedAt": "2026-10-25T17:49:04.141704+00:00",
+  "purpose": "PR115 replacement preparation from actual delivered upload/beta and clean captures. Current old Apple assets retained until a verified new screenshot upload receipt exists.",
   "receipts": [
     {
       "member": "ios-ipa-verification.json",
-      "runId": 40174840984,
-      "head": "d9af98430004a04e521a98b52780b8e79be1565f",
-      "artifactId": 12592948954,
-      "archiveSha256": "27d7e7e1dade3f7548622984e5f40e03daac9d210d8ddb845d05d0894026149b",
-      "sha256": "c40311f77ffa3566beec49e0302c8ce0e0344d4eddb15aeb4c6d3c9f11462d04"
+      "runId": 40206122168,
+      "head": "0c4885f252ac36596d28933552fa8bc2a73a4049",
+      "artifactId": 12606390085,
+      "archiveSha256": "18842bc0eda98cdcb885fab7999dc11dc3e6c1646b6b3e37f8d4f2db5b48e922",
+      "sha256": "4690f34a2bac1b8451d9729b4030889b9579eb84097b0f036336379fe9b757d9"
     },
     {
       "member": "testflight-beta-verification.json",
-      "runId": 40183976565,
-      "head": "cb1c113c860809cf35f45204296b30953da5be1d",
-      "artifactId": 12594924237,
-      "archiveSha256": "f96a38ec0e823ef9a2c191dc8ab208e6cdc1417e0e775dd5d2efa56a97a8427c",
-      "sha256": "c9a43e278b2021c7da44db5013b31b941a8e514638c5d2719637b0023752c86d"
+      "runId": 40212027611,
+      "head": "c8c169476ad30fd38c9626c7226fc632b1c21f66",
+      "artifactId": 12605673783,
+      "archiveSha256": "12fc10c0eaf537e070a7590cef71425c7efef03e1ae67c28466bc96f740bd672",
+      "sha256": "e8da1a52d1277583af79308dc3c06809947236a45fd77bb37cb12893cff610ab"
     },
     {
       "member": "store-screenshot-receipt.json",
@@ -36,6 +36,6 @@
       "sha256": "faadf6141de70a91eeda2313290f56eff2392b04c9ccbf075405dd357fcc9586"
     }
   ],
-  "build": "1792915404",
-  "replacementScreenshotUploadPending": false
+  "build": "1792942297",
+  "replacementScreenshotUploadPending": true
 }

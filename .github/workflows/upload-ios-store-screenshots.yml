@@ -17,10 +17,10 @@ concurrency:
   group: redwallet-main-screenshot-upload
   cancel-in-progress: false
 env:
-  SOURCE_COMMIT: 14b44bf69a346e1a0787e6aed1f3d3343950a0f1
-  CI_RUN_ID: "40165351100"
-  IOS_RUN_ID: "40165351044"
-  FUNDED_IOS_RUN_ID: "40165641068"
+  SOURCE_COMMIT: 7ac04a84f818fcd31879ee44fc57ddde4a64feb5
+  CI_RUN_ID: "40197579192"
+  IOS_RUN_ID: "40197579334"
+  FUNDED_IOS_RUN_ID: "40197630574"
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -64,15 +64,15 @@ jobs:
           normalize=runpy.run_path('.github/scripts/normalize-store-png.py')['normalize_png']
           def api(path):return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/{path}']))
           m=json.loads(Path('.github/release/IOS-STORE-SCREENSHOTS-20261019.json').read_text())
-          assert m['sourceCommit']=='14b44bf69a346e1a0787e6aed1f3d3343950a0f1' and m['visuallyReviewed'] is True
-          assert m['captureRunId']==40184204898 and len(m['images'])==8
+          assert m['sourceCommit']=='7ac04a84f818fcd31879ee44fc57ddde4a64feb5' and m['visuallyReviewed'] is True
+          assert m['captureRunId']==40206124543 and len(m['images'])==8
           r=api(f"actions/runs/{m['captureRunId']}")
-          assert r['head_sha']=='a445e7fd56813d9f3da79384d995bd4aedd9e71d' and r['path']=='.github/workflows/capture-ios-store-screenshots.yml'
+          assert r['head_sha']=='0c4885f252ac36596d28933552fa8bc2a73a4049' and r['path']=='.github/workflows/capture-ios-store-screenshots.yml'
           assert r['repository']['full_name']==repo and r['head_repository']['full_name']==repo and r['head_branch']=='main'
           assert r['run_attempt']==1 and r['status']=='completed' and r['conclusion']=='success'
           for artifact in m['artifacts']:
               family=artifact['family'];assert family in ('iphone','ipad')
-              expected={'iphone':(40184204898,'a445e7fd56813d9f3da79384d995bd4aedd9e71d',12595956217),'ipad':(40174842631,'d9af98430004a04e521a98b52780b8e79be1565f',12591509262)}
+              expected={'iphone':(40206124543,'0c4885f252ac36596d28933552fa8bc2a73a4049',12604091492),'ipad':(40206124543,'0c4885f252ac36596d28933552fa8bc2a73a4049',12604850566)}
               assert (artifact['runId'],artifact['head'],artifact['id'])==expected[family]
               run=api(f"actions/runs/{artifact['runId']}")
               assert run['repository']['full_name']==repo and run['head_repository']['full_name']==repo
@@ -88,7 +88,7 @@ jobs:
               assert hashlib.sha256(data).hexdigest()==artifact['sha256']
               archive=zipfile.ZipFile(io.BytesIO(data))
               provenance=json.loads(archive.read('provenance.json'))
-              assert provenance['sourceCommit']==m['sourceCommit'] and provenance['simulatorArtifactRun']=='40165351044'
+              assert provenance['sourceCommit']==m['sourceCommit'] and provenance['simulatorArtifactRun']=='40197579334'
               assert provenance['balancesFabricated'] is False and provenance['demoWallet']=='new empty disposable wallet'
               images=[image for image in m['images'] if image['family']==family];assert len(images)==4
               for image in images:

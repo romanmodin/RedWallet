@@ -1,9 +1,9 @@
 // Prepared for the v4 replacement. No CLI/credential access: wire only after
 // actual new signed/uploaded/TestFlight receipt pins have been verified.
 // Apple documents `canceled: boolean` on ReviewSubmissionUpdateRequest.Data.Attributes.
-export const REPLACEMENT_SOURCE = "14b44bf69a346e1a0787e6aed1f3d3343950a0f1";
-export const OLD_REVIEW = "c2891ecc-4a54-4389-bf6a-05015df8d80f";
-export const OLD_BUILD = "7717ad5a-860d-4a6c-bf33-d48e17f3a2da";
+export const REPLACEMENT_SOURCE = "7ac04a84f818fcd31879ee44fc57ddde4a64feb5";
+export const OLD_REVIEW = "f0c09fab-a918-4dd4-8a65-1a2c355b1e79";
+export const OLD_BUILD = "0f7add33-d28d-4d33-905d-bddbb1faad67";
 const APP = "6817118871";
 const VERSION = "65cd6bc4-9962-4b77-a3ca-78c115f3a615";
 const GROUPS = [
@@ -20,7 +20,7 @@ async function ready(api, candidate) {
       /^[A-Za-z0-9-]+$/.test(candidate.appleBuildId || "") &&
       candidate.appleBuildId !== OLD_BUILD &&
       /^\d+$/.test(candidate.build || "") &&
-      BigInt(candidate.build) > 1792686194n,
+      BigInt(candidate.build) > 1792915404n,
     "Replacement does not identify the new qualified release",
   );
   const root = "/v1/builds/" + candidate.appleBuildId;

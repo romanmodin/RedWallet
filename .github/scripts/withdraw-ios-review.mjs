@@ -30,20 +30,20 @@ export function withdrawalCandidate(
   check(
     ipa.sourceCommit === REPLACEMENT_SOURCE &&
       ipa.publicSourceCommit === REPLACEMENT_SOURCE &&
-      ipa.orchestrationCommit === "d9af98430004a04e521a98b52780b8e79be1565f" &&
+      ipa.orchestrationCommit === "0c4885f252ac36596d28933552fa8bc2a73a4049" &&
       ipa.ipaSha256 ===
-        "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc" &&
+        "6551e126be45b9267d3fc54cf289c146b46a0ff39fcfcd2b233a8c5f323708aa" &&
       ipa.signatureVerification === "passed" &&
       ipa.sourceMappingVerification === "passed",
     "Unverified replacement package",
   );
   check(
     beta.sourceCommit === REPLACEMENT_SOURCE &&
-      beta.uploadRunId === "40174840984" &&
+      beta.uploadRunId === "40206122168" &&
       beta.ipaSha256 === ipa.ipaSha256 &&
       beta.appId === APP &&
       beta.version === "8.0.1" &&
-      beta.build === "1792915404" &&
+      beta.build === "1792942297" &&
       /^[A-Za-z0-9-]+$/.test(beta.appleBuildId || "") &&
       beta.processingState === "VALID" &&
       beta.status === "AVAILABLE_TO_TESTERS" &&
@@ -70,7 +70,7 @@ export function withdrawalCandidate(
   );
   check(
     capture.sourceCommit === REPLACEMENT_SOURCE &&
-      capture.captureRunId === 40184204898 &&
+      capture.captureRunId === 40206124543 &&
       capture.captureAttempt === 1 &&
       capture.visuallyReviewed === true &&
       capture.images?.length === 8,
@@ -85,8 +85,8 @@ export function withdrawalCandidate(
     "Unchanged sticker source not verified",
   );
   check(
-    mainShots.sourceCommit === "286e875cb488365eeb00799b6c04305994ab9db7" &&
-      mainShots.captureRunId === 39799093428 &&
+    mainShots.sourceCommit === "14b44bf69a346e1a0787e6aed1f3d3343950a0f1" &&
+      mainShots.captureRunId === 40184204898 &&
       mainShots.status === "SCREENSHOTS_REPLACED" &&
       mainShots.images?.length === 8,
     "Prior main assets not verified",
