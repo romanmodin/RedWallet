@@ -1,7 +1,7 @@
 {
   "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
-  "verifiedAt": "2026-10-25T10:30:42.477152+00:00",
-  "purpose": "Qualified PR103 review preparation: upload/beta and native captures verified; historical Apple screenshot receipt preserved until new screenshot upload produces its actual replacement receipt.",
+  "verifiedAt": "2026-10-25T10:50:01.502952+00:00",
+  "purpose": "Submit actual delivered PR103 build1792915404 with verified new complete Apple main screenshots and unchanged iMessage assets. Known physical-phone CoinJoin chain-validation failure remains disclosed.",
   "receipts": [
     {
       "member": "ios-ipa-verification.json",
@@ -21,11 +21,11 @@
     },
     {
       "member": "store-screenshot-receipt.json",
-      "runId": 39853123397,
-      "head": "e262f0fb31be8c704e847d86b337b311701492e1",
-      "artifactId": 12458281797,
-      "archiveSha256": "aa2c3dd2b4641799a4d45802f325651a02f499b85cf691aeb937d8ea53c3c33c",
-      "sha256": "0115546b9ff126b5841e9b91ea55361f79797d9c181310ce48476a1d93493dd2"
+      "runId": 40186113362,
+      "head": "9b743100f8fd33511fbec03ad78641b5a5164fd2",
+      "artifactId": 12596018290,
+      "archiveSha256": "0961f7c5141c252499d52a1e9f01a318d64442cd687bccb1ed50035436199263",
+      "sha256": "f71e2106e79f33631b4f7002cb95af58584c99b071f82e66d44194850953e480"
     },
     {
       "runId": 39330552821,
@@ -37,5 +37,5 @@
     }
   ],
   "build": "1792915404",
-  "replacementScreenshotUploadPending": true
+  "replacementScreenshotUploadPending": false
 }

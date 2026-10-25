@@ -311,12 +311,21 @@ export async function verifyListing(api, candidate) {
 export const V4_REVIEW_NOTE =
   "Kilojoin V4 update: Settings > Tools > CoinJoin remains Experimental with explicit live opt-in. V3 pools use one output; V4 pools use 2-5 equal outputs per participant, each to a fresh address. Review all outputs and the fee before signing. Sample mode and pool discovery need no funded wallet. Interrupted rounds retain coin reservations until safely resolved. Relay/backend privacy limits still apply. Powered by Kilojoin, by Kilombino.";
 export const COINJOIN_KNOWN_ISSUE_NOTE =
-  "Build 1792915404 includes fixes for reproduced CoinJoin startup, replay handling, and saved HD watch-only wallet inventory errors. The exact cause of the reported physical iPhone join failure remains unconfirmed; successful end-to-end mixing on that device has not been verified. CoinJoin remains optional and experimental, and an error does not indicate a completed mix. Do not use real funds to test CoinJoin during review; sample mode and read-only pool discovery remain available.";
+  "Build 1792915404: CoinJoin remains optional and experimental. Fixes cover reproduced startup, replay and wallet-inventory errors. A physical iPhone reaches pool acceptance but fails participant validation (KJ-CHAIN); the exact chain check remains under investigation and end-to-end mixing is unverified. Do not test with real funds. Sample mode and read-only discovery remain available.";
+export const SUPERSEDED_COINJOIN_NOTES = [
+  "Known issue in build 1792686194: Experimental CoinJoin can fail immediately after joining a pool with a participant-message processing error, sometimes after briefly showing participants. End-to-end mixing is not reliable in this build, and this error does not indicate a completed mix. We are submitting the wallet while correcting this optional experimental feature. Do not use real funds to test CoinJoin during review; sample mode and read-only pool discovery remain available.",
+  "Build 1792915404 includes fixes for reproduced CoinJoin startup, replay handling, and saved HD watch-only wallet inventory errors. The latest physical iPhone test reaches pool acceptance but reports KJ-CHAIN during participant input validation. The precise failed chain check remains under investigation; successful end-to-end mixing on that device has not been verified. CoinJoin remains optional and experimental, and an error does not indicate a completed mix. Do not use real funds to test CoinJoin during review; sample mode and read-only pool discovery remain available."
+];
 export function v4ReviewNotes(notes) {
   check(present(notes), "Existing reviewer notes missing");
+  // Replace only our exact historical disclosure, preserving every unrelated note.
+  const updated = SUPERSEDED_COINJOIN_NOTES.reduce(
+    (text, previous) => text.replaceAll(previous, COINJOIN_KNOWN_ISSUE_NOTE),
+    notes,
+  );
   const next = [V4_REVIEW_NOTE, COINJOIN_KNOWN_ISSUE_NOTE].reduce(
     (text, note) => (text.includes(note) ? text : text + "\n\n" + note),
-    notes,
+    updated,
   );
   check(
     next.length <= 4000,
