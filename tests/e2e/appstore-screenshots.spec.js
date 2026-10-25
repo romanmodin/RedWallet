@@ -122,6 +122,19 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
       await waitForId('RecoveryGapLimit');
       // Empty recovery field: no recovery phrase or private key is captured.
       await capture('04-recovery-options');
+    } catch (error) {
+      // Manual store frames cannot explain navigation after a successful tap.
+      // Preserve the actual first-failure surface; never retry navigation here.
+      const directory = path.resolve('artifacts/capture-diagnostic');
+      fs.mkdirSync(directory, { recursive: true });
+      const screenshot = await device.takeScreenshot('store-capture-first-failure').catch(() => null);
+      if (screenshot) fs.copyFileSync(screenshot, path.join(directory, 'first-failure.png'));
+      const surfaces = {};
+      for (const id of ['Demo Taproot Wallet', 'ReceiveButton']) {
+        surfaces[id] = await element(by.id(id)).getAttributes().catch(() => ({ absent: true }));
+      }
+      fs.writeFileSync(path.join(directory, 'first-failure.json'), JSON.stringify({ error: String(error), surfaces }, null, 2));
+      throw error;
     } finally {
       await device.enableSynchronization();
     }

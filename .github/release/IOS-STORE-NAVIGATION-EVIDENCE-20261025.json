@@ -1,0 +1,12 @@
+{
+  "run": 40178657841,
+  "attempt": 1,
+  "job": 121124767462,
+  "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+  "failure": "ReceiveButton visibility timeout16.5s after single Demo Taproot Wallet tap; only pre-navigation wallet PNG retained",
+  "logSha256": "40cf45e31941c435a9402f783842de18d976f145c534e8288600b59dd9e15b81",
+  "artifactId": 12593696239,
+  "partialZipSha256": "19616c09ae9f64e5e19a067629ae65d8de2417e96672c9ea0e2c981a0a36fbe6",
+  "correction": "Capture first-failure native surface and accessibility attributes, rethrow unchanged error; no navigation retry or assertion/gate change",
+  "rootCauseEstablished": false
+}
