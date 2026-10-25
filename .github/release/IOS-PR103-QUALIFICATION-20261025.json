@@ -1,0 +1,132 @@
+{
+  "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+  "productionTreeSha256": "cc5cb933aa74fe37aba735d0a14cacabb0846bfeeb93a927d54bd71ff92fd8a4",
+  "generalArtifact": {
+    "id": 12590656330,
+    "sha256": "0a19afcf250199ef672430cd6e77a2963db3962d11d358b47dd7988deeda9f3c"
+  },
+  "generalLogSha256": "62413d87ced89334398fdfe25f4e239e27d042bcadec6d80715306f20d37814a",
+  "nativeSelfTest": "Fresh iPhone17 iOS26.5; selftest passes including authenticated BIP84 replacement; 23 general tests passed / 5 inherited skips; seven appearance/discovery PNG sidecars hash-verified and visually inspected; read-only discovery only, no physical CoinJoin success claim",
+  "gates": {
+    "verifiedAt": "2026-10-25T07:53:17.305005+00:00",
+    "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+    "gates": [
+      {
+        "id": 40165351100,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40165351100",
+        "workflow": ".github/workflows/ci.yml",
+        "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 40165351044,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40165351044",
+        "workflow": ".github/workflows/e2e-ios.yml",
+        "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+        "conclusion": "success",
+        "runAttempt": 1
+      },
+      {
+        "id": 40165641068,
+        "url": "https://github.com/romanmodin/RedWallet/actions/runs/40165641068",
+        "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
+        "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+        "conclusion": "success",
+        "runAttempt": 1
+      }
+    ],
+    "androidQualified": false
+  },
+  "funded": {
+    "runId": 40165641068,
+    "attempt": 1,
+    "artifactId": 12590080592,
+    "zipSha256": "a5267c757f0d26a61386488a3a5725ae1025d1f3e25072f0bdd629fadba8415c",
+    "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+    "nativeMemberSha256": "9172190a4d35b9f1b1a3c117495f20a3766f1af2b73bc2c774f53b6b1ff486ea",
+    "backendMemberSha256": "c44a74783ea1c12542e0d1764a892499232a24a7c651227c0194dd35b8c36ba8",
+    "native": {
+      "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+      "platform": "ios",
+      "format": "segwit",
+      "stage": "rbf",
+      "continuousAcceptance": false,
+      "hostedNativeUi": true,
+      "physicalPhone": false,
+      "coldDeviceInteroperability": false,
+      "checkpointAdapted": true,
+      "verboseAddressLabelsAdapted": true,
+      "original": "15f9b0c4a3d7ea1afaf9ea5d4e9c178350bc36838640a6473046842515af692a",
+      "replacement": "b96627099f271c2cbb7ab594e259134867959552fe055e58d2b3dd84e5a19be1",
+      "confirmations": 2,
+      "highFeeDeclineBlockedBroadcast": true,
+      "decodedReviewVerified": true,
+      "encryptedHistoryPreserved": false,
+      "deletionRecoveryPassed": false,
+      "height": 157
+    },
+    "backend": {
+      "schemaVersion": 1,
+      "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+      "cleanupComplete": true,
+      "chain": "regtest",
+      "checkpointAdapted": true,
+      "blake2bHeight": 150,
+      "binaries": {
+        "bitcoind": "8bc95b142275ed04c77d02363464adc73dd1690d1349799f0573e210af3541b8",
+        "bitcoinCli": "698bb7d8fede7c6ef42633a1caaba588c6ab0a64c1216366aace07cbc997ed23",
+        "fulcrum": "7ba22f3bbfd475f12ade544a1ac195da3d583a7461ad5078af48a04743c6f6ff"
+      },
+      "forwardedMethods": {
+        "server.version": 2,
+        "server.ping": 26,
+        "blockchain.headers.subscribe": 2,
+        "server.banner": 1,
+        "blockchain.scripthash.get_history": 697,
+        "blockchain.scripthash.get_balance": 256,
+        "blockchain.transaction.get": 45,
+        "mempool.get_fee_histogram": 4,
+        "blockchain.estimatefee": 12,
+        "blockchain.transaction.broadcast": 2,
+        "blockchain.scripthash.get_mempool": 2
+      },
+      "responseMethods": {
+        "server.version": 2,
+        "server.ping": 26,
+        "blockchain.headers.subscribe": 2,
+        "server.banner": 1,
+        "blockchain.scripthash.get_history": 697,
+        "blockchain.scripthash.get_balance": 256,
+        "blockchain.transaction.get": 45,
+        "mempool.get_fee_histogram": 4,
+        "blockchain.estimatefee": 12,
+        "blockchain.transaction.broadcast": 2,
+        "blockchain.scripthash.get_mempool": 2
+      },
+      "unansweredMethods": {},
+      "maxResponseMs": {
+        "server.version": 70,
+        "server.ping": 164,
+        "blockchain.headers.subscribe": 2,
+        "server.banner": 2,
+        "blockchain.scripthash.get_history": 471,
+        "blockchain.scripthash.get_balance": 125,
+        "blockchain.transaction.get": 746,
+        "mempool.get_fee_histogram": 31,
+        "blockchain.estimatefee": 664,
+        "blockchain.transaction.broadcast": 69,
+        "blockchain.scripthash.get_mempool": 20
+      },
+      "fundingTxids": [
+        "b6ac8f44796f75fb7bcdf0cfee56c8a08e4a31027a6a7e4ed6e3ae2136a249a0",
+        "f43f0bb1cc632a86e3042ec40ecdf7220585d44fc54fb094fe6bb7b7de3f66fc"
+      ],
+      "disconnectFaults": 0,
+      "checkpointRequests": 2,
+      "invalidCertificateTested": false
+    }
+  },
+  "merge": "323fe8f578cf29d03535dbcec9e883c312430d74",
+  "signingUploadDispatched": false
+}
