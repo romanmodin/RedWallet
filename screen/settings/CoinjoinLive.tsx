@@ -159,6 +159,18 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   );
   const session = view?.session,
     journal = view?.journal;
+  const terminalStatus =
+    session?.terminalCause === 'creator-rejected'
+      ? 'Rejected by pool'
+      : session?.terminalCause === 'creator-aborted'
+        ? 'Aborted by pool'
+        : 'Stopped';
+  const terminalExplanation =
+    session?.terminalCause === 'creator-rejected'
+      ? 'The pool creator rejected this participation attempt.'
+      : session?.terminalCause === 'creator-aborted'
+        ? 'The pool creator aborted the round.'
+        : undefined;
   const signatureCount = session ? Object.keys(session.signatures).length : 0;
   const inputCount = session?.seats.reduce((n, s) => n + s.coins.length, 0) ?? 0;
   return (
@@ -293,7 +305,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 {journal?.phase === 'complete'
                   ? 'Confirmed'
                   : journal?.phase === 'aborted'
-                    ? 'Stopped'
+                    ? terminalStatus
                     : journal?.phase === 'uncertain'
                       ? 'Stopped · coins reserved'
                       : session?.phase}
@@ -320,6 +332,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 </Text>
               )}
             </View>
+            {!!terminalExplanation && <SettingsFootnote>{terminalExplanation}</SettingsFootnote>}
             {journal?.phase === 'aborted' && journal.reserved.length === 0 && (
               <SettingsFootnote>Participation stopped. This round's coin reservations have been released.</SettingsFootnote>
             )}

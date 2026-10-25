@@ -488,7 +488,7 @@ test('an authentic creator rejection aborts the unsigned join rather than showin
     f.setFault('creator-reject');
     const client = await f.join();
     expect(client.view()).toMatchObject({
-      session: { phase: 'aborted', seats: [] },
+      session: { phase: 'aborted', terminalCause: 'creator-rejected', seats: [] },
       journal: { phase: 'aborted', reserved: [] },
     });
     expect(client.view().error).toBeUndefined();

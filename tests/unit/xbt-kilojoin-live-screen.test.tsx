@@ -180,6 +180,7 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
       mockEmit!({
         session: {
           phase: phase === 'joined' ? 'open' : 'aborted',
+          ...(phase === 'aborted' ? { terminalCause: 'creator-rejected' } : {}),
           seats: [],
           signatures: {},
         },
@@ -191,7 +192,8 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
     });
     const released = "Participation stopped. This round's coin reservations have been released.";
     if (phase === 'aborted') {
-      expect(screen.getByText('Status: Stopped')).toBeTruthy();
+      expect(screen.getByText('Status: Rejected by pool')).toBeTruthy();
+      expect(screen.getByText('The pool creator rejected this participation attempt.')).toBeTruthy();
       expect(screen.getByText(released)).toBeTruthy();
       expect(screen.queryByText('Stop participation')).toBeNull();
     } else {

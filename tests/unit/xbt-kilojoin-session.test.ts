@@ -152,6 +152,18 @@ test.each([1, 2, 5])('accepts upstream BigInteger welcome key for %i mixed outpu
   expect(f.round.snapshot().phase).toBe('joined');
 });
 
+test.each([
+  ['reject', 'creator-rejected', true],
+  ['abort', 'creator-aborted', false],
+] as const)('persists the exact creator terminal cause for %s', async (type, terminalCause, direct) => {
+  const f = await fixture();
+  if (!direct) await f.receive({ type: 'welcome', pool_secret: pool.toString('hex'), token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type, reason: 'untrusted private detail' }, direct);
+  expect(f.session.snapshot()).toMatchObject({ phase: 'aborted', terminalCause });
+  expect(f.round.snapshot()).toMatchObject({ phase: 'aborted', reserved: [] });
+  expect(f.env.saveEncrypted).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'aborted', terminalCause }));
+});
+
 test.each(['p2wpkh', 'p2tr'] as const)('creator ownership binds to pool join_pub, never creator authority key: %s', async type => {
   const f = await fixture(type);
   expect(f.rawSeats[1].join_pub).toBe(f.terms.public_key);
