@@ -1,4 +1,4 @@
-const participantStages = ['KJ-ROSTER-PARSE', 'KJ-BACKEND', 'KJ-WALLET-INPUTS', 'KJ-ROSTER-CHECK'] as const;
+const participantStages = ['KJ-ROSTER-PARSE', 'KJ-BACKEND', 'KJ-WALLET-INVENTORY', 'KJ-ROSTER-CHECK'] as const;
 type ParticipantStage = (typeof participantStages)[number];
 class ParticipantStageError extends Error {
   readonly code: string;
@@ -80,6 +80,7 @@ export function relayFailureMessage(error: Error): string {
   };
   for (const code of [
     ...participantStages,
+    'KJ-WALLET-INPUTS',
     'KJ-ROSTER-SHAPE',
     'KJ-COIN-FORMAT',
     'KJ-ROSTER-DUPLICATE',

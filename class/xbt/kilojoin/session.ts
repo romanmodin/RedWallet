@@ -22,9 +22,11 @@ type OutputState = {
   submitted?: boolean;
 };
 type Phase = 'joining' | 'open' | 'voting' | 'closing' | 'review' | 'signed' | 'aborted';
+export type TerminalCause = 'creator-rejected' | 'creator-aborted';
 type PendingVote = { by: string; voteId: string; createdAt: number };
 export type SessionState = {
   phase: Phase;
+  terminalCause?: TerminalCause;
   sequence: number;
   seats: Seat[];
   token?: string;
@@ -285,7 +287,7 @@ export class ParticipantSession {
     try {
       walletOutpoints = this.env.walletOutpoints();
     } catch (error) {
-      throw participantStageFailure(error, 'KJ-WALLET-INPUTS');
+      throw participantStageFailure(error, 'KJ-WALLET-INVENTORY');
     }
     try {
       return validateRoster({ type: 'roster', seq, seats }, this.terms, {
@@ -353,10 +355,12 @@ export class ParticipantSession {
           break;
         }
         case 'reject':
-        case 'abort':
+        case 'abort': {
+          const terminalCause: TerminalCause = body.type === 'reject' ? 'creator-rejected' : 'creator-aborted';
           await this.round.cancel();
-          await this.save({ ...this.state, phase: 'aborted' });
+          await this.save({ ...this.state, phase: 'aborted', terminalCause });
           break;
+        }
         case 'roster': {
           if (!Number.isSafeInteger(body.seq) || (body.seq as number) < 0) throw new Error('Invalid roster sequence');
           // History and freshly re-encrypted duplicates cannot roll back a roster.

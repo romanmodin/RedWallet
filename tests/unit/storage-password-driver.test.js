@@ -111,3 +111,30 @@ test('restores iOS synchronization before checking the navigation destination', 
   });
   expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
 });
+
+test('decryption can verify its destination and restart before restoring idle synchronization', async () => {
+  const destinationAndRestart = jest.fn(async () => {
+    expect(device.enableSynchronization).not.toHaveBeenCalled();
+    expect(values.PasswordInput).toBe('fixture-pass');
+  });
+  await submitStoragePassword('fixture-pass', false, destinationAndRestart, { settleBeforeSynchronization: true });
+  expect(destinationAndRestart).toHaveBeenCalledTimes(1);
+  expect(confirmPasswordDialog).toHaveBeenCalledTimes(1);
+  expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
+});
+
+test('a failed decryption destination is retained without another submit and restores synchronization', async () => {
+  const failure = new Error('wallet missing after decryption');
+  await expect(
+    submitStoragePassword(
+      'fixture-pass',
+      false,
+      async () => {
+        throw failure;
+      },
+      { settleBeforeSynchronization: true },
+    ),
+  ).rejects.toBe(failure);
+  expect(confirmPasswordDialog).toHaveBeenCalledTimes(1);
+  expect(device.enableSynchronization).toHaveBeenCalledTimes(1);
+});

@@ -430,17 +430,10 @@ describe('RedWallet UI Tests - no wallets', () => {
     await waitForKeyboardToClose();
     await confirmPasswordDialog();
 
-    // trying new password
-    await element(by.id('PasswordInput')).clearText();
-    await element(by.id('PasswordInput')).replaceText('passwordForFakeStorage');
-    await element(by.id('PasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await element(by.id('ConfirmPasswordInput')).clearText();
-    await element(by.id('ConfirmPasswordInput')).replaceText('passwordForFakeStorage'); // retyping
-    await element(by.id('ConfirmPasswordInput')).tapReturnKey();
-    await waitForKeyboardToClose();
-    await confirmPasswordDialog(); // first time might not always work
-    await sleep(1000); // propagate
+    // After the expected mismatch, focus and fill both secure inputs with
+    // the same platform-safe driver used by the encryption tests. Restore
+    // synchronization before asserting the actual fake-wallet destination.
+    await submitStoragePassword('passwordForFakeStorage', true, () => waitForWalletsList());
     await scrollUpOnHomeScreen();
 
     // created fake storage.
@@ -562,16 +555,22 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss incorrect-password alert');
     // The rejected password must leave the real wallet protected.
     await waitForId('PasswordInput');
-    await submitStoragePassword('pass', false, async () => {
-      await waitFor(element(by.id('PasswordInput')))
-        .not.toExist()
-        .withTimeout(120_000);
-      await waitForWalletsList();
-    });
+    await submitStoragePassword(
+      'pass',
+      false,
+      async () => {
+        await waitFor(element(by.id('PasswordInput')))
+          .not.toExist()
+          .withTimeout(120_000);
+        await waitForWalletsList();
 
-    // relaunch app
-    await device.launchApp({ newInstance: true });
-    await waitForId('cr34t3d'); // success
+        // Keep the existing restart/persistence check before the idle drain:
+        // the decrypted home screen can retain iOS 26 glass animations.
+        await device.launchApp({ newInstance: true });
+        await waitForId('cr34t3d'); // success
+      },
+      { settleBeforeSynchronization: true },
+    );
 
     process.env.CI && require('fs').writeFileSync(lockFile, '1');
   });

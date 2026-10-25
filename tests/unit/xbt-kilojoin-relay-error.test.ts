@@ -56,7 +56,7 @@ test.each([
   expect(relayFailureMessage(participantFailure(new Error(untrusted)))).not.toContain('private peer details');
 });
 
-test.each(['KJ-ROSTER-PARSE', 'KJ-BACKEND', 'KJ-WALLET-INPUTS', 'KJ-ROSTER-CHECK'] as const)(
+test.each(['KJ-ROSTER-PARSE', 'KJ-BACKEND', 'KJ-WALLET-INVENTORY', 'KJ-ROSTER-CHECK'] as const)(
   'unknown failure at %s displays only the fixed stage, never the raw details',
   stage => {
     for (const error of [new Error('private peer or backend detail'), new TypeError('private native detail'), 'private rejection', null]) {

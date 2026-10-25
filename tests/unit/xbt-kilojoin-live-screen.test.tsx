@@ -180,6 +180,7 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
       mockEmit!({
         session: {
           phase: phase === 'joined' ? 'open' : 'aborted',
+          ...(phase === 'aborted' ? { terminalCause: 'creator-rejected' } : {}),
           seats: [],
           signatures: {},
         },
@@ -191,7 +192,8 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
     });
     const released = "Participation stopped. This round's coin reservations have been released.";
     if (phase === 'aborted') {
-      expect(screen.getByText('Status: Stopped')).toBeTruthy();
+      expect(screen.getByText('Status: Rejected by pool')).toBeTruthy();
+      expect(screen.getByText('The pool creator rejected this participation attempt.')).toBeTruthy();
       expect(screen.getByText(released)).toBeTruthy();
       expect(screen.queryByText('Stop participation')).toBeNull();
     } else {
@@ -202,7 +204,7 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
         expect(screen.getByText('Check retained round confirmation')).toBeTruthy();
         expect(screen.getByText(/Your signature may have been shared/)).toBeTruthy();
       } else {
-        expect(screen.getByText('Status: open')).toBeTruthy();
+        expect(screen.getByText('Status: Accepted · validating participants')).toBeTruthy();
         expect(screen.getByText('Participants: Awaiting validation')).toBeTruthy();
         expect(screen.queryByText('Participants: 0')).toBeNull();
         await act(async () => {

@@ -384,7 +384,7 @@ test.each([
   ['peer-unspent', 'open', 'KJ-CHAIN'],
   ['peer-raw-missing', 'open', 'KJ-BACKEND'],
   ['peer-backend-rejected', 'open', 'KJ-BACKEND'],
-  ['wallet-inventory', 'open', 'KJ-WALLET-INPUTS'],
+  ['wallet-inventory', 'open', 'KJ-WALLET-INVENTORY'],
 ] as const)('full client isolates %s and permits a fresh unsigned attempt after Stop', async (fault, phase, code) => {
   const f = fixture('p2wpkh', 5);
   try {
@@ -488,7 +488,7 @@ test('an authentic creator rejection aborts the unsigned join rather than showin
     f.setFault('creator-reject');
     const client = await f.join();
     expect(client.view()).toMatchObject({
-      session: { phase: 'aborted', seats: [] },
+      session: { phase: 'aborted', terminalCause: 'creator-rejected', seats: [] },
       journal: { phase: 'aborted', reserved: [] },
     });
     expect(client.view().error).toBeUndefined();
