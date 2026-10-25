@@ -115,6 +115,11 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
       await waitForId('MnemonicInput');
       await element(by.id('ToggleRecoveryDiscovery')).tap();
       await waitForId('RecoveryGapLimit');
+      // Fresh iOS 26 simulators can show a transient Apple Intelligence banner
+      // over the recovery header. Let that system notification expire before
+      // recording the frame, then require the recovery controls again.
+      await new Promise(resolve => setTimeout(resolve, 10_000));
+      await waitForId('RecoveryGapLimit');
       // Empty recovery field: no recovery phrase or private key is captured.
       await capture('04-recovery-options');
     } finally {
