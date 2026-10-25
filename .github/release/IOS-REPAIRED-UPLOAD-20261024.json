@@ -1,15 +1,15 @@
 {
-  "uploadRunId": 40093078804,
-  "artifactId": 12562171551,
-  "zipSha256": "51d5aeaaeff31e850dd4a474286a4009e6afe5103e4104a577b50a18aefbd54e",
-  "receiptSha256": "40bdf433a2853a8234b3836758d5381339823d7c6ec3629efbc1e67f79b6f77f",
+  "uploadRunId": 40174840984,
+  "artifactId": 12592948954,
+  "zipSha256": "27d7e7e1dade3f7548622984e5f40e03daac9d210d8ddb845d05d0894026149b",
+  "receiptSha256": "c40311f77ffa3566beec49e0302c8ce0e0344d4eddb15aeb4c6d3c9f11462d04",
   "actualUploadReceipt": {
-    "ipaSha256": "3857e451dd1f7dd164400b562d0524452738c8075823bcb0fba4274da182d6ee",
+    "ipaSha256": "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc",
     "bundles": [
       {
         "bundleId": "com.romanmodin.redwallet",
         "version": "8.0.1",
-        "build": "1792844414",
+        "build": "1792915404",
         "architectures": [
           "arm64"
         ],
@@ -18,7 +18,7 @@
       {
         "bundleId": "com.romanmodin.redwallet.Stickers",
         "version": "8.0.1",
-        "build": "1792844414",
+        "build": "1792915404",
         "architectures": [
           "arm64"
         ],
@@ -26,48 +26,48 @@
       }
     ],
     "signatureVerification": "passed",
-    "sourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+    "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
     "publicRepository": "https://github.com/romanmodin/RedWallet",
-    "publicSourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
-    "productionTreeSha256": "3531f2f87b5b1c4e878aaadd1456c09f7ccbe16ee3e9baf85903b0f56adcb2d1",
-    "productionPathCount": 1008,
+    "publicSourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+    "productionTreeSha256": "cc5cb933aa74fe37aba735d0a14cacabb0846bfeeb93a927d54bd71ff92fd8a4",
+    "productionPathCount": 1009,
     "sourceMappingVerification": "passed",
     "treeDefinition": "git ls-tree -r COMMIT, excluding .github/, tests/, fastlane/metadata/, zapstore.yaml and *.md; includes mode, object ID, path and trailing newline",
     "binaryReproducibilityVerified": false,
     "qualification": {
-      "verifiedAt": "2026-10-24T13:35:49.844909+00:00",
-      "sourceCommit": "9bc111733801849786a5026a04325afd269e20c0",
+      "verifiedAt": "2026-10-25T08:51:23.267088+00:00",
+      "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
       "gates": [
         {
-          "id": 40084845943,
-          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084845943",
+          "id": 40165351100,
+          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40165351100",
           "workflow": ".github/workflows/ci.yml",
-          "source": "9bc111733801849786a5026a04325afd269e20c0",
+          "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
           "conclusion": "success",
           "runAttempt": 1
         },
         {
-          "id": 40084845962,
-          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084845962",
+          "id": 40165351044,
+          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40165351044",
           "workflow": ".github/workflows/e2e-ios.yml",
-          "source": "9bc111733801849786a5026a04325afd269e20c0",
+          "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
           "conclusion": "success",
           "runAttempt": 1
         },
         {
-          "id": 40084873225,
-          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40084873225",
+          "id": 40165641068,
+          "url": "https://github.com/romanmodin/RedWallet/actions/runs/40165641068",
           "workflow": ".github/workflows/native-bip84-rbf-ios.yml",
-          "source": "9bc111733801849786a5026a04325afd269e20c0",
+          "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
           "conclusion": "success",
           "runAttempt": 1
         }
       ],
       "androidQualified": false
     },
-    "orchestrationCommit": "4b1f4acebbbaea5a173ca187f578fd7009206083"
+    "orchestrationCommit": "d9af98430004a04e521a98b52780b8e79be1565f"
   },
-  "testerAvailabilityVerified": false,
+  "testerAvailabilityVerified": true,
   "appReviewReplacementSubmitted": false,
   "walletFirstReviewPreserved": true
 }

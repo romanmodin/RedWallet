@@ -1,22 +1,26 @@
 {
-  "sourceCommit": "286e875cb488365eeb00799b6c04305994ab9db7",
-  "orchestrationCommit": "b881585e528a9d06b20f67b28a774bd540f3fd20",
-  "captureRunId": 39799093428,
+  "sourceCommit": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+  "orchestrationCommit": "d9af98430004a04e521a98b52780b8e79be1565f",
+  "captureRunId": 40184204898,
   "captureAttempt": 1,
   "visuallyReviewed": true,
-  "review": "All eight original native screenshots individually inspected on October 22. Fresh empty disposable wallet, genuine receive QR, centered optional artwork and blank recovery input. Opaque alpha removed losslessly; every RGB pixel and dimension independently compared with Pillow. No fabricated balances or private wallet data.",
+  "review": "Actual four clean iPhone frames viewed Oct25; four iPad frames previously reviewed, including full-resolution recovery. Empty disposable wallet, QR, optional artwork, blank recovery; no system notification. RGB normalization preserves pixels. Each family has its exact independent successful capture receipt.",
   "artifacts": [
     {
       "family": "iphone",
-      "id": 12434609286,
-      "sha256": "f93cdf8f27fc6442c3edaab142e61f66ca5a92eb2e70d2eceb3f7047ff0689fd",
+      "runId": 40184204898,
+      "head": "a445e7fd56813d9f3da79384d995bd4aedd9e71d",
+      "id": 12595956217,
+      "sha256": "f43e7973d07687d68466dd69486109bca961ad8c13b99ddf52060edaac24fcd2",
       "device": "iPhone 17 Pro Max",
       "runtime": "iOS 26.5"
     },
     {
       "family": "ipad",
-      "id": 12435642546,
-      "sha256": "86e13bfef0772992f971ec13009d49bb4f6f2dd01365230e55cd781626b1f2b0",
+      "runId": 40174842631,
+      "head": "d9af98430004a04e521a98b52780b8e79be1565f",
+      "id": 12591509262,
+      "sha256": "b4c15e5d9c4527f9890fcaf1984c36074c3955567d37d02cba4759b692e7930e",
       "device": "iPad Pro 13-inch (M4)",
       "runtime": "iOS 26.5"
     }
@@ -24,83 +28,83 @@
   "images": [
     {
       "file": "iphone/01-wallet.png",
-      "sha256": "23a12d307fe80e7b6a2412b5408cc3f3e9e0c395d3fee310c8528a8f51324d72",
-      "width": 1320,
-      "height": 2868,
-      "rawSha256": "768eede13ac4da7952ed95c78beb3205a44ecf00af2fe33cb1beb23309b32c56",
       "family": "iphone",
       "displayType": "APP_IPHONE_67",
-      "md5": "717aec90ce8cc0e898eb5be377ae8ebf"
+      "sha256": "23a12d307fe80e7b6a2412b5408cc3f3e9e0c395d3fee310c8528a8f51324d72",
+      "md5": "717aec90ce8cc0e898eb5be377ae8ebf",
+      "rawSha256": "768eede13ac4da7952ed95c78beb3205a44ecf00af2fe33cb1beb23309b32c56",
+      "width": 1320,
+      "height": 2868
     },
     {
       "file": "iphone/02-receive.png",
-      "sha256": "df345598a3c68a7b3273a945cb072f12a181599cea750c57f0c6bae64fcc8b96",
-      "width": 1320,
-      "height": 2868,
-      "rawSha256": "0ab56fa8d55625f7c9a3165112aca62fad1e8a174c0a9c06be6b97fb8ffb0d97",
       "family": "iphone",
       "displayType": "APP_IPHONE_67",
-      "md5": "cdc163dffb86bed11dd0bf9fe9cbb42f"
+      "sha256": "1a64d4ae18c12ffe25e349456886536da67dd4076a73fde1b71e153468e04860",
+      "md5": "0412ee93870cbb7b5c286ac90046470c",
+      "rawSha256": "ebce2953fb98a50e72cac715af965d9cdb39bde2dc38e3c171d7554e553c54cf",
+      "width": 1320,
+      "height": 2868
     },
     {
       "file": "iphone/03-optional-artwork.png",
-      "sha256": "1d687e67eb49acc91da0dc030e3eb4bccb3d3b4ac498d7c7d02a590e5dc6d7e9",
-      "width": 1320,
-      "height": 2868,
-      "rawSha256": "654aeb59171cc281b90c6b32fa79b00533d0a8f645c3beb8f68af62186e8e94b",
       "family": "iphone",
       "displayType": "APP_IPHONE_67",
-      "md5": "efea805140fd618a2a3eff6ccdd73df4"
+      "sha256": "1d687e67eb49acc91da0dc030e3eb4bccb3d3b4ac498d7c7d02a590e5dc6d7e9",
+      "md5": "efea805140fd618a2a3eff6ccdd73df4",
+      "rawSha256": "654aeb59171cc281b90c6b32fa79b00533d0a8f645c3beb8f68af62186e8e94b",
+      "width": 1320,
+      "height": 2868
     },
     {
       "file": "iphone/04-recovery-options.png",
-      "sha256": "fdaecf80d84d7dedb37a5daeec8b276fed92724cd0c9004219c1e9b074db844d",
-      "width": 1320,
-      "height": 2868,
-      "rawSha256": "a14d387de10eac22c7a66e35dda3ee82e26840c6dfe3d77d9797d0aea2c77809",
       "family": "iphone",
       "displayType": "APP_IPHONE_67",
-      "md5": "aca6f99338412883cbe66e6bd9b4f98c"
+      "sha256": "18d5d1d6532617e97ba2ea613591e40298d657f423f98c163fc8c759a5ce0857",
+      "md5": "b270a35fedc2b0c8f365b1abd2ee5262",
+      "rawSha256": "9171d2c7165578b143b24e18efdfe7ff82937c6d522af6c818e6f92006352978",
+      "width": 1320,
+      "height": 2868
     },
     {
       "file": "ipad/01-wallet.png",
-      "sha256": "e9cc8d001f7649d214229e4cf50483d7e8520f5b044448be6464beb516a75122",
-      "width": 2064,
-      "height": 2752,
-      "rawSha256": "06abc13bebdfd719048f2f4d73cdcd156f67d1caefc2580716e442ff28a29598",
       "family": "ipad",
       "displayType": "APP_IPAD_PRO_3GEN_129",
-      "md5": "ecc1c4427044e33ba5fd704e07a849ce"
+      "sha256": "f949fbacf7729ac958988a63d3a1878078e9ab8394afaf64bda4be73d4857298",
+      "md5": "7fd152297a62c083c8e00e576cf3a735",
+      "rawSha256": "976b456f5b5cee126c1b5674abfa530a07ddad1978bdbf83cf71e5d9f2dbec8a",
+      "width": 2064,
+      "height": 2752
     },
     {
       "file": "ipad/02-receive.png",
-      "sha256": "1d5b8d7276f728a3750a660ab942e30c577eaca00ca1ed4114cadf16f03d93de",
-      "width": 2064,
-      "height": 2752,
-      "rawSha256": "9bb5c99071886bed0eacee49b1241a8f1fd2d8e6d2582de2f87a71df34ae993c",
       "family": "ipad",
       "displayType": "APP_IPAD_PRO_3GEN_129",
-      "md5": "a0b7e063c9f2127a8b0cf73b17935119"
+      "sha256": "7e7c98e621667f2e1a289db2e13b6e5ed184b016ef8a244f74e90cd8b5728fdd",
+      "md5": "63c7d99135451c4125b31a54f97cb905",
+      "rawSha256": "2dc66afcef9bf93c4a59168328d9083bd4d8d0731d96375cac65cf269318535d",
+      "width": 2064,
+      "height": 2752
     },
     {
       "file": "ipad/03-optional-artwork.png",
-      "sha256": "67e7b264ecb9ea70b4768c69d9b8cea6eb50437e299aa4f6060fe22858bcb9f5",
-      "width": 2064,
-      "height": 2752,
-      "rawSha256": "1ae1bdd7cd0650e435de798a3bf9c5613c78c50d2ea237d0045f6cd7140d357f",
       "family": "ipad",
       "displayType": "APP_IPAD_PRO_3GEN_129",
-      "md5": "dcdf1ef8b24e5f2f5c57f96243144e08"
+      "sha256": "001ed0b530f19e8a2aa9515449fcaed42f55f2286c1894d3537cca611263a62c",
+      "md5": "0e7938cb21d3b5b753ade1910c9bdc4b",
+      "rawSha256": "bb74430044c92d5928259efc3a5a8d1d6aa154b4d1d803f83862a842a48b9d34",
+      "width": 2064,
+      "height": 2752
     },
     {
       "file": "ipad/04-recovery-options.png",
-      "sha256": "327eb43af2a05c77328c4127ff86cd6ff293492f8b0b351aea5493fe5d54b088",
-      "width": 2064,
-      "height": 2752,
-      "rawSha256": "3e78f99af097058384349bfa28960e97241da52a2fd55c54d15f86a248314c94",
       "family": "ipad",
       "displayType": "APP_IPAD_PRO_3GEN_129",
-      "md5": "777d9b4273fc37a909bae8c097677a8d"
+      "sha256": "bb2064c93a0425ddc3910e88b5ae2ca93aeb45fa919655f2da2af8b6eda3b592",
+      "md5": "fd2209008c66c8e304033df11fedcb02",
+      "rawSha256": "902ff44da8e59b3c1ed7ec9333a12b012135508ef7db6824442c664f31253179",
+      "width": 2064,
+      "height": 2752
     }
   ]
 }

@@ -23,11 +23,11 @@ concurrency:
   group: redwallet-app-review-submission
   cancel-in-progress: false
 env:
-  SOURCE_COMMIT: 286e875cb488365eeb00799b6c04305994ab9db7
-  CI_RUN_ID: "39711126561"
-  IOS_RUN_ID: "39711126600"
-  FUNDED_IOS_RUN_ID: "39711154580"
-  UPLOAD_RUN_ID: "39799087741"
+  SOURCE_COMMIT: 14b44bf69a346e1a0787e6aed1f3d3343950a0f1
+  CI_RUN_ID: "40165351100"
+  IOS_RUN_ID: "40165351044"
+  FUNDED_IOS_RUN_ID: "40165641068"
+  UPLOAD_RUN_ID: "40174840984"
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -63,19 +63,7 @@ jobs:
       - name: Verify qualification, native sticker identity and actual release receipts
         env:
           GH_TOKEN: ${{ github.token }}
-        run:
-          "python3 -I .github/scripts/verify-ios-release-gates.py\npython3 .github/scripts/download-ios-review-receipts.py\
-          \ .github/release/IOS-V4-WITHDRAWAL-INPUTS-20261022.json\npython3 - <<'PYCODE'\n\
-          import subprocess,json\nfrom pathlib import Path\nm=json.loads(Path('.github/release/IOS-STORE-SCREENSHOTS-20261019.json').read_text())\n\
-          assert m['sourceCommit']=='286e875cb488365eeb00799b6c04305994ab9db7' and m['visuallyReviewed']\
-          \ is True and m['captureRunId']==39799093428\nr=json.loads(subprocess.check_output(['gh','api','repos/romanmodin/RedWallet/actions/runs/39799093428']))\n\
-          assert r['repository']['full_name']=='romanmodin/RedWallet' and r['head_repository']['full_name']=='romanmodin/RedWallet'\n\
-          assert r['head_sha']=='b881585e528a9d06b20f67b28a774bd540f3fd20' and r['path']=='.github/workflows/capture-ios-store-screenshots.yml'\n\
-          assert r['event']=='workflow_dispatch' and r['head_branch']=='main' and r['run_attempt']==1\
-          \ and r['status']=='completed' and r['conclusion']=='success'\nfor source\
-          \ in ['9f627fb87b4b6cc28cddcf6ad45e2edc721551a8','286e875cb488365eeb00799b6c04305994ab9db7']:\n\
-          \ assert subprocess.check_output(['git','rev-parse',source+':ios'],text=True).strip()=='30e39cdee442e7d716cdc95de44ada6df2a523b7'\n\
-          PYCODE\n"
+        run: "python3 -I .github/scripts/verify-ios-release-gates.py\npython3 .github/scripts/download-ios-review-receipts.py .github/release/IOS-V4-WITHDRAWAL-INPUTS-20261022.json\npython3 - <<'PYCODE'\nimport subprocess,json\nfrom pathlib import Path\nm=json.loads(Path('.github/release/IOS-STORE-SCREENSHOTS-20261019.json').read_text())\nassert m['sourceCommit']=='14b44bf69a346e1a0787e6aed1f3d3343950a0f1' and m['visuallyReviewed'] is True and m['captureRunId']==40184204898\nr=json.loads(subprocess.check_output(['gh','api','repos/romanmodin/RedWallet/actions/runs/40184204898']))\nassert r['repository']['full_name']=='romanmodin/RedWallet' and r['head_repository']['full_name']=='romanmodin/RedWallet'\nassert r['head_sha']=='a445e7fd56813d9f3da79384d995bd4aedd9e71d' and r['path']=='.github/workflows/capture-ios-store-screenshots.yml'\nassert r['event']=='workflow_dispatch' and r['head_branch']=='main' and r['run_attempt']==1 and r['status']=='completed' and r['conclusion']=='success'\nfor artifact in m['artifacts']:\n family=artifact['family']\n expected={'iphone':(40184204898,'a445e7fd56813d9f3da79384d995bd4aedd9e71d',12595956217),'ipad':(40174842631,'d9af98430004a04e521a98b52780b8e79be1565f',12591509262)}\n assert (artifact['runId'],artifact['head'],artifact['id'])==expected[family]\n run=json.loads(subprocess.check_output(['gh','api',f\"repos/romanmodin/RedWallet/actions/runs/{artifact['runId']}\"]))\n assert run['repository']['full_name']==run['head_repository']['full_name']=='romanmodin/RedWallet'\n assert run['head_sha']==artifact['head'] and run['path']=='.github/workflows/capture-ios-store-screenshots.yml'\n assert run['event']=='workflow_dispatch' and run['head_branch']=='main' and run['run_attempt']==1\n assert run['status']=='completed' and run['conclusion']=='success'\n jobs=json.loads(subprocess.check_output(['gh','api',f\"repos/romanmodin/RedWallet/actions/runs/{artifact['runId']}/attempts/1/jobs?per_page=100\"]))['jobs']\n assert any(j['name']=='capture ('+family+')' and j['conclusion']=='success' for j in jobs)\n meta=json.loads(subprocess.check_output(['gh','api',f\"repos/romanmodin/RedWallet/actions/artifacts/{artifact['id']}\"]))\n assert meta['workflow_run']['id']==artifact['runId'] and meta['digest']=='sha256:'+artifact['sha256'] and not meta['expired']\nfor source in ['9f627fb87b4b6cc28cddcf6ad45e2edc721551a8','14b44bf69a346e1a0787e6aed1f3d3343950a0f1']:\n assert subprocess.check_output(['git','rev-parse',source+':ios'],text=True).strip()=='30e39cdee442e7d716cdc95de44ada6df2a523b7'\nPYCODE\n"
       - name: Verify exact uploaded package against the qualified source
         env:
           GH_TOKEN: ${{ github.token }}

@@ -283,28 +283,28 @@ test("submission client rejects agreements, other apps, build uploads, and arbit
 
 // Negative receipt cases cover stale or unrelated captures before any Apple write.
 test("submission receipts must belong to the exact signed release and both reviewed screenshot families", () => {
-  const source = "286e875cb488365eeb00799b6c04305994ab9db7";
+  const source = "14b44bf69a346e1a0787e6aed1f3d3343950a0f1";
   const ipa = {
     sourceCommit: source,
     publicSourceCommit: source,
-    orchestrationCommit: "b881585e528a9d06b20f67b28a774bd540f3fd20",
+    orchestrationCommit: "d9af98430004a04e521a98b52780b8e79be1565f",
     signatureVerification: "passed",
     sourceMappingVerification: "passed",
     ipaSha256:
-      "4d0dc7e91c2acd01eac6d9efe07c574724c28c1483c663e013a8259d2bf5e77e",
+      "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc",
     bundles: [
       "com.romanmodin.redwallet",
       "com.romanmodin.redwallet.Stickers",
     ].map((bundleId) => ({
       bundleId,
       version: "8.0.1",
-      build: "1792686194",
+      build: "1792915404",
       architectures: ["arm64"],
     })),
   };
   const beta = {
     sourceCommit: source,
-    uploadRunId: "39799087741",
+    uploadRunId: "40174840984",
     ipaSha256: ipa.ipaSha256,
     processingState: "VALID",
     status: "AVAILABLE_TO_TESTERS",
@@ -318,7 +318,7 @@ test("submission receipts must belong to the exact signed release and both revie
     bundleId: "com.romanmodin.redwallet",
     version: "8.0.1",
     appleBuildId: "new-build-id",
-    build: "1792686194",
+    build: "1792915404",
   };
   const identity = {
     appId: APP,
@@ -329,7 +329,7 @@ test("submission receipts must belong to the exact signed release and both revie
   const shots = {
     ...identity,
     status: "SCREENSHOTS_REPLACED",
-    captureRunId: 39799093428,
+    captureRunId: 40184204898,
     images: ["iphone", "ipad"].flatMap((family) =>
       Array.from({ length: 4 }, (_, i) => ({
         family,
@@ -355,11 +355,11 @@ test("submission receipts must belong to the exact signed release and both revie
     previousIosTree: "30e39cdee442e7d716cdc95de44ada6df2a523b7",
     replacementIosTree: "30e39cdee442e7d716cdc95de44ada6df2a523b7",
     newPackageVerificationPending: false,
-    signedPackageRunId: 39799087741,
+    signedPackageRunId: 40174840984,
     signedPackageBuild: beta.build,
   };
   const verify = (i, b, s, m, r = reuse) => verifyReceipts(i, b, s, m, r);
-  assert.equal(verify(ipa, beta, shots, message).build, "1792686194");
+  assert.equal(verify(ipa, beta, shots, message).build, "1792915404");
   assert.throws(
     () => verify(ipa, beta, shots, { ...message, sourceCommit: "old" }),
     /iMessage/,
