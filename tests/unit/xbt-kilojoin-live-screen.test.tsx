@@ -204,7 +204,7 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
         expect(screen.getByText('Check retained round confirmation')).toBeTruthy();
         expect(screen.getByText(/Your signature may have been shared/)).toBeTruthy();
       } else {
-        expect(screen.getByText('Status: open')).toBeTruthy();
+        expect(screen.getByText('Status: Accepted · validating participants')).toBeTruthy();
         expect(screen.getByText('Participants: Awaiting validation')).toBeTruthy();
         expect(screen.queryByText('Participants: 0')).toBeNull();
         await act(async () => {

@@ -14,6 +14,7 @@ import { LIVE_JOIN_ENABLED, parsePool, Terms, outputCount } from '../../class/xb
 import { NostrEvent } from '../../class/xbt/kilojoin/crypto';
 import { change, feeShare } from '../../class/xbt/kilojoin/transaction';
 import { Utxo } from '../../class/wallets/types';
+import { coinjoinIssue, coinjoinProgress } from '../../class/xbt/kilojoin/presentation';
 
 /** Experimental live route; joining requires the entry acknowledgment. */
 export default function CoinjoinLive({ experimentalAcknowledged = false }: { experimentalAcknowledged?: boolean }) {
@@ -159,18 +160,9 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   );
   const session = view?.session,
     journal = view?.journal;
-  const terminalStatus =
-    session?.terminalCause === 'creator-rejected'
-      ? 'Rejected by pool'
-      : session?.terminalCause === 'creator-aborted'
-        ? 'Aborted by pool'
-        : 'Stopped';
-  const terminalExplanation =
-    session?.terminalCause === 'creator-rejected'
-      ? 'The pool creator rejected this participation attempt.'
-      : session?.terminalCause === 'creator-aborted'
-        ? 'The pool creator aborted the round.'
-        : undefined;
+  const progress = session && journal ? coinjoinProgress(session, journal) : undefined;
+  const displayedError = error || view?.error;
+  const issue = displayedError ? coinjoinIssue(displayedError) : undefined;
   const signatureCount = session ? Object.keys(session.signatures).length : 0;
   const inputCount = session?.seats.reduce((n, s) => n + s.coins.length, 0) ?? 0;
   return (
@@ -182,10 +174,16 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
           The relay can see your IP address. Your configured backend can see address queries. CoinJoin does not guarantee anonymity.
         </SettingsFootnote>
         <SettingsFootnote>Change is labeled and frozen after confirmation to avoid recombining it with the mixed output.</SettingsFootnote>
-        {!!(error || view?.error) && (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {error || view?.error}
-          </Text>
+        {!!issue && (
+          <View>
+            <Text testID="CoinjoinIssueCategory" style={styles.error}>
+              {issue.category}
+            </Text>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {displayedError}
+            </Text>
+            <SettingsFootnote>{issue.detail}</SettingsFootnote>
+          </View>
         )}
         {!view ? (
           <>
@@ -300,16 +298,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
         ) : (
           <>
             <View style={card}>
-              <Text style={text}>
-                Status:{' '}
-                {journal?.phase === 'complete'
-                  ? 'Confirmed'
-                  : journal?.phase === 'aborted'
-                    ? terminalStatus
-                    : journal?.phase === 'uncertain'
-                      ? 'Stopped · coins reserved'
-                      : session?.phase}
-              </Text>
+              <Text style={text}>Status: {progress?.title}</Text>
               <Text style={text}>
                 Participants:{' '}
                 {session && !session.seats.length && ['joining', 'open'].includes(session.phase)
@@ -332,7 +321,15 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 </Text>
               )}
             </View>
-            {!!terminalExplanation && <SettingsFootnote>{terminalExplanation}</SettingsFootnote>}
+            {!!progress && <SettingsFootnote>{progress.detail}</SettingsFootnote>}
+            {journal && Array.isArray(journal.reserved) && (
+              <Text testID="CoinjoinReservationCount" style={text}>
+                Reserved coins: {journal.reserved.length}
+              </Text>
+            )}
+            {!!issue && journal && !['complete', 'aborted', 'signed', 'uncertain'].includes(journal.phase) && (
+              <SettingsFootnote>You can stop participation to release this unsigned attempt's coin reservations.</SettingsFootnote>
+            )}
             {journal?.phase === 'aborted' && journal.reserved.length === 0 && (
               <SettingsFootnote>Participation stopped. This round's coin reservations have been released.</SettingsFootnote>
             )}
