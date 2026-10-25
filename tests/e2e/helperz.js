@@ -232,14 +232,19 @@ export const expectToBeVisible = async id => {
   }
 };
 
-export async function helperCreateWallet(walletName, walletFormat = 'segwit') {
-  await waitFor(element(by.id('CreateAWallet')))
-    .toBeVisible()
-    .whileElement(by.id('WalletsList'))
-    .scroll(500, 'right'); // in case emu screen is small and it doesnt fit
+export async function helperCreateWallet(walletName, walletFormat = 'segwit', openWalletForm) {
+  if (openWalletForm) {
+    await openWalletForm();
+    await waitForId('WalletNameInput');
+  } else {
+    await waitFor(element(by.id('CreateAWallet')))
+      .toBeVisible()
+      .whileElement(by.id('WalletsList'))
+      .scroll(500, 'right'); // in case emu screen is small and it doesnt fit
 
-  await sleep(200); // Wait until bounce animation finishes.
-  await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'WalletNameInput');
+    await sleep(200); // Wait until bounce animation finishes.
+    await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'WalletNameInput');
+  }
   await element(by.id('WalletNameInput')).replaceText(walletName || 'cr34t3d');
   await waitForId('ActivateBitcoinButton');
   await element(by.id('ActivateBitcoinButton')).tap();

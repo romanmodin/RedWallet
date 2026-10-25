@@ -67,6 +67,7 @@ jobs:
           mkdir -p ios/build/Build/Products/Release-iphonesimulator
           tar -xzf BlueWallet.app.tar.gz -C ios/build/Build/Products/Release-iphonesimulator
           cp .reviewed-orchestration/tests/e2e/appstore-screenshots.spec.js tests/e2e/
+          cp .reviewed-orchestration/tests/e2e/helperz.js tests/e2e/
       - name: Prepare screenshot simulator
         env:
           STORE_FAMILY: ${{ matrix.family }}

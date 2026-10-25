@@ -22,10 +22,23 @@ const capture = async name => {
   fs.copyFileSync(file, path.join(directory, name + '.png'));
 };
 
+// Use the native header button: the empty carousel card extends beyond the
+// iPhone viewport and Detox correctly rejects it as not fully hittable.
+const openWalletForm = async () => {
+  await waitFor(element(by.label('Add Wallet')))
+    .toBeVisible()
+    .withTimeout(5000);
+  await element(by.label('Add Wallet')).tap();
+  await waitForId('WalletNameInput');
+};
+
 captureSuite('App Store screenshots from the pinned native iOS app', () => {
   it('captures wallet, receive, recovery controls and optional artwork', async () => {
     await device.clearKeychain();
-    await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
+    await device.launchApp({
+      delete: true,
+      permissions: { notifications: 'NO' },
+    });
     await waitForWalletsList();
     await element(by.id('SettingsButton')).tap();
     await element(by.id('NetworkSettings')).tap();
@@ -45,7 +58,7 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
     await device.disableSynchronization();
     try {
       console.log('[store-capture] creating empty demo wallet');
-      await helperCreateWallet('Demo Taproot Wallet', 'taproot');
+      await helperCreateWallet('Demo Taproot Wallet', 'taproot', openWalletForm);
       console.log('[store-capture] empty demo wallet visible');
     } finally {
       await device.enableSynchronization();
@@ -84,13 +97,8 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
     await scrollUpOnHomeScreen();
     await capture('03-optional-artwork');
 
-    // The add-wallet card is to the right of the demo wallet on iPhone.
-    // Bring it fully into view before tapping, as the import helper does.
-    await waitFor(element(by.id('CreateAWallet')))
-      .toBeVisible()
-      .whileElement(by.id('WalletsList'))
-      .scroll(500, 'right');
-    await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'ImportWallet');
+    await openWalletForm();
+    await waitForId('ImportWallet');
     await element(by.id('ImportWallet')).tap();
     await waitForId('MnemonicInput');
     await element(by.id('ToggleRecoveryDiscovery')).tap();
