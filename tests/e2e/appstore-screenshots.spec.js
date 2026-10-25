@@ -25,10 +25,10 @@ const capture = async name => {
 // Use the native header button: the empty carousel card extends beyond the
 // iPhone viewport and Detox correctly rejects it as not fully hittable.
 const openWalletForm = async () => {
-  await waitFor(element(by.label('Add Wallet')))
+  await waitFor(element(by.id('AddWalletButton')))
     .toBeVisible()
     .withTimeout(5000);
-  await element(by.label('Add Wallet')).tap();
+  await element(by.id('AddWalletButton')).tap();
   await waitForId('WalletNameInput');
 };
 
