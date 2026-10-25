@@ -6,17 +6,17 @@ import { client, upload, verifyImage } from "./upload-imessage-screenshots.mjs";
 const VERSION_ID = "65cd6bc4-9962-4b77-a3ca-78c115f3a615";
 const LOCALE_ID = "67c79fa3-be47-4fc0-94c5-713836f9d262";
 export const OLD = {
+  APP_IPAD_PRO_3GEN_129: [
+    "83000019-654f-8a97-8004-c2485cf67912",
+    "57c00019-654f-8a97-803b-2bc40acff777",
+    "5a400019-654f-8a97-8038-70b3d0c5063b",
+    "2c000019-654f-8a97-8011-51db148d21ec",
+  ],
   APP_IPHONE_67: [
     "e1800019-654f-8a97-802d-6d7bd53b2728",
-    "24800019-654f-8a97-8020-82197d778f39",
     "b1c00019-654f-8a97-801a-98c963a082f2",
-    "6e800019-654f-8a97-8023-57516b0a0d02",
-  ],
-  APP_IPAD_PRO_3GEN_129: [
-    "39800019-654f-8a97-803a-a4f3b667e519",
-    "3f800019-654f-8a97-8002-8725f2531b43",
-    "04800019-654f-8a97-801b-2cd085a0d164",
-    "83c00019-654f-8a97-8021-61ddbf92f8d9",
+    "54800019-654f-8a97-803b-a82a76cd66a4",
+    "24400019-654f-8a97-8018-d7d951019b6e",
   ],
 };
 
@@ -151,8 +151,8 @@ async function main() {
       ),
     );
     check(
-      manifest.sourceCommit === "286e875cb488365eeb00799b6c04305994ab9db7" &&
-        manifest.captureRunId === 39799093428 &&
+      manifest.sourceCommit === "14b44bf69a346e1a0787e6aed1f3d3343950a0f1" &&
+        manifest.captureRunId === 40184204898 &&
         manifest.visuallyReviewed === true,
       "Unreviewed screenshot provenance",
     );

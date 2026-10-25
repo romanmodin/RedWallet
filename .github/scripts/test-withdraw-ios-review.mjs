@@ -8,11 +8,11 @@ import { REPLACEMENT_SOURCE, OLD_REVIEW } from "./replace-ios-review.mjs";
 function fixture() {
   const prior = "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8";
   const hash =
-    "4d0dc7e91c2acd01eac6d9efe07c574724c28c1483c663e013a8259d2bf5e77e";
+    "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc";
   const ipa = {
     sourceCommit: REPLACEMENT_SOURCE,
     publicSourceCommit: REPLACEMENT_SOURCE,
-    orchestrationCommit: "b881585e528a9d06b20f67b28a774bd540f3fd20",
+    orchestrationCommit: "d9af98430004a04e521a98b52780b8e79be1565f",
     ipaSha256: hash,
     signatureVerification: "passed",
     sourceMappingVerification: "passed",
@@ -22,17 +22,17 @@ function fixture() {
     ].map((bundleId) => ({
       bundleId,
       version: "8.0.1",
-      build: "1792686194",
+      build: "1792915404",
       architectures: ["arm64"],
     })),
   };
   const beta = {
     sourceCommit: REPLACEMENT_SOURCE,
-    uploadRunId: "39799087741",
+    uploadRunId: "40174840984",
     ipaSha256: hash,
     appId: "6817118871",
     version: "8.0.1",
-    build: "1792686194",
+    build: "1792915404",
     appleBuildId: "fixture-new-build",
     processingState: "VALID",
     status: "AVAILABLE_TO_TESTERS",
@@ -55,7 +55,8 @@ function fixture() {
   });
   const main = {
     ...shots(8, "main"),
-    captureRunId: 39312798717,
+    sourceCommit: "286e875cb488365eeb00799b6c04305994ab9db7",
+    captureRunId: 39799093428,
     status: "SCREENSHOTS_REPLACED",
   };
   const stickers = {
@@ -65,7 +66,7 @@ function fixture() {
   };
   const capture = {
     sourceCommit: REPLACEMENT_SOURCE,
-    captureRunId: 39799093428,
+    captureRunId: 40184204898,
     captureAttempt: 1,
     visuallyReviewed: true,
     images: Array(8).fill({}),

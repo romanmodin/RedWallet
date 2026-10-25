@@ -18,11 +18,11 @@ concurrency:
   group: redwallet-app-review-submission
   cancel-in-progress: false
 env:
-  SOURCE_COMMIT: 286e875cb488365eeb00799b6c04305994ab9db7
-  CI_RUN_ID: "39711126561"
-  IOS_RUN_ID: "39711126600"
-  FUNDED_IOS_RUN_ID: "39711154580"
-  UPLOAD_RUN_ID: "39799087741"
+  SOURCE_COMMIT: 14b44bf69a346e1a0787e6aed1f3d3343950a0f1
+  CI_RUN_ID: "40165351100"
+  IOS_RUN_ID: "40165351044"
+  FUNDED_IOS_RUN_ID: "40165641068"
+  UPLOAD_RUN_ID: "40174840984"
 jobs:
   verify:
     runs-on: ubuntu-24.04

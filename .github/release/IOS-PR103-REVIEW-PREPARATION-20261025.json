@@ -1,0 +1,29 @@
+{
+  "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+  "build": "1792915404",
+  "ipa": "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc",
+  "uploadRun": 40174840984,
+  "betaRun": 40183976565,
+  "iphoneCapture": {
+    "run": 40184204898,
+    "head": "a445e7fd56813d9f3da79384d995bd4aedd9e71d",
+    "artifact": 12595956217,
+    "zipSha256": "f43e7973d07687d68466dd69486109bca961ad8c13b99ddf52060edaac24fcd2",
+    "provenanceSha256": "8e65218fd72c9ea6abf8133f3cf56f542ade0b20047fe899738b2ab530b4b121"
+  },
+  "ipadCapture": {
+    "run": 40174842631,
+    "head": "d9af98430004a04e521a98b52780b8e79be1565f",
+    "artifact": 12591509262,
+    "zipSha256": "b4c15e5d9c4527f9890fcaf1984c36074c3955567d37d02cba4759b692e7930e"
+  },
+  "allEightVisuallyReviewed": true,
+  "actualWorkflowCaptureDownloadValidation": "passed",
+  "fourActualReleaseReceiptArchivesValidation": "passed",
+  "actualWithdrawalCandidateValidation": "passed",
+  "iosTreeUnchanged": "30e39cdee442e7d716cdc95de44ada6df2a523b7",
+  "oldReviewPreserved": true,
+  "replacementScreenshotUploadPending": true,
+  "appReviewSubmissionPending": true,
+  "testsLogSha256": "981e9667c09c17d7088232fa8dcc2adaf281cd82a7535376011326c0c0e29e77"
+}

@@ -22,7 +22,7 @@ function fixture(overrides = {}) {
   const c = {
     sourceCommit: REPLACEMENT_SOURCE,
     appleBuildId: "new-build-id",
-    build: "1792500000",
+    build: "1792915404",
   };
   const writes = [];
   let reads = 0;

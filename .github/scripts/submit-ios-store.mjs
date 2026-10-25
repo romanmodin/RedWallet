@@ -6,7 +6,7 @@ import {
   REPLACEMENT_SOURCE,
   OLD_BUILD,
 } from "./replace-ios-review.mjs";
-export const SOURCE = "286e875cb488365eeb00799b6c04305994ab9db7";
+export const SOURCE = "14b44bf69a346e1a0787e6aed1f3d3343950a0f1";
 const PRIOR_SOURCE = "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8";
 const GROUPS = [
   "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
@@ -32,16 +32,16 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots, reuse) {
   check(
     ipa.sourceCommit === SOURCE &&
       ipa.publicSourceCommit === SOURCE &&
-      ipa.orchestrationCommit === "b881585e528a9d06b20f67b28a774bd540f3fd20" &&
+      ipa.orchestrationCommit === "d9af98430004a04e521a98b52780b8e79be1565f" &&
       ipa.ipaSha256 ===
-        "4d0dc7e91c2acd01eac6d9efe07c574724c28c1483c663e013a8259d2bf5e77e" &&
+        "1a53b6670fe1e8f7bb864b7e1b6a4777fdd3b758eb93254e2cca4018e95cbedc" &&
       ipa.signatureVerification === "passed" &&
       ipa.sourceMappingVerification === "passed",
     "Unqualified signed package",
   );
   check(
     beta.sourceCommit === SOURCE &&
-      beta.uploadRunId === "39799087741" &&
+      beta.uploadRunId === "40174840984" &&
       beta.ipaSha256 === ipa.ipaSha256 &&
       beta.processingState === "VALID" &&
       beta.status === "AVAILABLE_TO_TESTERS" &&
@@ -57,7 +57,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots, reuse) {
       beta.bundleId === BUNDLE_ID &&
       beta.version === VERSION &&
       id(beta.appleBuildId) &&
-      beta.build === "1792686194",
+      beta.build === "1792915404",
     "Wrong release identity",
   );
   check(
@@ -79,7 +79,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots, reuse) {
       mainShots.appStoreVersionId === VERSION_ID &&
       mainShots.status === "SCREENSHOTS_REPLACED" &&
       mainShots.sourceCommit === SOURCE &&
-      mainShots.captureRunId === 39799093428 &&
+      mainShots.captureRunId === 40184204898 &&
       mainShots.images.length === 8 &&
       mainShots.images.every((i) => i.state === "COMPLETE"),
     "Main screenshots not verified",
@@ -101,7 +101,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots, reuse) {
       reuse.previousIosTree === "30e39cdee442e7d716cdc95de44ada6df2a523b7" &&
       reuse.replacementIosTree === reuse.previousIosTree &&
       reuse.newPackageVerificationPending === false &&
-      reuse.signedPackageRunId === 39799087741 &&
+      reuse.signedPackageRunId === 40174840984 &&
       reuse.signedPackageBuild === beta.build,
     "iMessage source or signed extension reuse not verified",
   );
@@ -311,7 +311,7 @@ export async function verifyListing(api, candidate) {
 export const V4_REVIEW_NOTE =
   "Kilojoin V4 update: Settings > Tools > CoinJoin remains Experimental with explicit live opt-in. V3 pools use one output; V4 pools use 2-5 equal outputs per participant, each to a fresh address. Review all outputs and the fee before signing. Sample mode and pool discovery need no funded wallet. Interrupted rounds retain coin reservations until safely resolved. Relay/backend privacy limits still apply. Powered by Kilojoin, by Kilombino.";
 export const COINJOIN_KNOWN_ISSUE_NOTE =
-  "Known issue in build 1792686194: Experimental CoinJoin can fail immediately after joining a pool with a participant-message processing error, sometimes after briefly showing participants. End-to-end mixing is not reliable in this build, and this error does not indicate a completed mix. We are submitting the wallet while correcting this optional experimental feature. Do not use real funds to test CoinJoin during review; sample mode and read-only pool discovery remain available.";
+  "Build 1792915404 includes fixes for reproduced CoinJoin startup, replay handling, and saved HD watch-only wallet inventory errors. The exact cause of the reported physical iPhone join failure remains unconfirmed; successful end-to-end mixing on that device has not been verified. CoinJoin remains optional and experimental, and an error does not indicate a completed mix. Do not use real funds to test CoinJoin during review; sample mode and read-only pool discovery remain available.";
 export function v4ReviewNotes(notes) {
   check(present(notes), "Existing reviewer notes missing");
   const next = [V4_REVIEW_NOTE, COINJOIN_KNOWN_ISSUE_NOTE].reduce(
