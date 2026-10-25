@@ -34,76 +34,86 @@ const openWalletForm = async () => {
 
 captureSuite('App Store screenshots from the pinned native iOS app', () => {
   it('captures wallet, receive, recovery controls and optional artwork', async () => {
-    await device.clearKeychain();
-    await device.launchApp({
-      delete: true,
-      permissions: { notifications: 'NO' },
-    });
-    await waitForWalletsList();
-    await element(by.id('SettingsButton')).tap();
-    await element(by.id('NetworkSettings')).tap();
-    await element(by.id('ElectrumSettings')).tap();
-    await waitForId('ElectrumConnectionEnabledSwitch');
-    if (!(await getSwitchValue('ElectrumConnectionEnabledSwitch'))) {
-      await element(by.id('ElectrumConnectionEnabledSwitch')).tap();
-    }
-    await goBack();
-    await goBack();
-    await goBack();
-
-    // The iPad capture stalled on ActivateBitcoinButton before the shared helper
-    // disables synchronization for Create. Keep explicit element checks active
-    // through keyboard dismissal too; iOS 26 animation idleness is not a screen
-    // readiness signal. No wallet-creation retry or longer timeout is introduced.
-    await device.disableSynchronization();
     try {
-      console.log('[store-capture] creating empty demo wallet');
-      await helperCreateWallet('Demo Taproot Wallet', 'taproot', openWalletForm);
-      console.log('[store-capture] empty demo wallet visible');
-    } finally {
-      await device.enableSynchronization();
-    }
-    await device.launchApp({ newInstance: true });
-    await waitForWalletsList();
-    await scrollUpOnHomeScreen();
-    await waitForId('Demo Taproot Wallet');
-    await capture('01-wallet');
+      await device.clearKeychain();
+      await device.launchApp({
+        delete: true,
+        permissions: { notifications: 'NO' },
+      });
+      await waitForWalletsList();
+      await element(by.id('SettingsButton')).tap();
+      await element(by.id('NetworkSettings')).tap();
+      await element(by.id('ElectrumSettings')).tap();
+      await waitForId('ElectrumConnectionEnabledSwitch');
+      if (!(await getSwitchValue('ElectrumConnectionEnabledSwitch'))) {
+        await element(by.id('ElectrumConnectionEnabledSwitch')).tap();
+      }
+      await goBack();
+      await goBack();
+      await goBack();
 
-    await tapAndTapAgainIfElementIsNotVisible('Demo Taproot Wallet', 'ReceiveButton');
-    await device.disableSynchronization();
-    try {
-      await element(by.id('ReceiveButton')).tap();
-      if (!(await dismissAlertByText('Yes, I have.'))) throw new Error('Demo backup confirmation was not displayed');
+      // The iPad capture stalled on ActivateBitcoinButton before the shared helper
+      // disables synchronization for Create. Keep explicit element checks active
+      // through keyboard dismissal too; iOS 26 animation idleness is not a screen
+      // readiness signal. No wallet-creation retry or longer timeout is introduced.
       await device.disableSynchronization();
-      await waitForId('BitcoinAddressQRCode');
-      await capture('02-receive');
+      try {
+        console.log('[store-capture] creating empty demo wallet');
+        await helperCreateWallet('Demo Taproot Wallet', 'taproot', openWalletForm);
+        console.log('[store-capture] empty demo wallet visible');
+      } finally {
+        await device.enableSynchronization();
+      }
+      await device.launchApp({ newInstance: true });
+      // App restart can leave iOS 26 glass animations busy indefinitely.
+      // Keep the original home/toolbar checks; observe readiness directly.
+      await device.disableSynchronization();
+      await waitForWalletsList();
+      await scrollUpOnHomeScreen();
+      await waitForId('Demo Taproot Wallet');
+      await capture('01-wallet');
+
+      await tapAndTapAgainIfElementIsNotVisible('Demo Taproot Wallet', 'ReceiveButton');
+      await device.disableSynchronization();
+      try {
+        await element(by.id('ReceiveButton')).tap();
+        if (!(await dismissAlertByText('Yes, I have.'))) throw new Error('Demo backup confirmation was not displayed');
+        await device.disableSynchronization();
+        await waitForId('BitcoinAddressQRCode');
+        await capture('02-receive');
+      } finally {
+        await device.enableSynchronization();
+      }
+
+      await device.launchApp({ newInstance: true });
+      // App restart can leave iOS 26 glass animations busy indefinitely.
+      // Keep the original home/toolbar checks; observe readiness directly.
+      await device.disableSynchronization();
+      await waitForWalletsList();
+      await element(by.id('SettingsButton')).tap();
+      await waitFor(element(by.id('ArtworkSkinLogo')))
+        .toBeVisible()
+        .whileElement(by.id('SettingsRoot'))
+        .scroll(300, 'down');
+      await element(by.id('ArtworkSkinLogo')).tap();
+      await waitFor(element(by.id('ArtworkSkinLogo')))
+        .toHaveLabel('Artwork skin: Helmet')
+        .withTimeout(5000);
+      await goBack();
+      await waitForWalletsList();
+      await scrollUpOnHomeScreen();
+      await capture('03-optional-artwork');
+
+      await openWalletForm();
+      await waitForId('ImportWallet');
+      await element(by.id('ImportWallet')).tap();
+      await waitForId('MnemonicInput');
+      await element(by.id('ToggleRecoveryDiscovery')).tap();
+      await waitForId('RecoveryGapLimit');
+      // Empty recovery field: no recovery phrase or private key is captured.
+      await capture('04-recovery-options');
     } finally {
       await device.enableSynchronization();
     }
-
-    await device.launchApp({ newInstance: true });
-    await waitForWalletsList();
-    await element(by.id('SettingsButton')).tap();
-    await waitFor(element(by.id('ArtworkSkinLogo')))
-      .toBeVisible()
-      .whileElement(by.id('SettingsRoot'))
-      .scroll(300, 'down');
-    await element(by.id('ArtworkSkinLogo')).tap();
-    await waitFor(element(by.id('ArtworkSkinLogo')))
-      .toHaveLabel('Artwork skin: Helmet')
-      .withTimeout(5000);
-    await goBack();
-    await waitForWalletsList();
-    await scrollUpOnHomeScreen();
-    await capture('03-optional-artwork');
-
-    await openWalletForm();
-    await waitForId('ImportWallet');
-    await element(by.id('ImportWallet')).tap();
-    await waitForId('MnemonicInput');
-    await element(by.id('ToggleRecoveryDiscovery')).tap();
-    await waitForId('RecoveryGapLimit');
-    // Empty recovery field: no recovery phrase or private key is captured.
-    await capture('04-recovery-options');
   });
 });
