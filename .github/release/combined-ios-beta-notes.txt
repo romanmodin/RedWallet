@@ -1,7 +1,7 @@
-RedWallet XBT 8.0.1 (1792915404)
+RedWallet iOS diagnostic update.
 
-Adds distinct CoinJoin progress and error messages for connection, participant validation and local wallet inventory. Preserves the original failure when participation is stopped, and distinguishes reserved coins from released reservations.
+CoinJoin remains experimental. This build adds specific coin, backend, validation and pool-rejection diagnostics, shows failed validation distinctly from waiting, and preserves coin reservations and every signing guard. It also handles a reported-tip race and distinguishes incomplete backend responses.
 
-Includes prior roster, watch-only and Lightning inventory, transaction fallback and v3/v4 compatibility repairs. CoinJoin remains Experimental. The exact physical-iPhone failure is still under investigation; hosted iOS startup, wallet, TLS and funded regtest checks passed for this source. This does not establish a successful live CoinJoin round.
+A completed live CoinJoin pool has not yet been verified on the physical iPhone. These diagnostics do not establish that the underlying live-pool issue is resolved. Stop participation is available for an unsigned attempt as described in the app. Please keep recovery backups secure.
 
-Review amounts, recipients and fees before signing. Mixing does not guarantee anonymity; the relay can see your IP and your backend can see address queries. Follow displayed reservation and recovery requirements.
+Other wallet features include XBT Taproot/native SegWit accounts, recovery discovery, receive/share QR, encrypted wallet storage and reviewed fee replacement.
