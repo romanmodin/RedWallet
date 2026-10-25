@@ -1,0 +1,10 @@
+{
+  "failedRun": 40143190130,
+  "failedAttempt": 1,
+  "job": 121019022185,
+  "sourceCommit": "2faf7bbf74dbad33adcb81ae024611b161429e68",
+  "firstFailure": "CreateAWallet is not hittable; 433.333 width in 424 visible bounds",
+  "logSha256": "911edd0df4ef3ded90a87e8f21e1aabf22ac56f5e544671d7177348ae11b71fb",
+  "correction": "Capture-only caller opens existing Add Wallet header button; default helper navigation preserved. Same destination and screenshot assertions; no retry or timeout increase.",
+  "nativeRequalificationPending": true
+}
