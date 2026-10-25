@@ -105,3 +105,36 @@ describe('Kilojoin roster contents', () => {
     expect(() => parseSeat({ ...body.seats[0], coins: [body.seats[1].coin] }, terms)).toThrow('Ambiguous');
   });
 });
+
+test.each([
+  ['missing', 'KJ-CHAIN-OBSERVATION'],
+  ['spent', 'KJ-CHAIN-SPENT'],
+  ['value', 'KJ-CHAIN-OBSERVATION-VALUE'],
+  ['script', 'KJ-CHAIN-OBSERVATION-SCRIPT'],
+  ['time', 'KJ-CHAIN-TIME'],
+  ['future', 'KJ-CHAIN-FUTURE'],
+  ['stale', 'KJ-CHAIN-STALE'],
+])('identifies rejected roster observation %s without accepting seats', (fault, code) => {
+  const { body, context } = fixture();
+  const id = outpoint(body.seats[1].coin);
+  const known = context.chain.get(id)!;
+  if (fault === 'missing') context.chain.delete(id);
+  if (fault === 'spent') known.unspent = false;
+  if (fault === 'value') known.value++;
+  if (fault === 'script') known.script = context.chain.get(outpoint(body.seats[0].coin))!.script;
+  if (fault === 'time') known.checkedAt = NaN;
+  if (fault === 'future') known.checkedAt = context.now + 1;
+  if (fault === 'stale') known.checkedAt = context.now - 61;
+  let rejected: unknown;
+  try {
+    validateRoster(body, terms, context);
+  } catch (error) {
+    rejected = error;
+  }
+  expect(rejected).toMatchObject({ message: 'Missing, stale or mismatched chain observation', code });
+});
+test('retains the exact 60-second observation freshness boundary', () => {
+  const { body, context } = fixture();
+  context.chain.get(outpoint(body.seats[1].coin))!.checkedAt = context.now - 60;
+  expect(validateRoster(body, terms, context).seats).toHaveLength(2);
+});

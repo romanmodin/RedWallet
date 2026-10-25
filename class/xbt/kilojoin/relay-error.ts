@@ -1,3 +1,4 @@
+import { ChainValidationError, chainDiagnostics } from './chain-error';
 const participantStages = ['KJ-ROSTER-PARSE', 'KJ-BACKEND', 'KJ-WALLET-INVENTORY', 'KJ-ROSTER-CHECK'] as const;
 type ParticipantStage = (typeof participantStages)[number];
 class ParticipantStageError extends Error {
@@ -55,11 +56,13 @@ export function participantFailure(error: unknown): Error {
     'Invalid UTF8': 'KJ-DECRYPT',
   };
   const code =
-    error instanceof ParticipantStageError
+    error instanceof ChainValidationError && Object.prototype.hasOwnProperty.call(chainDiagnostics, error.code)
       ? error.code
-      : error instanceof Error && Object.prototype.hasOwnProperty.call(codes, error.message)
-        ? codes[error.message]
-        : 'KJ-PROCESS';
+      : error instanceof ParticipantStageError
+        ? error.code
+        : error instanceof Error && Object.prototype.hasOwnProperty.call(codes, error.message)
+          ? codes[error.message]
+          : 'KJ-PROCESS';
   return new Error('Participant message rejected [' + code + ']');
 }
 
@@ -80,6 +83,7 @@ export function relayFailureMessage(error: Error): string {
   };
   for (const code of [
     ...participantStages,
+    ...Object.keys(chainDiagnostics),
     'KJ-WALLET-INPUTS',
     'KJ-ROSTER-SHAPE',
     'KJ-COIN-FORMAT',

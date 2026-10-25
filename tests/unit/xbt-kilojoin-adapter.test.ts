@@ -189,3 +189,59 @@ test.each(['missing', 'duplicate', 'value', 'unconfirmed', 'future', 'history-mi
     await expect(observeCoins([f.coin], () => 1000)).rejects.toThrow('CoinJoin requires a verified confirmed unspent coin');
   },
 );
+
+// Preserve all existing rejections while exposing only the failed fixed check.
+test.each([
+  ['missing', 'KJ-CHAIN-UNSPENT'],
+  ['duplicate', 'KJ-CHAIN-UNSPENT'],
+  ['utxo-value', 'KJ-CHAIN-UTXO-VALUE'],
+  ['unconfirmed', 'KJ-CHAIN-CONFIRMATION'],
+  ['invalid-height', 'KJ-CHAIN-CONFIRMATION'],
+  ['future', 'KJ-CHAIN-TIP-HEIGHT'],
+  ['history-missing', 'KJ-CHAIN-HISTORY'],
+  ['history-duplicate', 'KJ-CHAIN-HISTORY'],
+  ['history-conflict', 'KJ-CHAIN-HEIGHT-MISMATCH'],
+  ['output-missing', 'KJ-CHAIN-OUTPUT'],
+  ['parent-value', 'KJ-CHAIN-VALUE'],
+  ['parent-script', 'KJ-CHAIN-SCRIPT'],
+])('reports precise chain rejection %s without accepting the input', async (fault, code) => {
+  const f = fixture();
+  const utxo = {
+    txid: f.coin.txid,
+    vout: f.coin.vout,
+    value: f.coin.value,
+    height: 100,
+  };
+  let list = [utxo];
+  if (fault === 'missing') list = [];
+  if (fault === 'duplicate') list = [utxo, { ...utxo }];
+  if (fault === 'utxo-value') utxo.value++;
+  if (fault === 'unconfirmed') utxo.height = 0;
+  if (fault === 'invalid-height') utxo.height = 100.5;
+  if (fault === 'future') utxo.height = 106;
+  (BlueElectrum.multiGetUtxoByAddress as jest.Mock).mockResolvedValue({
+    [f.a]: list,
+  });
+  if (fault === 'history-missing')
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
+      [f.a]: [],
+    });
+  if (fault === 'history-duplicate')
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
+      [f.a]: [
+        { tx_hash: f.coin.txid, height: 100 },
+        { tx_hash: f.coin.txid, height: 100 },
+      ],
+    });
+  if (fault === 'history-conflict')
+    (BlueElectrum.multiGetHistoryByAddress as jest.Mock).mockResolvedValue({
+      [f.a]: [{ tx_hash: f.coin.txid, height: 99 }],
+    });
+  if (fault === 'output-missing') f.coin.vout = 1;
+  if (fault === 'parent-value') f.coin.value++;
+  if (fault === 'parent-script') f.coin.pubkey = Buffer.from(ECPair.fromPrivateKey(Buffer.alloc(32, 2)).publicKey).toString('hex');
+  await expect(observeCoins([f.coin], () => 1000)).rejects.toMatchObject({
+    message: 'CoinJoin requires a verified confirmed unspent coin',
+    code,
+  });
+});

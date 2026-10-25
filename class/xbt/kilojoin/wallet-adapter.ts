@@ -1,3 +1,4 @@
+import { ChainValidationError } from './chain-error';
 /** XBT backend and spending-key adapters. Only the explicitly approved session calls the signer. */
 import { address, crypto as bitcoinCrypto } from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
@@ -43,19 +44,21 @@ export async function observeCoins(coins: Coin[], now = () => Math.floor(Date.no
       output = tx.outs[c.vout];
     const matches = (unspent[a] || []).filter(u => u.txid === c.txid && u.vout === c.vout);
     const entries = (history[a] || []).filter(h => h.tx_hash === c.txid);
-    if (
-      !output ||
-      output.value !== BigInt(c.value) ||
-      Buffer.compare(Buffer.from(output.script), script) !== 0 ||
-      matches.length !== 1 ||
-      entries.length !== 1 ||
-      matches[0].value !== c.value ||
-      !Number.isSafeInteger(matches[0].height) ||
-      matches[0].height <= 0 ||
-      matches[0].height > tip ||
-      entries[0].height !== matches[0].height
-    )
-      throw new Error('CoinJoin requires a verified confirmed unspent coin');
+    if (!output) throw new ChainValidationError('KJ-CHAIN-OUTPUT', 'CoinJoin requires a verified confirmed unspent coin');
+    if (output.value !== BigInt(c.value))
+      throw new ChainValidationError('KJ-CHAIN-VALUE', 'CoinJoin requires a verified confirmed unspent coin');
+    if (Buffer.compare(Buffer.from(output.script), script) !== 0)
+      throw new ChainValidationError('KJ-CHAIN-SCRIPT', 'CoinJoin requires a verified confirmed unspent coin');
+    if (matches.length !== 1) throw new ChainValidationError('KJ-CHAIN-UNSPENT', 'CoinJoin requires a verified confirmed unspent coin');
+    if (entries.length !== 1) throw new ChainValidationError('KJ-CHAIN-HISTORY', 'CoinJoin requires a verified confirmed unspent coin');
+    if (matches[0].value !== c.value)
+      throw new ChainValidationError('KJ-CHAIN-UTXO-VALUE', 'CoinJoin requires a verified confirmed unspent coin');
+    if (!Number.isSafeInteger(matches[0].height) || matches[0].height <= 0)
+      throw new ChainValidationError('KJ-CHAIN-CONFIRMATION', 'CoinJoin requires a verified confirmed unspent coin');
+    if (matches[0].height > tip)
+      throw new ChainValidationError('KJ-CHAIN-TIP-HEIGHT', 'CoinJoin requires a verified confirmed unspent coin');
+    if (entries[0].height !== matches[0].height)
+      throw new ChainValidationError('KJ-CHAIN-HEIGHT-MISMATCH', 'CoinJoin requires a verified confirmed unspent coin');
     if (tx.isCoinbase() && !isMatureXbtCoinbase(tip - matches[0].height + 1)) throw new Error('Immature CoinJoin coinbase');
     result.set(outpoint(c), { value: c.value, script: script.toString('hex'), unspent: true, checkedAt });
   }

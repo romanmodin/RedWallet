@@ -1,3 +1,4 @@
+import { chainDiagnostics, ChainDiagnostic } from './chain-error';
 import type { Journal } from './round';
 import type { SessionState } from './session';
 
@@ -40,6 +41,8 @@ export function coinjoinProgress(session: SessionState, journal: Journal): { tit
 export function coinjoinIssue(message: string): { category: string; detail: string } {
   // Fixed diagnostic codes affect presentation only, never participation or reservations.
   const code = /Diagnostic: (KJ-[A-Z-]+)\./.exec(message)?.[1];
+  if (code && Object.prototype.hasOwnProperty.call(chainDiagnostics, code))
+    return { category: 'Coin validation', detail: chainDiagnostics[code as ChainDiagnostic] };
   if (code === 'KJ-WALLET-INVENTORY')
     return { category: 'Wallet check', detail: 'RedWallet could not read the coin inventory across its saved wallets.' };
   if (code === 'KJ-WALLET-INPUTS')

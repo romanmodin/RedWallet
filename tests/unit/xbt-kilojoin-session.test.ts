@@ -1411,7 +1411,7 @@ test.each(['proof', 'change', 'chain', 'own-seat'])('identifies a rejected first
     failure => failure,
   );
   expect(error).toBeInstanceOf(Error);
-  const code = { proof: 'KJ-PROOF', change: 'KJ-CHANGE', chain: 'KJ-CHAIN', 'own-seat': 'KJ-OWN-SEAT' }[fault];
+  const code = { proof: 'KJ-PROOF', change: 'KJ-CHANGE', chain: 'KJ-CHAIN-OBSERVATION', 'own-seat': 'KJ-OWN-SEAT' }[fault];
   expect(relayFailureMessage(participantFailure(error))).toContain(`Diagnostic: ${code}.`);
   expect(f.session.snapshot()).toEqual(before);
   expect(f.round.snapshot().reserved).toHaveLength(1);
