@@ -1,0 +1,26 @@
+{
+  "draft": true,
+  "app": "6824331953",
+  "bundle": "com.kilombino.kilowallet",
+  "team": "PPG9C98EY9",
+  "sourceCommit": "7c38da214682544e13ba81f472a0d1038a4d4426",
+  "appleBuildId": "19c6e86c-079e-4022-9a11-a9ab4f23c3ba",
+  "marketingVersion": "0.4.0",
+  "build": "3",
+  "ipaSha256": "022d7f55a7e24607ab4ff0e84af43b5d20f23ccc789d700e2acc6c6504b2b2fd",
+  "uploadRunId": 40218593516,
+  "uploadArtifactId": 12608731782,
+  "uploadArtifactSha256": "afb6b3d3cf3ed4490e1940e15d357b105874c12d3c287ca476cfd6e65d52503e",
+  "containsProprietaryCryptography": false,
+  "containsThirdPartyCryptography": true,
+  "availableOnFrenchStore": null,
+  "frenchIntentEvidence": null,
+  "appDescription": "Kilowallet 0.4.0: non-custodial Bitcoin wallet. Kilojoin pool coordination messages use NIP-44 v2 implemented in the app: ChaCha20 (RFC 8439), HMAC-SHA256 and HKDF with secp256k1 ECDH. The app also uses published Bitcoin signature and RSA blind-signature protocols. This declaration is for build 3, source 7c38da214682544e13ba81f472a0d1038a4d4426.",
+  "requiredBeforeActivation": [
+    "Resolve French App Store distribution intent from verified publisher policy; missing availability endpoints do not establish it.",
+    "Verify actual upload artifact and current native gates before Apple credentials.",
+    "Review and test a protected main/manual workflow; this draft has no credential-loading entry point.",
+    "Inspect Apple's computed declaration state; do not manufacture exemption or accept new agreements.",
+    "Verify exact new build membership and IN_BETA_TESTING before claiming tester availability."
+  ]
+}
