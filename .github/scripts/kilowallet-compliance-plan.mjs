@@ -97,6 +97,7 @@ export async function applyDeclaration(get, write, policy, upload, journal) {
   const found = list.data.filter((d) => matches(d, payload));
   assert.ok(found.length <= 1, "Ambiguous matching declarations");
   let d = found[0];
+  let created = false;
   if (current) {
     assert.equal(current.type, "appEncryptionDeclarations");
     assert.ok(
@@ -111,6 +112,7 @@ export async function applyDeclaration(get, write, policy, upload, journal) {
     // Once a write starts, exceptions propagate. Never retry an ambiguous write.
     await journal({ stage: "create-started", app: APP, build: BUILD });
     d = (await write("POST", "/v1/appEncryptionDeclarations", payload)).data;
+    created = true;
     assert.ok(matches(d, payload), "Apple returned a different declaration");
     assert.ok(typeof d.id === "string" && /^[A-Za-z0-9-]+$/.test(d.id));
     await journal({
@@ -133,7 +135,7 @@ export async function applyDeclaration(get, write, policy, upload, journal) {
     return {
       declarationId: d.id,
       attached: false,
-      changed: true,
+      changed: created,
       blocked: true,
     };
   }

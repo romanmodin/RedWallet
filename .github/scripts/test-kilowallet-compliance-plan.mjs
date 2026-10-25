@@ -237,3 +237,22 @@ test("a rejected declaration is never attachable even with an inconsistent exemp
   assert.equal(result.blocked, true);
   assert.deepEqual(writes, []);
 });
+
+test("an existing pending declaration reports no mutation", async () => {
+  const p = policy(),
+    d = declaration(false),
+    writes = [];
+  const result = await applyDeclaration(
+    async (path) => (path.startsWith("/v1/builds/") ? build() : { data: [d] }),
+    async (...args) => {
+      writes.push(args);
+      throw Error("must not write");
+    },
+    p,
+    upload,
+    async () => {},
+  );
+  assert.equal(result.blocked, true);
+  assert.equal(result.changed, false);
+  assert.deepEqual(writes, []);
+});
