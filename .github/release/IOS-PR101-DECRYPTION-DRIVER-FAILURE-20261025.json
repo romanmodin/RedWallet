@@ -1,0 +1,12 @@
+{
+  "runId": 40160862027,
+  "attempt": 1,
+  "head": "d5ca2514b53ffbf3bc2b522a61122a297402e54a",
+  "artifactId": 12587089704,
+  "artifactZipSha256": "8c63d79e641df039ea733e0b996857c27306d59b17e11852f8796014d6ad698a",
+  "failedLogSha256": "7dd588df716cc31121b6dc69da0d9cd1dad28522a4dbc90d8e84ac6621b1ff46",
+  "firstFailure": "After correct decryption password: OKButton tap request480 completed05:04:30Z; request481 setSyncSettings enabled:true never responded. Two layer animations remained busy until 600000ms test deadline.",
+  "visualReview": "Actual failure PNG shows main real wallet cr34t3d on home, no password dialog. Does not prove persistence; existing restart assertion was not reached.",
+  "correction": "Only successful-decryption caller checks original destination then performs original restart and wallet-presence assertion before restoring synchronization. Other password submissions retain original ordering. No timeout/retry/assertion/production changes.",
+  "otherGates": "PR101 funded40163967044 still running; original branch/jobs preserved."
+}

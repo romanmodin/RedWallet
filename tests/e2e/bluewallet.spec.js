@@ -555,16 +555,22 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (!(await dismissAlertByText('OK'))) throw new Error('Could not dismiss incorrect-password alert');
     // The rejected password must leave the real wallet protected.
     await waitForId('PasswordInput');
-    await submitStoragePassword('pass', false, async () => {
-      await waitFor(element(by.id('PasswordInput')))
-        .not.toExist()
-        .withTimeout(120_000);
-      await waitForWalletsList();
-    });
+    await submitStoragePassword(
+      'pass',
+      false,
+      async () => {
+        await waitFor(element(by.id('PasswordInput')))
+          .not.toExist()
+          .withTimeout(120_000);
+        await waitForWalletsList();
 
-    // relaunch app
-    await device.launchApp({ newInstance: true });
-    await waitForId('cr34t3d'); // success
+        // Keep the existing restart/persistence check before the idle drain:
+        // the decrypted home screen can retain iOS 26 glass animations.
+        await device.launchApp({ newInstance: true });
+        await waitForId('cr34t3d'); // success
+      },
+      { settleBeforeSynchronization: true },
+    );
 
     process.env.CI && require('fs').writeFileSync(lockFile, '1');
   });

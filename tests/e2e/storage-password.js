@@ -2,8 +2,10 @@ import { element, waitFor } from 'detox';
 import { confirmPasswordDialog, waitForId } from './helperz';
 
 // Keep iOS keyboard entry unsynchronized, then restore synchronization before
-// destination checks so queued native navigation work can finish.
-export async function submitStoragePassword(password, confirmation, settled) {
+// destination checks so queued native navigation work can finish. Successful
+// decryption may instead check its destination and required restart before
+// restoring idle synchronization: iOS 26 glass animations can keep it busy.
+export async function submitStoragePassword(password, confirmation, settled, { settleBeforeSynchronization = false } = {}) {
   const isIOS = device.getPlatform() === 'ios';
   let synchronizationDisabled = false;
   if (isIOS) {
@@ -27,7 +29,7 @@ export async function submitStoragePassword(password, confirmation, settled) {
       await element(by.id(confirmation ? 'ConfirmPasswordInput' : 'PasswordInput')).tapReturnKey();
     }
     await confirmPasswordDialog();
-    if (synchronizationDisabled) {
+    if (synchronizationDisabled && !settleBeforeSynchronization) {
       await device.enableSynchronization();
       synchronizationDisabled = false;
     }
