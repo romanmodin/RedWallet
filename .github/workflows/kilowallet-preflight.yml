@@ -47,6 +47,35 @@ jobs:
                   report[kind] = [{'id':v['id'], **{k:v.get('attributes',{}).get(k) for k in ['name',field]}} for v in body.get('data',[])]
               except urllib.error.HTTPError as e:
                   report[kind] = {'http_status':e.code}
+          if len(report.get('apps',[])) != 1 or report['apps'][0]['id'] != '6824331953':
+              raise SystemExit('Unexpected Kilowallet app')
+          def get(path):
+              if not path.startswith(('/v1/apps/6824331953/', '/v1/builds', '/v2/appAvailabilities/')):
+                  raise RuntimeError('Unexpected read-only resource')
+              req=urllib.request.Request('https://api.appstoreconnect.apple.com'+path,method='GET',headers={'Authorization':'Bearer '+token})
+              with urllib.request.urlopen(req,timeout=30) as response: return json.load(response)
+          def collection(path):
+              values=[];seen=set()
+              for page in range(5):
+                  if path in seen: raise RuntimeError('Cyclic pagination')
+                  seen.add(path);body=get(path);values.extend(body['data']);link=body.get('links',{}).get('next')
+                  if not link: return values
+                  if not link.startswith('https://api.appstoreconnect.apple.com/'): raise RuntimeError('Unexpected pagination host')
+                  path=link.removeprefix('https://api.appstoreconnect.apple.com')
+              raise RuntimeError('Incomplete Apple collection')
+          report['encryptionDeclarations']=[{'id':d['id'],**{k:d['attributes'].get(k) for k in ['appDescription','usesEncryption','exempt','containsProprietaryCryptography','containsThirdPartyCryptography','availableOnFrenchStore','appEncryptionDeclarationState','code']}} for d in collection('/v1/apps/6824331953/appEncryptionDeclarations?limit=200')]
+          report['betaGroups']=[{'id':d['id'],**{k:d['attributes'].get(k) for k in ['name','isInternalGroup','publicLinkEnabled']}} for d in collection('/v1/apps/6824331953/betaGroups?limit=200')]
+          availability=get('/v1/apps/6824331953/appAvailabilityV2')['data'];aid=availability['id']
+          if not re.fullmatch(r'[A-Za-z0-9-]+',aid): raise RuntimeError('Invalid availability identity')
+          territories=collection('/v2/appAvailabilities/'+aid+'/territoryAvailabilities?include=territory&limit=200')
+          report['availableTerritories']=sorted(t['relationships']['territory']['data']['id'] for t in territories if t['attributes']['available'])
+          report['availableInNewTerritories']=availability['attributes']['availableInNewTerritories']
+          report['recentBuilds']=[]
+          for build in collection('/v1/builds?filter%5Bapp%5D=6824331953&limit=10&sort=-uploadedDate'):
+              bid=build['id']
+              if not re.fullmatch(r'[A-Za-z0-9-]+',bid): raise RuntimeError('Invalid build identity')
+              detail=get('/v1/builds/'+bid+'/buildBetaDetail')['data'];release=get('/v1/builds/'+bid+'/preReleaseVersion')['data'];declaration=get('/v1/builds/'+bid+'/appEncryptionDeclaration')['data']
+              report['recentBuilds'].append({'id':bid,'build':build['attributes']['version'],'marketingVersion':release['attributes']['version'],'processingState':build['attributes']['processingState'],'usesNonExemptEncryption':build['attributes'].get('usesNonExemptEncryption'),'internalBuildState':detail['attributes'].get('internalBuildState'),'externalBuildState':detail['attributes'].get('externalBuildState'),'declarationId':declaration['id'] if declaration else None})
           print(json.dumps(report,indent=2))
           pathlib.Path('kilowallet-apple-preflight.json').write_text(json.dumps(report,indent=2))
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
