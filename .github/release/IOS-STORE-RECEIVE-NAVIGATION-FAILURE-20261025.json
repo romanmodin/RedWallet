@@ -1,0 +1,10 @@
+{
+  "runId": 40164141570,
+  "attempt": 1,
+  "main": "df4eb2ff20a9b94c07a882341eac969fa6f974f3",
+  "ipadJobId": 121081612633,
+  "logSha256": "94996bef6a75c23b91bfb9f278b6b14c28f423e4330ef877378045fd34f3252a",
+  "firstFailure": "After empty wallet creation/restart, tapAndTapAgainIfElementIsNotVisible attempted the home wallet card again after its first navigation. Second tap found no home wallet card; ReceiveButton not observed within helper's 3s probe.",
+  "correction": "One wallet-card tap followed by existing waitForId(ReceiveButton) native toolbar visibility assertion; no retry of successful navigation. Keep all 4 capture frames/provenance/source gate checks. Failure-only upload retains only already-manually-captured safe PNGs, no backup screen/video/hierarchy.",
+  "qualification": "Actual corrected capture still required; no new capture dispatched while current iPhone job healthy."
+}
