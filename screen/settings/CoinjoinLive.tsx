@@ -1,3 +1,4 @@
+import { activePool } from '../../class/xbt/kilojoin/active-pool';
 import { Journal } from '../../class/xbt/kilojoin/round';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -21,7 +22,8 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const { colors } = useTheme(),
     { wallets } = useStorage();
   const choices = wallets.filter((w): w is MixingWallet => w instanceof XbtSegwitBech32Wallet || w instanceof XbtTaprootWallet);
-  const [wallet, setWallet] = useState<MixingWallet>();
+  const [active, setActive] = useState(() => activePool.snapshot());
+  const [wallet, setWallet] = useState<MixingWallet | undefined>(() => activePool.snapshot()?.wallet);
   const [pools, setPools] = useState<Record<string, { terms: Readonly<Terms>; event: NostrEvent }>>({});
   const [searchState, setSearchState] = useState<'idle' | 'connecting' | 'searching' | 'ready' | 'failed'>('idle');
   const [poolId, setPoolId] = useState(''),
@@ -30,18 +32,26 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const [password, setPassword] = useState(''),
     [maxFee, setMaxFee] = useState('1000');
   const [recovered, setRecovered] = useState<Journal[]>([]);
-  const [view, setView] = useState<ClientView>(),
+  const [view, setView] = useState<ClientView | undefined>(() => activePool.snapshot()?.view),
     [error, setError] = useState(''),
-    [busy, setBusy] = useState(false);
-  const client = useRef<MixingClient | undefined>(undefined),
+    [localBusy, setBusy] = useState(false);
+  const busy = localBusy || !!active?.busy;
+  const client = useRef<MixingClient | undefined>(activePool.snapshot()?.client),
     discovery = useRef<KilojoinRelay | undefined>(undefined),
     mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
+    const detach = activePool.subscribe(next => {
+      setActive(next);
+      setView(next?.view);
+      client.current = next?.client;
+      if (next) setWallet(next.wallet);
+    });
     return () => {
+      detach();
       mounted.current = false;
       discovery.current?.close();
-      client.current?.close().catch(() => {});
+      // Back detaches only this view. Explicit Stop remains the sole cancellation action.
     };
   }, []);
   const run = async (action: () => Promise<void>) => {
@@ -49,7 +59,8 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     setBusy(true);
     setError('');
     try {
-      await action();
+      if (activePool.snapshot()?.client) await activePool.perform(action);
+      else await action();
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : 'Action failed');
     } finally {
@@ -128,23 +139,20 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
       : 0;
   const start = async () => {
     if (!pool || !wallet) throw new Error('Select a wallet and pool');
-    const created = await MixingClient.join({
-      experimentalAcknowledged,
-      poolEvent: pool.event,
-      wallet,
-      selected,
-      maxFee: Number(maxFee),
-      password,
-      onUpdate: next => {
-        if (mounted.current) setView(next);
-      },
-    });
+    const created = await activePool.start(wallet, onUpdate =>
+      MixingClient.join({
+        experimentalAcknowledged,
+        poolEvent: pool.event,
+        wallet,
+        selected,
+        maxFee: Number(maxFee),
+        password,
+        onUpdate,
+      }),
+    );
     setPassword('');
     discovery.current?.close();
-    if (!mounted.current) {
-      await created.close();
-      return;
-    }
+    if (!mounted.current) return;
     client.current = created;
     setView(created.view());
   };
@@ -185,7 +193,9 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             <SettingsFootnote>{issue.detail}</SettingsFootnote>
           </View>
         )}
-        {!view ? (
+        {!view && active?.busy ? (
+          <SettingsFootnote>Joining pool… You can return to this attempt from the CoinJoin entry.</SettingsFootnote>
+        ) : !view ? (
           <>
             <View style={card}>
               <Text style={text}>Wallet</Text>
@@ -322,6 +332,18 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               )}
             </View>
             {!!progress && <SettingsFootnote>{progress.detail}</SettingsFootnote>}
+            <SettingsFootnote>
+              Going back keeps this round active. Use Return to active pool in CoinJoin to reopen it. Keep the app open during a round.
+            </SettingsFootnote>
+            {journal && ['complete', 'aborted'].includes(journal.phase) && (
+              <Button
+                title="Back to pools"
+                disabled={busy}
+                onPress={() => {
+                  activePool.dismiss().catch(() => setError('Could not close the finished round.'));
+                }}
+              />
+            )}
             {journal && Array.isArray(journal.reserved) && (
               <Text testID="CoinjoinReservationCount" style={text}>
                 Reserved coins: {journal.reserved.length}
@@ -355,6 +377,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 disabled={busy || !view.review}
                 onPress={() => {
                   const commitment = journal!.commitment!;
+                  const approvingClient = client.current;
                   Alert.alert(
                     'Approve CoinJoin transaction?',
                     `You receive ${view.review!.count} mixed output(s) of ${view.review!.amount.toLocaleString()} sats each, totaling ${view.review!.total.toLocaleString()} sats, on fresh addresses. Change: ${view.review!.change.toLocaleString()} sats (not mixed). Your fee is ${journal!.myFee} sats. Once signed, cancellation cannot release these coins until the transaction is resolved.`,
@@ -362,7 +385,12 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Sign transaction',
-                        onPress: () => run(() => client.current!.approve(commitment)),
+                        onPress: () =>
+                          run(async () => {
+                            if (!approvingClient || activePool.snapshot()?.client !== approvingClient)
+                              throw new Error('The reviewed pool is no longer active');
+                            await approvingClient.approve(commitment);
+                          }),
                       },
                     ],
                   );

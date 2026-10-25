@@ -1,6 +1,8 @@
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, cleanup, fireEvent, render } from '@testing-library/react-native';
+import { activePool } from '../../class/xbt/kilojoin/active-pool';
+import CoinjoinEntry from '../../screen/settings/CoinjoinExperimental';
 import CoinjoinLive from '../../screen/settings/CoinjoinLive';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 const mockWallet = new XbtSegwitBech32Wallet();
@@ -84,8 +86,12 @@ beforeEach(() => {
   mockSearchMode = 'pool';
   mockFinishSearch = undefined;
 });
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  if (activePool.snapshot()) {
+    mockEmit!({ ...mockView, journal: { phase: 'aborted', reserved: [] } });
+    await activePool.dismiss();
+  }
   jest.restoreAllMocks();
 });
 test('live controls select coins but require an explicit confirmation before signing', async () => {
@@ -209,7 +215,11 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
         expect(screen.queryByText('Participants: 0')).toBeNull();
         await act(async () => {
           mockEmit!({
-            session: { phase: 'open', seats: [{ coins: [] }, { coins: [] }], signatures: {} },
+            session: {
+              phase: 'open',
+              seats: [{ coins: [] }, { coins: [] }],
+              signatures: {},
+            },
             journal: { phase: 'joined', reserved: ['11'.repeat(32) + ':0'] },
           });
         });
@@ -219,3 +229,90 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
     expect(mockApprove).not.toHaveBeenCalled();
   },
 );
+
+test('leaving the screen does not stop an active pool', async () => {
+  jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
+  jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([{ txid: '11'.repeat(32), vout: 0, value: 50000 } as never]);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {
+    fireEvent.press(screen.getByText('○ Test wallet'));
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByText('Find pools'));
+  });
+  fireEvent.press(screen.getByText('○ 10,000 sats · 2/5 · 2 sats/vB'));
+  fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
+  await act(async () => {
+    fireEvent.press(screen.getByText('Join pool and reserve coins'));
+  });
+  screen.unmount();
+  expect(mockClose).not.toHaveBeenCalled();
+  await act(async () => {
+    mockEmit!({
+      session: {
+        phase: 'signed',
+        seats: [{ coins: [{}] }, { coins: [{}] }, { coins: [{}] }],
+        signatures: { one: 'signature' },
+      },
+      journal: { phase: 'signed', reserved: ['11'.repeat(32) + ':0'] },
+    });
+  });
+  const entry = render(<CoinjoinEntry />);
+  expect(entry.getByText('Return to active pool')).toBeTruthy();
+  fireEvent.press(entry.getByTestId('CoinjoinReturnActive'));
+  expect(entry.getByText('Participants: 3')).toBeTruthy();
+  expect(entry.getByText('Signatures: 1/3')).toBeTruthy();
+  expect(entry.getByText('Reserved coins: 1')).toBeTruthy();
+  expect(mockJoin).toHaveBeenCalledTimes(1);
+  expect(mockApprove).not.toHaveBeenCalled();
+  mockClose.mockImplementationOnce(async () => {
+    mockEmit!({
+      session: { phase: 'aborted', seats: [], signatures: {} },
+      journal: { phase: 'uncertain', reserved: ['11'.repeat(32) + ':0'] },
+    });
+  });
+  await act(async () => {
+    fireEvent.press(entry.getByText('Stop participation'));
+  });
+  expect(mockClose).toHaveBeenCalledTimes(1);
+  expect(entry.getByText('Reserved coins: 1')).toBeTruthy();
+  expect(entry.getByText('Check retained round confirmation')).toBeTruthy();
+});
+
+test('a join finishing after navigation remains reachable instead of being canceled', async () => {
+  jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
+  jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([{ txid: '11'.repeat(32), vout: 0, value: 50000 } as never]);
+  let finish!: () => void;
+  const pending = new Promise<void>(resolve => {
+    finish = resolve;
+  });
+  mockJoin.mockImplementationOnce(async config => {
+    mockEmit = config.onUpdate;
+    await pending;
+    config.onUpdate(mockView);
+    return { view: () => mockView, approve: mockApprove, close: mockClose };
+  });
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {
+    fireEvent.press(screen.getByText('○ Test wallet'));
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByText('Find pools'));
+  });
+  fireEvent.press(screen.getByText('○ 10,000 sats · 2/5 · 2 sats/vB'));
+  fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
+  await act(async () => {
+    fireEvent.press(screen.getByText('Join pool and reserve coins'));
+  });
+  screen.unmount();
+  const entry = render(<CoinjoinEntry />);
+  fireEvent.press(entry.getByTestId('CoinjoinReturnActive'));
+  expect(entry.getByText(/Joining pool…/)).toBeTruthy();
+  await act(async () => {
+    finish();
+  });
+  expect(entry.getByText('Review and sign')).toBeTruthy();
+  expect(mockJoin).toHaveBeenCalledTimes(1);
+  expect(mockClose).not.toHaveBeenCalled();
+  expect(mockApprove).not.toHaveBeenCalled();
+});
