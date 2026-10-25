@@ -1,0 +1,13 @@
+{
+  "runId": 40165745872,
+  "attempt": 1,
+  "head": "c62535542f4981fc5a593bd69838c8597c4ef821",
+  "failure": "Both families: SettingsRoot and ArtworkSkinLogo absent when scroll was issued immediately after SettingsButton tap.",
+  "logSha256": "713fdc1e51f69e0e024e514eb9bcaea2b7e80ce180655cdb4cbb1f919eba7d70",
+  "correction": "Add standard SettingsRoot visibility wait before existing artwork scroll. No repeated navigation tap, timeout increase, removed assertion, or app change.",
+  "partialArtifacts": [
+    12588769429,
+    12587939364
+  ],
+  "partialOnly": true
+}

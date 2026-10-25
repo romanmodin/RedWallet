@@ -93,6 +93,9 @@ captureSuite('App Store screenshots from the pinned native iOS app', () => {
       await device.disableSynchronization();
       await waitForWalletsList();
       await element(by.id('SettingsButton')).tap();
+      // The native drawer mounts asynchronously with synchronization disabled.
+      // Require its actual scroll surface before attempting a gesture on it.
+      await waitForId('SettingsRoot');
       await waitFor(element(by.id('ArtworkSkinLogo')))
         .toBeVisible()
         .whileElement(by.id('SettingsRoot'))
