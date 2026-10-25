@@ -19,7 +19,7 @@
   "requiredBeforeActivation": [
     "Resolve French App Store distribution intent from verified publisher policy; missing availability endpoints do not establish it.",
     "Verify actual upload artifact and current native gates before Apple credentials.",
-    "Review and test a protected main/manual workflow; this draft has no credential-loading entry point.",
+    "Review and qualify the prepared protected main/manual workflow in CI after accurate geographic policy is resolved; the current draft is local only and cannot dispatch.",
     "Inspect Apple's computed declaration state; do not manufacture exemption or accept new agreements.",
     "Verify exact new build membership and IN_BETA_TESTING before claiming tester availability."
   ]

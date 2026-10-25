@@ -38,7 +38,8 @@ export function clients(token, payload, journal, request = fetch) {
       );
       assert.ok(!u.search);
       assert.equal(body.data?.type, "appEncryptionDeclarations");
-      assert.ok(/^[A-Za-z0-9-]+$/.test(body.data?.id));
+      assert.equal(typeof body.data?.id, "string");
+      assert.ok(/^[A-Za-z0-9-]+$/.test(body.data.id));
       assert.deepEqual(Object.keys(body), ["data"]);
       assert.deepEqual(Object.keys(body.data).sort(), ["id", "type"]);
     } else throw Error("Unexpected method");
