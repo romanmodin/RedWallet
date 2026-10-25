@@ -151,8 +151,8 @@ async function main() {
       ),
     );
     check(
-      manifest.sourceCommit === "7ac04a84f818fcd31879ee44fc57ddde4a64feb5" &&
-        manifest.captureRunId === 40206124543 &&
+      manifest.sourceCommit === "814c1ebaccb9ba45544344b3cb7b8534a10ae2a9" &&
+        manifest.captureRunId === 40235091147 &&
         manifest.visuallyReviewed === true,
       "Unreviewed screenshot provenance",
     );
