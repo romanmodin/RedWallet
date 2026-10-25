@@ -1,6 +1,7 @@
 import { LIVE_JOIN_ENABLED } from '../../class/xbt/kilojoin/protocol';
 import CoinjoinLive from './CoinjoinLive';
-import React, { useState } from 'react';
+import { activePool } from '../../class/xbt/kilojoin/active-pool';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { SettingsScrollView, SettingsFootnote } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
@@ -86,16 +87,28 @@ const styles = StyleSheet.create({
   },
   heading: { fontSize: 30, fontWeight: '700' },
   card: { borderRadius: 18, padding: 20, gap: 14 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
   label: { fontSize: 17, fontWeight: '600' },
   key: { fontSize: 16, opacity: 0.75 },
   amount: { fontSize: 34, fontWeight: '700' },
-  link: { color: '#D3263E', paddingVertical: 12, fontSize: 17, fontWeight: '600' },
+  link: {
+    color: '#D3263E',
+    paddingVertical: 12,
+    fontSize: 17,
+    fontWeight: '600',
+  },
   credit: { textAlign: 'center', marginTop: 12 },
 });
 const CoinjoinEntry: React.FC = () => {
   const { colors } = useTheme();
   const [mode, setMode] = useState<'entry' | 'sample' | 'live'>('entry');
+  const [active, setActive] = useState(() => activePool.snapshot());
+  useEffect(() => activePool.subscribe(setActive), []);
   if (mode === 'live' && LIVE_JOIN_ENABLED) return <CoinjoinLive experimentalAcknowledged />;
   if (mode === 'sample') return <CoinjoinPreview />;
   return (
@@ -108,7 +121,17 @@ const CoinjoinEntry: React.FC = () => {
           reserved until resolved.
         </SettingsFootnote>
         <SettingsFootnote>You choose coins, review the exact fee and approve signing. Nothing starts automatically.</SettingsFootnote>
-        {LIVE_JOIN_ENABLED && <Button title="Try experimental CoinJoin" testID="CoinjoinOptIn" onPress={() => setMode('live')} />}
+        {LIVE_JOIN_ENABLED && active ? (
+          <>
+            <Button title="Return to active pool" testID="CoinjoinReturnActive" onPress={() => setMode('live')} />
+            <SettingsFootnote>
+              {active.wallet.getLabel()} ·{' '}
+              {active.busy ? 'Pool action in progress' : 'Your current round is retained while this app stays open.'}
+            </SettingsFootnote>
+          </>
+        ) : (
+          LIVE_JOIN_ENABLED && <Button title="Try experimental CoinJoin" testID="CoinjoinOptIn" onPress={() => setMode('live')} />
+        )}
         <Button title="Try sample coins first" testID="CoinjoinSample" onPress={() => setMode('sample')} />
         <SettingsFootnote>Powered by Kilojoin · by Kilombino</SettingsFootnote>
       </View>
