@@ -1,5 +1,9 @@
 name: Kilowallet — Apple signing bridge
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/build-kilowallet.yml'
+      - 'distribution/kilowallet/**'
   workflow_dispatch:
     inputs:
       upload_to_testflight:
@@ -9,14 +13,51 @@ on:
         default: false
 permissions:
   contents: read
+  actions: read
+env:
+  KILOWALLET_SOURCE_COMMIT: 7c38da214682544e13ba81f472a0d1038a4d4426
+  KILOWALLET_MARKETING_VERSION: '0.4.0'
+  KILOWALLET_IOS_RUN_ID: '40211577658'
+  KILOWALLET_SCREENSHOT_RUN_ID: '40211577657'
+
 concurrency:
   group: kilowallet-apple-upload
   cancel-in-progress: false
 jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Offline release safety fixtures
+        run: python3 -m unittest discover -s distribution/kilowallet -p 'test_verify*.py' -v
+  qualify:
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify exact source and current-attempt native tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I distribution/kilowallet/verify_gates.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilowallet-source-qualification
+          path: kilowallet-source-gates.json
+          retention-days: 7
   certificate:
+    needs: qualify
     if: ${{ github.ref == 'refs/heads/main' }}
     environment: ios-signing
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 20
     steps:
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
@@ -103,7 +144,7 @@ jobs:
   sign:
     needs: certificate
     environment: ios-upload
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       TEAM_ID: ${{ secrets.TEAM_ID }}
@@ -111,9 +152,13 @@ jobs:
     steps:
       - name: Select supported Xcode for iPhone archive
         run: |
-          test -d /Applications/Xcode_26.3.app
-          sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+          set -euo pipefail
+          selected=$(python3 -c 'import pathlib,re; p=list(pathlib.Path("/Applications").glob("Xcode_26*.app")); print(max(p,key=lambda x:tuple(map(int,re.findall(r"[0-9]+",x.name)))) if p else "")')
+          test -n "$selected"
+          sudo xcode-select --switch "$selected/Contents/Developer"
           xcodebuild -version
+          sdk=$(xcrun --sdk iphoneos --show-sdk-version)
+          test "${sdk%%.*}" -ge 26
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
@@ -121,7 +166,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           repository: romanmodin/kilowallet-ios
-          ref: a9e56783d896ae72e263ec53fe644797ad433791
+          ref: ${{ env.KILOWALLET_SOURCE_COMMIT }}
           persist-credentials: false
           path: app
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
@@ -129,7 +174,11 @@ jobs:
           distribution: temurin
           java-version: '25'
       - name: Check pinned app source
-        run: test "$(git -C app rev-parse HEAD)" = a9e56783d896ae72e263ec53fe644797ad433791
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(git -C app rev-parse HEAD)" = "$KILOWALLET_SOURCE_COMMIT"
+          python3 -I signing/distribution/kilowallet/verify_gates.py
       - name: Install Apple-signed Transporter for TestFlight uploads
         if: ${{ inputs.upload_to_testflight }}
         run: |
@@ -205,6 +254,28 @@ jobs:
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Kilowallet.xcarchive" \
             -exportPath "$RUNNER_TEMP/Kilowallet-export" -exportOptionsPlist "$APPLE_EXPORT_OPTIONS"
           python3 signing/distribution/kilowallet/verify_package.py "$RUNNER_TEMP/Kilowallet-export/Kilowallet.ipa"
+      - name: Preserve encrypted verified package
+        env:
+          IPA_ARTIFACT_KEY: ${{ secrets.IPA_ARTIFACT_KEY }}
+        run: |
+          node <<'JS'
+          const fs=require('node:fs'),crypto=require('node:crypto');
+          const receipt=JSON.parse(fs.readFileSync('kilowallet-package-verification.json','utf8'));
+          const ipa=fs.readFileSync(process.env.RUNNER_TEMP+'/Kilowallet-export/Kilowallet.ipa');
+          if(crypto.createHash('sha256').update(ipa).digest('hex')!==receipt.ipaSha256)throw Error('Package changed');
+          const key=Buffer.from(process.env.IPA_ARTIFACT_KEY,'base64');
+          if(key.length!==32)throw Error('Invalid artifact key');
+          const aad=Buffer.from('KilowalletIPA:'+process.env.KILOWALLET_SOURCE_COMMIT+':'+process.env.GITHUB_SHA+':'+process.env.GITHUB_RUN_ID+':'+process.env.GITHUB_RUN_ATTEMPT);
+          const nonce=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',key,nonce);
+          cipher.setAAD(aad);
+          const encrypted=Buffer.concat([cipher.update(ipa),cipher.final()]);
+          fs.writeFileSync('kilowallet-ipa.enc',Buffer.concat([Buffer.from('KWIPA01'),nonce,cipher.getAuthTag(),encrypted]),{mode:0o600});
+          JS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: Kilowallet_Encrypted_IPA
+          path: kilowallet-ipa.enc
+          retention-days: 7
       - name: Upload Kilowallet to TestFlight
         if: ${{ inputs.upload_to_testflight }}
         run: |
@@ -216,6 +287,18 @@ jobs:
       - name: Verify Apple processing
         if: ${{ inputs.upload_to_testflight }}
         run: python3 signing/distribution/kilowallet/verify_processing.py
+      - name: Save verified source, package and Apple processing receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilowallet-release-verification
+          path: |
+            kilowallet-source-gates.json
+            kilowallet-archive-verification.json
+            kilowallet-package-verification.json
+            kilowallet-apple-processing.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Clean up temporary credentials
         if: always()
         run: |
