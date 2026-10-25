@@ -1,0 +1,12 @@
+{
+  "run": 40174842631,
+  "attempt": 1,
+  "head": "d9af98430004a04e521a98b52780b8e79be1565f",
+  "source": "14b44bf69a346e1a0787e6aed1f3d3343950a0f1",
+  "iphoneArtifact": 12591998088,
+  "zipSha256": "91a70e1492ec637d0cbe2a18f842bf7cc1d14e13b2c947337a0f3c4d63b5f952",
+  "rejectedFrame": "04-recovery-options.png",
+  "rejectedFrameSha256": "435365b14eb591ced8f842e9e0c5c56242331aa74e91c51c4bd310ce7bd0a04b",
+  "observed": "Apple Intelligence system notification obscures header; job succeeded but visual review rejects frame",
+  "correction": "Bounded 10s transient banner expiry before capture plus repeated original readiness assertion. No app/assertion/gate changes. Recapture iPhone only; preserve full reviewed iPad set."
+}
