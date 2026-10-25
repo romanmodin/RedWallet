@@ -1,0 +1,9 @@
+{
+  "failedRun": 40157074565,
+  "attempt": 1,
+  "source": "4fe20aef50a92917712df003746f90694ffb6230",
+  "firstFailure": "Both capture families timed out matching label Add Wallet before first frame.",
+  "cause": "Pinned app iOS26 native toolbar in navigation/DetailViewScreensStack.tsx sets identifier and accessibilityLabel AddWalletButton. Localized Add Wallet is used only by the older React header component.",
+  "correction": "Use existing native identifier AddWalletButton for capture only. No app changes, assertion changes, timeout or retry increases.",
+  "logSha256": "fa71f86c3180763d99bc79ba13c47df56b630bdec119a69475294803b41345d8"
+}
