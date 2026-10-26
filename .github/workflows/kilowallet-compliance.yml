@@ -5,6 +5,7 @@ name: Kilowallet encryption compliance
       - .github/workflows/kilowallet-compliance.yml
       - .github/scripts/*kilowallet*compliance*
       - .github/scripts/*verify-kilowallet-upload*
+      - .github/scripts/*kilowallet-beta-plan*
       - .github/release/KILOWALLET-040-COMPLIANCE-DRAFT-20261025.json
   workflow_dispatch:
 permissions:
@@ -25,7 +26,7 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: 24
-      - run: node --test .github/scripts/test-kilowallet-compliance-plan.mjs .github/scripts/test-run-kilowallet-compliance.mjs
+      - run: node --test .github/scripts/test-kilowallet-compliance-plan.mjs .github/scripts/test-run-kilowallet-compliance.mjs .github/scripts/test-kilowallet-beta-plan.mjs
       - run: python3 -B .github/scripts/test-verify-kilowallet-upload.py -v
   qualify:
     needs: verify
