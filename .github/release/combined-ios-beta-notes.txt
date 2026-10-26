@@ -1,9 +1,7 @@
-RedWallet iOS active-pool navigation and diagnostic update.
+RedWallet iOS pool timers and action alerts.
 
-You can leave the pool screen and use Return to active pool to reopen the same participation while the app remains running. Leaving the screen no longer stops participation. Explicit Stop participation keeps its existing safety behavior. Keep the app open during a round.
+Pool listings show the announced deadline in your local time with a countdown. Active rounds show their actual phase deadline and elapsed time since your own join attempt. The countdown catches up to the current time when you return to the app; it does not pause while the app is suspended. The pool creator's original opening time is not established by a re-announcement, and an announced deadline does not guarantee completion.
 
-CoinJoin remains experimental. This build adds specific coin, backend, validation and pool-rejection diagnostics, shows failed validation distinctly from waiting, and preserves coin reservations and every signing guard. It also handles a reported-tip race and distinguishes incomplete backend responses.
+In-app action alerts identify time-sensitive closing votes and transaction review/signing steps. They do not sign or approve transactions for you. These are foreground app alerts, not guaranteed iOS background notifications. Back retains access to the same participation while the app remains running; secure restoration after app termination and background reconnection are not yet guaranteed.
 
-A completed live CoinJoin pool has not yet been verified on the physical iPhone. These diagnostics do not establish that the underlying live-pool issue is resolved. Stop participation is available for an unsigned attempt as described in the app. Please keep recovery backups secure.
-
-Other wallet features include XBT Taproot/native SegWit accounts, recovery discovery, receive/share QR, encrypted wallet storage and reviewed fee replacement.
+CoinJoin remains experimental. Connection loss can leave the displayed pool state stale. Keep recovery backups secure, read transaction amounts and fees before signing, and follow the reservation warnings. After signing, stopping participation cannot release coins until the signed transaction is resolved. All existing signing, chain validation, fee and reservation guards remain in place.
