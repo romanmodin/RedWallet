@@ -7,7 +7,7 @@ import {
   planDistribution,
   applyDistribution,
 } from "./kilowallet-beta-plan.mjs";
-const draft = JSON.parse(
+const actualPolicy = JSON.parse(
   readFileSync(
     new URL(
       "../release/KILOWALLET-040-COMPLIANCE-DRAFT-20261025.json",
@@ -15,6 +15,12 @@ const draft = JSON.parse(
     ),
   ),
 );
+const draft = {
+  ...actualPolicy,
+  draft: true,
+  availableOnFrenchStore: null,
+  frenchIntentEvidence: null,
+};
 const policy = {
   ...draft,
   draft: false,

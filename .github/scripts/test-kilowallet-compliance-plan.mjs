@@ -7,7 +7,7 @@ import {
   declarationPayload,
   applyDeclaration,
 } from "./kilowallet-compliance-plan.mjs";
-const draft = JSON.parse(
+const actualPolicy = JSON.parse(
   readFileSync(
     new URL(
       "../release/KILOWALLET-040-COMPLIANCE-DRAFT-20261025.json",
@@ -15,6 +15,12 @@ const draft = JSON.parse(
     ),
   ),
 );
+const draft = {
+  ...actualPolicy,
+  draft: true,
+  availableOnFrenchStore: null,
+  frenchIntentEvidence: null,
+};
 function policy() {
   return {
     ...draft,
@@ -255,4 +261,18 @@ test("an existing pending declaration reports no mutation", async () => {
   assert.equal(result.blocked, true);
   assert.equal(result.changed, false);
   assert.deepEqual(writes, []);
+});
+
+test("explicit publisher policy records no French store release without claiming exemption", () => {
+  assert.equal(actualPolicy.availableOnFrenchStore, false);
+  assert.equal(actualPolicy.draft, false);
+  assert.match(
+    actualPolicy.frenchIntentEvidence,
+    /Direct publisher instruction/,
+  );
+  assert.equal(
+    declarationPayload(actualPolicy, upload).data.attributes
+      .availableOnFrenchStore,
+    false,
+  );
 });
