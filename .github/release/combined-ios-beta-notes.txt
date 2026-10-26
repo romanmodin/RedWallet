@@ -1,4 +1,6 @@
-RedWallet iOS pool timers and action alerts.
+RedWallet iOS completed-signing indicator, pool timers and action alerts.
+
+After your signing step is complete, a green check mark distinguishes waiting for other signatures, a remaining broadcast action, and a submitted transaction awaiting confirmation. It does not mean the entire CoinJoin is confirmed. Completed broadcast controls disappear. Signature-sharing retry and Stop participation remain available under Recovery options, with the existing warning that stopping after signing does not release reserved coins. Confirmation refresh is labeled optional.
 
 Pool listings show the announced deadline in your local time with a countdown. Active rounds show their actual phase deadline and elapsed time since your own join attempt. The countdown catches up to the current time when you return to the app; it does not pause while the app is suspended. The pool creator's original opening time is not established by a re-announcement, and an announced deadline does not guarantee completion.
 
