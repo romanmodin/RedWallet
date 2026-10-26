@@ -105,7 +105,7 @@ test('live controls select coins but require an explicit confirmation before sig
   await act(async () => {
     fireEvent.press(screen.getByText('Find pools'));
   });
-  fireEvent.press(screen.getByText('○ 10,000 sats · 2/5 · 2 sats/vB'));
+  fireEvent.press(screen.getByText(/^○ 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/));
   fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
   await act(async () => {
     fireEvent.press(screen.getByText('Join pool and reserve coins'));
@@ -177,7 +177,7 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
     await act(async () => {
       fireEvent.press(screen.getByText('Find pools'));
     });
-    fireEvent.press(screen.getByText('○ 10,000 sats · 2/5 · 2 sats/vB'));
+    fireEvent.press(screen.getByText(/^○ 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/));
     fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
     await act(async () => {
       fireEvent.press(screen.getByText('Join pool and reserve coins'));
@@ -240,7 +240,7 @@ test('leaving the screen does not stop an active pool', async () => {
   await act(async () => {
     fireEvent.press(screen.getByText('Find pools'));
   });
-  fireEvent.press(screen.getByText('○ 10,000 sats · 2/5 · 2 sats/vB'));
+  fireEvent.press(screen.getByText(/^○ 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/));
   fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
   await act(async () => {
     fireEvent.press(screen.getByText('Join pool and reserve coins'));
@@ -299,7 +299,7 @@ test('a join finishing after navigation remains reachable instead of being cance
   await act(async () => {
     fireEvent.press(screen.getByText('Find pools'));
   });
-  fireEvent.press(screen.getByText('○ 10,000 sats · 2/5 · 2 sats/vB'));
+  fireEvent.press(screen.getByText(/^○ 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/));
   fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
   await act(async () => {
     fireEvent.press(screen.getByText('Join pool and reserve coins'));
