@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clients, inspectState } from "./run-kilowallet-compliance.mjs";
+import {
+  clients,
+  inspectState,
+  inspectOriginalGroups,
+  ORIGINAL_GROUPS,
+} from "./run-kilowallet-compliance.mjs";
 import { APP, BUILD } from "./kilowallet-compliance-plan.mjs";
 test("credential-bearing transport rejects foreign app, host, method and altered declaration before network", async () => {
   let n = 0;
@@ -179,4 +184,105 @@ test("beta status uses exact included resources and complete memberships without
     change(copy);
     await assert.rejects(run(copy));
   }
+});
+
+test("original group verification checks both identities and complete exact-build memberships using GET only", async () => {
+  const calls = [];
+  const fixture = async (path) => {
+    calls.push(path);
+    const group = ORIGINAL_GROUPS.find((g) =>
+      path.startsWith("/v1/betaGroups/" + g.id),
+    );
+    assert.ok(group);
+    return path.includes("/builds")
+      ? {
+          data: [{ type: "builds", id: BUILD }],
+          meta: { paging: { total: 1 } },
+        }
+      : {
+          data: {
+            id: group.id,
+            type: "betaGroups",
+            attributes: { name: group.name, isInternalGroup: group.internal },
+            relationships: { app: { data: { id: APP } } },
+          },
+        };
+  };
+  const groups = await inspectOriginalGroups(fixture);
+  assert.equal(calls.length, 4);
+  assert.ok(groups.every((g) => g.assigned && g.complete));
+  const missing = await inspectOriginalGroups((path) =>
+    path.includes("/builds") ? { data: [] } : fixture(path),
+  );
+  assert.ok(missing.every((g) => !g.assigned && g.complete));
+  for (const mutate of [
+    (b) => (b.data.relationships.app.data.id = "other"),
+    (b) => (b.data.attributes.name = "other"),
+    (b) =>
+      (b.data.attributes.isInternalGroup = !b.data.attributes.isInternalGroup),
+  ]) {
+    await assert.rejects(
+      inspectOriginalGroups(async (path) => {
+        const body = await fixture(path);
+        if (!path.includes("/builds")) mutate(body);
+        return body;
+      }),
+    );
+  }
+});
+test("group build lists reject truncation, duplicates, foreign pagination and cycles", async () => {
+  const group = ORIGINAL_GROUPS[0];
+  const info = {
+    data: {
+      id: group.id,
+      type: "betaGroups",
+      attributes: { name: group.name, isInternalGroup: true },
+      relationships: { app: { data: { id: APP } } },
+    },
+  };
+  for (const builds of [
+    { data: [], meta: { paging: { total: 1 } } },
+    {
+      data: [
+        { type: "builds", id: BUILD },
+        { type: "builds", id: BUILD },
+      ],
+    },
+    {
+      data: [],
+      links: {
+        next: "https://evil.invalid/v1/betaGroups/" + group.id + "/builds",
+      },
+    },
+    { data: [], links: { next: "/v1/betaGroups/other/builds" } },
+    {
+      data: [],
+      links: { next: "/v1/betaGroups/" + group.id + "/builds?limit=200" },
+    },
+  ])
+    await assert.rejects(
+      inspectOriginalGroups((path) =>
+        path.includes("/builds") ? builds : info,
+      ),
+    );
+});
+test("transport allows only the two original group reads and denies foreign groups before network", async () => {
+  let count = 0;
+  const { get } = clients(
+    "fixture",
+    {},
+    async () => {},
+    async () => {
+      count++;
+      return { ok: true, status: 200, json: async () => ({ data: [] }) };
+    },
+  );
+  await get("/v1/betaGroups/" + ORIGINAL_GROUPS[0].id + "?include=app");
+  await get("/v1/betaGroups/" + ORIGINAL_GROUPS[1].id + "/builds?limit=200");
+  assert.equal(count, 2);
+  await assert.rejects(get("/v1/betaGroups/other/builds"));
+  await assert.rejects(
+    get("/v1/betaGroups/" + ORIGINAL_GROUPS[0].id + "/betaTesters"),
+  );
+  assert.equal(count, 2);
 });
