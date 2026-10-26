@@ -16,6 +16,18 @@ import {
   applyDeclaration,
 } from "./kilowallet-compliance-plan.mjs";
 const ROOT = "https://api.appstoreconnect.apple.com";
+export const ORIGINAL_GROUPS = Object.freeze([
+  {
+    id: "8f0948f4-86ef-4f7a-aa47-830a6e8f4eae",
+    name: "Kilowallet Internal",
+    internal: true,
+  },
+  {
+    id: "f4f2520c-3eaf-46f9-a31a-a36d38b74c53",
+    name: "Kilowallet Public Beta",
+    internal: false,
+  },
+]);
 export function clients(token, payload, journal, request = fetch) {
   const call = async (method, path, body) => {
     const u = new URL(path, ROOT);
@@ -25,7 +37,12 @@ export function clients(token, payload, journal, request = fetch) {
     if (method === "GET") {
       assert.ok(
         u.pathname === "/v1/builds/" + BUILD ||
-          (declarations && u.searchParams.get("filter[app]") === APP),
+          (declarations && u.searchParams.get("filter[app]") === APP) ||
+          ORIGINAL_GROUPS.some(
+            (g) =>
+              u.pathname === "/v1/betaGroups/" + g.id ||
+              u.pathname === "/v1/betaGroups/" + g.id + "/builds",
+          ),
         "Foreign read",
       );
     } else if (method === "POST") {
@@ -189,6 +206,60 @@ export async function inspectState(get) {
     })),
   };
 }
+// Confirm membership from the group side as well as the build-side include.
+// Apple documentation: GET /v1/betaGroups/{id}/builds.
+export async function inspectOriginalGroups(get) {
+  const out = [];
+  for (const expected of ORIGINAL_GROUPS) {
+    const base = "/v1/betaGroups/" + expected.id;
+    const group = (await get(base + "?include=app")).data;
+    assert.equal(group?.id, expected.id);
+    assert.equal(group?.type, "betaGroups");
+    assert.equal(group?.attributes?.name, expected.name);
+    assert.equal(group?.attributes?.isInternalGroup, expected.internal);
+    assert.equal(group?.relationships?.app?.data?.id, APP);
+    let path = base + "/builds?limit=200";
+    const pages = new Set(),
+      ids = new Set();
+    let complete = false;
+    for (let page = 0; page < 5; page++) {
+      assert.ok(!pages.has(path), "Cyclic group build pagination");
+      pages.add(path);
+      const body = await get(path);
+      assert.ok(Array.isArray(body.data), "Missing group builds");
+      for (const build of body.data) {
+        assert.equal(build.type, "builds");
+        assert.equal(typeof build.id, "string");
+        assert.ok(!ids.has(build.id), "Duplicate group build");
+        ids.add(build.id);
+      }
+      if (!body.links?.next) {
+        if (body.meta?.paging?.total !== undefined)
+          assert.equal(
+            body.meta.paging.total,
+            ids.size,
+            "Incomplete group builds",
+          );
+        complete = true;
+        break;
+      }
+      const next = new URL(body.links.next, ROOT);
+      assert.equal(next.origin, ROOT);
+      assert.ok(!next.username && !next.password);
+      assert.equal(next.pathname, base + "/builds");
+      path = next.pathname + next.search;
+    }
+    assert.ok(complete, "Incomplete group builds");
+    out.push({
+      id: expected.id,
+      name: expected.name,
+      isInternalGroup: expected.internal,
+      assigned: ids.has(BUILD),
+      complete: true,
+    });
+  }
+  return out;
+}
 async function main() {
   let receipt = { app: APP, buildId: BUILD, completed: false };
   try {
@@ -225,6 +296,9 @@ async function main() {
       "This repair is read-only",
     );
     receipt = { ...receipt, ...(await inspectState(get)) };
+    receipt.beta.originalGroups = await inspectOriginalGroups(get);
+    receipt.beta.originalMembershipsVerified =
+      receipt.beta.originalGroups.every((g) => g.assigned);
   } catch {
     receipt.error =
       "Compliance step stopped; inspect journal and live state before any further write";
