@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clients } from "./run-kilowallet-compliance.mjs";
+import { clients, inspectState } from "./run-kilowallet-compliance.mjs";
 import { APP, BUILD } from "./kilowallet-compliance-plan.mjs";
 test("credential-bearing transport rejects foreign app, host, method and altered declaration before network", async () => {
   let n = 0;
@@ -78,4 +78,36 @@ test("successful declaration response identity retained without document URLs or
   await write("POST", "/v1/appEncryptionDeclarations", payload);
   assert.equal(events.at(-1).resourceId, "fixture-id");
   assert.ok(!JSON.stringify(events).includes("sensitive"));
+});
+
+test("reconciliation reads only build and declarations and drops unrelated response data", async () => {
+  const calls = [];
+  const result = await inspectState(async (path) => {
+    calls.push(path);
+    return path.startsWith("/v1/builds/")
+      ? {
+          data: {
+            id: BUILD,
+            attributes: {
+              version: "3",
+              processingState: "VALID",
+              documentUrl: "opaque",
+            },
+            relationships: { app: { data: { id: APP } } },
+          },
+        }
+      : {
+          data: [
+            {
+              id: "fixture-declaration",
+              attributes: { exempt: true, documentUrl: "opaque" },
+            },
+          ],
+        };
+  });
+  assert.equal(calls.length, 2);
+  assert.ok(calls[0].startsWith("/v1/builds/" + BUILD + "?"));
+  assert.ok(calls[1].startsWith("/v1/appEncryptionDeclarations?"));
+  assert.equal(result.readOnly, true);
+  assert.ok(!JSON.stringify(result).includes("opaque"));
 });
