@@ -21,22 +21,35 @@ const APP = "6817118871",
   L = "67c79fa3-be47-4fc0-94c5-713836f9d262";
 function fixture(options = {}) {
   const c = {
-      build: options.replacement ? "1792942297" : "new-build-number",
+      build: options.replacement ? "1792963623" : "new-build-number",
       sourceCommit: options.replacement ? REPLACEMENT_SOURCE : undefined,
       appleBuildId: "new-build-id",
       ipaSha256: "hash",
       images: [],
     },
     writes = [];
-  let state = options.replacement
-      ? "WAITING_FOR_REVIEW"
-      : "PREPARE_FOR_SUBMISSION",
+  let state = options.withdrawn
+      ? "DEVELOPER_REJECTED"
+      : options.replacement
+        ? "WAITING_FOR_REVIEW"
+        : "PREPARE_FOR_SUBMISSION",
     selected = options.replacement
       ? OLD_BUILD
       : "0c79c478-9b0f-4017-a62f-499e8d5e7143",
     policy = "https://github.com/romanmodin/RedWallet/blob/old/docs/PRIVACY.md",
     reviews = options.replacement
-      ? [{ id: OLD_REVIEW, attributes: { state: "WAITING_FOR_REVIEW" } }]
+      ? [
+          {
+            id: OLD_REVIEW,
+            attributes: {
+              state: options.withdrawn
+                ? "COMPLETE"
+                : options.canceling
+                  ? "CANCELING"
+                  : "WAITING_FOR_REVIEW",
+            },
+          },
+        ]
       : [],
     notes = options.longNotes ? "N".repeat(4000) : "PRIVATE",
     items = [];
@@ -284,28 +297,28 @@ test("submission client rejects agreements, other apps, build uploads, and arbit
 
 // Negative receipt cases cover stale or unrelated captures before any Apple write.
 test("submission receipts must belong to the exact signed release and both reviewed screenshot families", () => {
-  const source = "7ac04a84f818fcd31879ee44fc57ddde4a64feb5";
+  const source = "814c1ebaccb9ba45544344b3cb7b8534a10ae2a9";
   const ipa = {
     sourceCommit: source,
     publicSourceCommit: source,
-    orchestrationCommit: "0c4885f252ac36596d28933552fa8bc2a73a4049",
+    orchestrationCommit: "6553a247d6ea73b2e5de47c41e7d5de02c6e3da0",
     signatureVerification: "passed",
     sourceMappingVerification: "passed",
     ipaSha256:
-      "6551e126be45b9267d3fc54cf289c146b46a0ff39fcfcd2b233a8c5f323708aa",
+      "b5373e90f362167477548192b3b4fcd4d7dad23e14a70c4a548a6cb7430be8f0",
     bundles: [
       "com.romanmodin.redwallet",
       "com.romanmodin.redwallet.Stickers",
     ].map((bundleId) => ({
       bundleId,
       version: "8.0.1",
-      build: "1792942297",
+      build: "1792963623",
       architectures: ["arm64"],
     })),
   };
   const beta = {
     sourceCommit: source,
-    uploadRunId: "40206122168",
+    uploadRunId: "40235088029",
     ipaSha256: ipa.ipaSha256,
     processingState: "VALID",
     status: "AVAILABLE_TO_TESTERS",
@@ -319,7 +332,7 @@ test("submission receipts must belong to the exact signed release and both revie
     bundleId: "com.romanmodin.redwallet",
     version: "8.0.1",
     appleBuildId: "new-build-id",
-    build: "1792942297",
+    build: "1792963623",
   };
   const identity = {
     appId: APP,
@@ -330,7 +343,7 @@ test("submission receipts must belong to the exact signed release and both revie
   const shots = {
     ...identity,
     status: "SCREENSHOTS_REPLACED",
-    captureRunId: 40206124543,
+    captureRunId: 40235091147,
     images: ["iphone", "ipad"].flatMap((family) =>
       Array.from({ length: 4 }, (_, i) => ({
         family,
@@ -356,11 +369,11 @@ test("submission receipts must belong to the exact signed release and both revie
     previousIosTree: "30e39cdee442e7d716cdc95de44ada6df2a523b7",
     replacementIosTree: "30e39cdee442e7d716cdc95de44ada6df2a523b7",
     newPackageVerificationPending: false,
-    signedPackageRunId: 40206122168,
+    signedPackageRunId: 40235088029,
     signedPackageBuild: beta.build,
   };
   const verify = (i, b, s, m, r = reuse) => verifyReceipts(i, b, s, m, r);
-  assert.equal(verify(ipa, beta, shots, message).build, "1792942297");
+  assert.equal(verify(ipa, beta, shots, message).build, "1792963623");
   assert.throws(
     () => verify(ipa, beta, shots, { ...message, sourceCommit: "old" }),
     /iMessage/,
@@ -409,19 +422,16 @@ test("submission receipts must belong to the exact signed release and both revie
   );
 });
 
-test("replacement preflights screenshots and beta delivery, withdraws only old review, then submits the new build", async () => {
-  const f = fixture({ replacement: true }),
+test("final submission verifies completed withdrawal and submits without repeating cancellation", async () => {
+  const f = fixture({ replacement: true, withdrawn: true }),
     report = {};
   await replaceAndSubmit(f.api, f.c, report);
   assert.equal(report.submitted, true);
   assert.equal(report.replacementStatus, "OLD_REVIEW_REMOVAL_VERIFIED");
   assert.equal(report.selectedBuild, f.c.appleBuildId);
-  assert.equal(f.writes[0].path, "/v1/reviewSubmissions/" + OLD_REVIEW);
-  assert.deepEqual(f.writes[0].payload.data.attributes, { canceled: true });
   assert.equal(
-    f.writes.filter((w) => w.path === "/v1/reviewSubmissions/" + OLD_REVIEW)
-      .length,
-    1,
+    f.writes.some((w) => w.payload?.data?.attributes?.canceled),
+    false,
   );
   f.writes.length = 0;
   await replaceAndSubmit(f.api, f.c, {});
@@ -439,11 +449,11 @@ test("replacement not delivered to TestFlight preserves the old submission", asy
   assert.equal(f.writes.length, 0);
 });
 test("pending old review cancellation stops without selecting or submitting the new build", async () => {
-  const f = fixture({ replacement: true, pendingCancellation: true }),
+  const f = fixture({ replacement: true, canceling: true }),
     report = {};
   await replaceAndSubmit(f.api, f.c, report);
   assert.equal(report.replacementStatus, "WAITING_FOR_OLD_REVIEW_REMOVAL");
-  assert.equal(f.writes.length, 1);
+  assert.equal(f.writes.length, 0);
   assert.equal(report.submitted, undefined);
 });
 test("replacement client supports only the additional read-only beta checks", async () => {
@@ -535,7 +545,11 @@ test("read-only replacement preflight completes all live checks without cancelin
 });
 
 test("refreshes metadata status when selecting the replacement build resets the withdrawn version", async () => {
-  const f = fixture({ replacement: true, resetStateAfterBuildSelection: true });
+  const f = fixture({
+    replacement: true,
+    withdrawn: true,
+    resetStateAfterBuildSelection: true,
+  });
   const report = {};
   await replaceAndSubmit(f.api, f.c, report);
   assert.equal(report.status, "SUBMITTED_FOR_APP_REVIEW");
@@ -621,4 +635,13 @@ test("preserves unrelated near-limit notes while replacing the old build disclos
   assert.ok(updated.length <= 4000);
   assert.ok(updated.startsWith(prefix + "\n\n"));
   assert.equal(v4ReviewNotes(updated), updated);
+});
+
+test("final submission never repeats cancellation of an active historical review", async () => {
+  const f = fixture({ replacement: true });
+  await assert.rejects(
+    replaceAndSubmit(f.api, f.c, {}),
+    /withdrawal remains unresolved/,
+  );
+  assert.equal(f.writes.length, 0);
 });

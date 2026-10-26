@@ -6,7 +6,7 @@ import {
   REPLACEMENT_SOURCE,
   OLD_BUILD,
 } from "./replace-ios-review.mjs";
-export const SOURCE = "7ac04a84f818fcd31879ee44fc57ddde4a64feb5";
+export const SOURCE = "814c1ebaccb9ba45544344b3cb7b8534a10ae2a9";
 const PRIOR_SOURCE = "9f627fb87b4b6cc28cddcf6ad45e2edc721551a8";
 const GROUPS = [
   "0bc2722a-48b6-4520-871d-dd5a4a8988cb",
@@ -32,16 +32,16 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots, reuse) {
   check(
     ipa.sourceCommit === SOURCE &&
       ipa.publicSourceCommit === SOURCE &&
-      ipa.orchestrationCommit === "0c4885f252ac36596d28933552fa8bc2a73a4049" &&
+      ipa.orchestrationCommit === "6553a247d6ea73b2e5de47c41e7d5de02c6e3da0" &&
       ipa.ipaSha256 ===
-        "6551e126be45b9267d3fc54cf289c146b46a0ff39fcfcd2b233a8c5f323708aa" &&
+        "b5373e90f362167477548192b3b4fcd4d7dad23e14a70c4a548a6cb7430be8f0" &&
       ipa.signatureVerification === "passed" &&
       ipa.sourceMappingVerification === "passed",
     "Unqualified signed package",
   );
   check(
     beta.sourceCommit === SOURCE &&
-      beta.uploadRunId === "40206122168" &&
+      beta.uploadRunId === "40235088029" &&
       beta.ipaSha256 === ipa.ipaSha256 &&
       beta.processingState === "VALID" &&
       beta.status === "AVAILABLE_TO_TESTERS" &&
@@ -57,7 +57,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots, reuse) {
       beta.bundleId === BUNDLE_ID &&
       beta.version === VERSION &&
       id(beta.appleBuildId) &&
-      beta.build === "1792942297",
+      beta.build === "1792963623",
     "Wrong release identity",
   );
   check(
@@ -79,7 +79,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots, reuse) {
       mainShots.appStoreVersionId === VERSION_ID &&
       mainShots.status === "SCREENSHOTS_REPLACED" &&
       mainShots.sourceCommit === SOURCE &&
-      mainShots.captureRunId === 40206124543 &&
+      mainShots.captureRunId === 40235091147 &&
       mainShots.images.length === 8 &&
       mainShots.images.every((i) => i.state === "COMPLETE"),
     "Main screenshots not verified",
@@ -101,7 +101,7 @@ export function verifyReceipts(ipa, beta, mainShots, messageShots, reuse) {
       reuse.previousIosTree === "30e39cdee442e7d716cdc95de44ada6df2a523b7" &&
       reuse.replacementIosTree === reuse.previousIosTree &&
       reuse.newPackageVerificationPending === false &&
-      reuse.signedPackageRunId === 40206122168 &&
+      reuse.signedPackageRunId === 40235088029 &&
       reuse.signedPackageBuild === beta.build,
     "iMessage source or signed extension reuse not verified",
   );
@@ -311,8 +311,9 @@ export async function verifyListing(api, candidate) {
 export const V4_REVIEW_NOTE =
   "Kilojoin V4 update: Settings > Tools > CoinJoin remains Experimental with explicit live opt-in. V3 pools use one output; V4 pools use 2-5 equal outputs per participant, each to a fresh address. Review all outputs and the fee before signing. Sample mode and pool discovery need no funded wallet. Interrupted rounds retain coin reservations until safely resolved. Relay/backend privacy limits still apply. Powered by Kilojoin, by Kilombino.";
 export const COINJOIN_KNOWN_ISSUE_NOTE =
-  "Build 1792942297: Optional experimental CoinJoin adds precise input/rejection diagnostics and failed-validation status. A physical iPhone previously failed participant validation (KJ-CHAIN); the cause and end-to-end mixing on this build remain unverified. Signing and reservation guards remain. Do not test with real funds. Sample mode and read-only discovery are available.";
+  "Build 1792963623: Experimental CoinJoin adds Return to active pool while the app remains running, plus input/rejection diagnostics. Physical iPhone tests have reported KJ-CHAIN and KJ-WALLET-INPUTS; a completed live pool remains unverified. Signing/reservation guards remain. Do not test with real funds; use sample mode or read-only discovery.";
 export const SUPERSEDED_COINJOIN_NOTES = [
+  "Build 1792942297: Optional experimental CoinJoin adds precise input/rejection diagnostics and failed-validation status. A physical iPhone previously failed participant validation (KJ-CHAIN); the cause and end-to-end mixing on this build remain unverified. Signing and reservation guards remain. Do not test with real funds. Sample mode and read-only discovery are available.",
   "Build 1792915404: CoinJoin remains optional and experimental. Fixes cover reproduced startup, replay and wallet-inventory errors. A physical iPhone reaches pool acceptance but fails participant validation (KJ-CHAIN); the exact chain check remains under investigation and end-to-end mixing is unverified. Do not test with real funds. Sample mode and read-only discovery remain available.",
   "Known issue in build 1792686194: Experimental CoinJoin can fail immediately after joining a pool with a participant-message processing error, sometimes after briefly showing participants. End-to-end mixing is not reliable in this build, and this error does not indicate a completed mix. We are submitting the wallet while correcting this optional experimental feature. Do not use real funds to test CoinJoin during review; sample mode and read-only pool discovery remain available.",
   "Build 1792915404 includes fixes for reproduced CoinJoin startup, replay handling, and saved HD watch-only wallet inventory errors. The latest physical iPhone test reaches pool acceptance but reports KJ-CHAIN during participant input validation. The precise failed chain check remains under investigation; successful end-to-end mixing on that device has not been verified. CoinJoin remains optional and experimental, and an error does not indicate a completed mix. Do not use real funds to test CoinJoin during review; sample mode and read-only pool discovery remain available.",
@@ -606,9 +607,9 @@ export async function replaceAndSubmit(api, candidate, report) {
     candidate.sourceCommit === REPLACEMENT_SOURCE,
     "Unqualified replacement source",
   );
-  // Verify the entire listing before withdrawing the existing review.
+  // Verify the listing and prior withdrawal with GETs only; final submission cannot cancel a review.
   await verifyListing(api, candidate);
-  await withdrawSupersededReview(api, candidate, report);
+  await withdrawSupersededReview(api, candidate, report, { readOnly: true });
   if (report.replacementStatus === "WAITING_FOR_OLD_REVIEW_REMOVAL")
     return report;
   check(

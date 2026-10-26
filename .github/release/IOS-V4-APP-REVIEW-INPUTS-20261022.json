@@ -1,31 +1,31 @@
 {
-  "sourceCommit": "7ac04a84f818fcd31879ee44fc57ddde4a64feb5",
-  "verifiedAt": "2026-10-25T17:49:04.141704+00:00",
-  "purpose": "PR115 replacement preparation from actual delivered upload/beta and clean captures. Current old Apple assets retained until a verified new screenshot upload receipt exists.",
+  "sourceCommit": "814c1ebaccb9ba45544344b3cb7b8534a10ae2a9",
+  "verifiedAt": "2026-10-25T23:30:21.013840+00:00",
+  "purpose": "Navigation source814 actual delivered upload/beta and new reviewed source-mapped store screenshot receipt; historical unchanged iMessage reuse verified. Final submission verifies the completed prior withdrawal with GETs only.",
   "receipts": [
     {
       "member": "ios-ipa-verification.json",
-      "runId": 40206122168,
-      "head": "0c4885f252ac36596d28933552fa8bc2a73a4049",
-      "artifactId": 12606390085,
-      "archiveSha256": "18842bc0eda98cdcb885fab7999dc11dc3e6c1646b6b3e37f8d4f2db5b48e922",
-      "sha256": "4690f34a2bac1b8451d9729b4030889b9579eb84097b0f036336379fe9b757d9"
+      "runId": 40235088029,
+      "head": "6553a247d6ea73b2e5de47c41e7d5de02c6e3da0",
+      "artifactId": 12617327001,
+      "archiveSha256": "9f695b7b7c1ae49775fbbf3edada76a84fb744f6f74db80e71e876dcc62edc4d",
+      "sha256": "a80dc34cfdd8ee8b991ec9a9cd1992a043018f8d3d3e5301f7900257ba3844f7"
     },
     {
       "member": "testflight-beta-verification.json",
-      "runId": 40212027611,
-      "head": "c8c169476ad30fd38c9626c7226fc632b1c21f66",
-      "artifactId": 12605673783,
-      "archiveSha256": "12fc10c0eaf537e070a7590cef71425c7efef03e1ae67c28466bc96f740bd672",
-      "sha256": "e8da1a52d1277583af79308dc3c06809947236a45fd77bb37cb12893cff610ab"
+      "runId": 40243609258,
+      "head": "a178644007a95b38889127deed92d4b41eac52b2",
+      "artifactId": 12617932380,
+      "archiveSha256": "2f7f33293c8164dff78ee17a489566ad052c02fdf0f0598cf5b3b4bede21e6db",
+      "sha256": "f5a5439c6f55cac064e51a12e81b16994ff2d728f2e734fd9e931011726a89e6"
     },
     {
       "member": "store-screenshot-receipt.json",
-      "runId": 40186113362,
-      "head": "9b743100f8fd33511fbec03ad78641b5a5164fd2",
-      "artifactId": 12596018290,
-      "archiveSha256": "0961f7c5141c252499d52a1e9f01a318d64442cd687bccb1ed50035436199263",
-      "sha256": "f71e2106e79f33631b4f7002cb95af58584c99b071f82e66d44194850953e480"
+      "runId": 40244825343,
+      "head": "f20d6c6df2907182e2029966c1780bdb32d25ab0",
+      "artifactId": 12618570911,
+      "archiveSha256": "8b6b25a88ffae88ce01f6ecff2978de4a3e2c5a81254f328ed3b6462a4704b82",
+      "sha256": "a0d12752d55f743d796f54a458a6d0681d8b18df17a4d3e9e93f8c738b167be9"
     },
     {
       "runId": 39330552821,
@@ -36,6 +36,6 @@
       "sha256": "faadf6141de70a91eeda2313290f56eff2392b04c9ccbf075405dd357fcc9586"
     }
   ],
-  "build": "1792942297",
-  "replacementScreenshotUploadPending": true
+  "build": "1792963623",
+  "replacementScreenshotUploadPending": false
 }
