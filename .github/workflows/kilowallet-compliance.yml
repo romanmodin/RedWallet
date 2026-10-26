@@ -1,0 +1,99 @@
+name: Kilowallet encryption compliance
+"on":
+  pull_request:
+    paths:
+      - .github/workflows/kilowallet-compliance.yml
+      - .github/scripts/*kilowallet*compliance*
+      - .github/scripts/*verify-kilowallet-upload*
+      - .github/scripts/*kilowallet-beta-plan*
+      - .github/release/KILOWALLET-040-COMPLIANCE-DRAFT-20261025.json
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: kilowallet-apple-compliance
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - run: node --test .github/scripts/test-kilowallet-compliance-plan.mjs .github/scripts/test-run-kilowallet-compliance.mjs .github/scripts/test-kilowallet-beta-plan.mjs
+      - run: python3 -B .github/scripts/test-verify-kilowallet-upload.py -v
+  qualify:
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Verify actual immutable upload and current native gates before Apple credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B .github/scripts/verify-kilowallet-upload.py
+      - name: Require resolved accurate distribution policy before protected job
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {declarationPayload} from './.github/scripts/kilowallet-compliance-plan.mjs';
+          const p=JSON.parse(readFileSync('.github/release/KILOWALLET-040-COMPLIANCE-DRAFT-20261025.json'));
+          const u=JSON.parse(readFileSync('kilowallet-upload-qualification.json'));
+          declarationPayload(p,u);
+          JS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilowallet-upload-qualification
+          path: |
+            kilowallet-upload-qualification.json
+            kilowallet-source-gates.json
+          retention-days: 30
+  apply:
+    needs: qualify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: kilowallet-upload-qualification
+      - name: Recheck upload immediately before Apple credential use
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B .github/scripts/verify-kilowallet-upload.py
+      - name: Apply one accurate declaration and verify exact build association
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: node .github/scripts/run-kilowallet-compliance.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: kilowallet-compliance-result
+          path: |
+            kilowallet-compliance-journal.jsonl
+            kilowallet-compliance-result.json
+            kilowallet-upload-qualification.json
+          if-no-files-found: ignore
+          retention-days: 30
