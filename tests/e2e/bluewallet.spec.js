@@ -26,6 +26,7 @@ import {
 } from './helperz';
 
 import { enterUnlockPassword, submitStoragePassword } from './storage-password';
+const { checkAddressOwnershipAlert } = require('./address-ownership-alert');
 
 // if loglevel is set to `error`, this kind of logging will still get through
 console.warn = console.log = (...args) => {
@@ -248,9 +249,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     await element(by.id('IsItMyAddress')).tap();
     await waitForId('AddressInput');
     await element(by.id('AddressInput')).replaceText('bc1q063ctu6jhe5k4v8ka99qac8rcm2tzjjnuktyrl');
-    await element(by.id('CheckAddress')).tap();
-    await expect(element(by.text('None of the available wallets own the provided address.'))).toBeVisible();
-    await element(by.text('OK')).tap();
+    await checkAddressOwnershipAlert({ device, element, by, expect });
     await goBack();
     await goBack();
 
