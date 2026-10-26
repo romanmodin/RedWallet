@@ -1,3 +1,4 @@
+import { poolCountdown, roundTiming } from '../../class/xbt/kilojoin/timing';
 import { activePool } from '../../class/xbt/kilojoin/active-pool';
 import { Journal } from '../../class/xbt/kilojoin/round';
 import React, { useEffect, useRef, useState } from 'react';
@@ -22,6 +23,11 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const { colors } = useTheme(),
     { wallets } = useStorage();
   const choices = wallets.filter((w): w is MixingWallet => w instanceof XbtSegwitBech32Wallet || w instanceof XbtTaprootWallet);
+  const [clock, setClock] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [active, setActive] = useState(() => activePool.snapshot());
   const [wallet, setWallet] = useState<MixingWallet | undefined>(() => activePool.snapshot()?.wallet);
   const [pools, setPools] = useState<Record<string, { terms: Readonly<Terms>; event: NostrEvent }>>({});
@@ -169,6 +175,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const session = view?.session,
     journal = view?.journal;
   const progress = session && journal ? coinjoinProgress(session, journal) : undefined;
+  const timing = session && journal ? roundTiming(session, journal) : undefined;
   const displayedError = error || view?.error;
   const issue = displayedError ? coinjoinIssue(displayedError) : undefined;
   const signatureCount = session ? Object.keys(session.signatures).length : 0;
@@ -242,10 +249,13 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                   ? `${visiblePools.length} compatible open pool${visiblePools.length === 1 ? '' : 's'} found. Listening for updates.`
                   : 'Connected. No compatible open pools right now. A Kilowallet participant must create one; you can search again.')}
             </Text>
+            <SettingsFootnote>
+              Pools may close earlier by vote. The announced deadline is not a guaranteed completion time.
+            </SettingsFootnote>
             <View style={card}>
               {visiblePools.map(p =>
                 pick(
-                  `${outputCount(p.terms) > 1 ? outputCount(p.terms) + ' × ' : ''}${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}`,
+                  `${outputCount(p.terms) > 1 ? outputCount(p.terms) + ' × ' : ''}${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}\nAnnounced deadline: ${new Date(p.terms.timeout * 1000).toLocaleString()} · ${poolCountdown(p.terms.timeout, clock)}`,
                   poolId === p.terms.id,
                   () => {
                     setPoolId(p.terms.id);
@@ -332,9 +342,29 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               )}
             </View>
             {!!progress && <SettingsFootnote>{progress.detail}</SettingsFootnote>}
-            <SettingsFootnote>
-              Going back keeps this round active. Use Return to active pool in CoinJoin to reopen it. Keep the app open during a round.
-            </SettingsFootnote>
+            {!!timing && (
+              <View style={card} testID="CoinjoinRoundTiming">
+                <Text style={text}>{timing.label}</Text>
+                {!!timing.deadline && (
+                  <Text style={text}>
+                    {new Date(timing.deadline * 1000).toLocaleString()} · {poolCountdown(timing.deadline, clock)}
+                  </Text>
+                )}
+                <Text style={text}>{timing.detail}</Text>
+                {!!issue && (
+                  <Text style={text}>
+                    Connection or validation issue: this deadline is based on the last received state. It does not prove you are still
+                    connected.
+                  </Text>
+                )}
+              </View>
+            )}
+            {journal && !['complete', 'aborted'].includes(journal.phase) && (
+              <SettingsFootnote>
+                Back keeps access to this round while the app is running. Use Return to active pool to reopen it. Background reconnection
+                and restart recovery are not yet guaranteed in RedWallet.
+              </SettingsFootnote>
+            )}
             {journal && ['complete', 'aborted'].includes(journal.phase) && (
               <Button
                 title="Back to pools"
