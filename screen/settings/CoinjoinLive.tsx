@@ -49,6 +49,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const [view, setView] = useState<ClientView | undefined>(() => activePool.snapshot()?.view),
     [error, setError] = useState(''),
     [localBusy, setBusy] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
   const busy = localBusy || !!active?.busy;
   const client = useRef<MixingClient | undefined>(activePool.snapshot()?.client),
     discovery = useRef<KilojoinRelay | undefined>(undefined),
@@ -362,6 +363,21 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               )}
             </View>
             {!!progress && <SettingsFootnote>{progress.detail}</SettingsFootnote>}
+            {session?.phase === 'signed' && journal?.phase === 'signed' && (
+              <View style={[card, styles.completedStep]} testID="CoinjoinSigningComplete">
+                <Text style={[styles.attentionTitle, styles.completedTitle]}>✓ Your signing is complete</Text>
+                <Text style={text}>
+                  {view.broadcastId
+                    ? 'Transaction submitted. No action is required from you right now. Waiting for confirmation; refreshing the status is optional.'
+                    : signatureCount === inputCount && inputCount > 0
+                      ? 'All signatures are collected. Next action: broadcast the joint transaction, then wait for confirmation.'
+                      : 'Waiting for the other participants to sign. Your signing step is done; broadcasting may still be needed once all signatures arrive.'}
+                </Text>
+                <Text style={text}>
+                  Coins remain reserved until the transaction is resolved. Use Recovery options only if you need to troubleshoot.
+                </Text>
+              </View>
+            )}
             {!!timing && (
               <View style={card} testID="CoinjoinRoundTiming">
                 <Text style={text}>{timing.label}</Text>
@@ -450,14 +466,15 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             )}
             {session?.phase === 'signed' && journal?.phase !== 'complete' && (
               <>
-                <Button title="Retry sharing signatures" disabled={busy} onPress={() => run(() => client.current!.retrySignatures())} />
+                {!view.broadcastId && (
+                  <Button
+                    title="Broadcast joint transaction"
+                    disabled={busy || signatureCount !== inputCount || !!view.broadcastId}
+                    onPress={() => run(() => client.current!.broadcast())}
+                  />
+                )}
                 <Button
-                  title="Broadcast joint transaction"
-                  disabled={busy || signatureCount !== inputCount || !!view.broadcastId}
-                  onPress={() => run(() => client.current!.broadcast())}
-                />
-                <Button
-                  title="Check confirmation"
+                  title="Refresh confirmation status (optional)"
                   disabled={busy}
                   onPress={() =>
                     run(async () => {
@@ -467,17 +484,38 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 />
               </>
             )}
-            {journal && !['complete', 'aborted'].includes(journal.phase) && (
-              <Button
-                title="Stop participation"
-                disabled={busy}
-                onPress={() =>
-                  run(async () => {
-                    await client.current!.close();
-                  })
-                }
-              />
+            {session?.phase === 'signed' && journal?.phase === 'signed' && (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: showRecovery }}
+                  onPress={() => setShowRecovery(old => !old)}
+                >
+                  <Text style={text}>{showRecovery ? 'Hide recovery options' : 'Recovery options'}</Text>
+                </Pressable>
+                {showRecovery && (
+                  <>
+                    <SettingsFootnote>
+                      These are recovery controls, not additional signing steps. Stopping after signing does not release reserved coins.
+                    </SettingsFootnote>
+                    <Button title="Retry sharing signatures" disabled={busy} onPress={() => run(() => client.current!.retrySignatures())} />
+                  </>
+                )}
+              </>
             )}
+            {journal &&
+              !['complete', 'aborted'].includes(journal.phase) &&
+              (session?.phase !== 'signed' || journal.phase !== 'signed' || showRecovery) && (
+                <Button
+                  title="Stop participation"
+                  disabled={busy}
+                  onPress={() =>
+                    run(async () => {
+                      await client.current!.close();
+                    })
+                  }
+                />
+              )}
             {journal?.phase === 'uncertain' && (
               <Button
                 title="Check retained round confirmation"
@@ -516,6 +554,8 @@ const styles = StyleSheet.create({
   card: { borderRadius: 18, padding: 18, gap: 10 },
   choice: { paddingVertical: 12 },
   input: { borderWidth: 1, borderColor: '#777', borderRadius: 10, padding: 12 },
+  completedStep: { borderWidth: 2, borderColor: '#248445' },
+  completedTitle: { color: '#248445' },
   attention: { borderWidth: 2, borderColor: '#D3263E' },
   attentionTitle: { fontSize: 20, fontWeight: '700' },
   error: { color: '#D3263E' },

@@ -271,6 +271,7 @@ test('leaving the screen does not stop an active pool', async () => {
       journal: { phase: 'uncertain', reserved: ['11'.repeat(32) + ':0'] },
     });
   });
+  fireEvent.press(entry.getByText('Recovery options'));
   await act(async () => {
     fireEvent.press(entry.getByText('Stop participation'));
   });
@@ -353,3 +354,68 @@ test('foreground immediately recomputes the active timer from wall time after su
     jest.useRealTimers();
   }
 });
+
+test.each([
+  { signatures: { one: 'sig' }, broadcastId: undefined, message: /Waiting for the other participants to sign/ },
+  { signatures: { one: 'sig', two: 'sig' }, broadcastId: undefined, message: /Next action: broadcast/ },
+  { signatures: { one: 'sig', two: 'sig' }, broadcastId: 'aa'.repeat(32), message: /No action is required from you right now/ },
+])('signed step is green while remaining work is explicit: $broadcastId $signatures', async ({ signatures, broadcastId, message }) => {
+  const retrySignatures = jest.fn(async () => {});
+  const broadcast = jest.fn(async () => {});
+  const checkConfirmation = jest.fn(async () => false);
+  const live = {
+    session: { phase: 'signed', seats: [{ coins: [{}] }, { coins: [{}] }], signatures },
+    journal: { phase: 'signed', reserved: ['11'.repeat(32) + ':0'] },
+    broadcastId,
+  };
+  await activePool.start(mockWallet, async update => {
+    mockEmit = update as typeof mockEmit;
+    update(live as never);
+    return { view: () => live, close: mockClose, retrySignatures, broadcast, checkConfirmation } as never;
+  });
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  expect(screen.getByText('✓ Your signing is complete')).toHaveStyle({ color: '#248445' });
+  expect(screen.getByText(message)).toBeTruthy();
+  expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
+  expect(screen.queryByText('Review and sign')).toBeNull();
+  expect(screen.queryByText('Retry sharing signatures')).toBeNull();
+  expect(screen.queryByText('Stop participation')).toBeNull();
+  if (broadcastId) expect(screen.queryByText('Broadcast joint transaction')).toBeNull();
+  else {
+    const button = screen.getByText('Broadcast joint transaction');
+    if (Object.keys(signatures).length < 2) expect(button).toBeDisabled();
+    else expect(button).toBeEnabled();
+  }
+  expect(screen.getByText('Refresh confirmation status (optional)')).toBeTruthy();
+  expect(retrySignatures).not.toHaveBeenCalled();
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(checkConfirmation).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByText('Recovery options'));
+  expect(screen.getByText('Retry sharing signatures')).toBeTruthy();
+  expect(screen.getByText('Stop participation')).toBeTruthy();
+  expect(screen.getByText(/Stopping after signing does not release reserved coins/)).toBeTruthy();
+  await act(async () => fireEvent.press(screen.getByText('Retry sharing signatures')));
+  expect(retrySignatures).toHaveBeenCalledTimes(1);
+  expect(mockApprove).not.toHaveBeenCalled();
+});
+
+test.each(['uncertain', 'aborted', 'complete'])(
+  'does not claim own step is safely active from stale signed phase with %s journal',
+  async phase => {
+    const live = {
+      session: { phase: 'signed', seats: [], signatures: {} },
+      journal: { phase, reserved: phase === 'uncertain' ? ['11'.repeat(32) + ':0'] : [] },
+    };
+    await activePool.start(mockWallet, async update => {
+      mockEmit = update as typeof mockEmit;
+      update(live as never);
+      return { view: () => live, close: mockClose } as never;
+    });
+    const screen = render(<CoinjoinLive experimentalAcknowledged />);
+    expect(screen.queryByTestId('CoinjoinSigningComplete')).toBeNull();
+    if (phase === 'uncertain') {
+      expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
+      expect(screen.getByText('Check retained round confirmation')).toBeTruthy();
+    }
+  },
+);
