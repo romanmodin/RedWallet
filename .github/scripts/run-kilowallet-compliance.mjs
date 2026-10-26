@@ -86,6 +86,58 @@ function durableJournal(event) {
     closeSync(fd);
   }
 }
+export async function inspectState(get) {
+  const build = await get(
+    "/v1/builds/" +
+      BUILD +
+      "?include=app,appEncryptionDeclaration,buildBetaDetail",
+  );
+  const declarations = await get(
+    "/v1/appEncryptionDeclarations?filter%5Bapp%5D=" +
+      APP +
+      "&limit=200&include=app",
+  );
+  assert.ok(
+    !declarations.links?.next && Array.isArray(declarations.data),
+    "Incomplete declaration list",
+  );
+  return {
+    completed: true,
+    readOnly: true,
+    build: {
+      id: build.data?.id,
+      attributes: Object.fromEntries(
+        Object.entries(build.data?.attributes || {}).filter(([k]) =>
+          [
+            "version",
+            "processingState",
+            "expired",
+            "usesNonExemptEncryption",
+          ].includes(k),
+        ),
+      ),
+      relationships: build.data?.relationships,
+    },
+    declarations: declarations.data.map((d) => ({
+      id: d.id,
+      type: d.type,
+      attributes: Object.fromEntries(
+        Object.entries(d.attributes || {}).filter(([k]) =>
+          [
+            "appDescription",
+            "availableOnFrenchStore",
+            "containsProprietaryCryptography",
+            "containsThirdPartyCryptography",
+            "exempt",
+            "appEncryptionDeclarationState",
+            "codeValue",
+          ].includes(k),
+        ),
+      ),
+      relationships: d.relationships,
+    })),
+  };
+}
 async function main() {
   let receipt = { app: APP, buildId: BUILD, completed: false };
   try {
@@ -116,11 +168,12 @@ async function main() {
       payload,
       durableJournal,
     );
-    receipt = {
-      ...receipt,
-      ...(await applyDeclaration(get, write, policy, upload, durableJournal)),
-      completed: true,
-    };
+    assert.equal(
+      process.env.KILOWALLET_COMPLIANCE_ACTION,
+      "inspect",
+      "This repair is read-only",
+    );
+    receipt = { ...receipt, ...(await inspectState(get)) };
   } catch {
     receipt.error =
       "Compliance step stopped; inspect journal and live state before any further write";
