@@ -16,12 +16,12 @@ permissions:
   contents: read
   actions: read
 env:
-  SOURCE_COMMIT: 1dce44eb0a35b051d525304bb659a78adcef3170
-  PUBLIC_SOURCE_COMMIT: 1dce44eb0a35b051d525304bb659a78adcef3170
-  PRODUCTION_TREE_SHA256: 2951a3bae395852e4d34ee78f00002a4aa17559309b30f38038155522db2368f
-  CI_RUN_ID: '40351944034'
-  IOS_RUN_ID: '40351944048'
-  FUNDED_IOS_RUN_ID: '40351946433'
+  SOURCE_COMMIT: bc98ef5293bc612f6dee739c0ac50c8ff98cf261
+  PUBLIC_SOURCE_COMMIT: bc98ef5293bc612f6dee739c0ac50c8ff98cf261
+  PRODUCTION_TREE_SHA256: d11f7c98328b0be4cfa5ef0511e1bd7bc10e9ae9cfcf717baf8fde99bd445c13
+  CI_RUN_ID: '40379031434'
+  IOS_RUN_ID: '40379031369'
+  FUNDED_IOS_RUN_ID: '40379057156'
   FASTLANE_OPT_OUT_USAGE: '1'
   FASTLANE_SKIP_UPDATE_CHECK: '1'
   FASTLANE_HIDE_CHANGELOG: '1'
@@ -49,7 +49,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         fetch-depth: 0
-        ref: 1dce44eb0a35b051d525304bb659a78adcef3170
+        ref: bc98ef5293bc612f6dee739c0ac50c8ff98cf261
         persist-credentials: false
         repository: romanmodin/RedWallet
     - name: Checkout trusted verification tools
@@ -244,7 +244,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         repository: romanmodin/RedWallet
-        ref: 1dce44eb0a35b051d525304bb659a78adcef3170
+        ref: bc98ef5293bc612f6dee739c0ac50c8ff98cf261
         persist-credentials: false
     - name: Checkout trusted verification tools
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
