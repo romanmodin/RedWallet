@@ -90,7 +90,7 @@ export async function inspectState(get) {
   const build = await get(
     "/v1/builds/" +
       BUILD +
-      "?include=app,appEncryptionDeclaration,buildBetaDetail",
+      "?include=app,appEncryptionDeclaration,buildBetaDetail,betaGroups,betaAppReviewSubmission",
   );
   const declarations = await get(
     "/v1/appEncryptionDeclarations?filter%5Bapp%5D=" +
@@ -101,9 +101,60 @@ export async function inspectState(get) {
     !declarations.links?.next && Array.isArray(declarations.data),
     "Incomplete declaration list",
   );
+  assert.equal(build.data?.id, BUILD);
+  assert.equal(build.data?.relationships?.app?.data?.id, APP);
+  const related = (name, type, keys) => {
+    const ref = build.data?.relationships?.[name]?.data;
+    if (!ref) return null;
+    assert.equal(ref.type, type);
+    const matches = (build.included || []).filter(
+      (x) => x.type === type && x.id === ref.id,
+    );
+    assert.equal(matches.length, 1, "Missing or duplicate included " + name);
+    return {
+      id: ref.id,
+      type,
+      attributes: Object.fromEntries(
+        Object.entries(matches[0].attributes || {}).filter(([k]) =>
+          keys.includes(k),
+        ),
+      ),
+    };
+  };
+  const refs = build.data?.relationships?.betaGroups?.data;
+  assert.ok(Array.isArray(refs), "Missing beta group membership");
+  assert.ok(
+    !build.data.relationships.betaGroups.links?.next,
+    "Truncated beta groups",
+  );
+  assert.equal(new Set(refs.map((x) => x.id)).size, refs.length);
+  const groups = refs.map((ref) => {
+    assert.equal(ref.type, "betaGroups");
+    const matches = (build.included || []).filter(
+      (x) => x.type === ref.type && x.id === ref.id,
+    );
+    assert.equal(matches.length, 1, "Missing or duplicate included group");
+    return {
+      id: ref.id,
+      name: matches[0].attributes?.name,
+      isInternalGroup: matches[0].attributes?.isInternalGroup,
+    };
+  });
+  const beta = {
+    checkedAt: new Date().toISOString(),
+    detail: related("buildBetaDetail", "buildBetaDetails", [
+      "internalBuildState",
+      "externalBuildState",
+    ]),
+    review: related("betaAppReviewSubmission", "betaAppReviewSubmissions", [
+      "betaReviewState",
+    ]),
+    groups,
+  };
   return {
     completed: true,
     readOnly: true,
+    beta,
     build: {
       id: build.data?.id,
       attributes: Object.fromEntries(
