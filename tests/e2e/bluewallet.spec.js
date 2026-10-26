@@ -1,3 +1,4 @@
+import { verifyDecryptedStorage } from './decrypted-storage-settlement';
 import assert from 'assert';
 import { resetSelftestDevice } from './selftest-reset';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -558,15 +559,15 @@ describe('RedWallet UI Tests - no wallets', () => {
       'pass',
       false,
       async () => {
-        await waitFor(element(by.id('PasswordInput')))
-          .not.toExist()
-          .withTimeout(120_000);
-        await waitForWalletsList();
-
-        // Keep the existing restart/persistence check before the idle drain:
-        // the decrypted home screen can retain iOS 26 glass animations.
-        await device.launchApp({ newInstance: true });
-        await waitForId('cr34t3d'); // success
+        await verifyDecryptedStorage({
+          home: () => waitForWalletsList(),
+          wallet: () => expect(element(by.id('cr34t3d'))).toBeVisible(),
+          restart: () => device.launchApp({ newInstance: true }),
+          passwordAbsent: () =>
+            waitFor(element(by.id('PasswordInput')))
+              .not.toExist()
+              .withTimeout(120_000),
+        });
       },
       { settleBeforeSynchronization: true },
     );
