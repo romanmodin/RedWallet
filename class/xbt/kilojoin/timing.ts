@@ -52,3 +52,11 @@ export function roundTiming(session: SessionState, journal: Journal): { label: s
     detail: 'The pool may close earlier if participants agree. This is not a guaranteed completion time.',
   };
 }
+
+/** Elapsed time is a wall-clock difference, never an accumulated tick count. */
+export function participationElapsed(joinedAt: number, now: number): string {
+  if (!Number.isSafeInteger(joinedAt) || joinedAt <= 0 || !Number.isFinite(now)) return 'Join time unavailable';
+  const seconds = Math.max(0, Math.floor(now - joinedAt));
+  const minutes = Math.floor(seconds / 60);
+  return minutes >= 60 ? Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm' : minutes + 'm ' + (seconds % 60) + 's';
+}

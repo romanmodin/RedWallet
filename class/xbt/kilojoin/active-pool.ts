@@ -1,3 +1,5 @@
+import { Alert, AppState } from 'react-native';
+import { RoundAttentionMonitor } from './attention';
 import type { ClientView, MixingClient } from './client';
 import type { MixingWallet } from './wallet-adapter';
 
@@ -6,6 +8,7 @@ type ActivePool = {
   client?: MixingClient;
   view?: ClientView;
   busy: boolean;
+  joinedAt: number;
 };
 type Listener = (active: Readonly<ActivePool> | undefined) => void;
 
@@ -40,7 +43,7 @@ export class ActivePoolController {
 
   async start(wallet: MixingWallet, join: (onUpdate: (view: ClientView) => void) => Promise<MixingClient>): Promise<MixingClient> {
     if (this.active) throw new Error('Return to the existing pool before starting another round');
-    const active: ActivePool = { wallet, busy: true };
+    const active: ActivePool = { wallet, busy: true, joinedAt: Math.floor(Date.now() / 1000) };
     this.active = active;
     this.notify();
     try {
@@ -87,3 +90,30 @@ export class ActivePoolController {
 }
 
 export const activePool = new ActivePoolController();
+
+// App-process notices work after Back navigation too. No background delivery promise:
+// iOS may suspend this process, so foregrounding rechecks the absolute deadline.
+let attentionTimer: ReturnType<typeof setInterval> | undefined;
+let attentionClient: MixingClient | undefined;
+let attentionMonitor = new RoundAttentionMonitor();
+const checkAttention = () => {
+  const active = activePool.snapshot();
+  if (!active?.client || !active.view) return;
+  if (attentionClient !== active.client) {
+    attentionClient = active.client;
+    attentionMonitor = new RoundAttentionMonitor();
+  }
+  const notice = attentionMonitor.check(active.view, Math.floor(Date.now() / 1000), AppState.currentState === 'active', active.busy);
+  if (notice) Alert.alert(notice.title, notice.detail, [{ text: 'OK' }]);
+};
+activePool.subscribe(active => {
+  const unresolved = active && !['complete', 'aborted'].includes(active.view?.journal.phase ?? '');
+  if (unresolved && !attentionTimer) attentionTimer = setInterval(checkAttention, 1000);
+  if (!unresolved && attentionTimer) {
+    clearInterval(attentionTimer);
+    attentionTimer = undefined;
+  }
+});
+AppState.addEventListener('change', state => {
+  if (state === 'active') checkAttention();
+});

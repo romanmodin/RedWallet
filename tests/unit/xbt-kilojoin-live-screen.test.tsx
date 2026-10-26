@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState, AppStateStatus } from 'react-native';
 import { act, cleanup, fireEvent, render } from '@testing-library/react-native';
 import { activePool } from '../../class/xbt/kilojoin/active-pool';
 import CoinjoinEntry from '../../screen/settings/CoinjoinExperimental';
@@ -315,4 +315,41 @@ test('a join finishing after navigation remains reachable instead of being cance
   expect(mockJoin).toHaveBeenCalledTimes(1);
   expect(mockClose).not.toHaveBeenCalled();
   expect(mockApprove).not.toHaveBeenCalled();
+});
+
+test('foreground immediately recomputes the active timer from wall time after suspension', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(400000);
+  let foreground: ((state: AppStateStatus) => void) | undefined;
+  const original = AppState.addEventListener;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((type, listener) => {
+    foreground = listener;
+    return { remove: jest.fn() };
+  });
+  const live = {
+    ...mockView,
+    session: { ...mockView.session, phase: 'voting', deadline: 1000 },
+    journal: { ...mockView.journal, phase: 'joined', deadline: 1000, reserved: [] },
+  };
+  try {
+    await activePool.start(mockWallet, async update => {
+      mockEmit = update as typeof mockEmit;
+      update(live as never);
+      return { view: () => live, close: mockClose } as never;
+    });
+    const screen = render(<CoinjoinLive experimentalAcknowledged />);
+    expect(screen.getAllByText(/10m 0s remaining/).length).toBeTruthy();
+    expect(screen.getByTestId('CoinjoinActionRequired')).toBeTruthy();
+    // Jump the wall clock without firing interval ticks, as happens during iOS suspension.
+    jest.setSystemTime(700000);
+    act(() => foreground!('active'));
+    expect(screen.getAllByText(/5m 0s remaining/).length).toBeTruthy();
+    jest.setSystemTime(1100000);
+    act(() => foreground!('active'));
+    expect(screen.getByText('Response deadline reached')).toBeTruthy();
+  } finally {
+    cleanup();
+    AppState.addEventListener = original;
+    jest.useRealTimers();
+  }
 });

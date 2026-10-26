@@ -1,4 +1,4 @@
-import { poolCountdown, roundTiming } from '../../class/xbt/kilojoin/timing';
+import { poolCountdown, roundTiming, participationElapsed } from '../../class/xbt/kilojoin/timing';
 import type { SessionState } from '../../class/xbt/kilojoin/session';
 import type { Journal } from '../../class/xbt/kilojoin/round';
 const timing = (phase: string, journalPhase = 'joined') =>
@@ -19,4 +19,12 @@ test('terminal and signed rounds never show a stale response deadline', () => {
   expect(timing('review', 'aborted').deadline).toBeUndefined();
   expect(timing('signed').deadline).toBeUndefined();
   expect(timing('review', 'uncertain').deadline).toBeUndefined();
+});
+
+test('participation elapsed includes time away and does not claim creator start time', () => {
+  expect(participationElapsed(100, 220)).toBe('2m 0s');
+  expect(participationElapsed(100, 520)).toBe('7m 0s');
+  expect(participationElapsed(100, 7300)).toBe('2h 0m');
+  expect(participationElapsed(100, 50)).toBe('0m 0s');
+  expect(participationElapsed(NaN, 200)).toBe('Join time unavailable');
 });
