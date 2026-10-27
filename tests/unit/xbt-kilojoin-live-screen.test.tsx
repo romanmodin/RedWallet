@@ -261,7 +261,7 @@ test('leaving the screen does not stop an active pool', async () => {
   expect(entry.getByText('Return to active pool')).toBeTruthy();
   fireEvent.press(entry.getByTestId('CoinjoinReturnActive'));
   expect(entry.getByText('Participants: 3')).toBeTruthy();
-  expect(entry.getByText('Signatures: 1/3')).toBeTruthy();
+  expect(entry.getByText('Input signatures: 1/3')).toBeTruthy();
   expect(entry.getByText('Reserved coins: 1')).toBeTruthy();
   expect(mockJoin).toHaveBeenCalledTimes(1);
   expect(mockApprove).not.toHaveBeenCalled();
@@ -419,3 +419,44 @@ test.each(['uncertain', 'aborted', 'complete'])(
     }
   },
 );
+
+test('closing approval feedback is separate from signatures and resets for a new vote', async () => {
+  const vote = jest.fn(async () => {});
+  const live = {
+    session: {
+      phase: 'voting',
+      voteId: 'first',
+      deadline: Math.floor(Date.now() / 1000) + 600,
+      seats: [{ coins: [{ txid: 'a', vout: 0 }] }, { coins: [{ txid: 'b', vout: 0 }] }],
+      signatures: {},
+    },
+    journal: { phase: 'joined', reserved: ['a:0'] },
+  };
+  await activePool.start(mockWallet, async update => {
+    mockEmit = update as typeof mockEmit;
+    update(live as never);
+    return { view: () => live, close: mockClose, vote } as never;
+  });
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  expect(screen.getByText('Your closing response: not confirmed')).toBeTruthy();
+  expect(screen.getByText('Transaction signing: not started')).toBeTruthy();
+  expect(screen.queryByText(/Input signatures:/)).toBeNull();
+  await act(async () => fireEvent.press(screen.getByText('Accept round closing')));
+  expect(vote).toHaveBeenCalledWith(true);
+  // A press alone cannot claim success; only a durable session update can.
+  expect(screen.queryByText('✓ Your closing approval was sent')).toBeNull();
+  const sent = { ...live, session: { ...live.session, closingResponse: { voteId: 'first', accept: true } } };
+  await act(async () => mockEmit!(sent));
+  expect(screen.getByText('✓ Your closing approval was sent')).toHaveStyle({ color: '#248445' });
+  expect(screen.getByText(/Closing approvals: total unavailable/)).toBeTruthy();
+  expect(screen.queryByText('Action required: closing vote')).toBeNull();
+  expect(screen.getByText('Resend closing approval (optional)')).toBeTruthy();
+  await act(async () => mockEmit!({ ...sent, session: { ...sent.session, voteId: 'second' } }));
+  expect(screen.queryByText('✓ Your closing approval was sent')).toBeNull();
+  expect(screen.getByText('Your closing response: not confirmed')).toBeTruthy();
+  expect(screen.getByText('Action required: closing vote')).toBeTruthy();
+  await act(async () => mockEmit!({ ...sent, session: { ...sent.session, phase: 'review', signatures: { 'a:0': 'validated' } } }));
+  expect(screen.getByText('Participants signed: 1/2')).toBeTruthy();
+  expect(screen.getByText('Input signatures: 1/2')).toBeTruthy();
+  expect(mockApprove).not.toHaveBeenCalled();
+});

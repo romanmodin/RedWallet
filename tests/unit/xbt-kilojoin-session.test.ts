@@ -1510,3 +1510,43 @@ test('records the precise local chain failure seat and shortened outpoint withou
   expect(f.round.snapshot().reserved).toHaveLength(1);
   expect(f.published).toHaveLength(0);
 });
+
+test('closing response is saved only after publication, scoped to the vote, and never counts peer claims', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  const vote = 'aa'.repeat(8);
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: vote });
+  const publish = f.env.publish;
+  f.env.publish = async () => {
+    throw new Error('relay unavailable');
+  };
+  await expect(f.session.vote(true)).rejects.toThrow('relay unavailable');
+  expect(f.session.snapshot().closingResponse).toBeUndefined();
+  f.env.publish = publish;
+  await f.session.vote(true);
+  expect(f.session.snapshot().closingResponse).toEqual({ voteId: vote, accept: true });
+  expect(f.env.saveEncrypted).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      closingResponse: { voteId: vote, accept: true },
+    }),
+  );
+  await f.receive({ type: 'vote', token_hash: f.rawSeats[1].token_hash, vote_id: vote, accept: true, mac: '00' }, false, pool);
+  expect(f.session.snapshot().closingResponse).toEqual({ voteId: vote, accept: true });
+  await f.session.vote(false);
+  expect(f.session.snapshot().closingResponse).toEqual({ voteId: vote, accept: false });
+  expect(f.session.snapshot().signatures).toEqual({});
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+});
+
+test('a publication followed by persistence failure never displays a saved closing approval', async () => {
+  const f = await fixture();
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'aa'.repeat(8) });
+  (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('disk unavailable'));
+  await expect(f.session.vote(true)).rejects.toThrow('Session persistence failed');
+  expect(f.published).toHaveLength(1);
+  expect(f.session.snapshot().closingResponse).toBeUndefined();
+  expect(f.round.snapshot().reserved).toHaveLength(1);
+});

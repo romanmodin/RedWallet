@@ -1,3 +1,4 @@
+import { closingResponse, signingProgress } from '../../class/xbt/kilojoin/participation-progress';
 import { roundAttention } from '../../class/xbt/kilojoin/attention';
 import { poolCountdown, roundTiming, participationElapsed } from '../../class/xbt/kilojoin/timing';
 import { activePool } from '../../class/xbt/kilojoin/active-pool';
@@ -188,6 +189,8 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const attention = view ? roundAttention(view, clock) : undefined;
   const displayedError = error || view?.error;
   const issue = displayedError ? coinjoinIssue(displayedError) : undefined;
+  const response = session ? closingResponse(session) : undefined;
+  const signing = session ? signingProgress(session) : undefined;
   const signatureCount = session ? Object.keys(session.signatures).length : 0;
   const inputCount = session?.seats.reduce((n, s) => n + s.coins.length, 0) ?? 0;
   return (
@@ -346,9 +349,31 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                   ? 'Awaiting validation'
                   : session?.seats.length}
               </Text>
-              <Text style={text}>
-                Signatures: {signatureCount}/{inputCount}
-              </Text>
+              {session?.voteId && (
+                <>
+                  <Text style={response === true ? styles.completedTitle : text}>
+                    {response === true
+                      ? '✓ Your closing approval was sent'
+                      : response === false
+                        ? 'Your decline was sent'
+                        : 'Your closing response: not confirmed'}
+                  </Text>
+                  <Text style={text}>Closing approvals: total unavailable. The creator does not report a verified vote count.</Text>
+                  {response !== undefined && <Text style={text}>Sent to the relay; creator acknowledgment is not available.</Text>}
+                </>
+              )}
+              {signing?.started ? (
+                <>
+                  <Text style={text}>
+                    Participants signed: {signing.signedParticipants}/{signing.participants}
+                  </Text>
+                  <Text style={text}>
+                    Input signatures: {signatureCount}/{inputCount}
+                  </Text>
+                </>
+              ) : (
+                <Text style={text}>Transaction signing: not started</Text>
+              )}
               {!!view.review && (
                 <Text style={text}>
                   Your mixed outputs: {view.review.count} × {view.review.amount.toLocaleString()} sats ={' '}
@@ -427,7 +452,11 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             )}
             {session?.phase === 'voting' && (
               <>
-                <Button title="Accept round closing" disabled={busy} onPress={() => run(() => client.current!.vote(true))} />
+                <Button
+                  title={response === true ? 'Resend closing approval (optional)' : 'Accept round closing'}
+                  disabled={busy}
+                  onPress={() => run(() => client.current!.vote(true))}
+                />
                 <Button title="Decline" disabled={busy} onPress={() => run(() => client.current!.vote(false))} />
               </>
             )}

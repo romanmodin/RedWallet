@@ -47,3 +47,17 @@ test('resolved, signed and uncertain rounds never demand another signature', () 
   v.session.deadline = NaN;
   expect(roundAttention(v, 400)).toBeUndefined();
 });
+
+test('a sent response clears the action demand only for the current vote, preserving error and expiry warnings', () => {
+  const v = view();
+  v.session.closingResponse = { voteId: 'vote1', accept: true };
+  expect(roundAttention(v, 400)).toBeUndefined();
+  v.session.closingResponse.accept = false;
+  expect(roundAttention(v, 400)).toBeUndefined();
+  expect(roundAttention(v, 1100)?.title).toBe('Response deadline reached');
+  v.error = 'relay failure';
+  expect(roundAttention(v, 400)?.title).toBe('Round needs attention');
+  v.error = undefined;
+  v.session.voteId = 'vote2';
+  expect(roundAttention(v, 400)?.title).toBe('Action required: closing vote');
+});

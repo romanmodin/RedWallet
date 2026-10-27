@@ -38,6 +38,7 @@ export type SessionState = {
   poolSecret?: string;
   voteId?: string;
   retiredVoteIds?: string[];
+  closingResponse?: { voteId: string; accept: boolean };
   roundId?: string;
   deadline: number;
   prepared?: string;
@@ -702,6 +703,8 @@ export class ParticipantSession {
         accept,
         mac: memberMac(this.state.token!, 'vote', this.state.voteId!, accept),
       });
+      // Relay publication is not proof that the creator accepted or counted the vote.
+      await this.save({ ...this.state, closingResponse: { voteId: this.state.voteId!, accept } });
     });
   }
 

@@ -1,3 +1,4 @@
+import { closingResponse } from './participation-progress';
 import type { ClientView } from './client';
 import { poolCountdown, roundTiming } from './timing';
 
@@ -23,6 +24,7 @@ export function roundAttention(view: ClientView, now: number): { key: string; ti
       title: 'Response deadline reached',
       detail: 'The last received response window has ended. Check the round status; reopening does not extend it.',
     };
+  if (session.phase === 'voting' && closingResponse(session) !== undefined) return undefined;
   if (session.phase === 'closing')
     return {
       key,
