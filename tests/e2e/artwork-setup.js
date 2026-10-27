@@ -11,6 +11,17 @@ export function setSimulatorAppearance(run, deviceId, appearance) {
   return { deviceId, requested: appearance, observed };
 }
 
+// Match Detox's notifications=NO operation, but keep the SpringBoard restart
+// outside launchApp's separate readiness budget. Never retry a failed command.
+export function denySimulatorNotifications(run, deviceId) {
+  if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(deviceId)) throw new Error('Invalid simulator UUID');
+  return run(
+    'applesimutils',
+    ['--byId', deviceId, '--bundle', 'com.romanmodin.redwallet', '--restartSB', '--setPermissions', 'notifications=NO'],
+    { encoding: 'utf8', timeout: 60000 },
+  );
+}
+
 export async function prepareArtworkApp({ device, setup, waitForReady, run }) {
   // Terminate and remove the app before Keychain reset can restart SpringBoard.
   // launchApp(delete:true) previously tried to terminate it during that restart.
@@ -19,7 +30,8 @@ export async function prepareArtworkApp({ device, setup, waitForReady, run }) {
   await setup('uninstall-before-reset', () => device.uninstallApp());
   await setup('clear-keychain', () => device.clearKeychain(), 120000);
   await setup('install-clean-app', () => device.installApp());
-  await setup('launch-clean-app', () => device.launchApp({ newInstance: false, permissions: { notifications: 'NO' } }));
+  await setup('deny-notifications', () => denySimulatorNotifications(run, device.id));
+  await setup('launch-clean-app', () => device.launchApp({ newInstance: false }));
   await setup('initial-wallet-list', waitForReady);
   const appearance = await setup('dark-appearance', () => setSimulatorAppearance(run, device.id, 'dark'));
   await setup('wallet-list-after-appearance', waitForReady);
