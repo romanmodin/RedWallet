@@ -12,8 +12,14 @@ export function setSimulatorAppearance(run, deviceId, appearance) {
 }
 
 export async function prepareArtworkApp({ device, setup, waitForReady, run }) {
+  // Terminate and remove the app before Keychain reset can restart SpringBoard.
+  // launchApp(delete:true) previously tried to terminate it during that restart.
+  // Keep each operation bounded and stop on the first failure.
+  await setup('terminate-before-reset', () => device.terminateApp());
+  await setup('uninstall-before-reset', () => device.uninstallApp());
   await setup('clear-keychain', () => device.clearKeychain(), 120000);
-  await setup('launch-clean-app', () => device.launchApp({ delete: true, permissions: { notifications: 'NO' } }));
+  await setup('install-clean-app', () => device.installApp());
+  await setup('launch-clean-app', () => device.launchApp({ newInstance: false, permissions: { notifications: 'NO' } }));
   await setup('initial-wallet-list', waitForReady);
   const appearance = await setup('dark-appearance', () => setSimulatorAppearance(run, device.id, 'dark'));
   await setup('wallet-list-after-appearance', waitForReady);

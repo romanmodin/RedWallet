@@ -12,6 +12,9 @@ test('style commands wait for clean launch and actual app readiness after Keycha
   const events = [];
   const device = {
     id,
+    terminateApp: jest.fn(async () => events.push('terminated')),
+    uninstallApp: jest.fn(async () => events.push('uninstalled')),
+    installApp: jest.fn(async () => events.push('installed')),
     clearKeychain: jest.fn(async () => events.push('cleared')),
     launchApp: jest.fn(async () => events.push('launched')),
   };
@@ -31,26 +34,36 @@ test('style commands wait for clean launch and actual app readiness after Keycha
   });
   const pending = prepareArtworkApp({ device, setup, waitForReady, run });
   await waitingForReady;
-  expect(events).toEqual(['cleared', 'launched']);
+  expect(events).toEqual(['terminated', 'uninstalled', 'cleared', 'installed', 'launched']);
   expect(run).not.toHaveBeenCalled();
   ready();
   expect(await pending).toEqual({ deviceId: id, requested: 'dark', observed: 'dark' });
-  expect(events).toEqual(['cleared', 'launched', 'set-dark', 'read-dark']);
-  expect(device.launchApp).toHaveBeenCalledWith({ delete: true, permissions: { notifications: 'NO' } });
+  expect(events).toEqual(['terminated', 'uninstalled', 'cleared', 'installed', 'launched', 'set-dark', 'read-dark']);
+  expect(device.launchApp).toHaveBeenCalledWith({ newInstance: false, permissions: { notifications: 'NO' } });
   expect(waitForReady).toHaveBeenCalledTimes(2);
 });
 
-test.each(['clear', 'launch', 'ready'])('failed %s setup never attempts a style change', async failing => {
-  const error = new Error('native setup failed');
-  const action = stage =>
-    jest.fn(async () => {
-      if (stage === failing) throw error;
-    });
-  const device = { id, clearKeychain: action('clear'), launchApp: action('launch') };
-  const run = jest.fn();
-  await expect(prepareArtworkApp({ device, setup, waitForReady: action('ready'), run })).rejects.toBe(error);
-  expect(run).not.toHaveBeenCalled();
-});
+test.each(['terminate', 'uninstall', 'clear', 'install', 'launch', 'ready'])(
+  'failed %s setup never attempts a style change',
+  async failing => {
+    const error = new Error('native setup failed');
+    const action = stage =>
+      jest.fn(async () => {
+        if (stage === failing) throw error;
+      });
+    const device = {
+      id,
+      terminateApp: action('terminate'),
+      uninstallApp: action('uninstall'),
+      installApp: action('install'),
+      clearKeychain: action('clear'),
+      launchApp: action('launch'),
+    };
+    const run = jest.fn();
+    await expect(prepareArtworkApp({ device, setup, waitForReady: action('ready'), run })).rejects.toBe(error);
+    expect(run).not.toHaveBeenCalled();
+  },
+);
 
 test.each(['dark', 'light'])('reads back %s on the exact simulator with bounded commands', appearance => {
   const run = jest
@@ -92,7 +105,39 @@ test('invalid simulator identities and styles never invoke native commands', () 
 
 test('losing the visible app after changing style cannot pass setup', async () => {
   const error = new Error('app disappeared');
-  const device = { id, clearKeychain: jest.fn(), launchApp: jest.fn() };
+  const device = {
+    id,
+    terminateApp: jest.fn(),
+    uninstallApp: jest.fn(),
+    installApp: jest.fn(),
+    clearKeychain: jest.fn(),
+    launchApp: jest.fn(),
+  };
   const waitForReady = jest.fn().mockResolvedValueOnce().mockRejectedValueOnce(error);
   await expect(prepareArtworkApp({ device, setup, waitForReady, run: () => 'dark' })).rejects.toBe(error);
+});
+
+test('reset operations settle before the next begins; failure leaves the app unlaunched', async () => {
+  let rejectTermination;
+  const device = {
+    id,
+    terminateApp: jest.fn(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectTermination = reject;
+        }),
+    ),
+    uninstallApp: jest.fn(),
+    clearKeychain: jest.fn(),
+    installApp: jest.fn(),
+    launchApp: jest.fn(),
+  };
+  const pending = prepareArtworkApp({ device, setup, waitForReady: jest.fn(), run: jest.fn() });
+  expect(device.clearKeychain).not.toHaveBeenCalled();
+  expect(device.uninstallApp).not.toHaveBeenCalled();
+  rejectTermination(new Error('termination failed'));
+  await expect(pending).rejects.toThrow('termination failed');
+  expect(device.clearKeychain).not.toHaveBeenCalled();
+  expect(device.installApp).not.toHaveBeenCalled();
+  expect(device.launchApp).not.toHaveBeenCalled();
 });
