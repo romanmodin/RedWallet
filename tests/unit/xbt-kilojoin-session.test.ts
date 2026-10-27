@@ -119,7 +119,7 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants 
     await receive({ type: 'roster', seq: 1, seats: rawSeats });
     await receive({ type: 'closing', round_id: 'aa'.repeat(8), seats: rawSeats, deadline: now + 300 });
     const request = JSON.parse(decrypt(published[0].event.content, conversationKey(pool, pub(pool))));
-    const blinded = terms.v === 3 ? [request.blinded] : request.blinded;
+    const blinded = outputs === 1 ? [request.blinded] : request.blinded;
     expect(blinded).toHaveLength(outputs);
     const sigs = blinded.map((b: string) =>
       modPow(BigInt('0x' + b), d, n)
@@ -131,7 +131,7 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants 
         type: 'blind_sig',
         round_id: request.round_id,
         token_hash: own.token_hash,
-        ...(terms.v === 3 ? { sig: sigs[0] } : { sigs }),
+        ...(outputs === 1 ? { sig: sigs[0] } : { sigs }),
       }),
     );
     now += 45;
@@ -1920,4 +1920,25 @@ describe('v5 authenticated output rejection boundaries', () => {
     await expect(f.session.signApproved('unapproved', signer)).rejects.toThrow();
     expect(signer).not.toHaveBeenCalled();
   });
+});
+
+test.each(['p2wpkh', 'p2tr'] as const)('v5 %s one-output blind exchange uses the upstream scalar fields', async type => {
+  const f = await fixture(type, 1, 2, [330, 9670]);
+  await f.receive({ type: 'welcome', pool_secret: pool.toString('hex'), token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  await f.receive({ type: 'closing', round_id: 'aa'.repeat(8), seats: f.rawSeats, deadline: 10300 });
+  const request = JSON.parse(decrypt(f.published[0].event.content, conversationKey(pool, pub(pool))));
+  // Pinned upstream PoolSession.blindedList/sendBlind choose by perPerson, not by version.
+  expect(request.blinded).toEqual(expect.stringMatching(/^[0-9a-f]{512}$/));
+  expect(Array.isArray(request.blinded)).toBe(false);
+  const sig = modPow(BigInt('0x' + request.blinded), d, n)
+    .toString(16)
+    .padStart(512, '0');
+  await f.receive({ type: 'blind_sig', round_id: request.round_id, token_hash: f.rawSeats[0].token_hash, sig });
+  expect(f.session.snapshot().outputStates).toBeUndefined();
+  expect(f.session.snapshot().outputProgress).toEqual({ total: 1, submitted: 0, prepared: true });
+  expect(f.session.snapshot().outputSignature).toEqual(expect.stringMatching(/^[0-9a-f]{512}$/));
+  expect(f.session.snapshot().outputNotBefore).toBeGreaterThanOrEqual(10000);
+  expect(f.session.snapshot().phase).toBe('closing');
+  expect(f.session.snapshot().signatures).toEqual({});
 });

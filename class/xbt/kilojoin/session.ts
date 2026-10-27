@@ -567,7 +567,7 @@ export class ParticipantSession {
           )
             return;
           this.require(['closing']);
-          const sigs = this.terms.v >= 4 ? body.sigs : [body.sig];
+          const sigs = outputCount(this.terms) > 1 ? body.sigs : [body.sig];
           const pending = this.state.outputStates!;
           if (!Array.isArray(sigs) || sigs.length !== pending.length) throw new Error('Blind signature count mismatch');
           const outputStates = pending.map((output, i) => {
@@ -683,7 +683,7 @@ export class ParticipantSession {
       type: 'blind',
       token_hash: this.ownSeat().token_hash,
       round_id: this.state.roundId,
-      blinded: this.terms.v >= 4 ? this.state.outputStates!.map(o => o.blinded) : this.state.blinded,
+      blinded: outputCount(this.terms) > 1 ? this.state.outputStates!.map(o => o.blinded) : this.state.blinded,
       mac: memberMac(
         this.state.token!,
         'blind',
