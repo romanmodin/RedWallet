@@ -11,7 +11,7 @@ test('countdown uses the absolute deadline and never goes negative', () => {
 });
 test('phase deadlines use actual session values, not a newly started timer', () => {
   for (const p of ['voting', 'closing', 'review']) expect(timing(p).deadline).toBe(700);
-  expect(timing('open').deadline).toBe(900);
+  expect(timing('open').deadline).toBe(700);
 });
 test('terminal and signed rounds never show a stale response deadline', () => {
   expect(timing('open', 'complete').deadline).toBeUndefined();
@@ -27,4 +27,16 @@ test('participation elapsed includes time away and does not claim creator start 
   expect(participationElapsed(100, 7300)).toBe('2h 0m');
   expect(participationElapsed(100, 50)).toBe('0m 0s');
   expect(participationElapsed(NaN, 200)).toBe('Join time unavailable');
+});
+
+test('countdowns remain wall-clock based across long suspensions and invalid clocks', () => {
+  for (let elapsed = 0; elapsed <= 7200; elapsed += 17) {
+    const result = poolCountdown(10000, 100 + elapsed);
+    expect(result).not.toContain('-');
+    expect(result).not.toContain('NaN');
+  }
+  expect(poolCountdown(1000, NaN)).toBe('Time unavailable');
+  expect(poolCountdown(1000, Infinity)).toBe('Time unavailable');
+  expect(poolCountdown(1000, 999)).toBe('0m 1s remaining');
+  expect(poolCountdown(1000, 1000)).toBe('Deadline reached');
 });

@@ -1,3 +1,4 @@
+import { MixingClient } from '../../class/xbt/kilojoin/client';
 import { coinjoinProgress } from '../../class/xbt/kilojoin/presentation';
 import { participantFailure, relayFailureMessage } from '../../class/xbt/kilojoin/relay-error';
 import { KilojoinRelay } from '../../class/xbt/kilojoin/relay';
@@ -1700,7 +1701,7 @@ test.each(outputTimeoutCases)(
     expect(f.round.snapshot().reserved).toHaveLength(1);
     expect(f.session.snapshot().signatures).toEqual({});
     f.env.publish = publish;
-    // Controller has a guarded recovery method, but the current screen does not expose it.
+    // Recovery reuses the stored request under the original phase and deadline guards.
     await f.session.retryBlind();
     expect(f.published).toHaveLength(1);
     expect(f.published[0].isolated).toBe(false);
@@ -1730,5 +1731,83 @@ test.each(
     expect(f.round.snapshot().reserved).toHaveLength(1);
     await f.session.cancel();
     expect(f.round.snapshot().reserved).toHaveLength(0);
+  },
+);
+
+test('stage-entry timestamps survive local responses and reset for a genuinely new stage', async () => {
+  const f = await fixture();
+  expect(f.session.snapshot().phaseStartedAt).toBe(10000);
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  f.tick(20);
+  await f.receive({ type: 'vote_open', by: f.rawSeats[1].token_hash, vote_id: 'aa'.repeat(8) });
+  expect(f.session.snapshot().phaseStartedAt).toBe(10020);
+  f.tick(50);
+  await f.session.vote(true);
+  expect(f.session.snapshot().phaseStartedAt).toBe(10020);
+  await f.receive({ type: 'closing', round_id: 'bb'.repeat(8), seats: f.rawSeats, deadline: 10300 });
+  expect(f.session.snapshot().phaseStartedAt).toBe(10070);
+  await f.session.retryBlind();
+  expect(f.session.snapshot().phaseStartedAt).toBe(10070);
+  expect(f.session.snapshot().deadline).toBe(10300);
+});
+
+test.each(outputTimeoutCases)(
+  'sanitized output progress $type/$count never exposes blinded state or invents creator acceptance',
+  async ({ type, count }) => {
+    const f = await outputTimeoutFixture(type, count);
+    expect(f.session.snapshot().outputProgress).toEqual({ total: count, submitted: 0, prepared: false });
+    await f.receive(f.reply);
+    expect(f.session.snapshot().outputProgress).toEqual({ total: count, submitted: 0, prepared: true });
+    f.tick(45);
+    await f.session.submitOutput();
+    const snapshot = f.session.snapshot();
+    expect(snapshot.outputProgress).toEqual({ total: count, submitted: count, prepared: true });
+    expect(snapshot.outputStates).toBeUndefined();
+    expect(snapshot.token).toBeUndefined();
+    expect(snapshot.poolSecret).toBeUndefined();
+    expect(snapshot.phase).toBe('closing');
+    f.assertUnsigned();
+  },
+);
+
+test.each(outputTimeoutCases)(
+  'client preparation recovery $type/$count uses the real guarded session and cannot bypass busy or expiry',
+  async ({ type, count }) => {
+    const f = await outputTimeoutFixture(type, count);
+    const updated = jest.fn();
+    // Real orchestration + real encrypted protocol session; disposable wallet identity and offline transport.
+    const client = Reflect.construct(MixingClient, [
+      f.terms,
+      { getID: () => 'wallet' },
+      f.session,
+      f.round,
+      {},
+      [],
+      undefined,
+      updated,
+    ]) as MixingClient;
+    const publish = f.env.publish;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    f.env.publish = async (event, isolated) => {
+      await gate;
+      return publish(event, isolated);
+    };
+    const retry = client.retryOutputPreparation();
+    await expect(client.retryOutputPreparation()).rejects.toThrow('pending');
+    release();
+    await retry;
+    expect(updated).toHaveBeenCalledTimes(1);
+    expect(f.published).toHaveLength(2);
+    const bodies = f.published.map(({ event }) => JSON.parse(decrypt(event.content, conversationKey(pool, pub(pool)))));
+    expect(bodies[1]).toEqual(bodies[0]); // same request, not a new output identity or round
+    f.assertUnsigned();
+    f.tick(300);
+    await expect(client.retryOutputPreparation()).rejects.toThrow();
+    expect(f.published).toHaveLength(2);
+    expect(updated).toHaveBeenCalledTimes(1);
   },
 );

@@ -10,7 +10,9 @@ export function roundAttention(view: ClientView, now: number): { key: string; ti
   const timing = roundTiming(session, journal);
   const deadline = timing.deadline;
   if (!Number.isSafeInteger(deadline) || !deadline || deadline <= 0) return undefined;
-  const key = [journal.poolId, session.phase, session.voteId, session.roundId, deadline].join(':');
+  const key =
+    [journal.poolId, session.phase, session.voteId, session.roundId, deadline].join(':') +
+    (deadline > now && deadline - now <= 60 ? ':last-minute' : '');
   if (view.error)
     return {
       key: key + ':connection',
@@ -28,7 +30,7 @@ export function roundAttention(view: ClientView, now: number): { key: string; ti
   if (session.phase === 'closing')
     return {
       key,
-      title: 'Output registration in progress',
+      title: deadline - now <= 60 ? 'Output registration: less than one minute remains' : 'Output registration in progress',
       detail: 'Output registration is automatic. Return to active pool if it fails; transaction approval will need your attention.',
     };
   return {
@@ -50,7 +52,12 @@ export class RoundAttentionMonitor {
   check(view: ClientView, now: number, foreground: boolean, busy: boolean) {
     const notice = roundAttention(view, now);
     // Automatic output registration gets a persistent status card, not a demand to act.
-    if (!notice || !foreground || busy || (view.session.phase === 'closing' && !view.error && now < view.session.deadline))
+    if (
+      !notice ||
+      !foreground ||
+      busy ||
+      (view.session.phase === 'closing' && !view.error && now < view.session.deadline && view.session.deadline - now > 60)
+    )
       return undefined;
     if (this.seen.has(notice.key)) return undefined;
     this.seen.add(notice.key);

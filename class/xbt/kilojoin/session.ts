@@ -28,6 +28,8 @@ export type TerminalCause = 'creator-rejected' | 'creator-aborted';
 type PendingVote = { by: string; voteId: string; createdAt: number };
 export type SessionState = {
   phase: Phase;
+  phaseStartedAt?: number;
+  outputProgress?: { total: number; submitted: number; prepared: boolean };
   terminalCause?: TerminalCause;
   terminalReason?: RejectionReason;
   lastRosterFailure?: string;
@@ -109,6 +111,7 @@ export class ParticipantSession {
     this.inbox = new MessageInbox(terms.creator, terms.public_key, joinSecret, env.now());
     this.state = {
       phase: 'joining',
+      phaseStartedAt: env.now(),
       sequence: -1,
       seats: [],
       signatures: {},
@@ -168,6 +171,12 @@ export class ParticipantSession {
     delete state.poolSecret;
     delete state.prepared;
     delete state.inverse;
+    if (state.outputStates)
+      state.outputProgress = {
+        total: state.outputStates.length,
+        submitted: state.outputStates.filter(output => output.submitted).length,
+        prepared: state.outputStates.every(output => !!output.signature),
+      };
     delete state.outputStates;
     return state;
   }
@@ -202,6 +211,13 @@ export class ParticipantSession {
   }
 
   private async save(next: SessionState): Promise<void> {
+    // Local stage-entry time, never the creator's unknown pool opening time.
+    const newStage =
+      next.phase !== this.state.phase ||
+      (next.phase === 'voting' && next.voteId !== this.state.voteId) ||
+      (next.phase === 'closing' && next.roundId !== this.state.roundId);
+    next = { ...next, phaseStartedAt: newStage ? this.env.now() : this.state.phaseStartedAt };
+
     try {
       await this.env.saveEncrypted(copy(next));
     } catch {

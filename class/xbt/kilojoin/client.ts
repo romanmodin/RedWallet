@@ -239,6 +239,12 @@ export class MixingClient {
     this.update();
   }
 
+  async retryOutputPreparation(): Promise<void> {
+    await this.session.retryBlind();
+    this.update();
+    this.scheduleOutputs();
+  }
+
   async retryOutput(): Promise<void> {
     await this.session.submitOutput();
     this.update();

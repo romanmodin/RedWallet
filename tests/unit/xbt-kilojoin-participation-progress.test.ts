@@ -1,4 +1,4 @@
-import { closingResponse, signingProgress } from '../../class/xbt/kilojoin/participation-progress';
+import { closingResponse, signingProgress, outputRegistrationProgress } from '../../class/xbt/kilojoin/participation-progress';
 import type { SessionState } from '../../class/xbt/kilojoin/session';
 
 const state = () =>
@@ -42,4 +42,16 @@ test('signing starts after output registration and a participant needs every inp
   expect(signingProgress(s).signedParticipants).toBe(1);
   s.signatures['a:1'] = 'validated';
   expect(signingProgress(s).signedParticipants).toBe(2);
+});
+
+test('output presentation separates preparation, partial relay publication and waiting for creator', () => {
+  const s = state();
+  expect(outputRegistrationProgress(s)?.title).toContain('preparation');
+  s.outputProgress = { total: 5, submitted: 2, prepared: true };
+  expect(outputRegistrationProgress(s)?.detail).toContain('2/5');
+  s.outputProgress.submitted = 5;
+  expect(outputRegistrationProgress(s)?.title).toBe('✓ Your outputs were sent');
+  expect(outputRegistrationProgress(s)?.detail).toContain('Waiting for the creator');
+  s.phase = 'review';
+  expect(outputRegistrationProgress(s)).toBeUndefined();
 });

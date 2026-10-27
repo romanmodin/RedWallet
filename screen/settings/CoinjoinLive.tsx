@@ -1,4 +1,4 @@
-import { closingResponse, signingProgress } from '../../class/xbt/kilojoin/participation-progress';
+import { closingResponse, signingProgress, outputRegistrationProgress } from '../../class/xbt/kilojoin/participation-progress';
 import { roundAttention } from '../../class/xbt/kilojoin/attention';
 import { poolCountdown, roundTiming, participationElapsed } from '../../class/xbt/kilojoin/timing';
 import { activePool } from '../../class/xbt/kilojoin/active-pool';
@@ -190,6 +190,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const displayedError = error || view?.error;
   const issue = displayedError ? coinjoinIssue(displayedError) : undefined;
   const response = session ? closingResponse(session) : undefined;
+  const outputProgress = session ? outputRegistrationProgress(session) : undefined;
   const signing = session ? signingProgress(session) : undefined;
   const signatureCount = session ? Object.keys(session.signatures).length : 0;
   const inputCount = session?.seats.reduce((n, s) => n + s.coins.length, 0) ?? 0;
@@ -388,6 +389,23 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               )}
             </View>
             {!!progress && <SettingsFootnote>{progress.detail}</SettingsFootnote>}
+            {!!outputProgress && (
+              <View style={card} testID="CoinjoinOutputProgress">
+                <Text
+                  style={
+                    session?.outputProgress?.submitted === session?.outputProgress?.total && session?.outputProgress?.prepared
+                      ? styles.completedTitle
+                      : text
+                  }
+                >
+                  {outputProgress.title}
+                </Text>
+                <Text style={text}>{outputProgress.detail}</Text>
+                {!!session?.outputNotBefore && clock < session.outputNotBefore && (
+                  <Text style={text}>Next automatic output submission: {poolCountdown(session.outputNotBefore, clock)}</Text>
+                )}
+              </View>
+            )}
             {session?.phase === 'signed' && journal?.phase === 'signed' && (
               <View style={[card, styles.completedStep]} testID="CoinjoinSigningComplete">
                 <Text style={[styles.attentionTitle, styles.completedTitle]}>✓ Your signing is complete</Text>
@@ -406,6 +424,12 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             {!!timing && (
               <View style={card} testID="CoinjoinRoundTiming">
                 <Text style={text}>{timing.label}</Text>
+                {!!session?.phaseStartedAt && (
+                  <Text style={text}>In this stage for {participationElapsed(session.phaseStartedAt, clock)}</Text>
+                )}
+                {!!timing.deadline && timing.deadline > clock && timing.deadline - clock <= 60 && (
+                  <Text style={styles.error}>Less than one minute remains in this stage.</Text>
+                )}
                 {!!active?.joinedAt && <Text style={text}>You joined {participationElapsed(active.joinedAt, clock)} ago</Text>}
                 {!!timing.deadline && (
                   <Text style={text}>
@@ -460,10 +484,17 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 <Button title="Decline" disabled={busy} onPress={() => run(() => client.current!.vote(false))} />
               </>
             )}
+            {session?.phase === 'closing' && !session.outputProgress?.prepared && !session.outputSignature && (
+              <Button
+                title="Retry output preparation"
+                disabled={busy || clock >= session.deadline}
+                onPress={() => run(() => client.current!.retryOutputPreparation())}
+              />
+            )}
             {session?.phase === 'closing' && (
               <Button
                 title="Retry output registration"
-                disabled={busy || !session.outputNotBefore || Math.floor(Date.now() / 1000) < session.outputNotBefore}
+                disabled={busy || clock >= session.deadline || !session.outputNotBefore || clock < session.outputNotBefore}
                 onPress={() => run(() => client.current!.retryOutput())}
               />
             )}

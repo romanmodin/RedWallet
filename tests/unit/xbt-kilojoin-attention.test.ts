@@ -61,3 +61,18 @@ test('a sent response clears the action demand only for the current vote, preser
   v.session.voteId = 'vote2';
   expect(roundAttention(v, 400)?.title).toBe('Action required: closing vote');
 });
+
+test('last-minute reminders are deduplicated and catch up after suspension without acting automatically', () => {
+  const monitor = new RoundAttentionMonitor();
+  expect(monitor.check(view('review'), 400, true, false)).toBeDefined();
+  expect(monitor.check(view('review'), 939, true, false)).toBeUndefined();
+  expect(monitor.check(view('review'), 940, false, false)).toBeUndefined();
+  expect(monitor.check(view('review'), 950, true, true)).toBeUndefined();
+  expect(monitor.check(view('review'), 950, true, false)).toBeDefined();
+  expect(monitor.check(view('review'), 951, true, false)).toBeUndefined();
+  expect(monitor.check(view('review'), 1000, true, false)?.title).toContain('deadline reached');
+  const outputs = new RoundAttentionMonitor();
+  expect(outputs.check(view('closing'), 939, true, false)).toBeUndefined();
+  expect(outputs.check(view('closing'), 940, true, false)?.title).toContain('less than one minute');
+  expect(outputs.check(view('closing'), 950, true, false)).toBeUndefined();
+});

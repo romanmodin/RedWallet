@@ -461,8 +461,9 @@ test('closing approval feedback is separate from signatures and resets for a new
   expect(mockApprove).not.toHaveBeenCalled();
 });
 
-test('output recovery gap: closing without a blind response leaves the only output retry disabled', async () => {
+test('closing without a blind response exposes guarded preparation recovery', async () => {
   const retryOutput = jest.fn(async () => {});
+  const retryOutputPreparation = jest.fn(async () => {});
   const live = {
     session: {
       phase: 'closing',
@@ -476,13 +477,94 @@ test('output recovery gap: closing without a blind response leaves the only outp
   await activePool.start(mockWallet, async update => {
     mockEmit = update as typeof mockEmit;
     update(live as never);
-    return { view: () => live, close: mockClose, retryOutput } as never;
+    return { view: () => live, close: mockClose, retryOutput, retryOutputPreparation } as never;
   });
   const screen = render(<CoinjoinLive experimentalAcknowledged />);
   expect(screen.getByText('Retry output registration')).toBeDisabled();
-  expect(screen.queryByText('Retry output preparation')).toBeNull();
+  expect(screen.getByText('Retry output preparation')).toBeEnabled();
+  await act(async () => fireEvent.press(screen.getByText('Retry output preparation')));
+  expect(retryOutputPreparation).toHaveBeenCalledTimes(1);
   expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
   expect(screen.getByText('Stop participation')).toBeEnabled();
   expect(retryOutput).not.toHaveBeenCalled();
   expect(mockApprove).not.toHaveBeenCalled();
+});
+
+test.each([-1, 0, 1])('output preparation retry obeys the absolute deadline boundary: %i seconds', async remaining => {
+  jest.spyOn(Date, 'now').mockReturnValue(1000000);
+  const now = 1000;
+  const retryOutputPreparation = jest.fn(async () => {});
+  const live = {
+    session: {
+      phase: 'closing',
+      deadline: now + remaining,
+      phaseStartedAt: now - 120,
+      seats: [{ coins: [{}] }, { coins: [{}] }],
+      signatures: {},
+      outputProgress: { total: 1, submitted: 0, prepared: false },
+    },
+    journal: { phase: 'joined', reserved: ['a:0'] },
+  };
+  await activePool.start(mockWallet, async update => {
+    mockEmit = update as typeof mockEmit;
+    update(live as never);
+    return { view: () => live, close: mockClose, retryOutputPreparation } as never;
+  });
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  const button = screen.getByText('Retry output preparation');
+  if (remaining <= 0) expect(button).toBeDisabled();
+  else expect(button).toBeEnabled();
+  expect(screen.getByText('In this stage for 2m 0s')).toBeTruthy();
+  expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
+  expect(retryOutputPreparation).not.toHaveBeenCalled();
+});
+
+test('output delay timer catches up on foreground and completed relay sends remain distinct from round completion', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(1000000);
+  let foreground: ((state: AppStateStatus) => void) | undefined;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    foreground = listener;
+    return { remove: jest.fn() };
+  });
+  const live = {
+    session: {
+      phase: 'closing',
+      deadline: 1300,
+      phaseStartedAt: 990,
+      outputNotBefore: 1040,
+      seats: [{ coins: [{}] }, { coins: [{}] }],
+      signatures: {},
+      outputProgress: { total: 5, submitted: 2, prepared: true },
+    },
+    journal: { phase: 'joined', reserved: ['a:0'] },
+  };
+  try {
+    await activePool.start(mockWallet, async update => {
+      mockEmit = update as typeof mockEmit;
+      update(live as never);
+      return { view: () => live, close: mockClose } as never;
+    });
+    const screen = render(<CoinjoinLive experimentalAcknowledged />);
+    expect(screen.getByText('Next automatic output submission: 0m 40s remaining')).toBeTruthy();
+    expect(screen.getByText(/2\/5 of your outputs acknowledged/)).toBeTruthy();
+    jest.setSystemTime(1100000);
+    act(() => foreground!('active'));
+    expect(screen.queryByText(/Next automatic output submission:/)).toBeNull();
+    expect(screen.getByText('In this stage for 1m 50s')).toBeTruthy();
+    await act(async () =>
+      mockEmit!({
+        ...live,
+        session: { ...live.session, outputNotBefore: undefined, outputProgress: { total: 5, submitted: 5, prepared: true } },
+      }),
+    );
+    expect(screen.getByText('✓ Your outputs were sent')).toBeTruthy();
+    expect(screen.getByText(/Waiting for the creator’s complete output list/)).toBeTruthy();
+    expect(screen.getByText('Status: Registering outputs')).toBeTruthy();
+    expect(screen.queryByText('Review and sign')).toBeNull();
+    expect(mockApprove).not.toHaveBeenCalled();
+  } finally {
+    cleanup();
+    jest.useRealTimers();
+  }
 });
