@@ -105,7 +105,9 @@ test('live controls select coins but require an explicit confirmation before sig
   await act(async () => {
     fireEvent.press(screen.getByText('Find pools'));
   });
-  fireEvent.press(screen.getByText(/^○ 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/));
+  fireEvent.press(
+    screen.getByText(/^○ v3 · 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/),
+  );
   fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
   await act(async () => {
     fireEvent.press(screen.getByText('Join pool and reserve coins'));
@@ -177,7 +179,9 @@ test.each(['aborted', 'uncertain', 'joined'] as const)(
     await act(async () => {
       fireEvent.press(screen.getByText('Find pools'));
     });
-    fireEvent.press(screen.getByText(/^○ 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/));
+    fireEvent.press(
+      screen.getByText(/^○ v3 · 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/),
+    );
     fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
     await act(async () => {
       fireEvent.press(screen.getByText('Join pool and reserve coins'));
@@ -240,7 +244,9 @@ test('leaving the screen does not stop an active pool', async () => {
   await act(async () => {
     fireEvent.press(screen.getByText('Find pools'));
   });
-  fireEvent.press(screen.getByText(/^○ 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/));
+  fireEvent.press(
+    screen.getByText(/^○ v3 · 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/),
+  );
   fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
   await act(async () => {
     fireEvent.press(screen.getByText('Join pool and reserve coins'));
@@ -300,7 +306,9 @@ test('a join finishing after navigation remains reachable instead of being cance
   await act(async () => {
     fireEvent.press(screen.getByText('Find pools'));
   });
-  fireEvent.press(screen.getByText(/^○ 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/));
+  fireEvent.press(
+    screen.getByText(/^○ v3 · 10,000 sats · 2\/5 · 2 sats\/vB\s+Announced deadline: .+ · (?:.+ remaining|Deadline reached)$/),
+  );
   fireEvent.press(screen.getByText('○ 50,000 sats · 11111111…:0'));
   await act(async () => {
     fireEvent.press(screen.getByText('Join pool and reserve coins'));
@@ -566,5 +574,24 @@ test('output delay timer catches up on foreground and completed relay sends rema
   } finally {
     cleanup();
     jest.useRealTimers();
+  }
+});
+
+test('v5 pool selection explains the joiner role without autojoining or signing', async () => {
+  const original = { ...mockTerms };
+  Object.assign(mockTerms, { v: 5, outputs: 2, payments: [7123, 12877] });
+  try {
+    const screen = render(<CoinjoinLive experimentalAcknowledged />);
+    await act(async () => {
+      fireEvent.press(screen.getByText('Find pools'));
+    });
+    fireEvent.press(screen.getByText(/^○ v5 payment pool · 2 × 10,000 sats/));
+    expect(screen.getByText(/Payment pool: the creator pays recipients. You receive 2 × 10,000 sats in mixed outputs./)).toBeTruthy();
+    expect(mockJoin).not.toHaveBeenCalled();
+    expect(mockApprove).not.toHaveBeenCalled();
+  } finally {
+    Object.assign(mockTerms, original);
+    delete (mockTerms as Record<string, unknown>).outputs;
+    delete (mockTerms as Record<string, unknown>).payments;
   }
 });

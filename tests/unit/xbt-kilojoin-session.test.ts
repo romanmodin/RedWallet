@@ -9,7 +9,7 @@ import ecc from '../../blue_modules/noble_ecc';
 import { ParticipantSession, SessionEnvironment } from '../../class/xbt/kilojoin/session';
 import { Round } from '../../class/xbt/kilojoin/round';
 import { Terms, tokenHash, changeMessage } from '../../class/xbt/kilojoin/protocol';
-import { Coin, coinScript, digest, outpoint, ownershipMessage, Plan, change } from '../../class/xbt/kilojoin/transaction';
+import { Coin, coinScript, digest, outpoint, ownershipMessage, Plan, change, changeOf } from '../../class/xbt/kilojoin/transaction';
 import { parseSeat } from '../../class/xbt/kilojoin/roster';
 import { conversationKey, decrypt, encrypt, NostrEvent, signEvent } from '../../class/xbt/kilojoin/crypto';
 import { modPow } from '../../class/xbt/kilojoin/blind-rsa';
@@ -22,7 +22,7 @@ const creator = secret(8),
 const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ format: 'jwk' });
 const n = BigInt('0x' + Buffer.from(rsa.n!, 'base64url').toString('hex'));
 const d = BigInt('0x' + Buffer.from(rsa.d!, 'base64url').toString('hex'));
-async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants = 2) {
+async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants = 2, payments?: number[]) {
   let now = 10000,
     counter = 0;
   const script = (i: number) =>
@@ -30,7 +30,8 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants 
       ? '0014' + (participants === 2 ? i.toString(16).repeat(40) : i.toString(16).padStart(40, '0'))
       : '5120' + (participants === 2 ? i.toString(16).repeat(64) : i.toString(16).padStart(64, '0'));
   const terms: Terms = {
-    v: outputs === 1 ? 3 : 4,
+    v: payments ? 5 : outputs === 1 ? 3 : 4,
+    ...(payments ? { payments, outputs } : {}),
     ...(outputs === 1 ? {} : { outputs }),
     app: 'kilowallet',
     network: 'blake2b',
@@ -59,11 +60,14 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants 
       pubkey: Buffer.from(ecc.pointFromScalar(key, true)!).toString('hex'),
       type,
     };
-    const joinPub = i === 0 ? pub(join) : participants === 2 ? pub(pool) : pub(secret(20 + i));
+    const joinPub = i === 0 ? pub(join) : participants === 2 || (payments && i === 1) ? pub(pool) : pub(secret(20 + i));
     return {
       coin,
       change_script: script(participants === 2 ? i + 3 : i + 100),
-      change_value: change(coin.value, terms.denomination, terms.fee_rate, 1, type, outputs)!,
+      change_value:
+        payments && i === 1
+          ? changeOf(coin.value, outputs * terms.denomination, terms.fee_rate, 1, type, payments.length)!
+          : change(coin.value, terms.denomination, terms.fee_rate, 1, type, outputs)!,
       token_hash: i === 0 ? tokenHash(token) : participants === 2 ? 'cd'.repeat(32) : (i + 10).toString(16).padStart(64, '0'),
       join_pub: joinPub,
       proofs: [Buffer.from(ecc.signDER(ownershipMessage(terms.id, joinPub, coin), key)).toString('hex')],
@@ -107,12 +111,15 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants 
       ),
     );
   };
-  const advance = async (alter: (body: Record<string, unknown>) => Record<string, unknown> = body => body) => {
+  const advance = async (
+    alter: (body: Record<string, unknown>) => Record<string, unknown> = body => body,
+    alterOutputs: (body: Record<string, unknown>) => Record<string, unknown> = body => body,
+  ) => {
     await receive({ type: 'welcome', pool_secret: pool.toString('hex'), token, seq: 1 }, true);
     await receive({ type: 'roster', seq: 1, seats: rawSeats });
     await receive({ type: 'closing', round_id: 'aa'.repeat(8), seats: rawSeats, deadline: now + 300 });
     const request = JSON.parse(decrypt(published[0].event.content, conversationKey(pool, pub(pool))));
-    const blinded = outputs === 1 ? [request.blinded] : request.blinded;
+    const blinded = terms.v === 3 ? [request.blinded] : request.blinded;
     expect(blinded).toHaveLength(outputs);
     const sigs = blinded.map((b: string) =>
       modPow(BigInt('0x' + b), d, n)
@@ -124,16 +131,19 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants 
         type: 'blind_sig',
         round_id: request.round_id,
         token_hash: own.token_hash,
-        ...(outputs === 1 ? { sig: sigs[0] } : { sigs }),
+        ...(terms.v === 3 ? { sig: sigs[0] } : { sigs }),
       }),
     );
     now += 45;
     await session.submitOutput();
-    await receive({
-      type: 'outputs',
-      round_id: request.round_id,
-      scripts: Array.from({ length: outputs * participants }, (_, i) => script(5 + i)),
-    });
+    await receive(
+      alterOutputs({
+        type: 'outputs',
+        round_id: request.round_id,
+        scripts: Array.from({ length: outputs * (participants - (payments ? 1 : 0)) }, (_, i) => script(5 + i)),
+        ...(payments ? { payments: payments.map((value, i) => ({ script: script(participants === 2 ? 10 + i : 1000 + i), value })) } : {}),
+      }),
+    );
   };
   const signature = (p: Plan, index: number) => {
     const key = keys[Number(p.coins[index].txid[0]) - 1];
@@ -1811,3 +1821,103 @@ test.each(outputTimeoutCases)(
     expect(updated).toHaveBeenCalledTimes(1);
   },
 );
+
+describe('v5 payment-pool participant compatibility', () => {
+  test.each(['p2wpkh', 'p2tr'] as const)(
+    '%s joins 1/2/5-output payment pools with differing creator payment counts',
+    async type => {
+      for (const count of [1, 2, 5]) {
+        for (const payCount of [1, 2, 5]) {
+          const payments = Array.from({ length: payCount }, (_, i) => (i === payCount - 1 ? count * 10000 - 330 * (payCount - 1) : 330));
+          const f = await fixture(type, count, 2, payments);
+          await f.advance();
+          expect(f.session.snapshot().phase).toBe('review');
+          expect(f.round.snapshot().phase).toBe('review');
+          expect(f.session.snapshot().signatures).toEqual({});
+          expect(f.session.reviewSummary()).toMatchObject({ count, total: count * 10000 });
+          expect(f.published.filter(p => p.isolated)).toHaveLength(count);
+          let actualPlan: Plan | undefined;
+          await f.session.signApproved(f.round.snapshot().commitment!, async p => {
+            actualPlan = p;
+            const c = f.rawSeats[0].coin;
+            return new Map([
+              [
+                outpoint(c),
+                f.signature(
+                  p,
+                  p.coins.findIndex(x => outpoint(x) === outpoint(c)),
+                ),
+              ],
+            ]);
+          });
+          const p = actualPlan!;
+          expect(p.payments!.map(o => o.value).sort((a, b) => a - b)).toEqual([...payments].sort((a, b) => a - b));
+          const peer = f.rawSeats[1].coin;
+          await f.receive(
+            {
+              type: 'sig',
+              outpoint: outpoint(peer),
+              sig: f.signature(
+                p,
+                p.coins.findIndex(x => outpoint(x) === outpoint(peer)),
+              ),
+            },
+            false,
+            pool,
+          );
+          expect(Transaction.fromHex(f.session.completedTransaction()).outs).toHaveLength(count + payCount + 2);
+          expect(f.round.snapshot().reserved).toHaveLength(1);
+        }
+      }
+    },
+    120000,
+  );
+  test('requires the creator in a v5 closing roster even when enough other people remain', async () => {
+    const f = await fixture('p2wpkh', 2, 4, [12345, 7655]);
+    await f.receive({ type: 'welcome', pool_secret: pool.toString('hex'), token: 'ab'.repeat(16), seq: 1 }, true);
+    await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+    await expect(
+      f.receive({ type: 'closing', round_id: 'aa'.repeat(8), seats: f.rawSeats.filter((_, i) => i !== 1), deadline: 10300 }),
+    ).rejects.toThrow();
+    expect(f.session.snapshot().phase).toBe('open');
+    expect(f.published).toHaveLength(0);
+    expect(f.round.snapshot().phase).toBe('joined');
+  });
+});
+
+describe('v5 authenticated output rejection boundaries', () => {
+  test.each([
+    ['missing payments', (b: Record<string, unknown>) => ({ ...b, payments: undefined })],
+    [
+      'changed amount',
+      (b: Record<string, unknown>) => ({
+        ...b,
+        payments: (b.payments as { script: string; value: number }[]).map((p, i) => ({ ...p, value: p.value + (i === 0 ? 1 : -1) })),
+      }),
+    ],
+    [
+      'duplicate payment',
+      (b: Record<string, unknown>) => ({ ...b, payments: [(b.payments as unknown[])[0], (b.payments as unknown[])[0]] }),
+    ],
+    [
+      'mixed overlap',
+      (b: Record<string, unknown>) => ({
+        ...b,
+        payments: (b.payments as { script: string; value: number }[]).map((p, i) => ({
+          ...p,
+          script: i === 0 ? (b.scripts as string[])[0] : p.script,
+        })),
+      }),
+    ],
+    ['too many mixed outputs', (b: Record<string, unknown>) => ({ ...b, scripts: [...(b.scripts as string[]), '0014' + 'ef'.repeat(20)] })],
+  ])('%s does not reach review or invoke signing', async (_name, alter) => {
+    const f = await fixture('p2wpkh', 2, 2, [7123, 12877]);
+    await expect(f.advance(undefined, alter as (b: Record<string, unknown>) => Record<string, unknown>)).rejects.toThrow();
+    expect(f.session.snapshot().phase).toBe('closing');
+    expect(f.round.snapshot().phase).toBe('joined');
+    expect(f.round.snapshot().reserved).toHaveLength(1);
+    const signer = jest.fn();
+    await expect(f.session.signApproved('unapproved', signer)).rejects.toThrow();
+    expect(signer).not.toHaveBeenCalled();
+  });
+});

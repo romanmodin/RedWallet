@@ -1,14 +1,16 @@
-/** Kilojoin v3/v4 wire helpers; adapted from Kilombino (Apache-2.0). */
+/** Kilojoin v3/v4/v5 wire helpers; adapted from Kilombino (Apache-2.0). */
 import { hex, mac, utf8Hash, verifyEvent, NostrEvent } from './crypto';
 import { publicKey } from './blind-rsa';
-import { Coin, outpoint } from './transaction';
+import { Coin, outpoint, paymentAmounts } from './transaction';
 // Experimental participation is opt-in in the main app; each join also requires explicit acknowledgment.
 export const LIVE_JOIN_ENABLED = true;
 export const PROTOCOL_VERSION = 3;
+export const V5_ENABLED = true; // Joining only; subject to the same experimental and release gates.
 export const V4_ENABLED = true; // Experimental opt-in; release requires exact-source native qualification.
 export const RELAY = 'wss://relay.kilombino.com';
 export type Terms = {
-  v: 3 | 4;
+  v: 3 | 4 | 5;
+  payments?: readonly number[];
   outputs?: number;
   app: string;
   network: 'blake2b';
@@ -30,14 +32,15 @@ export type Terms = {
 function integer(n: unknown, min: number, max: number): boolean {
   return typeof n === 'number' && Number.isSafeInteger(n) && n >= min && n <= max;
 }
-/** v4 stays hidden from live discovery until multi-output native qualification. */
+/** Equal outputs per joiner; the creator uses announced payment amounts in v5. */
 export function outputCount(terms: Pick<Terms, 'v' | 'outputs'>): number {
   if (terms.v === 3 && (terms.outputs === undefined || terms.outputs === 1)) return 1;
   if (terms.v === 4 && integer(terms.outputs, 2, 5)) return terms.outputs!;
+  if (terms.v === 5 && integer(terms.outputs, 1, 5)) return terms.outputs!;
   throw new Error('Invalid protocol output count');
 }
 
-export function parsePool(event: NostrEvent, now: number, allowV4 = V4_ENABLED): Readonly<Terms> {
+export function parsePool(event: NostrEvent, now: number, allowV4 = V4_ENABLED, allowV5 = V5_ENABLED): Readonly<Terms> {
   if (
     !integer(now, 0, Number.MAX_SAFE_INTEGER) ||
     !verifyEvent(event) ||
@@ -49,7 +52,7 @@ export function parsePool(event: NostrEvent, now: number, allowV4 = V4_ENABLED):
   const t = JSON.parse(event.content) as Terms;
   if (
     !t ||
-    (t.v !== 3 && !(allowV4 && t.v === 4)) ||
+    (t.v !== 3 && !(allowV4 && t.v === 4) && !(allowV5 && t.v === 5)) ||
     t.network !== 'blake2b' ||
     t.app !== 'kilowallet' ||
     typeof t.id !== 'string' ||
@@ -68,7 +71,8 @@ export function parsePool(event: NostrEvent, now: number, allowV4 = V4_ENABLED):
   )
     throw new Error('Pool identity mismatch');
   if (
-    !integer(t.denomination, 10000, 100000000) ||
+    !integer(t.denomination, 1000, 100000000) ||
+    t.denomination * outputCount(t) < 10000 ||
     !integer(t.min_peers, 2, 20) ||
     !integer(t.max_peers, t.min_peers, 20) ||
     !integer(t.peers, 0, t.max_peers) ||
@@ -83,7 +87,10 @@ export function parsePool(event: NostrEvent, now: number, allowV4 = V4_ENABLED):
   )
     throw new Error('Invalid pool terms');
   publicKey(t.blind_key);
-  return Object.freeze({ ...t });
+  return Object.freeze({
+    ...t,
+    ...(t.v === 5 ? { payments: Object.freeze(paymentAmounts(t.payments, t.denomination, outputCount(t))) } : {}),
+  });
 }
 export const passwordKey = (pool: string, password: string): Buffer => utf8Hash(`kilojoin/v1/pw|${pool}|${password}`);
 export const passwordProof = (key: Uint8Array, join: string): string => mac(key, Buffer.from(join)).toString('hex');

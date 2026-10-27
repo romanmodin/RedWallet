@@ -76,3 +76,17 @@ to that same isolated node; the test compares exact bytes and mines one confirma
 Node peer networking is disabled, RPC is loopback-only, binary SHA256 is pinned,
 and each fresh data directory/process is cleaned up. No production node or real
 wallet is used. This does not establish physical-phone or public-relay availability.
+
+## V5 payment-pool interoperability
+
+Run run-peer-v5.py SOURCE KOTLINC JAVA JSON_JAR against unchanged Kilowallet sources
+at 08971c226f5c61cf32f861ecaa28bf5fa14c03ec. The separate
+peer-v5-source-sha256.json verifies every compiled source. RelayClientV5Stub.kt
+accepts the upstream isolation argument while replacing only its socket layer with
+the same synthetic signed-event bridge; RedWallet uses actual loopback WebSockets.
+No public relay is used. Six cases cover both script types with (joiner output,
+creator payment) counts (1,2), (2,5), and (5,1), comparing all signed transaction
+bytes and recipient amounts. KILOJOIN_V5_RECEIPT saves the actual test outcome.
+KILOJOIN_REGTEST_BIN optionally enables the existing hash-pinned isolated node;
+without that variable this proves protocol interoperability with synthetic chain
+observations, not node acceptance or phone reliability.

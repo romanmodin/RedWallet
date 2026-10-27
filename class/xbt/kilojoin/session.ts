@@ -1,6 +1,6 @@
 import { ChainValidationError } from './chain-error';
 import { rejectionReason, RejectionReason, rosterFailureCode, RosterInputFailure } from './feedback';
-/** Participant-only v3/v4 controller. Transport and secure persistence are injected.
+/** Participant-only v3/v4/v5 controller. Transport and secure persistence are injected.
  * This controller never automatically signs or broadcasts a transaction.
  */
 import { script as bitcoinScript } from 'bitcoinjs-lib';
@@ -12,7 +12,19 @@ import { changeMessage, memberMac, passwordKey, passwordProof, Terms, tokenHash,
 import { ChainCoin, Seat, validateRoster } from './roster';
 import { Journal, Round } from './round';
 import { participantStageFailure } from './relay-error';
-import { assemble, coinScript, isType, outpoint, Plan, plan, Review, verifySignature } from './transaction';
+import {
+  assemble,
+  coinScript,
+  isType,
+  outpoint,
+  Plan,
+  plan,
+  paymentOutputs,
+  paymentAmounts,
+  Output,
+  Review,
+  verifySignature,
+} from './transaction';
 
 type OutputState = {
   script: string;
@@ -50,6 +62,7 @@ export type SessionState = {
   outputNotBefore?: number;
   outputStates?: OutputState[];
   outputs?: string[];
+  payments?: Output[];
   signatures: Record<string, string>;
 };
 export interface SessionEnvironment {
@@ -88,7 +101,10 @@ export class ParticipantSession {
     private readonly round: Round,
     private readonly env: SessionEnvironment,
   ) {
-    this.terms = Object.freeze({ ...terms });
+    this.terms = Object.freeze({
+      ...terms,
+      ...(terms.v === 5 ? { payments: Object.freeze(paymentAmounts(terms.payments, terms.denomination, outputCount(terms))) } : {}),
+    });
     this.mixScripts = typeof mixScript === 'string' ? [mixScript] : [...mixScript];
     this.seat = JSON.parse(JSON.stringify(seat));
     this.joinSecret = Buffer.from(joinSecret);
@@ -551,7 +567,7 @@ export class ParticipantSession {
           )
             return;
           this.require(['closing']);
-          const sigs = this.terms.v === 4 ? body.sigs : [body.sig];
+          const sigs = this.terms.v >= 4 ? body.sigs : [body.sig];
           const pending = this.state.outputStates!;
           if (!Array.isArray(sigs) || sigs.length !== pending.length) throw new Error('Blind signature count mismatch');
           const outputStates = pending.map((output, i) => {
@@ -584,12 +600,16 @@ export class ParticipantSession {
             !this.state.outputSignature ||
             body.round_id !== this.state.roundId ||
             !Array.isArray(body.scripts) ||
-            body.scripts.length !== this.state.seats.length * outputCount(this.terms) ||
+            body.scripts.length !== (this.state.seats.length - (this.terms.v === 5 ? 1 : 0)) * outputCount(this.terms) ||
             !body.scripts.every(s => typeof s === 'string' && isType(s, this.terms.script))
           )
             throw new Error('Invalid outputs');
           const outputs = body.scripts as string[],
-            next = { ...this.state, outputs };
+            next = {
+              ...this.state,
+              outputs,
+              ...(this.terms.v === 5 ? { payments: paymentOutputs(body.payments, this.terms.payments!, this.terms.script) } : {}),
+            };
           const p = this.buildPlan(next),
             expected = await this.reviewContext();
           await this.round.review(p, expected, this.env.now());
@@ -663,7 +683,7 @@ export class ParticipantSession {
       type: 'blind',
       token_hash: this.ownSeat().token_hash,
       round_id: this.state.roundId,
-      blinded: this.terms.v === 4 ? this.state.outputStates!.map(o => o.blinded) : this.state.blinded,
+      blinded: this.terms.v >= 4 ? this.state.outputStates!.map(o => o.blinded) : this.state.blinded,
       mac: memberMac(
         this.state.token!,
         'blind',
@@ -732,6 +752,7 @@ export class ParticipantSession {
       state.seats.filter(s => s.change_value > 0).map(s => ({ script: s.change_script, value: s.change_value })),
       this.terms.denomination,
       outputCount(this.terms),
+      this.terms.v === 5 ? paymentOutputs(state.payments, this.terms.payments!, this.terms.script) : [],
     );
   }
 
@@ -755,6 +776,15 @@ export class ParticipantSession {
       maxFee: this.maxFee,
       feeRate: this.terms.fee_rate,
       seatInputs: this.state.seats.map(s => s.coins.length),
+      ...(this.terms.v === 5
+        ? {
+            paymentPool: {
+              amounts: this.terms.payments!,
+              creatorIndex: this.state.seats.findIndex(s => s.join_pub === this.terms.public_key),
+              changes: this.state.seats.filter(s => s.change_value > 0).map(s => ({ script: s.change_script, value: s.change_value })),
+            },
+          }
+        : {}),
       verified: chain,
     };
   }

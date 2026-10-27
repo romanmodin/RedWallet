@@ -1,7 +1,7 @@
 /** Kilombino's canonical Kilojoin transaction rules, adapted under Apache-2.0.
  * Offline only. No key access, signing callback, relay or broadcast capability.
  */
-import { Transaction, payments, initEccLib, script as bitcoinScript } from 'bitcoinjs-lib';
+import { Transaction, payments as bitcoinPayments, initEccLib, script as bitcoinScript } from 'bitcoinjs-lib';
 import ecc from '../../../blue_modules/noble_ecc';
 import { unifiedSegwitV0SighashAll, unifiedTaprootKeyPathSighashAll } from '../unified-sighash';
 import { hex, utf8Hash } from './crypto';
@@ -21,6 +21,7 @@ export type Plan = {
   amount: number;
   people: number;
   outputsPerPerson?: number;
+  payments?: Output[];
   type: ScriptType;
 };
 export const DUST = 294;
@@ -40,7 +41,9 @@ export function coinScript(c: Coin): Buffer {
   const key = hex(c.pubkey, 33);
   if (!ecc.isPoint(key) || (key[0] !== 2 && key[0] !== 3)) throw new Error('Invalid coin public key');
   return Buffer.from(
-    c.type === 'p2wpkh' ? payments.p2wpkh({ pubkey: key }).output! : payments.p2tr({ internalPubkey: key.subarray(1) }).output!,
+    c.type === 'p2wpkh'
+      ? bitcoinPayments.p2wpkh({ pubkey: key }).output!
+      : bitcoinPayments.p2tr({ internalPubkey: key.subarray(1) }).output!,
   );
 }
 export function isType(script: string, type: ScriptType): boolean {
@@ -55,17 +58,57 @@ export function feeShare(rate: number, withChange = true, inputs = 1, type: Scri
     rate * ((type === 'p2tr' ? 57.75 : 68) * inputs + (type === 'p2tr' ? 43 : 31) * (outputs + (withChange ? 1 : 0)) + 5.25),
   );
 }
+/** The v5 creator pays for its payment count while contributing the same total as each joiner. */
+export function changeOf(value: number, total: number, rate: number, inputs = 1, type: ScriptType = 'p2wpkh', outputs = 1): number | null {
+  integer(value, 1, MAX_MONEY);
+  integer(total, 1000, 500000000);
+  const remainder = value - total - feeShare(rate, true, inputs, type, outputs);
+  if (remainder > DUST) return remainder;
+  return value - total - feeShare(rate, false, inputs, type, outputs) >= 0 ? 0 : null;
+}
 export function change(value: number, amount: number, rate: number, inputs = 1, type: ScriptType = 'p2wpkh', outputs = 1): number | null {
   integer(value, 1, MAX_MONEY);
   integer(amount, 1000, 100000000);
-  const remainder = value - outputs * amount - feeShare(rate, true, inputs, type, outputs);
-  if (remainder > DUST) return remainder;
-  return value - outputs * amount - feeShare(rate, false, inputs, type, outputs) >= 0 ? 0 : null;
+  return changeOf(value, outputs * amount, rate, inputs, type, outputs);
 }
-export function plan(coins: Coin[], mixes: string[], changes: Output[], amount: number, outputsPerPerson = 1): Plan {
+export function paymentAmounts(value: unknown, amount: number, count: number): number[] {
+  integer(amount, 1000, 100000000);
+  integer(count, 1, 5);
+  if (!Array.isArray(value) || value.length < 1 || value.length > 5) throw new Error('Invalid payment count');
+  value.forEach(n => integer(n, 330, 500000000));
+  if (value.reduce((n: number, v: number) => n + v, 0) !== amount * count) throw new Error('Payment total mismatch');
+  return [...value];
+}
+export function paymentOutputs(value: unknown, amounts: readonly number[], type: ScriptType): Output[] {
+  if (!Array.isArray(value) || value.length !== amounts.length || value.length < 1 || value.length > 5)
+    throw new Error('Payment count mismatch');
+  const outputs = value.map(o => {
+    if (!o || typeof o !== 'object' || typeof o.script !== 'string' || !isType(o.script, type)) throw new Error('Invalid payment script');
+    integer(o.value, 330, 500000000);
+    return { script: o.script as string, value: o.value as number };
+  });
+  if (new Set(outputs.map(o => o.script)).size !== outputs.length) throw new Error('Duplicate payment script');
+  if (JSON.stringify(outputs.map(o => o.value).sort((a, b) => a - b)) !== JSON.stringify([...amounts].sort((a, b) => a - b)))
+    throw new Error('Payment amounts changed');
+  return outputs;
+}
+export function plan(
+  coins: Coin[],
+  mixes: string[],
+  changes: Output[],
+  amount: number,
+  outputsPerPerson = 1,
+  payments: Output[] = [],
+): Plan {
   integer(amount, 1000, 100000000);
   integer(outputsPerPerson, 1, 5);
-  const people = mixes.length / outputsPerPerson;
+  if (payments.length)
+    paymentAmounts(
+      payments.map(o => o.value),
+      amount,
+      outputsPerPerson,
+    );
+  const people = mixes.length / outputsPerPerson + (payments.length ? 1 : 0);
   integer(people, 2, 20);
   integer(coins.length, people, people * 10);
   if (changes.length > people) throw new Error('Too many change outputs');
@@ -73,7 +116,7 @@ export function plan(coins: Coin[], mixes: string[], changes: Output[], amount: 
   const inputScripts = new Set(coins.map(c => coinScript(c).toString('hex')));
   if (coins.some(c => c.type !== type)) throw new Error('Mixed script types');
   if (new Set(coins.map(outpoint)).size !== coins.length) throw new Error('Duplicate coin');
-  const scripts = [...mixes, ...changes.map(o => o.script)];
+  const scripts = [...mixes, ...changes.map(o => o.script), ...payments.map(o => o.script)];
   if (scripts.some(s => !isType(s, type))) throw new Error('Wrong output script type');
   if (new Set(scripts).size !== scripts.length) throw new Error('Duplicate output');
   if (scripts.some(s => inputScripts.has(s))) throw new Error('Input address reuse');
@@ -85,7 +128,7 @@ export function plan(coins: Coin[], mixes: string[], changes: Output[], amount: 
       .slice()
       .sort()
       .map(script => ({ script, value: amount })),
-    ...changes.map(o => ({ ...o })).sort((a, b) => (a.script < b.script ? -1 : a.script > b.script ? 1 : 0)),
+    ...[...changes, ...payments].map(o => ({ ...o })).sort((a, b) => (a.script < b.script ? -1 : a.script > b.script ? 1 : 0)),
   ];
   if (outputs.reduce((n, o) => n + o.value, 0) > total) throw new Error('Outputs exceed inputs');
   return {
@@ -94,6 +137,7 @@ export function plan(coins: Coin[], mixes: string[], changes: Output[], amount: 
     amount,
     people,
     ...(outputsPerPerson === 1 ? {} : { outputsPerPerson }),
+    ...(payments.length ? { payments: payments.map(o => ({ ...o })) } : {}),
     type,
   };
 }
@@ -158,6 +202,8 @@ export type Review = {
   maxFee: number;
   feeRate: number;
   seatInputs: number[];
+  /** Independently validated v5 roster/announcement, never derived from the received plan. */
+  paymentPool?: { amounts: readonly number[]; creatorIndex: number; changes: Output[] };
   verified: ReadonlyMap<string, { value: number; script: string }>;
 };
 /** Every peer prevout must be independently fetched and unspent before calling review.
@@ -168,17 +214,23 @@ export function review(p: Plan, r: Review): { txHex: string; txid: string; fee: 
   integer(r.mine.length, 1, 10);
   const count = p.outputsPerPerson ?? 1;
   integer(count, 1, 5);
-  const mixedCount = p.people * count;
+  const paymentPool = r.paymentPool;
+  if (!!paymentPool !== !!p.payments?.length) throw new Error('Payment context mismatch');
+  const pay = paymentPool ? paymentOutputs(p.payments, paymentAmounts(paymentPool.amounts, p.amount, count), p.type) : [];
+  if (paymentPool) integer(paymentPool.creatorIndex, 0, p.people - 1);
+  const mixedCount = (p.people - (paymentPool ? 1 : 0)) * count;
   const ownScripts = r.mixScripts ?? [r.mixScript];
   if (ownScripts.length !== count || new Set(ownScripts).size !== count) throw new Error('Own output count mismatch');
   const canonical = plan(
     p.coins,
     p.outputs.slice(0, mixedCount).map(o => o.script),
-    p.outputs.slice(mixedCount),
+    paymentPool ? paymentPool.changes : p.outputs.slice(mixedCount),
     p.amount,
     count,
+    pay,
   );
-  if (transaction(canonical).toHex() !== transaction(p).toHex() || p.type !== canonical.type) throw new Error('Noncanonical plan');
+  if (transaction(canonical).toHex() !== transaction(p).toHex() || p.type !== canonical.type || p.people !== canonical.people)
+    throw new Error('Noncanonical plan');
   if (r.seatInputs.length !== p.people || r.seatInputs.reduce((n, c) => n + c, 0) !== p.coins.length) throw new Error('Seat mismatch');
   r.seatInputs.forEach(n => integer(n, 1, 10));
   if (new Set(r.mine.map(outpoint)).size !== r.mine.length) throw new Error('Duplicate own coin');
@@ -207,7 +259,12 @@ export function review(p: Plan, r: Review): { txHex: string; txid: string; fee: 
   const vb = 10.5 + (p.type === 'p2tr' ? 57.75 : 68) * p.coins.length + (p.type === 'p2tr' ? 43 : 31) * p.outputs.length;
   if (
     fee < Math.floor(r.feeRate * vb * 0.95) ||
-    fee > r.seatInputs.reduce((n, c) => n + feeShare(r.feeRate, true, c, p.type, count), 0) + (DUST + 1) * p.people
+    fee >
+      r.seatInputs.reduce(
+        (n, c, i) => n + feeShare(r.feeRate, true, c, p.type, paymentPool && i === paymentPool.creatorIndex ? pay.length : count),
+        0,
+      ) +
+        (DUST + 1) * p.people
   )
     throw new Error('Round fee outside bounds');
   const tx = transaction(p);

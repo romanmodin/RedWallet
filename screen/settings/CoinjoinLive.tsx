@@ -265,7 +265,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               onPress={() => run(refreshPools)}
             />
             <Text testID="CoinjoinPoolSearchStatus" accessibilityLiveRegion="polite" style={text}>
-              {searchState === 'idle' && 'Find open Kilojoin v3 and v4 pools on relay.kilombino.com.'}
+              {searchState === 'idle' && 'Find open Kilojoin v3, v4 and v5 pools on relay.kilombino.com.'}
               {searchState === 'connecting' && 'Connecting to relay.kilombino.com…'}
               {searchState === 'searching' && 'Connected. Checking open pools…'}
               {searchState === 'failed' && 'Pool search failed or disconnected. Tap Find pools to retry.'}
@@ -280,7 +280,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             <View style={card}>
               {visiblePools.map(p =>
                 pick(
-                  `${outputCount(p.terms) > 1 ? outputCount(p.terms) + ' × ' : ''}${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}\nAnnounced deadline: ${new Date(p.terms.timeout * 1000).toLocaleString()} · ${poolCountdown(p.terms.timeout, clock)}`,
+                  `v${p.terms.v}${p.terms.v === 5 ? ' payment pool' : ''} · ${outputCount(p.terms) > 1 ? outputCount(p.terms) + ' × ' : ''}${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}\nAnnounced deadline: ${new Date(p.terms.timeout * 1000).toLocaleString()} · ${poolCountdown(p.terms.timeout, clock)}`,
                   poolId === p.terms.id,
                   () => {
                     setPoolId(p.terms.id);
@@ -301,6 +301,12 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             )}
             {!!pool && (
               <View style={card}>
+                {pool.terms.v === 5 && (
+                  <Text testID="CoinjoinPaymentPool" style={text}>
+                    Payment pool: the creator pays recipients. You receive {outputCount(pool.terms)} ×{' '}
+                    {pool.terms.denomination.toLocaleString()} sats in mixed outputs.
+                  </Text>
+                )}
                 <Text style={text}>Choose confirmed coins · up to {pool.terms.max_inputs}</Text>
                 <Text
                   style={text}
