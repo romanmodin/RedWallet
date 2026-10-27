@@ -1,3 +1,4 @@
+import { prepareArtworkApp, setSimulatorAppearance } from './artwork-setup';
 import { observeNativeSetupStep } from './native-setup-step';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -82,17 +83,8 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
         throw error;
       }
     };
-    await setup('clear-keychain', () => device.clearKeychain(), 120000);
-    // Detox 20 has no setAppearance API. Set the selected disposable simulator
-    // through Apple's native command before launching the app.
-    await setup('dark-appearance', () => execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'dark'], { timeout: 15000 }));
-    await setup('launch-clean-app', () =>
-      device.launchApp({
-        delete: true,
-        permissions: { notifications: 'NO' },
-      }),
-    );
-    await setup('initial-wallet-list', () => waitForWalletsList());
+    const appearance = await prepareArtworkApp({ device, setup, waitForReady: waitForWalletsList, run: execFileSync });
+    fs.writeFileSync(path.join(setupDirectory, 'appearance.json'), JSON.stringify(appearance, null, 2) + '\n');
     await setup('open-settings', () => element(by.id('SettingsButton')).tap());
     await setup('open-network-settings', () => element(by.id('NetworkSettings')).tap());
     await setup('open-electrum-settings', () => element(by.id('ElectrumSettings')).tap());
@@ -183,7 +175,7 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       console.log('Native read-only pool discovery:', status);
     } finally {
       await device.enableSynchronization();
-      execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'light']);
+      setSimulatorAppearance(execFileSync, device.id, 'light');
     }
   });
 });
