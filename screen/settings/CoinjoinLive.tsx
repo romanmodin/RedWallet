@@ -51,6 +51,9 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     [error, setError] = useState(''),
     [localBusy, setBusy] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
+  const [voteOptions, setVoteOptions] = useState<string>();
+  const [pendingVote, setPendingVote] = useState<{ voteId: string; accept: boolean }>();
+  const voteInFlight = useRef(false);
   const busy = localBusy || !!active?.busy;
   const client = useRef<MixingClient | undefined>(activePool.snapshot()?.client),
     discovery = useRef<KilojoinRelay | undefined>(undefined),
@@ -190,6 +193,29 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const displayedError = error || view?.error;
   const issue = displayedError ? coinjoinIssue(displayedError) : undefined;
   const response = session ? closingResponse(session) : undefined;
+  const respondToClosing = async (accept: boolean, retry = false) => {
+    if (voteInFlight.current || busy || !session?.voteId) return;
+    const votingClient = client.current;
+    const voteId = session.voteId;
+    voteInFlight.current = true;
+    setPendingVote({ voteId, accept });
+    try {
+      await run(async () => {
+        const current = activePool.snapshot();
+        const currentSession = current?.view?.session;
+        if (!votingClient || current?.client !== votingClient || currentSession?.phase !== 'voting' || currentSession.voteId !== voteId)
+          throw new Error('This closing vote is no longer current');
+        if (Math.floor(Date.now() / 1000) >= currentSession.deadline) throw new Error('The closing vote deadline has passed');
+        // An old primary button callback must not repeat or change a saved response.
+        const sent = closingResponse(currentSession);
+        if (retry ? sent !== accept : sent !== undefined) return;
+        await votingClient.vote(accept);
+      });
+    } finally {
+      voteInFlight.current = false;
+      if (mounted.current) setPendingVote(undefined);
+    }
+  };
   const outputProgress = session ? outputRegistrationProgress(session) : undefined;
   const signing = session ? signingProgress(session) : undefined;
   const signatureCount = session ? Object.keys(session.signatures).length : 0;
@@ -394,7 +420,13 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 </Text>
               )}
             </View>
-            {!!progress && <SettingsFootnote>{progress.detail}</SettingsFootnote>}
+            {!!progress && (
+              <SettingsFootnote>
+                {session?.phase === 'voting' && response !== undefined
+                  ? 'Your closing response was sent. Waiting for the creator to advance the round; no repeat response is needed.'
+                  : progress.detail}
+              </SettingsFootnote>
+            )}
             {!!outputProgress && (
               <View style={card} testID="CoinjoinOutputProgress">
                 <Text
@@ -442,7 +474,11 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                     {new Date(timing.deadline * 1000).toLocaleString()} · {poolCountdown(timing.deadline, clock)}
                   </Text>
                 )}
-                <Text style={text}>{timing.detail}</Text>
+                <Text style={text}>
+                  {session?.phase === 'voting' && response !== undefined
+                    ? 'Your response was sent. This is the vote deadline, not another request to respond.'
+                    : timing.detail}
+                </Text>
                 {!!issue && (
                   <Text style={text}>
                     Connection or validation issue: this deadline is based on the last received state. It does not prove you are still
@@ -482,12 +518,49 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             )}
             {session?.phase === 'voting' && (
               <>
-                <Button
-                  title={response === true ? 'Resend closing approval (optional)' : 'Accept round closing'}
-                  disabled={busy}
-                  onPress={() => run(() => client.current!.vote(true))}
-                />
-                <Button title="Decline" disabled={busy} onPress={() => run(() => client.current!.vote(false))} />
+                {response === undefined ? (
+                  <>
+                    <Button
+                      title={
+                        pendingVote?.voteId === session.voteId && pendingVote?.accept === true
+                          ? 'Sending closing approval…'
+                          : 'Accept round closing'
+                      }
+                      disabled={busy || !session.voteId || clock >= session.deadline}
+                      onPress={() => respondToClosing(true)}
+                    />
+                    <Button
+                      title={pendingVote?.voteId === session.voteId && pendingVote?.accept === false ? 'Sending decline…' : 'Decline'}
+                      disabled={busy || !session.voteId || clock >= session.deadline}
+                      onPress={() => respondToClosing(false)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: voteOptions === session.voteId }}
+                      onPress={() => setVoteOptions(old => (old === session.voteId ? undefined : session.voteId))}
+                    >
+                      <Text style={text}>
+                        {voteOptions === session.voteId ? 'Hide closing response options' : 'Closing response options (optional)'}
+                      </Text>
+                    </Pressable>
+                    {voteOptions === session.voteId && (
+                      <>
+                        <SettingsFootnote>
+                          Your response has already been sent. Resending is optional and repeats the same response before the deadline; it
+                          does not add another vote.
+                        </SettingsFootnote>
+                        <Button
+                          title={response ? 'Resend closing approval (optional)' : 'Resend closing decline (optional)'}
+                          disabled={busy || clock >= session.deadline}
+                          onPress={() => respondToClosing(response, true)}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
               </>
             )}
             {session?.phase === 'closing' && !session.outputProgress?.prepared && !session.outputSignature && (

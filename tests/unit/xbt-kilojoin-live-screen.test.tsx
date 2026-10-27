@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react-native';
 import { activePool } from '../../class/xbt/kilojoin/active-pool';
 import CoinjoinEntry from '../../screen/settings/CoinjoinExperimental';
 import CoinjoinLive from '../../screen/settings/CoinjoinLive';
+import Button from '../../components/Button';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 const mockWallet = new XbtSegwitBech32Wallet();
 mockWallet.setLabel('Test wallet');
@@ -458,11 +459,17 @@ test('closing approval feedback is separate from signatures and resets for a new
   expect(screen.getByText('✓ Your closing approval was sent')).toHaveStyle({ color: '#248445' });
   expect(screen.getByText(/Closing approvals: total unavailable/)).toBeTruthy();
   expect(screen.queryByText('Action required: closing vote')).toBeNull();
+  expect(screen.queryByText('Accept round closing')).toBeNull();
+  expect(screen.queryByText('Decline')).toBeNull();
+  expect(screen.queryByText('Resend closing approval (optional)')).toBeNull();
+  fireEvent.press(screen.getByText('Closing response options (optional)'));
   expect(screen.getByText('Resend closing approval (optional)')).toBeTruthy();
   await act(async () => mockEmit!({ ...sent, session: { ...sent.session, voteId: 'second' } }));
   expect(screen.queryByText('✓ Your closing approval was sent')).toBeNull();
   expect(screen.getByText('Your closing response: not confirmed')).toBeTruthy();
   expect(screen.getByText('Action required: closing vote')).toBeTruthy();
+  expect(screen.getByText('Accept round closing')).toBeEnabled();
+  expect(screen.queryByText('Resend closing approval (optional)')).toBeNull();
   await act(async () => mockEmit!({ ...sent, session: { ...sent.session, phase: 'review', signatures: { 'a:0': 'validated' } } }));
   expect(screen.getByText('Participants signed: 1/2')).toBeTruthy();
   expect(screen.getByText('Input signatures: 1/2')).toBeTruthy();
@@ -594,4 +601,165 @@ test('v5 pool selection explains the joiner role without autojoining or signing'
     delete (mockTerms as Record<string, unknown>).outputs;
     delete (mockTerms as Record<string, unknown>).payments;
   }
+});
+
+async function startClosingVote(vote: (accept: boolean) => Promise<void>, response?: boolean) {
+  const live = {
+    session: {
+      phase: 'voting',
+      voteId: 'current-vote',
+      deadline: Math.floor(Date.now() / 1000) + 600,
+      seats: [{ coins: [{ txid: 'a', vout: 0 }] }, { coins: [{ txid: 'b', vout: 0 }] }],
+      signatures: {},
+      ...(response === undefined ? {} : { closingResponse: { voteId: 'current-vote', accept: response } }),
+    },
+    journal: { phase: 'joined', reserved: ['a:0'] },
+  };
+  await activePool.start(mockWallet, async update => {
+    mockEmit = update as typeof mockEmit;
+    update(live as never);
+    return { view: () => live, close: mockClose, vote } as never;
+  });
+  return live;
+}
+
+test.each([true, false])('closing response %s sends once, waits for durable feedback and survives screen reentry', async accept => {
+  let finish!: () => void;
+  const pending = new Promise<void>(resolve => {
+    finish = resolve;
+  });
+  const vote = jest.fn(async () => {
+    await pending;
+    mockEmit!({ ...live, session: { ...live.session, closingResponse: { voteId: 'current-vote', accept } } });
+  });
+  const live = await startClosingVote(vote);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  const label = accept ? 'Accept round closing' : 'Decline';
+  const press = screen.UNSAFE_getAllByType(Button).find(button => button.props.title === label)!.props.onPress;
+  let action!: Promise<void>;
+  act(() => {
+    action = press();
+    press();
+  });
+  try {
+    expect(vote).toHaveBeenCalledTimes(1);
+    expect(vote).toHaveBeenCalledWith(accept);
+    expect(screen.getByText(accept ? 'Sending closing approval…' : 'Sending decline…')).toBeDisabled();
+    expect(screen.queryByText('✓ Your closing approval was sent')).toBeNull();
+    expect(screen.queryByText('Your decline was sent')).toBeNull();
+    expect(screen.getByText(accept ? 'Decline' : 'Accept round closing')).toBeDisabled();
+  } finally {
+    await act(async () => {
+      finish();
+      await action;
+    });
+  }
+  const feedback = accept ? '✓ Your closing approval was sent' : 'Your decline was sent';
+  expect(screen.getByText(feedback)).toBeTruthy();
+  expect(screen.queryByText('Accept round closing')).toBeNull();
+  expect(screen.queryByText('Decline')).toBeNull();
+  await act(async () => press());
+  expect(vote).toHaveBeenCalledTimes(1);
+  screen.unmount();
+  const reopened = render(<CoinjoinLive experimentalAcknowledged />);
+  expect(reopened.getByText(feedback)).toBeTruthy();
+  expect(reopened.queryByText('Accept round closing')).toBeNull();
+  expect(reopened.queryByText('Decline')).toBeNull();
+  expect(reopened.queryByText(/Resend closing/)).toBeNull();
+  expect(reopened.getByText('Transaction signing: not started')).toBeTruthy();
+  expect(reopened.getByText('Reserved coins: 1')).toBeTruthy();
+  expect(mockApprove).not.toHaveBeenCalled();
+});
+
+test.each(['Relay unavailable', 'Session persistence failed'])(
+  'failed closing response remains retryable without false success: %s',
+  async message => {
+    const vote = jest.fn(async () => {
+      throw new Error(message);
+    });
+    await startClosingVote(vote);
+    const screen = render(<CoinjoinLive experimentalAcknowledged />);
+    await act(async () => fireEvent.press(screen.getByText('Accept round closing')));
+    expect(vote).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('✓ Your closing approval was sent')).toBeNull();
+    expect(screen.getByText('Accept round closing')).toBeEnabled();
+    expect(screen.getByText('Decline')).toBeEnabled();
+    expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByText('Accept round closing')));
+    expect(vote).toHaveBeenCalledTimes(2);
+    expect(mockApprove).not.toHaveBeenCalled();
+  },
+);
+
+test('an old closing button cannot respond to a replacement vote', async () => {
+  const vote = jest.fn(async () => {});
+  const live = await startClosingVote(vote);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  const oldPress = screen.UNSAFE_getAllByType(Button).find(button => button.props.title === 'Accept round closing')!.props.onPress;
+  await act(async () => mockEmit!({ ...live, session: { ...live.session, voteId: 'replacement-vote' } }));
+  await act(async () => oldPress());
+  expect(vote).not.toHaveBeenCalled();
+  await act(async () => fireEvent.press(screen.getByText('Accept round closing')));
+  expect(vote).toHaveBeenCalledTimes(1);
+});
+
+test.each([true, false])('sent response %s only exposes deliberate same-response retry', async accept => {
+  const vote = jest.fn(async () => {});
+  await startClosingVote(vote, accept);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  expect(screen.queryByText('Accept round closing')).toBeNull();
+  expect(screen.queryByText('Decline')).toBeNull();
+  expect(screen.queryByText(/Resend closing/)).toBeNull();
+  const options = screen.getByRole('button', { name: 'Closing response options (optional)' });
+  expect(options.props.accessibilityState).toEqual({ expanded: false });
+  fireEvent.press(options);
+  const resend = accept ? 'Resend closing approval (optional)' : 'Resend closing decline (optional)';
+  await act(async () => fireEvent.press(screen.getByText(resend)));
+  expect(vote).toHaveBeenLastCalledWith(accept);
+  expect(vote).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText('Change response to decline')).toBeNull();
+  expect(screen.queryByText('Change response to accept')).toBeNull();
+  expect(screen.getByText('Sent to the relay; creator acknowledgment is not available.')).toBeTruthy();
+  expect(mockApprove).not.toHaveBeenCalled();
+});
+
+test.each([undefined, true, false])(
+  'closing controls and retained callbacks stop at the absolute deadline: response %s',
+  async response => {
+    const now = 1000000;
+    const time = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const vote = jest.fn(async () => {});
+    await startClosingVote(vote, response);
+    const screen = render(<CoinjoinLive experimentalAcknowledged />);
+    if (response !== undefined) fireEvent.press(screen.getByText('Closing response options (optional)'));
+    const label =
+      response === undefined
+        ? 'Accept round closing'
+        : response
+          ? 'Resend closing approval (optional)'
+          : 'Resend closing decline (optional)';
+    const press = screen.UNSAFE_getAllByType(Button).find(button => button.props.title === label)!.props.onPress;
+    time.mockReturnValue(now + 600000);
+    await act(async () => press());
+    expect(vote).not.toHaveBeenCalled();
+    screen.unmount();
+    const expired = render(<CoinjoinLive experimentalAcknowledged />);
+    if (response !== undefined) fireEvent.press(expired.getByText('Closing response options (optional)'));
+    expect(expired.getByText(label)).toBeDisabled();
+    expect(expired.getByText('Response deadline reached')).toBeTruthy();
+    expect(expired.getByText('Reserved coins: 1')).toBeTruthy();
+  },
+);
+
+test('a retained retry cannot replace a different saved closing response', async () => {
+  const vote = jest.fn(async () => {});
+  const live = await startClosingVote(vote, true);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  fireEvent.press(screen.getByText('Closing response options (optional)'));
+  const retry = screen.UNSAFE_getAllByType(Button).find(button => button.props.title === 'Resend closing approval (optional)')!.props
+    .onPress;
+  await act(async () => mockEmit!({ ...live, session: { ...live.session, closingResponse: { voteId: 'current-vote', accept: false } } }));
+  await act(async () => retry());
+  expect(vote).not.toHaveBeenCalled();
+  expect(screen.getByText('Your decline was sent')).toBeTruthy();
 });
