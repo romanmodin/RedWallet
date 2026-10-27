@@ -8,10 +8,10 @@ import { crypto as bitcoinCrypto, Transaction } from 'bitcoinjs-lib';
 import ecc from '../../blue_modules/noble_ecc';
 import { ParticipantSession, SessionEnvironment } from '../../class/xbt/kilojoin/session';
 import { Round } from '../../class/xbt/kilojoin/round';
-import { Terms, tokenHash, changeMessage } from '../../class/xbt/kilojoin/protocol';
+import { Terms, tokenHash, changeMessage, memberMac } from '../../class/xbt/kilojoin/protocol';
 import { Coin, coinScript, digest, outpoint, ownershipMessage, Plan, change, changeOf } from '../../class/xbt/kilojoin/transaction';
 import { parseSeat } from '../../class/xbt/kilojoin/roster';
-import { conversationKey, decrypt, encrypt, NostrEvent, signEvent } from '../../class/xbt/kilojoin/crypto';
+import { conversationKey, decrypt, encrypt, hash, NostrEvent, signEvent } from '../../class/xbt/kilojoin/crypto';
 import { modPow } from '../../class/xbt/kilojoin/blind-rsa';
 const ECPair = ECPairFactory(ecc);
 const secret = (n: number) => Buffer.from(n.toString(16).padStart(64, '0'), 'hex');
@@ -96,13 +96,13 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants 
     round,
     env,
   );
-  const receive = async (body: Record<string, unknown>, direct = false, sender = creator) => {
+  const receive = async (body: Record<string, unknown>, direct = false, sender = creator, createdAt = now) => {
     const recipient = direct ? pub(join) : pub(pool);
     await session.receive(
       signEvent(
         {
           kind: 2023,
-          created_at: now,
+          created_at: createdAt,
           tags: [['p', recipient]],
           content: encrypt(JSON.stringify({ ...body, test_nonce: ++counter }), conversationKey(sender, recipient), randomBytes(32)),
         },
@@ -1941,4 +1941,241 @@ test.each(['p2wpkh', 'p2tr'] as const)('v5 %s one-output blind exchange uses the
   expect(f.session.snapshot().outputNotBefore).toBeGreaterThanOrEqual(10000);
   expect(f.session.snapshot().phase).toBe('closing');
   expect(f.session.snapshot().signatures).toEqual({});
+});
+
+describe('newer creator closing recovery', () => {
+  const firstId = 'aa'.repeat(8);
+  const nextId = 'bb'.repeat(8);
+  const start = async (outputs = 1, payments?: number[], type: Coin['type'] = 'p2wpkh') => {
+    const f = await fixture(type, outputs, 2, payments);
+    await f.receive(
+      {
+        type: 'welcome',
+        pool_secret: pool.toString('hex'),
+        token: 'ab'.repeat(16),
+        seq: 1,
+      },
+      true,
+    );
+    await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+    await f.receive({
+      type: 'closing',
+      round_id: firstId,
+      seats: f.rawSeats,
+      deadline: 10300,
+    });
+    return f;
+  };
+  const body = (f: Awaited<ReturnType<typeof start>>, extra: Record<string, unknown> = {}) => ({
+    type: 'closing',
+    round_id: nextId,
+    seats: f.rawSeats,
+    deadline: 10315,
+    again: 0,
+    ...extra,
+  });
+  const request = (f: Awaited<ReturnType<typeof start>>, i: number) =>
+    JSON.parse(decrypt(f.published[i].event.content, conversationKey(pool, pub(pool))));
+  const saved = (f: Awaited<ReturnType<typeof start>>) => (f.env.saveEncrypted as jest.Mock).mock.calls.slice(-1)[0][0];
+  const respond = async (f: Awaited<ReturnType<typeof start>>, id: string) => {
+    const blind = request(f, 0).blinded;
+    const sigs = (Array.isArray(blind) ? blind : [blind]).map((b: string) =>
+      modPow(BigInt('0x' + b), d, n)
+        .toString(16)
+        .padStart(512, '0'),
+    );
+    await f.receive({
+      type: 'blind_sig',
+      round_id: id,
+      token_hash: f.rawSeats[0].token_hash,
+      ...(Array.isArray(blind) ? { sigs } : { sig: sigs[0] }),
+    });
+  };
+
+  test.each([
+    ['p2wpkh', 1, undefined],
+    ['p2tr', 1, undefined],
+    ['p2wpkh', 2, undefined],
+    ['p2tr', 5, undefined],
+    ['p2wpkh', 1, [4000, 6000]],
+    ['p2tr', 1, [4000, 6000]],
+    ['p2wpkh', 2, [10000, 10000]],
+    ['p2tr', 5, [50000]],
+  ] as const)('preserves blinded outputs and changes only round authentication: %s %i %j', async (type, outputs, payments) => {
+    const f = await start(outputs, payments ? [...payments] : undefined, type);
+    const initial = saved(f),
+      journal = f.round.snapshot();
+    f.tick(15);
+    await f.receive(body(f));
+    expect(f.session.snapshot()).toMatchObject({
+      roundId: nextId,
+      phase: 'closing',
+      deadline: 10300,
+      phaseStartedAt: 10000,
+    });
+    expect(saved(f).outputStates).toEqual(initial.outputStates);
+    expect(f.round.snapshot()).toEqual(journal);
+    const before = request(f, 0),
+      after = request(f, 1);
+    expect(after.blinded).toEqual(before.blinded);
+    expect(after.mac).not.toBe(before.mac);
+    const bytes = (Array.isArray(after.blinded) ? after.blinded : [after.blinded]).map((b: string) => Buffer.from(b, 'hex'));
+    expect(after.mac).toBe(memberMac('ab'.repeat(16), 'blind', nextId, hash(Buffer.concat(bytes)).toString('hex')));
+    await respond(f, firstId);
+    expect(f.session.snapshot().outputProgress?.prepared).toBe(false);
+    await respond(f, nextId);
+    expect(f.session.snapshot().outputProgress?.prepared).toBe(true);
+    f.tick(45);
+    await f.session.submitOutput();
+    const publications = f.published
+      .filter(p => p.isolated)
+      .map(p => JSON.parse(decrypt(p.event.content, conversationKey(creator, p.event.pubkey))));
+    expect(publications).toHaveLength(outputs);
+    expect(publications.every(p => p.round_id === nextId)).toBe(true);
+    expect(f.round.snapshot().phase).toBe('joined');
+    expect(f.session.snapshot().signatures).toEqual({});
+  });
+
+  test('accepts upstream omitted again=0 and successive 15-second closings without extending the deadline', async () => {
+    const f = await start();
+    for (let i = 1; i <= 3; i++) {
+      f.tick(15);
+      await f.receive(
+        body(f, {
+          again: undefined,
+          round_id: i.toString(16).repeat(16),
+          deadline: 10300 + i * 15,
+        }),
+      );
+    }
+    expect(f.published).toHaveLength(4);
+    expect(f.session.snapshot()).toMatchObject({
+      roundId: '3'.repeat(16),
+      deadline: 10300,
+      phaseStartedAt: 10000,
+    });
+    expect(new Set(f.published.map((_, i) => request(f, i).blinded)).size).toBe(1);
+  });
+
+  test('rejects equal/older timestamps, reused IDs, and participant-forged creator messages', async () => {
+    const f = await start();
+    await f.receive(body(f));
+    f.tick(15);
+    await f.receive(body(f), false, pool);
+    expect(f.published).toHaveLength(1);
+    await f.receive(body(f));
+    const current = f.session.snapshot();
+    f.tick(15);
+    await f.receive(body(f, { round_id: firstId }));
+    await f.receive(body(f));
+    await f.receive(body(f, { round_id: 'cc'.repeat(8) }), false, creator, 10014);
+    expect(f.session.snapshot()).toEqual(current);
+    expect(f.published).toHaveLength(2);
+  });
+
+  test.each([1, -1, '0', null, false])('ignores unsupported again value %j', async again => {
+    const f = await start();
+    f.tick(15);
+    await f.receive(body(f, { again }));
+    expect(f.session.snapshot().roundId).toBe(firstId);
+    expect(f.published).toHaveLength(1);
+  });
+
+  test('does not switch after a blind signature or after its original deadline', async () => {
+    const f = await start();
+    await respond(f, firstId);
+    f.tick(15);
+    await f.receive(body(f));
+    expect(f.session.snapshot().roundId).toBe(firstId);
+    const expired = await start();
+    expired.tick(300);
+    await expect(expired.receive(body(expired, { deadline: 10600 }))).rejects.toThrow('expired');
+    expect(expired.session.snapshot().roundId).toBe(firstId);
+    expect(expired.published).toHaveLength(1);
+  });
+
+  test('rechecks unspent inputs and rejects changed participant commitments', async () => {
+    const f = await start();
+    f.tick(15);
+    const changed = f.rawSeats.map(s => ({ ...s }));
+    changed[1].token_hash = 'ef'.repeat(32);
+    await expect(f.receive(body(f, { seats: changed }))).rejects.toThrow('roster');
+    expect(f.session.snapshot().roundId).toBe(firstId);
+    const observe = f.env.observe;
+    f.env.observe = async coins => new Map([...(await observe(coins))].map(([k, v]) => [k, { ...v, unspent: false }]));
+    await expect(f.receive(body(f))).rejects.toThrow();
+    expect(f.session.snapshot().roundId).toBe(firstId);
+    expect(f.published).toHaveLength(1);
+  });
+
+  test('persists replacement before publishing; failed saves leave the original round intact', async () => {
+    const f = await start();
+    f.tick(15);
+    (f.env.saveEncrypted as jest.Mock).mockRejectedValueOnce(new Error('disk unavailable'));
+    await expect(f.receive(body(f))).rejects.toThrow('Session persistence failed');
+    expect(f.session.snapshot().roundId).toBe(firstId);
+    expect(f.published).toHaveLength(1);
+    const publish = f.env.publish;
+    f.env.publish = async (event, isolated) => {
+      expect(saved(f).roundId).toBe(nextId);
+      await publish(event, isolated);
+    };
+    await f.receive(body(f));
+    expect(f.published).toHaveLength(2);
+  });
+
+  test('a failed resend can retry the durable new round without regenerating blinded data', async () => {
+    const f = await start();
+    const publish = f.env.publish;
+    f.env.publish = async () => {
+      throw new Error('relay unavailable');
+    };
+    f.tick(15);
+    await expect(f.receive(body(f))).rejects.toThrow('relay unavailable');
+    expect(f.session.snapshot().roundId).toBe(nextId);
+    f.env.publish = publish;
+    await f.session.retryBlind();
+    expect(request(f, 1).round_id).toBe(nextId);
+    expect(request(f, 1).blinded).toEqual(request(f, 0).blinded);
+  });
+  test('backend validation crossing the deadline cannot publish a replacement', async () => {
+    const f = await start();
+    f.tick(15);
+    const observe = f.env.observe;
+    f.env.observe = async coins => {
+      const result = await observe(coins);
+      f.tick(286);
+      return new Map([...result].map(([k, v]) => [k, { ...v, checkedAt: f.env.now() }]));
+    };
+    await expect(f.receive(body(f))).rejects.toThrow();
+    expect(f.session.snapshot().roundId).toBe(firstId);
+    expect(f.published).toHaveLength(1);
+  });
+
+  test.each([10015, 10316, '10300', -1, 10015.5])('invalid replacement deadline %j sends nothing', async deadline => {
+    const f = await start();
+    f.tick(15);
+    await expect(f.receive(body(f, { deadline }))).rejects.toThrow('deadline');
+    expect(f.session.snapshot().roundId).toBe(firstId);
+    expect(f.published).toHaveLength(1);
+  });
+
+  test('reordered identical seats retain the same outputs; earlier valid deadlines shorten the window', async () => {
+    const f = await start();
+    f.tick(15);
+    await f.receive(body(f, { seats: [...f.rawSeats].reverse(), deadline: 10200 }));
+    expect(f.session.snapshot()).toMatchObject({ roundId: nextId, deadline: 10200 });
+    expect(request(f, 1).blinded).toEqual(request(f, 0).blinded);
+  });
+
+  test('storage crossing expiry does not send a now-expired replacement', async () => {
+    const f = await start();
+    f.tick(15);
+    (f.env.saveEncrypted as jest.Mock).mockImplementationOnce(async () => {
+      f.tick(286);
+    });
+    await expect(f.receive(body(f))).rejects.toThrow('expired');
+    expect(f.session.snapshot().roundId).toBe(nextId);
+    expect(f.published).toHaveLength(1);
+  });
 });

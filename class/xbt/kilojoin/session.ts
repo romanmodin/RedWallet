@@ -54,6 +54,8 @@ export type SessionState = {
   retiredVoteIds?: string[];
   closingResponse?: { voteId: string; accept: boolean };
   roundId?: string;
+  closingCreatedAt?: number;
+  retiredRoundIds?: string[];
   deadline: number;
   prepared?: string;
   inverse?: string;
@@ -228,10 +230,8 @@ export class ParticipantSession {
 
   private async save(next: SessionState): Promise<void> {
     // Local stage-entry time, never the creator's unknown pool opening time.
-    const newStage =
-      next.phase !== this.state.phase ||
-      (next.phase === 'voting' && next.voteId !== this.state.voteId) ||
-      (next.phase === 'closing' && next.roundId !== this.state.roundId);
+    const newStage = next.phase !== this.state.phase || (next.phase === 'voting' && next.voteId !== this.state.voteId);
+    // A duplicated closing does not restart the original output-phase timer.
     next = { ...next, phaseStartedAt: newStage ? this.env.now() : this.state.phaseStartedAt };
 
     try {
@@ -524,24 +524,56 @@ export class ParticipantSession {
           break;
         }
         case 'closing': {
-          if (!['open', 'voting'].includes(this.state.phase)) break;
-          this.requireOpenPool();
-          const roundId = identifier(body.round_id),
-            seats = await this.checkedSeats(body.seats, this.state.sequence + 1);
+          const replacing = this.state.phase === 'closing';
+          if (replacing) {
+            // Older creators can emit several initial closings before their
+            // first relay echo returns. Recover only before receiving any blind
+            // signature; intentional roster-shrinking ("again" > 0) is separate.
+            // Upstream omits "again" on initial closings, meaning zero.
+            if (
+              (body.again !== undefined && body.again !== 0) ||
+              this.round.snapshot().phase !== 'joined' ||
+              this.state.outputSignature ||
+              !this.state.outputStates?.length ||
+              this.state.outputStates.some(o => o.signature || o.submitted || o.notBefore !== undefined) ||
+              this.state.closingCreatedAt === undefined ||
+              message.createdAt <= this.state.closingCreatedAt
+            )
+              break;
+          } else {
+            if (!['open', 'voting'].includes(this.state.phase)) break;
+            this.requireOpenPool();
+          }
+          const roundId = identifier(body.round_id);
+          const retired = this.state.retiredRoundIds ?? [];
+          if (replacing && (roundId === this.state.roundId || retired.includes(roundId))) break;
+          if (replacing) {
+            this.require(['closing']);
+            if (retired.length >= 256) throw new Error('Session closing history limit');
+          }
+          const seats = await this.checkedSeats(body.seats, this.state.sequence + 1);
+          if (replacing && this.rosterCommitment(seats) !== this.rosterCommitment(this.state.seats))
+            throw new Error('Replacement closing changed roster');
           if (seats.length < this.terms.min_peers) throw new Error('Too few participants');
           const deadline = body.deadline ?? message.createdAt + 300;
           if (!Number.isSafeInteger(deadline) || (deadline as number) <= this.env.now() || (deadline as number) > message.createdAt + 300)
             throw new Error('Invalid closing deadline');
-          const outputStates = this.mixScripts.map(script => {
-            const prepared = prepare(hex(script), this.env.random);
-            const blinded = blind(publicKey(this.terms.blind_key), prepared, this.env.random);
-            return {
-              script,
-              prepared: prepared.toString('hex'),
-              inverse: blinded.inv.toString(16),
-              blinded: blinded.blinded.toString('hex'),
-            };
-          });
+          // Chain checks are asynchronous. Recheck expiry before committing or
+          // publishing, and never extend the first output-registration window.
+          if (replacing) this.require(['closing']);
+          else this.requireOpenPool();
+          const outputStates = replacing
+            ? this.state.outputStates!
+            : this.mixScripts.map(script => {
+                const prepared = prepare(hex(script), this.env.random);
+                const blinded = blind(publicKey(this.terms.blind_key), prepared, this.env.random);
+                return {
+                  script,
+                  prepared: prepared.toString('hex'),
+                  inverse: blinded.inv.toString(16),
+                  blinded: blinded.blinded.toString('hex'),
+                };
+              });
           await this.save({
             ...this.state,
             phase: 'closing',
@@ -549,12 +581,15 @@ export class ParticipantSession {
             lastRosterFailure: undefined,
             lastRosterFailureInput: undefined,
             roundId,
-            deadline: Math.min(deadline as number, this.round.snapshot().deadline),
+            closingCreatedAt: message.createdAt,
+            ...(replacing ? { retiredRoundIds: [...retired, this.state.roundId!] } : {}),
+            deadline: Math.min(deadline as number, this.round.snapshot().deadline, replacing ? this.state.deadline : Infinity),
             prepared: outputStates[0].prepared,
             inverse: outputStates[0].inverse,
             blinded: outputStates[0].blinded,
             outputStates,
           });
+          this.require(['closing']);
           await this.sendBlind();
           break;
         }
@@ -676,6 +711,22 @@ export class ParticipantSession {
         await this.publish({ type: 'sig', outpoint: id, sig });
       }
     });
+  }
+
+  private rosterCommitment(seats: Seat[]): string {
+    // Proofs are validated above; alternative valid proof encodings do not
+    // change a seat's commitment. Ignore ordering, but bind every input/change.
+    return JSON.stringify(
+      seats
+        .map(s => [
+          s.token_hash,
+          s.join_pub,
+          s.coins.map(c => [c.txid, c.vout, c.value, c.pubkey, c.type]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+          s.change_script,
+          s.change_value,
+        ])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    );
   }
 
   private async sendBlind(): Promise<void> {
