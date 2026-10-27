@@ -21,10 +21,13 @@ const creator = secret(8),
 const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ format: 'jwk' });
 const n = BigInt('0x' + Buffer.from(rsa.n!, 'base64url').toString('hex'));
 const d = BigInt('0x' + Buffer.from(rsa.d!, 'base64url').toString('hex'));
-async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1) {
+async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1, participants = 2) {
   let now = 10000,
     counter = 0;
-  const script = (i: number) => (type === 'p2wpkh' ? '0014' + i.toString(16).repeat(40) : '5120' + i.toString(16).repeat(64));
+  const script = (i: number) =>
+    type === 'p2wpkh'
+      ? '0014' + (participants === 2 ? i.toString(16).repeat(40) : i.toString(16).padStart(40, '0'))
+      : '5120' + (participants === 2 ? i.toString(16).repeat(64) : i.toString(16).padStart(64, '0'));
   const terms: Terms = {
     v: outputs === 1 ? 3 : 4,
     ...(outputs === 1 ? {} : { outputs }),
@@ -37,16 +40,16 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1) {
     denomination: 10000,
     fee_rate: 2,
     min_peers: 2,
-    max_peers: 5,
+    max_peers: Math.max(5, participants),
     max_inputs: 10,
     private: false,
     timeout: 12000,
     state: 'open',
-    peers: 2,
+    peers: participants,
     script: type,
   };
   const token = 'ab'.repeat(16),
-    keys = [secret(1), secret(2)];
+    keys = Array.from({ length: participants }, (_, i) => secret(i + 1));
   const rawSeats = keys.map((key, i) => {
     const coin: Coin = {
       txid: (i + 1).toString(16).repeat(64),
@@ -55,12 +58,12 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1) {
       pubkey: Buffer.from(ecc.pointFromScalar(key, true)!).toString('hex'),
       type,
     };
-    const joinPub = i === 0 ? pub(join) : pub(pool);
+    const joinPub = i === 0 ? pub(join) : participants === 2 ? pub(pool) : pub(secret(20 + i));
     return {
       coin,
-      change_script: script(i + 3),
+      change_script: script(participants === 2 ? i + 3 : i + 100),
       change_value: change(coin.value, terms.denomination, terms.fee_rate, 1, type, outputs)!,
-      token_hash: i === 0 ? tokenHash(token) : 'cd'.repeat(32),
+      token_hash: i === 0 ? tokenHash(token) : participants === 2 ? 'cd'.repeat(32) : (i + 10).toString(16).padStart(64, '0'),
       join_pub: joinPub,
       proofs: [Buffer.from(ecc.signDER(ownershipMessage(terms.id, joinPub, coin), key)).toString('hex')],
     };
@@ -125,7 +128,11 @@ async function fixture(type: Coin['type'] = 'p2wpkh', outputs = 1) {
     );
     now += 45;
     await session.submitOutput();
-    await receive({ type: 'outputs', round_id: request.round_id, scripts: Array.from({ length: outputs * 2 }, (_, i) => script(5 + i)) });
+    await receive({
+      type: 'outputs',
+      round_id: request.round_id,
+      scripts: Array.from({ length: outputs * participants }, (_, i) => script(5 + i)),
+    });
   };
   const signature = (p: Plan, index: number) => {
     const key = keys[Number(p.coins[index].txid[0]) - 1];
@@ -1550,3 +1557,178 @@ test('a publication followed by persistence failure never displays a saved closi
   expect(f.session.snapshot().closingResponse).toBeUndefined();
   expect(f.round.snapshot().reserved).toHaveLength(1);
 });
+
+// Offline fault matrix for the phone's repeated output-registration stall.
+async function outputTimeoutFixture(type: Coin['type'], count: number) {
+  const f = await fixture(type, count);
+  await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+  await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+  const roundId = 'aa'.repeat(8);
+  await f.receive({ type: 'closing', round_id: roundId, seats: f.rawSeats, deadline: 10300 });
+  const request = JSON.parse(decrypt(f.published[0].event.content, conversationKey(pool, pub(pool))));
+  const blinded: string[] = count === 1 ? [request.blinded] : request.blinded;
+  const signatures = blinded.map(b =>
+    modPow(BigInt('0x' + b), d, n)
+      .toString(16)
+      .padStart(512, '0'),
+  );
+  const reply = {
+    type: 'blind_sig',
+    round_id: roundId,
+    token_hash: f.rawSeats[0].token_hash,
+    ...(count === 1 ? { sig: signatures[0] } : { sigs: signatures }),
+  };
+  const assertUnsigned = () => {
+    expect(f.session.snapshot().signatures).toEqual({});
+    expect(f.round.snapshot().phase).toBe('joined');
+    expect(f.round.snapshot().reserved).toHaveLength(1);
+  };
+  return { ...f, reply, assertUnsigned };
+}
+const outputTimeoutCases = (['p2wpkh', 'p2tr'] as const).flatMap(type => [1, 5].map(count => ({ type, count })));
+
+test.each(outputTimeoutCases)(
+  'output timeout matrix $type/$count: missing blind response cannot publish or sign',
+  async ({ type, count }) => {
+    const f = await outputTimeoutFixture(type, count);
+    await expect(f.session.submitOutput()).rejects.toThrow('not ready');
+    f.tick(301);
+    await expect(f.session.submitOutput()).rejects.toThrow();
+    await expect(f.session.retryBlind()).rejects.toThrow();
+    const signer = jest.fn();
+    await expect(f.session.signApproved('00'.repeat(32), signer)).rejects.toThrow();
+    expect(signer).not.toHaveBeenCalled();
+    expect(f.published.filter(p => p.isolated)).toHaveLength(0);
+    f.assertUnsigned();
+    await f.session.cancel();
+    expect(f.round.snapshot().reserved).toHaveLength(0);
+  },
+);
+
+test.each(outputTimeoutCases)(
+  'output timeout matrix $type/$count: late blind reply does not restart the deadline',
+  async ({ type, count }) => {
+    const f = await outputTimeoutFixture(type, count);
+    f.tick(300);
+    await expect(f.receive(f.reply)).rejects.toThrow();
+    expect(f.session.snapshot().deadline).toBe(10300);
+    expect(f.session.snapshot().outputSignature).toBeUndefined();
+    expect(f.published.filter(p => p.isolated)).toHaveLength(0);
+    f.assertUnsigned();
+  },
+);
+
+test.each(outputTimeoutCases)(
+  'output timeout matrix $type/$count: foreground delay catches up and acknowledged outputs are not repeated',
+  async ({ type, count }) => {
+    const f = await outputTimeoutFixture(type, count);
+    await f.receive(f.reply);
+    f.tick(120); // app resumes after all random delays, before the absolute deadline
+    await f.session.submitOutput();
+    expect(f.published.filter(p => p.isolated)).toHaveLength(count);
+    expect(f.session.snapshot().phase).toBe('closing');
+    expect(f.session.snapshot().outputNotBefore).toBeUndefined();
+    await f.session.submitOutput();
+    expect(f.published.filter(p => p.isolated)).toHaveLength(count);
+    f.assertUnsigned(); // relay publication alone is not transaction review
+    f.tick(181);
+    await expect(f.session.submitOutput()).rejects.toThrow();
+    expect(f.session.snapshot().deadline).toBe(10300);
+    await f.session.cancel();
+    expect(f.round.snapshot().reserved).toHaveLength(0);
+  },
+);
+
+test.each(outputTimeoutCases)(
+  'output timeout matrix $type/$count: relay disconnect can retry before expiry but not after',
+  async ({ type, count }) => {
+    const f = await outputTimeoutFixture(type, count);
+    await f.receive(f.reply);
+    f.tick(45);
+    const publish = f.env.publish;
+    f.env.publish = async () => {
+      throw new Error('offline output socket');
+    };
+    await expect(f.session.submitOutput()).rejects.toThrow('offline output socket');
+    expect(f.published.filter(p => p.isolated)).toHaveLength(0);
+    f.assertUnsigned();
+    f.env.publish = publish;
+    await f.session.submitOutput();
+    expect(f.published.filter(p => p.isolated)).toHaveLength(count);
+    f.tick(300);
+    await expect(f.session.submitOutput()).rejects.toThrow();
+    expect(f.published.filter(p => p.isolated)).toHaveLength(count);
+    f.assertUnsigned();
+  },
+);
+
+test.each(outputTimeoutCases)(
+  'output timeout matrix $type/$count: late creator output list cannot bypass expiry',
+  async ({ type, count }) => {
+    const f = await outputTimeoutFixture(type, count);
+    await f.receive(f.reply);
+    f.tick(45);
+    await f.session.submitOutput();
+    const scripts = Array.from({ length: count * 2 }, (_, i) =>
+      type === 'p2wpkh' ? '0014' + (5 + i).toString(16).repeat(40) : '5120' + (5 + i).toString(16).repeat(64),
+    );
+    f.tick(255);
+    await expect(f.receive({ type: 'outputs', round_id: 'aa'.repeat(8), scripts })).rejects.toThrow();
+    expect(f.session.snapshot().phase).toBe('closing');
+    expect(f.session.reviewSummary()).toBeUndefined();
+    f.assertUnsigned();
+  },
+);
+
+test.each(outputTimeoutCases)(
+  'output recovery gap $type/$count: failed initial blind request leaves output retry unavailable until blind is retried',
+  async ({ type, count }) => {
+    const f = await fixture(type, count);
+    await f.receive({ type: 'welcome', pool_secret: '9', token: 'ab'.repeat(16), seq: 1 }, true);
+    await f.receive({ type: 'roster', seq: 1, seats: f.rawSeats });
+    const publish = f.env.publish;
+    f.env.publish = async () => {
+      throw new Error('blind request disconnected');
+    };
+    await expect(f.receive({ type: 'closing', round_id: 'aa'.repeat(8), seats: f.rawSeats, deadline: 10300 })).rejects.toThrow(
+      'blind request disconnected',
+    );
+    expect(f.session.snapshot()).toMatchObject({ phase: 'closing', deadline: 10300 });
+    expect(f.session.snapshot().outputNotBefore).toBeUndefined();
+    expect(f.session.snapshot().outputSignature).toBeUndefined();
+    await expect(f.session.submitOutput()).rejects.toThrow('not ready');
+    expect(f.round.snapshot().reserved).toHaveLength(1);
+    expect(f.session.snapshot().signatures).toEqual({});
+    f.env.publish = publish;
+    // Controller has a guarded recovery method, but the current screen does not expose it.
+    await f.session.retryBlind();
+    expect(f.published).toHaveLength(1);
+    expect(f.published[0].isolated).toBe(false);
+    const request = JSON.parse(decrypt(f.published[0].event.content, conversationKey(pool, pub(pool))));
+    expect(request.type).toBe('blind');
+    expect(request.round_id).toBe('aa'.repeat(8));
+    expect(f.session.snapshot().deadline).toBe(10300);
+    f.tick(301);
+    await expect(f.session.retryBlind()).rejects.toThrow();
+    await f.session.cancel();
+    expect(f.round.snapshot().reserved).toHaveLength(0);
+  },
+);
+
+test.each(
+  (['p2wpkh', 'p2tr'] as const).flatMap(type => [1, 5].flatMap(count => [3, 6, 7].map(participants => ({ type, count, participants })))),
+)(
+  'participant size matrix $type/$count/$participants: valid output registration reaches review without automatic signing',
+  async ({ type, count, participants }) => {
+    const f = await fixture(type, count, participants);
+    await f.advance();
+    expect(f.session.snapshot().phase).toBe('review');
+    expect(f.session.snapshot().seats).toHaveLength(participants);
+    expect(f.session.reviewSummary()).toMatchObject({ count, amount: 10000, total: count * 10000 });
+    expect(f.published.filter(p => p.isolated)).toHaveLength(count);
+    expect(f.session.snapshot().signatures).toEqual({});
+    expect(f.round.snapshot().reserved).toHaveLength(1);
+    await f.session.cancel();
+    expect(f.round.snapshot().reserved).toHaveLength(0);
+  },
+);

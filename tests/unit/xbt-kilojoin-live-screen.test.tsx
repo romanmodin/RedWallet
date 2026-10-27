@@ -460,3 +460,29 @@ test('closing approval feedback is separate from signatures and resets for a new
   expect(screen.getByText('Input signatures: 1/2')).toBeTruthy();
   expect(mockApprove).not.toHaveBeenCalled();
 });
+
+test('output recovery gap: closing without a blind response leaves the only output retry disabled', async () => {
+  const retryOutput = jest.fn(async () => {});
+  const live = {
+    session: {
+      phase: 'closing',
+      deadline: Math.floor(Date.now() / 1000) + 300,
+      seats: [{ coins: [{}] }, { coins: [{}] }, { coins: [{}] }],
+      signatures: {},
+    },
+    journal: { phase: 'joined', reserved: ['a:0'] },
+    error: 'Could not connect to the CoinJoin relay. Coins remain reserved until the round is resolved.',
+  };
+  await activePool.start(mockWallet, async update => {
+    mockEmit = update as typeof mockEmit;
+    update(live as never);
+    return { view: () => live, close: mockClose, retryOutput } as never;
+  });
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  expect(screen.getByText('Retry output registration')).toBeDisabled();
+  expect(screen.queryByText('Retry output preparation')).toBeNull();
+  expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
+  expect(screen.getByText('Stop participation')).toBeEnabled();
+  expect(retryOutput).not.toHaveBeenCalled();
+  expect(mockApprove).not.toHaveBeenCalled();
+});
