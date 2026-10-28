@@ -1,0 +1,30 @@
+{
+  "sourceCommit": "2bb3073678492b476ae67d6e42a76ca705b26fb2",
+  "productionTreeSha256": "08475a6c5c950f7e2485c42960a510911327acc541ee9ded66cbc0cf06a498a1",
+  "productionPathCount": 988,
+  "status": "pending-funded-android-gate",
+  "verifiedGates": [
+    {
+      "id": 39418562475,
+      "url": "https://github.com/romanmodin/RedWallet/actions/runs/39418562475",
+      "workflow": ".github/workflows/ci.yml",
+      "source": "2bb3073678492b476ae67d6e42a76ca705b26fb2",
+      "conclusion": "success",
+      "runAttempt": 1
+    },
+    {
+      "id": 39418562537,
+      "url": "https://github.com/romanmodin/RedWallet/actions/runs/39418562537",
+      "workflow": ".github/workflows/e2e-android.yml",
+      "source": "2bb3073678492b476ae67d6e42a76ca705b26fb2",
+      "conclusion": "success",
+      "runAttempt": 1
+    }
+  ],
+  "requiredFundedRunId": 39421759030,
+  "unsignedPackageBuilt": false,
+  "signed": false,
+  "published": false,
+  "physicalAndroidPhoneTested": false,
+  "iosIndependent": true
+}
