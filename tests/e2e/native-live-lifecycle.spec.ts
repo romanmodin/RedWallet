@@ -34,6 +34,8 @@ import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { lifecycleFormats } from '../native/lifecycle-formats';
 import { observeNativeCondition } from '../native/observe-native-condition';
+import { nativeActionOnce } from '../native/native-action-once';
+import { captureIosStall } from '../native/ios-stall-diagnostics';
 import { dismissFeeKeyboard } from '../native/dismiss-fee-keyboard';
 import { lifecycleCaseTimeoutMs } from '../native/lifecycle-timeouts';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
@@ -423,7 +425,7 @@ async function bump(
     assert.equal(await dismissAlertByText(english._.yes, 15_000, false), true);
   }
   await waitForId('SendSuccessDone', 60_000);
-  await element(by.id('SendSuccessDone')).tap();
+  await nativeActionOnce('Fee-bump success Done tap', () => element(by.id('SendSuccessDone')).tap());
   return tx;
 }
 
@@ -566,7 +568,9 @@ native('isolated native live wallet stages and final acceptance', () => {
             await element(by.id('ConfirmBroadcastButton')).tap();
             await waitForId('SendSuccessDone', 60_000);
             assert.ok((await backend.rpc('getrawmempool')).includes(original.getId()));
-            await element(by.id('SendSuccessDone')).tap();
+            markStep('initial send accepted; dismiss success');
+            await nativeActionOnce('Initial send success Done tap', () => element(by.id('SendSuccessDone')).tap());
+            markStep('initial success dismissed; wallet list');
             await waitForId('WalletTransactionsList');
             await refresh();
             await openSentTransaction(original.getId());
@@ -723,6 +727,28 @@ native('isolated native live wallet stages and final acceptance', () => {
         } catch (error) {
           // Record the original failure before diagnostics/teardown can fail.
           console.error('[native-lifecycle] original failure at ' + stage + '/' + format + '/' + currentStep + ':', error);
+          mkdirSync(artifactDirectory, { recursive: true });
+          writeFileSync(
+            path.join(artifactDirectory, 'native-failure.json'),
+            JSON.stringify(
+              {
+                stage,
+                format,
+                currentStep,
+                elapsedMs: Date.now() - startedAt,
+                error: String(error),
+              },
+              null,
+              2,
+            ) + '\n',
+          );
+          if (isIOS) {
+            try {
+              captureIosStall(device.id, artifactDirectory);
+            } catch (diagnosticError) {
+              console.warn('[native-lifecycle] host-side iOS sampling failed:', diagnosticError);
+            }
+          }
           await boundedDiagnostic(() => device.takeScreenshot('native-live-lifecycle-failure'));
           if (!isIOS) {
             // App-only logcat misses system activity/backgrounding events. Keep
