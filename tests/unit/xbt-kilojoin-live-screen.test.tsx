@@ -1,4 +1,5 @@
 import React from 'react';
+import { NavigationContext } from '@react-navigation/native';
 import { Alert, AppState, AppStateStatus } from 'react-native';
 import { act, cleanup, fireEvent, render } from '@testing-library/react-native';
 import { activePool } from '../../class/xbt/kilojoin/active-pool';
@@ -37,9 +38,11 @@ const mockJoin = jest.fn(async (config: { onUpdate: (view: unknown) => void }) =
   config.onUpdate(mockView);
   return { view: () => mockView, approve: mockApprove, close: mockClose };
 });
+const mockRecoverRounds = jest.fn<Promise<any[]>, any[]>(async () => []);
+const mockConfirmRecovered = jest.fn<Promise<boolean>, any[]>(async () => false);
 jest.mock('../../class/xbt/kilojoin/client', () => ({
-  recoverWalletRounds: async () => [],
-  confirmRecoveredRound: async () => false,
+  recoverWalletRounds: (...args: unknown[]) => mockRecoverRounds(...args),
+  confirmRecoveredRound: (...args: unknown[]) => mockConfirmRecovered(...args),
   MixingClient: {
     join: (config: { onUpdate: (view: unknown) => void }) => mockJoin(config),
   },
@@ -83,6 +86,8 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 beforeEach(() => {
   jest.clearAllMocks();
+  mockRecoverRounds.mockReset().mockResolvedValue([]);
+  mockConfirmRecovered.mockReset().mockResolvedValue(false);
   mockEmit = undefined;
   mockSearchMode = 'pool';
   mockFinishSearch = undefined;
@@ -339,7 +344,12 @@ test('foreground immediately recomputes the active timer from wall time after su
   const live = {
     ...mockView,
     session: { ...mockView.session, phase: 'voting', deadline: 1000 },
-    journal: { ...mockView.journal, phase: 'joined', deadline: 1000, reserved: [] },
+    journal: {
+      ...mockView.journal,
+      phase: 'joined',
+      deadline: 1000,
+      reserved: [],
+    },
   };
   try {
     await activePool.start(mockWallet, async update => {
@@ -365,25 +375,49 @@ test('foreground immediately recomputes the active timer from wall time after su
 });
 
 test.each([
-  { signatures: { one: 'sig' }, broadcastId: undefined, message: /Waiting for the other participants to sign/ },
-  { signatures: { one: 'sig', two: 'sig' }, broadcastId: undefined, message: /Next action: broadcast/ },
-  { signatures: { one: 'sig', two: 'sig' }, broadcastId: 'aa'.repeat(32), message: /No action is required from you right now/ },
+  {
+    signatures: { one: 'sig' },
+    broadcastId: undefined,
+    message: /Waiting for the other participants to sign/,
+  },
+  {
+    signatures: { one: 'sig', two: 'sig' },
+    broadcastId: undefined,
+    message: /Next action: broadcast/,
+  },
+  {
+    signatures: { one: 'sig', two: 'sig' },
+    broadcastId: 'aa'.repeat(32),
+    message: /No action is required from you right now/,
+  },
 ])('signed step is green while remaining work is explicit: $broadcastId $signatures', async ({ signatures, broadcastId, message }) => {
   const retrySignatures = jest.fn(async () => {});
   const broadcast = jest.fn(async () => {});
   const checkConfirmation = jest.fn(async () => false);
   const live = {
-    session: { phase: 'signed', seats: [{ coins: [{}] }, { coins: [{}] }], signatures },
+    session: {
+      phase: 'signed',
+      seats: [{ coins: [{}] }, { coins: [{}] }],
+      signatures,
+    },
     journal: { phase: 'signed', reserved: ['11'.repeat(32) + ':0'] },
     broadcastId,
   };
   await activePool.start(mockWallet, async update => {
     mockEmit = update as typeof mockEmit;
     update(live as never);
-    return { view: () => live, close: mockClose, retrySignatures, broadcast, checkConfirmation } as never;
+    return {
+      view: () => live,
+      close: mockClose,
+      retrySignatures,
+      broadcast,
+      checkConfirmation,
+    } as never;
   });
   const screen = render(<CoinjoinLive experimentalAcknowledged />);
-  expect(screen.getByText('✓ Your signing is complete')).toHaveStyle({ color: '#248445' });
+  expect(screen.getByText('✓ Your signing is complete')).toHaveStyle({
+    color: '#248445',
+  });
   expect(screen.getByText(message)).toBeTruthy();
   expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
   expect(screen.queryByText('Review and sign')).toBeNull();
@@ -413,7 +447,10 @@ test.each(['uncertain', 'aborted', 'complete'])(
   async phase => {
     const live = {
       session: { phase: 'signed', seats: [], signatures: {} },
-      journal: { phase, reserved: phase === 'uncertain' ? ['11'.repeat(32) + ':0'] : [] },
+      journal: {
+        phase,
+        reserved: phase === 'uncertain' ? ['11'.repeat(32) + ':0'] : [],
+      },
     };
     await activePool.start(mockWallet, async update => {
       mockEmit = update as typeof mockEmit;
@@ -454,9 +491,17 @@ test('closing approval feedback is separate from signatures and resets for a new
   expect(vote).toHaveBeenCalledWith(true);
   // A press alone cannot claim success; only a durable session update can.
   expect(screen.queryByText('✓ Your closing approval was sent')).toBeNull();
-  const sent = { ...live, session: { ...live.session, closingResponse: { voteId: 'first', accept: true } } };
+  const sent = {
+    ...live,
+    session: {
+      ...live.session,
+      closingResponse: { voteId: 'first', accept: true },
+    },
+  };
   await act(async () => mockEmit!(sent));
-  expect(screen.getByText('✓ Your closing approval was sent')).toHaveStyle({ color: '#248445' });
+  expect(screen.getByText('✓ Your closing approval was sent')).toHaveStyle({
+    color: '#248445',
+  });
   expect(screen.getByText(/Closing approvals: total unavailable/)).toBeTruthy();
   expect(screen.queryByText('Action required: closing vote')).toBeNull();
   expect(screen.queryByText('Accept round closing')).toBeNull();
@@ -470,7 +515,16 @@ test('closing approval feedback is separate from signatures and resets for a new
   expect(screen.getByText('Action required: closing vote')).toBeTruthy();
   expect(screen.getByText('Accept round closing')).toBeEnabled();
   expect(screen.queryByText('Resend closing approval (optional)')).toBeNull();
-  await act(async () => mockEmit!({ ...sent, session: { ...sent.session, phase: 'review', signatures: { 'a:0': 'validated' } } }));
+  await act(async () =>
+    mockEmit!({
+      ...sent,
+      session: {
+        ...sent.session,
+        phase: 'review',
+        signatures: { 'a:0': 'validated' },
+      },
+    }),
+  );
   expect(screen.getByText('Participants signed: 1/2')).toBeTruthy();
   expect(screen.getByText('Input signatures: 1/2')).toBeTruthy();
   expect(mockApprove).not.toHaveBeenCalled();
@@ -492,7 +546,12 @@ test('closing without a blind response exposes guarded preparation recovery', as
   await activePool.start(mockWallet, async update => {
     mockEmit = update as typeof mockEmit;
     update(live as never);
-    return { view: () => live, close: mockClose, retryOutput, retryOutputPreparation } as never;
+    return {
+      view: () => live,
+      close: mockClose,
+      retryOutput,
+      retryOutputPreparation,
+    } as never;
   });
   const screen = render(<CoinjoinLive experimentalAcknowledged />);
   expect(screen.getByText('Retry output registration')).toBeDisabled();
@@ -523,7 +582,11 @@ test.each([-1, 0, 1])('output preparation retry obeys the absolute deadline boun
   await activePool.start(mockWallet, async update => {
     mockEmit = update as typeof mockEmit;
     update(live as never);
-    return { view: () => live, close: mockClose, retryOutputPreparation } as never;
+    return {
+      view: () => live,
+      close: mockClose,
+      retryOutputPreparation,
+    } as never;
   });
   const screen = render(<CoinjoinLive experimentalAcknowledged />);
   const button = screen.getByText('Retry output preparation');
@@ -570,7 +633,11 @@ test('output delay timer catches up on foreground and completed relay sends rema
     await act(async () =>
       mockEmit!({
         ...live,
-        session: { ...live.session, outputNotBefore: undefined, outputProgress: { total: 5, submitted: 5, prepared: true } },
+        session: {
+          ...live.session,
+          outputNotBefore: undefined,
+          outputProgress: { total: 5, submitted: 5, prepared: true },
+        },
       }),
     );
     expect(screen.getByText('✓ Your outputs were sent')).toBeTruthy();
@@ -630,7 +697,13 @@ test.each([true, false])('closing response %s sends once, waits for durable feed
   });
   const vote = jest.fn(async () => {
     await pending;
-    mockEmit!({ ...live, session: { ...live.session, closingResponse: { voteId: 'current-vote', accept } } });
+    mockEmit!({
+      ...live,
+      session: {
+        ...live.session,
+        closingResponse: { voteId: 'current-vote', accept },
+      },
+    });
   });
   const live = await startClosingVote(vote);
   const screen = render(<CoinjoinLive experimentalAcknowledged />);
@@ -696,7 +769,12 @@ test('an old closing button cannot respond to a replacement vote', async () => {
   const live = await startClosingVote(vote);
   const screen = render(<CoinjoinLive experimentalAcknowledged />);
   const oldPress = screen.UNSAFE_getAllByType(Button).find(button => button.props.title === 'Accept round closing')!.props.onPress;
-  await act(async () => mockEmit!({ ...live, session: { ...live.session, voteId: 'replacement-vote' } }));
+  await act(async () =>
+    mockEmit!({
+      ...live,
+      session: { ...live.session, voteId: 'replacement-vote' },
+    }),
+  );
   await act(async () => oldPress());
   expect(vote).not.toHaveBeenCalled();
   await act(async () => fireEvent.press(screen.getByText('Accept round closing')));
@@ -710,7 +788,9 @@ test.each([true, false])('sent response %s only exposes deliberate same-response
   expect(screen.queryByText('Accept round closing')).toBeNull();
   expect(screen.queryByText('Decline')).toBeNull();
   expect(screen.queryByText(/Resend closing/)).toBeNull();
-  const options = screen.getByRole('button', { name: 'Closing response options (optional)' });
+  const options = screen.getByRole('button', {
+    name: 'Closing response options (optional)',
+  });
   expect(options.props.accessibilityState).toEqual({ expanded: false });
   fireEvent.press(options);
   const resend = accept ? 'Resend closing approval (optional)' : 'Resend closing decline (optional)';
@@ -758,8 +838,231 @@ test('a retained retry cannot replace a different saved closing response', async
   fireEvent.press(screen.getByText('Closing response options (optional)'));
   const retry = screen.UNSAFE_getAllByType(Button).find(button => button.props.title === 'Resend closing approval (optional)')!.props
     .onPress;
-  await act(async () => mockEmit!({ ...live, session: { ...live.session, closingResponse: { voteId: 'current-vote', accept: false } } }));
+  await act(async () =>
+    mockEmit!({
+      ...live,
+      session: {
+        ...live.session,
+        closingResponse: { voteId: 'current-vote', accept: false },
+      },
+    }),
+  );
   await act(async () => retry());
   expect(vote).not.toHaveBeenCalled();
   expect(screen.getByText('Your decline was sent')).toBeTruthy();
+});
+
+async function startConfirmationRound(checkConfirmation: () => Promise<boolean>, phase = 'signed') {
+  const live = {
+    session: {
+      phase: 'signed',
+      seats: [{ coins: [{}] }],
+      signatures: { one: 'sig' },
+    },
+    journal: {
+      phase,
+      reviewedId: 'aa'.repeat(32),
+      reserved: ['11'.repeat(32) + ':0'],
+    },
+    broadcastId: 'aa'.repeat(32),
+  };
+  await activePool.start(mockWallet, async update => {
+    mockEmit = update as typeof mockEmit;
+    update(live as never);
+    return { view: () => live, close: mockClose, checkConfirmation } as never;
+  });
+  return live;
+}
+
+test('checks signed confirmation on entry and re-entry without treating a pending block as failure', async () => {
+  const check = jest.fn(async () => false);
+  await startConfirmationRound(check);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {});
+  expect(check).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId('CoinjoinConfirmationNotice')).toHaveTextContent(/Waiting for blockchain confirmation/);
+  expect(screen.queryByTestId('CoinjoinIssueCategory')).toBeNull();
+  expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
+  screen.unmount();
+  render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {});
+  expect(check).toHaveBeenCalledTimes(2);
+  expect(mockApprove).not.toHaveBeenCalled();
+  expect(mockClose).not.toHaveBeenCalled();
+});
+
+test('screen focus and foreground share one in-flight check and do not poll on render', async () => {
+  let finish!: (confirmed: boolean) => void;
+  const check = jest.fn(
+    () =>
+      new Promise<boolean>(resolve => {
+        finish = resolve;
+      }),
+  );
+  await startConfirmationRound(check);
+  let foreground!: (state: AppStateStatus) => void;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    foreground = listener;
+    return { remove: jest.fn() };
+  });
+  let focus!: () => void;
+  const detach = jest.fn();
+  const nav = {
+    isFocused: () => true,
+    addListener: (_event: string, listener: () => void) => {
+      focus = listener;
+      return detach;
+    },
+  };
+  const screen = render(
+    <NavigationContext.Provider value={nav as never}>
+      <CoinjoinLive experimentalAcknowledged />
+    </NavigationContext.Provider>,
+  );
+  act(() => {
+    focus();
+    foreground('active');
+  });
+  expect(check).toHaveBeenCalledTimes(1);
+  await act(async () => finish(false));
+  expect(check).toHaveBeenCalledTimes(1);
+  act(() => focus());
+  expect(check).toHaveBeenCalledTimes(2);
+  await act(async () => finish(false));
+  act(() => foreground('background'));
+  expect(check).toHaveBeenCalledTimes(2);
+  act(() => foreground('active'));
+  expect(check).toHaveBeenCalledTimes(3);
+  screen.unmount();
+  await act(async () => finish(false));
+  expect(detach).toHaveBeenCalledTimes(1);
+  expect(activePool.snapshot()?.busy).toBe(false);
+});
+
+test('successful verification updates confirmed state and further returns do not check again', async () => {
+  const check = jest.fn(async () => {
+    mockEmit!({
+      ...live,
+      journal: { ...live.journal, phase: 'complete', reserved: [] },
+    });
+    return true;
+  });
+  const live = await startConfirmationRound(check);
+  let foreground!: (state: AppStateStatus) => void;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    foreground = listener;
+    return { remove: jest.fn() };
+  });
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {});
+  expect(screen.getByText('Status: Confirmed')).toBeTruthy();
+  expect(screen.getByText('Reserved coins: 0')).toBeTruthy();
+  await act(async () => foreground('active'));
+  expect(check).toHaveBeenCalledTimes(1);
+});
+
+test('failed confirmation verification leaves reservations intact and retries on next foreground', async () => {
+  const check = jest.fn().mockRejectedValueOnce(new Error('Backend unavailable')).mockResolvedValue(false);
+  await startConfirmationRound(check, 'uncertain');
+  let foreground!: (state: AppStateStatus) => void;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    foreground = listener;
+    return { remove: jest.fn() };
+  });
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {});
+  expect(screen.getByText('Backend unavailable')).toBeTruthy();
+  expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
+  await act(async () => foreground('active'));
+  expect(check).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText('Backend unavailable')).toBeNull();
+  expect(screen.queryByTestId('CoinjoinIssueCategory')).toBeNull();
+  expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
+});
+
+test.each(['review', 'joined', 'complete', 'aborted'])('never auto-confirms a %s journal', async phase => {
+  const check = jest.fn(async () => false);
+  await startConfirmationRound(check, phase);
+  render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {});
+  expect(check).not.toHaveBeenCalled();
+  expect(mockApprove).not.toHaveBeenCalled();
+});
+
+test('selecting a wallet after restart automatically verifies saved rounds and keeps the frozen-output notice', async () => {
+  jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
+  jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([]);
+  mockRecoverRounds.mockResolvedValueOnce([{ phase: 'uncertain', poolId: 'saved', reviewedId: 'aa'.repeat(32) }]);
+  mockConfirmRecovered.mockResolvedValue(true);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  expect(mockConfirmRecovered).not.toHaveBeenCalled();
+  await act(async () => fireEvent.press(screen.getByText('○ Test wallet')));
+  expect(mockConfirmRecovered).toHaveBeenCalledWith(mockWallet, 'saved');
+  expect(screen.getByTestId('CoinjoinConfirmationNotice')).toHaveTextContent(/Recovered outputs remain frozen for review in Coin Control/);
+  expect(mockApprove).not.toHaveBeenCalled();
+  expect(mockJoin).not.toHaveBeenCalled();
+});
+
+test('recovered pending and failed checks keep the saved round available', async () => {
+  jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
+  jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([]);
+  mockRecoverRounds.mockResolvedValue([{ phase: 'uncertain', poolId: 'saved', reviewedId: 'aa'.repeat(32) }]);
+  mockConfirmRecovered.mockRejectedValueOnce(new Error('Invalid transaction bytes')).mockResolvedValue(false);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => fireEvent.press(screen.getByText('○ Test wallet')));
+  expect(screen.getByText('Invalid transaction bytes')).toBeTruthy();
+  expect(screen.getByText('Check previous round confirmation')).toBeTruthy();
+  await act(async () => fireEvent.press(screen.getByText('● Test wallet')));
+  expect(screen.queryByTestId('CoinjoinIssueCategory')).toBeNull();
+  expect(screen.getByText('Check previous round confirmation')).toBeTruthy();
+  expect(screen.getByTestId('CoinjoinConfirmationNotice')).toHaveTextContent(/Coins remain reserved/);
+});
+
+test('busy actions and unfocused screens postpone automatic confirmation until a later focus', async () => {
+  const check = jest.fn(async () => false);
+  await startConfirmationRound(check);
+  let release!: () => void;
+  const pending = activePool.perform(
+    () =>
+      new Promise<void>(resolve => {
+        release = resolve;
+      }),
+  );
+  let focus!: () => void;
+  const isFocused = jest.fn(() => true);
+  const nav = {
+    isFocused,
+    addListener: (_event: string, listener: () => void) => {
+      focus = listener;
+      return () => {};
+    },
+  };
+  render(
+    <NavigationContext.Provider value={nav as never}>
+      <CoinjoinLive experimentalAcknowledged />
+    </NavigationContext.Provider>,
+  );
+  await act(async () => {});
+  expect(check).not.toHaveBeenCalled();
+  await act(async () => {
+    release();
+    await pending;
+  });
+  isFocused.mockReturnValue(false);
+  await act(async () => focus());
+  expect(check).not.toHaveBeenCalled();
+  isFocused.mockReturnValue(true);
+  await act(async () => focus());
+  expect(check).toHaveBeenCalledTimes(1);
+});
+
+test('manual confirmation refresh uses a neutral pending status too', async () => {
+  const check = jest.fn(async () => false);
+  await startConfirmationRound(check);
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => {});
+  await act(async () => fireEvent.press(screen.getByText('Refresh confirmation status (optional)')));
+  expect(check).toHaveBeenCalledTimes(2);
+  expect(screen.queryByTestId('CoinjoinIssueCategory')).toBeNull();
+  expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
 });
