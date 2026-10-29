@@ -3,7 +3,8 @@ import { roundAttention } from '../../class/xbt/kilojoin/attention';
 import { poolCountdown, roundTiming, participationElapsed } from '../../class/xbt/kilojoin/timing';
 import { activePool } from '../../class/xbt/kilojoin/active-pool';
 import { Journal } from '../../class/xbt/kilojoin/round';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { NavigationContext } from '@react-navigation/native';
 import { Alert, AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SettingsScrollView, SettingsFootnote } from '../../components/SettingsSection';
 import Button from '../../components/Button';
@@ -22,6 +23,7 @@ import { coinjoinIssue, coinjoinProgress } from '../../class/xbt/kilojoin/presen
 
 /** Experimental live route; joining requires the entry acknowledgment. */
 export default function CoinjoinLive({ experimentalAcknowledged = false }: { experimentalAcknowledged?: boolean }) {
+  const navigation = useContext(NavigationContext);
   const { colors } = useTheme(),
     { wallets } = useStorage();
   const choices = wallets.filter((w): w is MixingWallet => w instanceof XbtSegwitBech32Wallet || w instanceof XbtTaprootWallet);
@@ -30,7 +32,10 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     const updateClock = () => setClock(Math.floor(Date.now() / 1000));
     const timer = setInterval(updateClock, 1000);
     const foreground = AppState.addEventListener('change', state => {
-      if (state === 'active') updateClock();
+      if (state === 'active') {
+        updateClock();
+        refreshOnReturn.current();
+      }
     });
     return () => {
       clearInterval(timer);
@@ -52,8 +57,13 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     [localBusy, setBusy] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [voteOptions, setVoteOptions] = useState<string>();
-  const [pendingVote, setPendingVote] = useState<{ voteId: string; accept: boolean }>();
+  const [pendingVote, setPendingVote] = useState<{
+    voteId: string;
+    accept: boolean;
+  }>();
   const voteInFlight = useRef(false);
+  const actionInFlight = useRef(false);
+  const [confirmationNotice, setConfirmationNotice] = useState('');
   const busy = localBusy || !!active?.busy;
   const client = useRef<MixingClient | undefined>(activePool.snapshot()?.client),
     discovery = useRef<KilojoinRelay | undefined>(undefined),
@@ -74,7 +84,8 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     };
   }, []);
   const run = async (action: () => Promise<void>) => {
-    if (busy) return;
+    if (busy || actionInFlight.current) return;
+    actionInFlight.current = true;
     setBusy(true);
     setError('');
     try {
@@ -83,6 +94,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : 'Action failed');
     } finally {
+      actionInFlight.current = false;
       if (mounted.current) setBusy(false);
     }
   };
@@ -135,14 +147,73 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
       }
     }
   };
+  const refreshRecovered = async (chosen: MixingWallet) => {
+    const rounds = await recoverWalletRounds(chosen);
+    if (mounted.current) setRecovered(rounds);
+    let confirmed = false;
+    let pending = false;
+    for (const round of rounds) {
+      if (round.phase !== 'uncertain' || !round.reviewedId) continue;
+      try {
+        if (await confirmRecoveredRound(chosen, round.poolId)) confirmed = true;
+        else pending = true;
+      } catch (e) {
+        if (mounted.current) setError(e instanceof Error ? e.message : 'Could not check confirmation');
+      }
+    }
+    const remaining = await recoverWalletRounds(chosen);
+    if (mounted.current) {
+      setRecovered(remaining);
+      setConfirmationNotice(
+        confirmed
+          ? 'Previous round confirmed. Recovered outputs remain frozen for review in Coin Control.'
+          : pending
+            ? 'Waiting for blockchain confirmation. Coins remain reserved.'
+            : '',
+      );
+    }
+  };
+  const checkActiveConfirmation = async () => {
+    const current = activePool.snapshot();
+    if (!current?.client || !['signed', 'uncertain'].includes(current.view?.journal.phase ?? '')) return;
+    const confirmed = await current.client.checkConfirmation();
+    if (mounted.current && activePool.snapshot()?.client === current.client)
+      setConfirmationNotice(confirmed ? '' : 'Waiting for blockchain confirmation. Coins remain reserved.');
+  };
   const chooseWallet = async (chosen: MixingWallet) => {
     setWallet(chosen);
     setSelected([]);
     setCoins([]);
-    setRecovered(await recoverWalletRounds(chosen));
+    await refreshRecovered(chosen);
     await chosen.fetchUtxo();
     if (mounted.current) setCoins(chosen.getUtxo());
   };
+  // Read the latest render state without rechecking on every clock tick or status update.
+  const refreshOnReturn = useRef<() => void>(() => {});
+  refreshOnReturn.current = () => {
+    if (!mounted.current || (navigation && !navigation.isFocused()) || AppState.currentState === 'background') return;
+    const current = activePool.snapshot();
+    if (current?.client) {
+      if (
+        current.view?.journal.reviewedId &&
+        (current.view.journal.phase === 'uncertain' || (current.view.journal.phase === 'signed' && current.view.broadcastId))
+      )
+        run(checkActiveConfirmation);
+    } else if (wallet) {
+      run(async () => {
+        await refreshRecovered(wallet);
+        await wallet.fetchUtxo();
+        if (mounted.current) setCoins(wallet.getUtxo());
+      });
+    }
+  };
+  useEffect(() => {
+    refreshOnReturn.current();
+    const detachFocus = navigation?.addListener('focus', () => refreshOnReturn.current());
+    return () => {
+      detachFocus?.();
+    };
+  }, [navigation]);
   const visiblePools = Object.values(pools).filter(
     p => p.terms.timeout > Math.floor(Date.now() / 1000) && (!wallet || p.terms.script === wallet.segwitType),
   );
@@ -240,6 +311,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             <Text style={text}>{attention.detail}</Text>
           </View>
         )}
+        {!!confirmationNotice && <SettingsFootnote testID="CoinjoinConfirmationNotice">{confirmationNotice}</SettingsFootnote>}
         {!!issue && (
           <View>
             <Text testID="CoinjoinIssueCategory" style={styles.error}>
@@ -274,8 +346,13 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                     disabled={busy}
                     onPress={() =>
                       run(async () => {
-                        if (!wallet || !(await confirmRecoveredRound(wallet, j.poolId)))
-                          throw new Error('Previous round is not confirmed yet');
+                        if (!wallet) return;
+                        const confirmed = await confirmRecoveredRound(wallet, j.poolId);
+                        setConfirmationNotice(
+                          confirmed
+                            ? 'Previous round confirmed. Recovered outputs remain frozen for review in Coin Control.'
+                            : 'Waiting for blockchain confirmation. Coins remain reserved.',
+                        );
                         setRecovered(await recoverWalletRounds(wallet));
                         await wallet.fetchUtxo();
                         setCoins(wallet.getUtxo());
@@ -539,7 +616,9 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                   <>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityState={{ expanded: voteOptions === session.voteId }}
+                      accessibilityState={{
+                        expanded: voteOptions === session.voteId,
+                      }}
                       onPress={() => setVoteOptions(old => (old === session.voteId ? undefined : session.voteId))}
                     >
                       <Text style={text}>
@@ -617,7 +696,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                   disabled={busy}
                   onPress={() =>
                     run(async () => {
-                      if (!(await client.current!.checkConfirmation())) setError('Not confirmed yet. Coins remain reserved.');
+                      await checkActiveConfirmation();
                     })
                   }
                 />
@@ -661,7 +740,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 disabled={busy}
                 onPress={() =>
                   run(async () => {
-                    if (!(await client.current!.checkConfirmation())) throw new Error('Not confirmed yet; coins remain reserved');
+                    await checkActiveConfirmation();
                   })
                 }
               />
