@@ -51,26 +51,44 @@ export async function resetArtworkSimulator(
         timeout: Math.min(5000, remaining()),
       }),
     );
-  const before = processes();
+  const observationTimeouts = [];
+  const observe = async stage => {
+    for (;;) {
+      remaining();
+      try {
+        const result = processes();
+        remaining(); // A late subprocess result is not readiness within our deadline.
+        return result;
+      } catch (error) {
+        // simctl's read-only transport can stall during system-shell startup.
+        // A timeout supplies NO process identity. Resample only this observation,
+        // within the same total budget; never retry a reset or malformed table.
+        if (error?.code !== 'ETIMEDOUT') throw error;
+        observationTimeouts.push({ stage, elapsedMs: now() - started });
+      }
+      await pause(Math.min(500, remaining()));
+    }
+  };
+  const before = await observe('before');
   if (!before.springboard) throw new Error('SpringBoard was not running before simulator reset');
   run(
     'applesimutils',
     ['--byId', deviceId, '--bundle', 'com.romanmodin.redwallet', '--clearKeychain', '--setPermissions', 'notifications=NO'],
     { encoding: 'utf8', timeout: Math.min(60000, remaining()) },
   );
-  // Poll observations only: never repeat a reset, relaunch or failed command.
+  // Poll observations only: never repeat a reset or relaunch.
   // If Spotlight was running, its replacement also has to appear (the same
   // service-refresh barrier used by Appium's iOS permission-reset handling).
   for (;;) {
     remaining();
-    const after = processes();
+    const after = await observe('after');
     remaining();
     if (
       after.springboard &&
       after.springboard !== before.springboard &&
       (!before.spotlight || (after.spotlight && after.spotlight !== before.spotlight))
     ) {
-      return { deviceId, before, after, elapsedMs: now() - started };
+      return { deviceId, before, after, observationTimeouts, elapsedMs: now() - started };
     }
     await pause(Math.min(500, remaining()));
   }

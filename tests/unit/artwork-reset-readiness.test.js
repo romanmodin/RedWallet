@@ -172,3 +172,56 @@ test('all probes target the exact simulator and every subprocess has a bounded t
     if (command === 'xcrun') expect(args).toEqual(['simctl', 'spawn', id, 'launchctl', 'list']);
   }
 });
+
+test.each(['before', 'after'])('a timed-out %s observation is resampled inside the same budget, never taken as readiness', async stage => {
+  const ticks = clock();
+  let reads = 0;
+  const run = jest.fn(command => {
+    if (command === 'applesimutils') return '';
+    const index = reads++;
+    if (index === (stage === 'before' ? 0 : 1)) {
+      ticks.advance(5000);
+      throw Object.assign(new Error('spawnSync xcrun ETIMEDOUT'), { code: 'ETIMEDOUT' });
+    }
+    return index < 2 && stage === 'before' ? table() : index === 0 ? table() : table(101, 201);
+  });
+  const receipt = await resetArtworkSimulator(run, id, ticks);
+  expect(receipt.before.springboard).toBe(100);
+  expect(receipt.after.springboard).toBe(101);
+  expect(receipt.observationTimeouts).toEqual([{ stage, elapsedMs: 5000 }]);
+  expect(receipt.elapsedMs).toBe(5500);
+  expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(1);
+});
+
+test('repeated observation timeouts exhaust the original total deadline without resetting or launching', async () => {
+  const ticks = clock();
+  const run = jest.fn((_command, _args, options) => {
+    ticks.advance(options.timeout);
+    throw Object.assign(new Error('query timeout'), { code: 'ETIMEDOUT' });
+  });
+  await expect(resetArtworkSimulator(run, id, ticks)).rejects.toThrow('restart did not settle');
+  expect(ticks.now()).toBe(120000);
+  expect(run.mock.calls.every(([command]) => command === 'xcrun')).toBe(true);
+});
+
+test('a combined-reset timeout itself remains fatal and is never repeated', async () => {
+  const error = Object.assign(new Error('reset timed out'), { code: 'ETIMEDOUT' });
+  const run = jest.fn(command => {
+    if (command === 'applesimutils') throw error;
+    return table();
+  });
+  await expect(resetArtworkSimulator(run, id, clock())).rejects.toBe(error);
+  expect(run).toHaveBeenCalledTimes(2);
+});
+
+test('a late successful observation beyond the deadline cannot pass', async () => {
+  const ticks = clock();
+  let reads = 0;
+  const run = jest.fn(command => {
+    if (command === 'applesimutils') return '';
+    if (reads++ === 0) return table();
+    ticks.advance(120001);
+    return table(101, 201);
+  });
+  await expect(resetArtworkSimulator(run, id, ticks)).rejects.toThrow('restart did not settle');
+});
