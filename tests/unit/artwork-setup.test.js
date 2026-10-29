@@ -1,9 +1,18 @@
-import { prepareArtworkApp, setSimulatorAppearance, denySimulatorNotifications } from '../e2e/artwork-setup';
+import { prepareArtworkApp, setSimulatorAppearance, resetArtworkSimulator } from '../e2e/artwork-setup';
 
 const id = 'A00461C1-53DC-43E1-8399-D43CB4D3E301';
 const setup = (_name, action) => action();
+const table = pid => 'PID\tStatus\tLabel\n' + pid + '\t0\tcom.apple.SpringBoard\n';
+const makeRun = () => {
+  let reads = 0;
+  return jest.fn((command, args) => {
+    if (command === 'applesimutils') return '';
+    if (args.includes('launchctl')) return table(++reads);
+    return 'dark\n';
+  });
+};
 
-test('style commands wait for clean launch and actual app readiness after Keychain reset', async () => {
+test('style commands wait for clean launch and actual app readiness after the combined reset', async () => {
   let ready;
   let reachedReady;
   const waitingForReady = new Promise(resolve => {
@@ -15,7 +24,6 @@ test('style commands wait for clean launch and actual app readiness after Keycha
     terminateApp: jest.fn(async () => events.push('terminated')),
     uninstallApp: jest.fn(async () => events.push('uninstalled')),
     installApp: jest.fn(async () => events.push('installed')),
-    clearKeychain: jest.fn(async () => events.push('cleared')),
     launchApp: jest.fn(async () => events.push('launched')),
   };
   const waitForReady = jest
@@ -28,64 +36,50 @@ test('style commands wait for clean launch and actual app readiness after Keycha
         }),
     )
     .mockResolvedValueOnce();
-  const run = jest.fn((command, args) => {
-    if (command === 'applesimutils') {
-      events.push('notifications-denied');
-      return '';
-    }
-    events.push(args.length === 5 ? 'set-dark' : 'read-dark');
-    return 'dark\n';
+  const nativeRun = makeRun();
+  const run = jest.fn((command, args, options) => {
+    if (command === 'applesimutils') events.push('reset');
+    else if (args.includes('appearance')) events.push(args.length === 5 ? 'set-dark' : 'read-dark');
+    return nativeRun(command, args, options);
   });
   const pending = prepareArtworkApp({ device, setup, waitForReady, run });
   await waitingForReady;
-  expect(events).toEqual(['terminated', 'uninstalled', 'cleared', 'installed', 'notifications-denied', 'launched']);
-  expect(run).toHaveBeenCalledTimes(1);
-  expect(run.mock.calls[0]).toEqual([
-    'applesimutils',
-    ['--byId', id, '--bundle', 'com.romanmodin.redwallet', '--restartSB', '--setPermissions', 'notifications=NO'],
-    { encoding: 'utf8', timeout: 60000 },
-  ]);
+  expect(events).toEqual(['terminated', 'uninstalled', 'installed', 'reset', 'launched']);
+  expect(run.mock.calls.filter(([, args]) => args.includes('appearance'))).toHaveLength(0);
   ready();
-  expect(await pending).toEqual({
+  const result = await pending;
+  expect(result).toMatchObject({
     deviceId: id,
     requested: 'dark',
     observed: 'dark',
+    reset: {
+      deviceId: id,
+      before: { springboard: 1 },
+      after: { springboard: 2 },
+    },
   });
-  expect(events).toEqual([
-    'terminated',
-    'uninstalled',
-    'cleared',
-    'installed',
-    'notifications-denied',
-    'launched',
-    'set-dark',
-    'read-dark',
-  ]);
+  expect(events).toEqual(['terminated', 'uninstalled', 'installed', 'reset', 'launched', 'set-dark', 'read-dark']);
   expect(device.launchApp).toHaveBeenCalledWith({ newInstance: false });
   expect(waitForReady).toHaveBeenCalledTimes(2);
 });
 
-test.each(['terminate', 'uninstall', 'clear', 'install', 'launch', 'ready'])(
-  'failed %s setup never attempts a style change',
-  async failing => {
-    const error = new Error('native setup failed');
-    const action = stage =>
-      jest.fn(async () => {
-        if (stage === failing) throw error;
-      });
-    const device = {
-      id,
-      terminateApp: action('terminate'),
-      uninstallApp: action('uninstall'),
-      installApp: action('install'),
-      clearKeychain: action('clear'),
-      launchApp: action('launch'),
-    };
-    const run = jest.fn();
-    await expect(prepareArtworkApp({ device, setup, waitForReady: action('ready'), run })).rejects.toBe(error);
-    expect(run.mock.calls.filter(([command]) => command === 'xcrun')).toEqual([]);
-  },
-);
+test.each(['terminate', 'uninstall', 'install', 'launch', 'ready'])('failed %s setup never attempts a style change', async failing => {
+  const error = new Error('native setup failed');
+  const action = stage =>
+    jest.fn(async () => {
+      if (stage === failing) throw error;
+    });
+  const device = {
+    id,
+    terminateApp: action('terminate'),
+    uninstallApp: action('uninstall'),
+    installApp: action('install'),
+    launchApp: action('launch'),
+  };
+  const run = makeRun();
+  await expect(prepareArtworkApp({ device, setup, waitForReady: action('ready'), run })).rejects.toBe(error);
+  expect(run.mock.calls.filter(([, args]) => args.includes('appearance'))).toEqual([]);
+});
 
 test.each(['dark', 'light'])('reads back %s on the exact simulator with bounded commands', appearance => {
   const run = jest
@@ -138,11 +132,10 @@ test('losing the visible app after changing style cannot pass setup', async () =
     terminateApp: jest.fn(),
     uninstallApp: jest.fn(),
     installApp: jest.fn(),
-    clearKeychain: jest.fn(),
     launchApp: jest.fn(),
   };
   const waitForReady = jest.fn().mockResolvedValueOnce().mockRejectedValueOnce(error);
-  await expect(prepareArtworkApp({ device, setup, waitForReady, run: () => 'dark' })).rejects.toBe(error);
+  await expect(prepareArtworkApp({ device, setup, waitForReady, run: makeRun() })).rejects.toBe(error);
 });
 
 test('reset operations settle before the next begins; failure leaves the app unlaunched', async () => {
@@ -156,62 +149,56 @@ test('reset operations settle before the next begins; failure leaves the app unl
         }),
     ),
     uninstallApp: jest.fn(),
-    clearKeychain: jest.fn(),
     installApp: jest.fn(),
     launchApp: jest.fn(),
   };
+  const run = makeRun();
   const pending = prepareArtworkApp({
     device,
     setup,
     waitForReady: jest.fn(),
-    run: jest.fn(),
+    run,
   });
-  expect(device.clearKeychain).not.toHaveBeenCalled();
   expect(device.uninstallApp).not.toHaveBeenCalled();
   rejectTermination(new Error('termination failed'));
   await expect(pending).rejects.toThrow('termination failed');
-  expect(device.clearKeychain).not.toHaveBeenCalled();
   expect(device.installApp).not.toHaveBeenCalled();
+  expect(run).not.toHaveBeenCalled();
   expect(device.launchApp).not.toHaveBeenCalled();
 });
 
-test('notification reset is a separately bounded setup stage before launch', async () => {
+test('combined reset and readiness share the original Keychain budget; launch deadline is unchanged', async () => {
   const stages = [];
   const device = {
     id,
     terminateApp: jest.fn(),
     uninstallApp: jest.fn(),
-    clearKeychain: jest.fn(),
     installApp: jest.fn(),
     launchApp: jest.fn(),
   };
-  const run = jest.fn(command => (command === 'xcrun' ? 'dark' : ''));
-  const tracedSetup = async (name, action, timeoutMs = 60000) => {
-    stages.push([name, timeoutMs]);
-    return action();
-  };
   await prepareArtworkApp({
     device,
-    setup: tracedSetup,
     waitForReady: jest.fn(),
-    run,
+    run: makeRun(),
+    setup: async (name, action, timeoutMs = 60000) => {
+      stages.push([name, timeoutMs]);
+      return action();
+    },
   });
   expect(stages).toEqual([
     ['terminate-before-reset', 60000],
     ['uninstall-before-reset', 60000],
-    ['clear-keychain', 120000],
     ['install-clean-app', 60000],
-    ['deny-notifications', 60000],
+    ['reset-keychain-and-notifications', 120000],
     ['launch-clean-app', 60000],
     ['initial-wallet-list', 60000],
     ['dark-appearance', 60000],
     ['wallet-list-after-appearance', 60000],
   ]);
   expect(device.launchApp).toHaveBeenCalledTimes(1);
-  expect(device.launchApp).toHaveBeenCalledWith({ newInstance: false });
 });
 
-test('permission failure stops before launch and readiness; it is not retried', async () => {
+test('permission/reset command failure stops before launch and readiness; it is not retried', async () => {
   const error = Object.assign(new Error('permission reset timed out'), {
     code: 'ETIMEDOUT',
   });
@@ -219,23 +206,22 @@ test('permission failure stops before launch and readiness; it is not retried', 
     id,
     terminateApp: jest.fn(),
     uninstallApp: jest.fn(),
-    clearKeychain: jest.fn(),
     installApp: jest.fn(),
     launchApp: jest.fn(),
   };
   const waitForReady = jest.fn();
-  const run = jest.fn(() => {
-    throw error;
+  const run = jest.fn(command => {
+    if (command === 'applesimutils') throw error;
+    return table(1);
   });
   await expect(prepareArtworkApp({ device, setup, waitForReady, run })).rejects.toBe(error);
-  expect(run).toHaveBeenCalledTimes(1);
-  expect(run.mock.calls[0][0]).toBe('applesimutils');
+  expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(1);
   expect(device.launchApp).not.toHaveBeenCalled();
   expect(waitForReady).not.toHaveBeenCalled();
 });
 
-test('invalid simulator identity cannot reset notifications on a different device', () => {
+test('invalid simulator identity cannot reset a different device', async () => {
   const run = jest.fn();
-  for (const badId of ['', 'booted', 'another-device']) expect(() => denySimulatorNotifications(run, badId)).toThrow('UUID');
+  for (const badId of ['', 'booted', 'another-device']) await expect(resetArtworkSimulator(run, badId)).rejects.toThrow('UUID');
   expect(run).not.toHaveBeenCalled();
 });
