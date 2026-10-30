@@ -4,6 +4,15 @@ const path = require('path');
 const tls = require('tls');
 const assert = require('assert').strict;
 const { cleanupTlsFixture } = require('./tls-fixture-cleanup');
+const { prepareTlsApp } = require('./tls-setup');
+const { observeNativeSetupStep } = require('./native-setup-step');
+const { execFileSync } = require('child_process');
+const scenarios = require('./tls-scenarios.json');
+const selectedCase = process.env.REDWALLET_TLS_CASE;
+if (selectedCase && !scenarios.some(scenario => scenario.id === selectedCase)) {
+  throw new Error('Unknown TLS scenario: ' + selectedCase);
+}
+const selectedScenarios = selectedCase ? scenarios.filter(scenario => scenario.id === selectedCase) : scenarios;
 
 // Disposable local certificates and a public header; no seeds, funds, or external backend.
 const fixture = name => fs.readFileSync(path.join(__dirname, '../fixtures/tls', name));
@@ -63,17 +72,26 @@ async function openSettings() {
 }
 
 describe('native Electrum TLS authentication', () => {
-  for (const scenario of [
-    { name: 'configured private CA and matching name', cert: 'native.pem', anchor: 'ca.pem', accepted: true },
-    { name: 'configured server certificate and matching name', cert: 'replacement.pem', anchor: 'replacement.pem', accepted: true },
-    { name: 'expired explicitly trusted server certificate', cert: 'native-expired.pem', anchor: 'native-expired.pem' },
-    { name: 'untrusted certificate', cert: 'native.pem' },
-    { name: 'trusted certificate with wrong name', cert: 'server.pem', anchor: 'ca.pem' },
-    { name: 'expired certificate', cert: 'native-expired.pem', anchor: 'ca.pem' },
-    { name: 'replaced certificate', cert: 'replacement.pem', anchor: 'ca.pem' },
-  ]) {
+  for (const scenario of selectedScenarios) {
     it(scenario.name, async () => {
       let requests = 0;
+      let beforeRestart = null;
+      let resetReceipt = null;
+      const directory = path.join(process.cwd(), 'artifacts/tls/diagnostics', scenario.id);
+      fs.mkdirSync(directory, { recursive: true });
+      const setupEntries = [];
+      const setup = (name, action, timeoutMs) =>
+        observeNativeSetupStep(
+          name,
+          action,
+          entry => {
+            setupEntries.push(entry);
+            fs.writeFileSync(path.join(directory, 'setup.json'), JSON.stringify(setupEntries, null, 2) + '\n');
+            console.log('[tls-e2e] setup:', scenario.id, JSON.stringify(entry));
+          },
+          timeoutMs,
+        );
+      const run = (command, args, options) => execFileSync(command, args, options).toString();
       const sockets = new Set();
       const server = tls.createServer({ key: fixture('server.key'), cert: fixture(scenario.cert) }, socket => {
         // A deliberate app restart can reset a disposable test connection.
@@ -105,9 +123,8 @@ describe('native Electrum TLS authentication', () => {
       server.on('tlsClientError', () => {});
       await new Promise(resolve => server.listen(0, '0.0.0.0', resolve));
       try {
-        await device.clearKeychain();
-        console.log('[tls-e2e] storage cleared:', scenario.name);
-        await device.launchApp({ delete: true, permissions: { notifications: 'NO' } });
+        resetReceipt = await prepareTlsApp({ device, setup, run });
+        if (resetReceipt) fs.writeFileSync(path.join(directory, 'reset.json'), JSON.stringify(resetReceipt, null, 2) + '\n');
         console.log('[tls-e2e] app launched:', scenario.name);
         // Settings polling/reconnect timers must not hold every iOS action at idle.
         // Every connection outcome is still checked explicitly below.
@@ -136,7 +153,7 @@ describe('native Electrum TLS authentication', () => {
         assert.equal(await dismissAlertByText('OK', 10_000, false), true, 'Could not dismiss the connection result');
         if (scenario.accepted) {
           assert.ok(requests >= 3, 'Trusted TLS must allow the Electrum handshake and checkpoint requests');
-          const beforeRestart = requests;
+          beforeRestart = requests;
           await device.launchApp({ newInstance: true });
           if (isIOS) await device.disableSynchronization();
           await waitForWalletsList();
@@ -156,21 +173,48 @@ describe('native Electrum TLS authentication', () => {
         // The automatic failure screenshot runs after finally; preserve the
         // actual failed UI before cleanup terminates the app.
         console.error('[tls-e2e] failed:', scenario.name, 'RPCs:', requests, error.stack || error.message);
-        await device.takeScreenshot('tls-failure-before-cleanup').catch(() => {});
-        // Only disposable, empty-wallet TLS fixtures run here. Retain native
-        // identifiers/frames for diagnosing a failed field lookup.
-        await device
-          .generateViewHierarchyXml(false)
-          .then(xml => {
-            const directory = path.join(process.cwd(), 'artifacts/tls/diagnostics');
-            fs.mkdirSync(directory, { recursive: true });
-            fs.writeFileSync(path.join(directory, scenario.name.replace(/[^a-z0-9]+/g, '-') + '.xml'), xml);
-          })
+        if (device.getPlatform() === 'ios') {
+          // Do not depend on an app process or Detox's stalled launch to capture
+          // SpringBoard failures. This command is bounded and never resets it.
+          try {
+            execFileSync('xcrun', ['simctl', 'io', device.id, 'screenshot', path.join(directory, 'failure.png')], {
+              timeout: 15000,
+              stdio: 'pipe',
+            });
+          } catch (_) {}
+        } else {
+          await setup('failure-screenshot', () => device.takeScreenshot('tls-failure-before-cleanup'), 15000).catch(() => {});
+        }
+        await setup('failure-hierarchy', () => device.generateViewHierarchyXml(false), 15000)
+          .then(xml => fs.writeFileSync(path.join(directory, 'failure.xml'), xml))
           .catch(() => {});
         throw error;
       } finally {
         await cleanupTlsFixture(device, server, sockets);
       }
+      // Only write success after every native assertion AND fixture cleanup.
+      fs.writeFileSync(
+        path.join(directory, 'result.json'),
+        JSON.stringify(
+          {
+            scenario: scenario.id,
+            name: scenario.name,
+            sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], {
+              encoding: 'utf8',
+              timeout: 5000,
+            }).trim(),
+            accepted: !!scenario.accepted,
+            rpcRequests: requests,
+            beforeRestart,
+            savedTrustVerified: scenario.accepted ? requests > beforeRestart : null,
+            rejectedBeforeRpc: scenario.accepted ? null : requests === 0,
+            cleanupComplete: true,
+            passed: true,
+          },
+          null,
+          2,
+        ) + '\n',
+      );
     });
   }
 });
