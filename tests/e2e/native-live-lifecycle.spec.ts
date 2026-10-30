@@ -34,6 +34,7 @@ import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { lifecycleFormats } from '../native/lifecycle-formats';
 import { observeNativeCondition } from '../native/observe-native-condition';
+import { observeTransitionVisibility } from '../native/observe-transition-visibility';
 import { nativeActionOnce } from '../native/native-action-once';
 import { captureIosStall } from '../native/ios-stall-diagnostics';
 import { dismissFeeKeyboard } from '../native/dismiss-fee-keyboard';
@@ -200,16 +201,23 @@ async function beginRecovery(): Promise<void> {
     .scroll(500, 'right');
   console.info('[native-lifecycle] opening add-wallet screen');
   await element(by.id('CreateAWallet')).tap();
-  // The native wait in 39418586405 never returned, even after its deadline.
-  // Release the native request between read-only observations. Do not retry
-  // the navigation tap or relax visibility/the original 15-second deadline.
-  await observeNativeCondition(
-    'Add-wallet import control',
-    async () => {
-      await nativeExpect(element(by.id('ImportWallet'))).toBeVisible();
-    },
-    15_000,
-  );
+  // Preserve the host-side deadline around native polling; a wedged request
+  // still fails once, without another tap or queued visibility observation.
+  if (device.getPlatform() === 'ios') {
+    await observeTransitionVisibility('Add-wallet import control', timeoutMs =>
+      waitFor(element(by.id('ImportWallet')))
+        .toBeVisible()
+        .withTimeout(timeoutMs),
+    );
+  } else {
+    await observeNativeCondition(
+      'Add-wallet import control',
+      async () => {
+        await nativeExpect(element(by.id('ImportWallet'))).toBeVisible();
+      },
+      15_000,
+    );
+  }
   console.info('[native-lifecycle] add-wallet import control visible');
   await element(by.id('ImportWallet')).tap();
   await waitForId('ImportWalletScroll', 15_000);

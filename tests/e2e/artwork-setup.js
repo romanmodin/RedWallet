@@ -32,9 +32,19 @@ export function simulatorServicePids(output) {
 export async function resetArtworkSimulator(
   run,
   deviceId,
-  { now = Date.now, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {},
+  { now = Date.now, pause = ms => new Promise(resolve => setTimeout(resolve, ms)), permissions = { notifications: 'NO' } } = {},
 ) {
   if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(deviceId)) throw new Error('Invalid simulator UUID');
+  // Wallet tests retain their existing permission choices. Apply them in the
+  // same reset, never through a second launch-time SpringBoard restart.
+  if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) throw new Error('Invalid simulator permissions');
+  const permissionEntries = Object.entries(permissions);
+  for (const [key, value] of permissionEntries) {
+    if (!['notifications', 'camera'].includes(key) || !['YES', 'NO'].includes(value)) throw new Error('Invalid simulator permissions');
+  }
+  const permissionArgs = permissionEntries.length
+    ? ['--setPermissions', permissionEntries.map(([key, value]) => key + '=' + value).join(',')]
+    : [];
   // Reuse the original Keychain-reset budget, including all readiness probes.
   // App launch still has its separate, unchanged 60-second budget.
   const started = now();
@@ -71,11 +81,10 @@ export async function resetArtworkSimulator(
   };
   const before = await observe('before');
   if (!before.springboard) throw new Error('SpringBoard was not running before simulator reset');
-  run(
-    'applesimutils',
-    ['--byId', deviceId, '--bundle', 'com.romanmodin.redwallet', '--clearKeychain', '--setPermissions', 'notifications=NO'],
-    { encoding: 'utf8', timeout: Math.min(60000, remaining()) },
-  );
+  run('applesimutils', ['--byId', deviceId, '--bundle', 'com.romanmodin.redwallet', '--clearKeychain', ...permissionArgs], {
+    encoding: 'utf8',
+    timeout: Math.min(60000, remaining()),
+  });
   // Poll observations only: never repeat a reset or relaunch.
   // If Spotlight was running, its replacement also has to appear (the same
   // service-refresh barrier used by Appium's iOS permission-reset handling).
