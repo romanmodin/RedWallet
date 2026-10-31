@@ -1,3 +1,4 @@
+import { resetWalletTestApp } from './reset-wallet-test-app';
 import { verifyDecryptedStorage } from './decrypted-storage-settlement';
 import assert from 'assert';
 import { resetSelftestDevice } from './selftest-reset';
@@ -92,8 +93,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t2'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true, permissions: { notifications: 'YES' } }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device, { permissions: { notifications: 'YES' } });
     await waitForWalletsList();
 
     // go to settings, press SelfTest and wait for OK
@@ -270,8 +270,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t3'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device);
     await waitForWalletsList();
 
     await helperCreateWallet();
@@ -331,8 +330,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t4'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device);
     await waitForWalletsList();
 
     // lets create a wallet
@@ -486,8 +484,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t5'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device);
     await waitForWalletsList();
     await helperCreateWallet();
     await element(by.id('SettingsButton')).tap();
@@ -581,8 +578,9 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true, permissions: { camera: 'YES', notifications: 'YES' } }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device, {
+      permissions: { camera: 'YES', notifications: 'YES' },
+    });
     await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
@@ -651,8 +649,9 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t6'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true, permissions: { camera: 'YES', notifications: 'YES' } }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device, {
+      permissions: { camera: 'YES', notifications: 'YES' },
+    });
     await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
@@ -770,8 +769,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t6'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device);
     await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
@@ -841,8 +839,9 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t8'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true, permissions: { notifications: 'YES', camera: 'YES' } }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device, {
+      permissions: { notifications: 'YES', camera: 'YES' },
+    });
     await waitForWalletsList();
 
     await helperCreateWallet();
@@ -863,8 +862,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t8'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true }); // reinstalling the app just for any case to clean up app's storage
+    await resetWalletTestApp(device);
     await waitForWalletsList();
     await helperCreateWallet();
     // nop
@@ -878,8 +876,9 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t10'), 'as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true, permissions: { camera: 'YES', notifications: 'YES' } });
+    await resetWalletTestApp(device, {
+      permissions: { camera: 'YES', notifications: 'YES' },
+    });
     await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()
@@ -1060,8 +1059,9 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t11'), ' as it previously passed on Travis');
     }
-    await device.clearKeychain();
-    await device.launchApp({ delete: true, permissions: { camera: 'YES', notifications: 'YES' } });
+    await resetWalletTestApp(device, {
+      permissions: { camera: 'YES', notifications: 'YES' },
+    });
     await waitForWalletsList();
     await waitFor(element(by.id('CreateAWallet')))
       .toBeVisible()

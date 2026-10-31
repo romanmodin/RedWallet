@@ -67,6 +67,11 @@ def detox_command(wallet_format):
         "tests/e2e/native-live-lifecycle.spec.ts", "--runTestsByPath",
         "--record-videos", "failing", "--record-logs", "failing",
         "--take-screenshots", "failing", "--headless", "--retries", "0", "--reuse",
+        # Detox 20.51.4's automatic currentStatus query can deadlock its native
+        # timer tracker (wix/Detox#4966), even with synchronization disabled.
+        # Disable only diagnostic polling. Native assertions, zero retries and
+        # case/process deadlines remain; host-side samples capture future stalls.
+        "--debug-synchronization", "0",
         "--artifacts-location", "artifacts/native-lifecycle/detox-ios/" + wallet_format,
     ]
 

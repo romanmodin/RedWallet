@@ -3,7 +3,7 @@ import type { Journal } from './round';
 
 /** Display only. Deadlines never change protocol guards or reservations. */
 export function poolCountdown(deadline: number, now: number): string {
-  if (!Number.isSafeInteger(deadline) || deadline <= 0) return 'Time unavailable';
+  if (!Number.isSafeInteger(deadline) || deadline <= 0 || !Number.isFinite(now)) return 'Time unavailable';
   const remaining = Math.max(0, Math.ceil(deadline - now));
   if (!remaining) return 'Deadline reached';
   const minutes = Math.floor(remaining / 60);
@@ -32,7 +32,10 @@ export function roundTiming(session: SessionState, journal: Journal): { label: s
     return {
       label: 'Closing vote deadline',
       deadline: session.deadline,
-      detail: 'Respond to this vote within the remaining time. The normal vote window is 10 minutes.',
+      detail:
+        session.closingResponse?.voteId === session.voteId && session.voteId
+          ? 'Your response was sent. Waiting for the creator to resolve the vote; reopening does not extend this deadline.'
+          : 'Respond to this vote within the remaining time. The normal vote window is 10 minutes.',
     };
   if (session.phase === 'closing')
     return {
@@ -48,7 +51,7 @@ export function roundTiming(session: SessionState, journal: Journal): { label: s
     };
   return {
     label: 'Announced pool deadline',
-    deadline: journal.deadline,
+    deadline: session.deadline,
     detail: 'The pool may close earlier if participants agree. This is not a guaranteed completion time.',
   };
 }

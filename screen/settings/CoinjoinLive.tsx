@@ -1,8 +1,10 @@
+import { closingResponse, signingProgress, outputRegistrationProgress } from '../../class/xbt/kilojoin/participation-progress';
 import { roundAttention } from '../../class/xbt/kilojoin/attention';
 import { poolCountdown, roundTiming, participationElapsed } from '../../class/xbt/kilojoin/timing';
 import { activePool } from '../../class/xbt/kilojoin/active-pool';
 import { Journal } from '../../class/xbt/kilojoin/round';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { NavigationContext } from '@react-navigation/native';
 import { Alert, AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SettingsScrollView, SettingsFootnote } from '../../components/SettingsSection';
 import Button from '../../components/Button';
@@ -21,6 +23,7 @@ import { coinjoinIssue, coinjoinProgress } from '../../class/xbt/kilojoin/presen
 
 /** Experimental live route; joining requires the entry acknowledgment. */
 export default function CoinjoinLive({ experimentalAcknowledged = false }: { experimentalAcknowledged?: boolean }) {
+  const navigation = useContext(NavigationContext);
   const { colors } = useTheme(),
     { wallets } = useStorage();
   const choices = wallets.filter((w): w is MixingWallet => w instanceof XbtSegwitBech32Wallet || w instanceof XbtTaprootWallet);
@@ -29,7 +32,10 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     const updateClock = () => setClock(Math.floor(Date.now() / 1000));
     const timer = setInterval(updateClock, 1000);
     const foreground = AppState.addEventListener('change', state => {
-      if (state === 'active') updateClock();
+      if (state === 'active') {
+        updateClock();
+        refreshOnReturn.current();
+      }
     });
     return () => {
       clearInterval(timer);
@@ -50,6 +56,14 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     [error, setError] = useState(''),
     [localBusy, setBusy] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
+  const [voteOptions, setVoteOptions] = useState<string>();
+  const [pendingVote, setPendingVote] = useState<{
+    voteId: string;
+    accept: boolean;
+  }>();
+  const voteInFlight = useRef(false);
+  const actionInFlight = useRef(false);
+  const [confirmationNotice, setConfirmationNotice] = useState('');
   const busy = localBusy || !!active?.busy;
   const client = useRef<MixingClient | undefined>(activePool.snapshot()?.client),
     discovery = useRef<KilojoinRelay | undefined>(undefined),
@@ -70,7 +84,8 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     };
   }, []);
   const run = async (action: () => Promise<void>) => {
-    if (busy) return;
+    if (busy || actionInFlight.current) return;
+    actionInFlight.current = true;
     setBusy(true);
     setError('');
     try {
@@ -79,6 +94,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : 'Action failed');
     } finally {
+      actionInFlight.current = false;
       if (mounted.current) setBusy(false);
     }
   };
@@ -131,14 +147,73 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
       }
     }
   };
+  const refreshRecovered = async (chosen: MixingWallet) => {
+    const rounds = await recoverWalletRounds(chosen);
+    if (mounted.current) setRecovered(rounds);
+    let confirmed = false;
+    let pending = false;
+    for (const round of rounds) {
+      if (round.phase !== 'uncertain' || !round.reviewedId) continue;
+      try {
+        if (await confirmRecoveredRound(chosen, round.poolId)) confirmed = true;
+        else pending = true;
+      } catch (e) {
+        if (mounted.current) setError(e instanceof Error ? e.message : 'Could not check confirmation');
+      }
+    }
+    const remaining = await recoverWalletRounds(chosen);
+    if (mounted.current) {
+      setRecovered(remaining);
+      setConfirmationNotice(
+        confirmed
+          ? 'Previous round confirmed. Recovered outputs remain frozen for review in Coin Control.'
+          : pending
+            ? 'Waiting for blockchain confirmation. Coins remain reserved.'
+            : '',
+      );
+    }
+  };
+  const checkActiveConfirmation = async () => {
+    const current = activePool.snapshot();
+    if (!current?.client || !['signed', 'uncertain'].includes(current.view?.journal.phase ?? '')) return;
+    const confirmed = await current.client.checkConfirmation();
+    if (mounted.current && activePool.snapshot()?.client === current.client)
+      setConfirmationNotice(confirmed ? '' : 'Waiting for blockchain confirmation. Coins remain reserved.');
+  };
   const chooseWallet = async (chosen: MixingWallet) => {
     setWallet(chosen);
     setSelected([]);
     setCoins([]);
-    setRecovered(await recoverWalletRounds(chosen));
+    await refreshRecovered(chosen);
     await chosen.fetchUtxo();
     if (mounted.current) setCoins(chosen.getUtxo());
   };
+  // Read the latest render state without rechecking on every clock tick or status update.
+  const refreshOnReturn = useRef<() => void>(() => {});
+  refreshOnReturn.current = () => {
+    if (!mounted.current || (navigation && !navigation.isFocused()) || AppState.currentState === 'background') return;
+    const current = activePool.snapshot();
+    if (current?.client) {
+      if (
+        current.view?.journal.reviewedId &&
+        (current.view.journal.phase === 'uncertain' || (current.view.journal.phase === 'signed' && current.view.broadcastId))
+      )
+        run(checkActiveConfirmation);
+    } else if (wallet) {
+      run(async () => {
+        await refreshRecovered(wallet);
+        await wallet.fetchUtxo();
+        if (mounted.current) setCoins(wallet.getUtxo());
+      });
+    }
+  };
+  useEffect(() => {
+    refreshOnReturn.current();
+    const detachFocus = navigation?.addListener('focus', () => refreshOnReturn.current());
+    return () => {
+      detachFocus?.();
+    };
+  }, [navigation]);
   const visiblePools = Object.values(pools).filter(
     p => p.terms.timeout > Math.floor(Date.now() / 1000) && (!wallet || p.terms.script === wallet.segwitType),
   );
@@ -188,6 +263,32 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const attention = view ? roundAttention(view, clock) : undefined;
   const displayedError = error || view?.error;
   const issue = displayedError ? coinjoinIssue(displayedError) : undefined;
+  const response = session ? closingResponse(session) : undefined;
+  const respondToClosing = async (accept: boolean, retry = false) => {
+    if (voteInFlight.current || busy || !session?.voteId) return;
+    const votingClient = client.current;
+    const voteId = session.voteId;
+    voteInFlight.current = true;
+    setPendingVote({ voteId, accept });
+    try {
+      await run(async () => {
+        const current = activePool.snapshot();
+        const currentSession = current?.view?.session;
+        if (!votingClient || current?.client !== votingClient || currentSession?.phase !== 'voting' || currentSession.voteId !== voteId)
+          throw new Error('This closing vote is no longer current');
+        if (Math.floor(Date.now() / 1000) >= currentSession.deadline) throw new Error('The closing vote deadline has passed');
+        // An old primary button callback must not repeat or change a saved response.
+        const sent = closingResponse(currentSession);
+        if (retry ? sent !== accept : sent !== undefined) return;
+        await votingClient.vote(accept);
+      });
+    } finally {
+      voteInFlight.current = false;
+      if (mounted.current) setPendingVote(undefined);
+    }
+  };
+  const outputProgress = session ? outputRegistrationProgress(session) : undefined;
+  const signing = session ? signingProgress(session) : undefined;
   const signatureCount = session ? Object.keys(session.signatures).length : 0;
   const inputCount = session?.seats.reduce((n, s) => n + s.coins.length, 0) ?? 0;
   return (
@@ -210,6 +311,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             <Text style={text}>{attention.detail}</Text>
           </View>
         )}
+        {!!confirmationNotice && <SettingsFootnote testID="CoinjoinConfirmationNotice">{confirmationNotice}</SettingsFootnote>}
         {!!issue && (
           <View>
             <Text testID="CoinjoinIssueCategory" style={styles.error}>
@@ -244,8 +346,13 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                     disabled={busy}
                     onPress={() =>
                       run(async () => {
-                        if (!wallet || !(await confirmRecoveredRound(wallet, j.poolId)))
-                          throw new Error('Previous round is not confirmed yet');
+                        if (!wallet) return;
+                        const confirmed = await confirmRecoveredRound(wallet, j.poolId);
+                        setConfirmationNotice(
+                          confirmed
+                            ? 'Previous round confirmed. Recovered outputs remain frozen for review in Coin Control.'
+                            : 'Waiting for blockchain confirmation. Coins remain reserved.',
+                        );
                         setRecovered(await recoverWalletRounds(wallet));
                         await wallet.fetchUtxo();
                         setCoins(wallet.getUtxo());
@@ -261,7 +368,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               onPress={() => run(refreshPools)}
             />
             <Text testID="CoinjoinPoolSearchStatus" accessibilityLiveRegion="polite" style={text}>
-              {searchState === 'idle' && 'Find open Kilojoin v3 and v4 pools on relay.kilombino.com.'}
+              {searchState === 'idle' && 'Find open Kilojoin v3, v4 and v5 pools on relay.kilombino.com.'}
               {searchState === 'connecting' && 'Connecting to relay.kilombino.com…'}
               {searchState === 'searching' && 'Connected. Checking open pools…'}
               {searchState === 'failed' && 'Pool search failed or disconnected. Tap Find pools to retry.'}
@@ -276,7 +383,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             <View style={card}>
               {visiblePools.map(p =>
                 pick(
-                  `${outputCount(p.terms) > 1 ? outputCount(p.terms) + ' × ' : ''}${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}\nAnnounced deadline: ${new Date(p.terms.timeout * 1000).toLocaleString()} · ${poolCountdown(p.terms.timeout, clock)}`,
+                  `v${p.terms.v}${p.terms.v === 5 ? ' payment pool' : ''} · ${outputCount(p.terms) > 1 ? outputCount(p.terms) + ' × ' : ''}${p.terms.denomination.toLocaleString()} sats · ${p.terms.peers}/${p.terms.max_peers} · ${p.terms.fee_rate} sats/vB${p.terms.private ? ' · Private' : ''}\nAnnounced deadline: ${new Date(p.terms.timeout * 1000).toLocaleString()} · ${poolCountdown(p.terms.timeout, clock)}`,
                   poolId === p.terms.id,
                   () => {
                     setPoolId(p.terms.id);
@@ -297,6 +404,12 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             )}
             {!!pool && (
               <View style={card}>
+                {pool.terms.v === 5 && (
+                  <Text testID="CoinjoinPaymentPool" style={text}>
+                    Payment pool: the creator pays recipients. You receive {outputCount(pool.terms)} ×{' '}
+                    {pool.terms.denomination.toLocaleString()} sats in mixed outputs.
+                  </Text>
+                )}
                 <Text style={text}>Choose confirmed coins · up to {pool.terms.max_inputs}</Text>
                 <Text
                   style={text}
@@ -346,9 +459,31 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                   ? 'Awaiting validation'
                   : session?.seats.length}
               </Text>
-              <Text style={text}>
-                Signatures: {signatureCount}/{inputCount}
-              </Text>
+              {session?.voteId && (
+                <>
+                  <Text style={response === true ? styles.completedTitle : text}>
+                    {response === true
+                      ? '✓ Your closing approval was sent'
+                      : response === false
+                        ? 'Your decline was sent'
+                        : 'Your closing response: not confirmed'}
+                  </Text>
+                  <Text style={text}>Closing approvals: total unavailable. The creator does not report a verified vote count.</Text>
+                  {response !== undefined && <Text style={text}>Sent to the relay; creator acknowledgment is not available.</Text>}
+                </>
+              )}
+              {signing?.started ? (
+                <>
+                  <Text style={text}>
+                    Participants signed: {signing.signedParticipants}/{signing.participants}
+                  </Text>
+                  <Text style={text}>
+                    Input signatures: {signatureCount}/{inputCount}
+                  </Text>
+                </>
+              ) : (
+                <Text style={text}>Transaction signing: not started</Text>
+              )}
               {!!view.review && (
                 <Text style={text}>
                   Your mixed outputs: {view.review.count} × {view.review.amount.toLocaleString()} sats ={' '}
@@ -362,7 +497,30 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 </Text>
               )}
             </View>
-            {!!progress && <SettingsFootnote>{progress.detail}</SettingsFootnote>}
+            {!!progress && (
+              <SettingsFootnote>
+                {session?.phase === 'voting' && response !== undefined
+                  ? 'Your closing response was sent. Waiting for the creator to advance the round; no repeat response is needed.'
+                  : progress.detail}
+              </SettingsFootnote>
+            )}
+            {!!outputProgress && (
+              <View style={card} testID="CoinjoinOutputProgress">
+                <Text
+                  style={
+                    session?.outputProgress?.submitted === session?.outputProgress?.total && session?.outputProgress?.prepared
+                      ? styles.completedTitle
+                      : text
+                  }
+                >
+                  {outputProgress.title}
+                </Text>
+                <Text style={text}>{outputProgress.detail}</Text>
+                {!!session?.outputNotBefore && clock < session.outputNotBefore && (
+                  <Text style={text}>Next automatic output submission: {poolCountdown(session.outputNotBefore, clock)}</Text>
+                )}
+              </View>
+            )}
             {session?.phase === 'signed' && journal?.phase === 'signed' && (
               <View style={[card, styles.completedStep]} testID="CoinjoinSigningComplete">
                 <Text style={[styles.attentionTitle, styles.completedTitle]}>✓ Your signing is complete</Text>
@@ -381,13 +539,23 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             {!!timing && (
               <View style={card} testID="CoinjoinRoundTiming">
                 <Text style={text}>{timing.label}</Text>
+                {!!session?.phaseStartedAt && (
+                  <Text style={text}>In this stage for {participationElapsed(session.phaseStartedAt, clock)}</Text>
+                )}
+                {!!timing.deadline && timing.deadline > clock && timing.deadline - clock <= 60 && (
+                  <Text style={styles.error}>Less than one minute remains in this stage.</Text>
+                )}
                 {!!active?.joinedAt && <Text style={text}>You joined {participationElapsed(active.joinedAt, clock)} ago</Text>}
                 {!!timing.deadline && (
                   <Text style={text}>
                     {new Date(timing.deadline * 1000).toLocaleString()} · {poolCountdown(timing.deadline, clock)}
                   </Text>
                 )}
-                <Text style={text}>{timing.detail}</Text>
+                <Text style={text}>
+                  {session?.phase === 'voting' && response !== undefined
+                    ? 'Your response was sent. This is the vote deadline, not another request to respond.'
+                    : timing.detail}
+                </Text>
                 {!!issue && (
                   <Text style={text}>
                     Connection or validation issue: this deadline is based on the last received state. It does not prove you are still
@@ -427,14 +595,64 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             )}
             {session?.phase === 'voting' && (
               <>
-                <Button title="Accept round closing" disabled={busy} onPress={() => run(() => client.current!.vote(true))} />
-                <Button title="Decline" disabled={busy} onPress={() => run(() => client.current!.vote(false))} />
+                {response === undefined ? (
+                  <>
+                    <Button
+                      title={
+                        pendingVote?.voteId === session.voteId && pendingVote?.accept === true
+                          ? 'Sending closing approval…'
+                          : 'Accept round closing'
+                      }
+                      disabled={busy || !session.voteId || clock >= session.deadline}
+                      onPress={() => respondToClosing(true)}
+                    />
+                    <Button
+                      title={pendingVote?.voteId === session.voteId && pendingVote?.accept === false ? 'Sending decline…' : 'Decline'}
+                      disabled={busy || !session.voteId || clock >= session.deadline}
+                      onPress={() => respondToClosing(false)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        expanded: voteOptions === session.voteId,
+                      }}
+                      onPress={() => setVoteOptions(old => (old === session.voteId ? undefined : session.voteId))}
+                    >
+                      <Text style={text}>
+                        {voteOptions === session.voteId ? 'Hide closing response options' : 'Closing response options (optional)'}
+                      </Text>
+                    </Pressable>
+                    {voteOptions === session.voteId && (
+                      <>
+                        <SettingsFootnote>
+                          Your response has already been sent. Resending is optional and repeats the same response before the deadline; it
+                          does not add another vote.
+                        </SettingsFootnote>
+                        <Button
+                          title={response ? 'Resend closing approval (optional)' : 'Resend closing decline (optional)'}
+                          disabled={busy || clock >= session.deadline}
+                          onPress={() => respondToClosing(response, true)}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
               </>
+            )}
+            {session?.phase === 'closing' && !session.outputProgress?.prepared && !session.outputSignature && (
+              <Button
+                title="Retry output preparation"
+                disabled={busy || clock >= session.deadline}
+                onPress={() => run(() => client.current!.retryOutputPreparation())}
+              />
             )}
             {session?.phase === 'closing' && (
               <Button
                 title="Retry output registration"
-                disabled={busy || !session.outputNotBefore || Math.floor(Date.now() / 1000) < session.outputNotBefore}
+                disabled={busy || clock >= session.deadline || !session.outputNotBefore || clock < session.outputNotBefore}
                 onPress={() => run(() => client.current!.retryOutput())}
               />
             )}
@@ -478,7 +696,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                   disabled={busy}
                   onPress={() =>
                     run(async () => {
-                      if (!(await client.current!.checkConfirmation())) setError('Not confirmed yet. Coins remain reserved.');
+                      await checkActiveConfirmation();
                     })
                   }
                 />
@@ -522,7 +740,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
                 disabled={busy}
                 onPress={() =>
                   run(async () => {
-                    if (!(await client.current!.checkConfirmation())) throw new Error('Not confirmed yet; coins remain reserved');
+                    await checkActiveConfirmation();
                   })
                 }
               />

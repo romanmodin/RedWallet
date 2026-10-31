@@ -103,3 +103,31 @@ six one/two/five-output cases across both script types through real loopback Web
 and an isolated XBT node, with matching transaction bytes and mined confirmation.
 See the reproducible v4 harness in tests/native/kilojoin. Native/physical-device
 qualification remains distinct; an enabled candidate is not proof of a shipped build.
+
+## V5 payment pool joiner, 2026-10-27
+
+Adds discovery and joining alongside v3/v4. V5 creators pay one to five recipients;
+RedWallet joins with one to five equal mixed outputs. The UI identifies payment pools
+and explains the joiner role. Creator payment amounts must total the joiner's mixed
+amount, with every payment at least 330 sats. The per-person discovery minimum is
+10,000 sats total, with individual equal outputs at least 1,000 sats.
+
+The creator's seat is identified by its pool public key and must remain in the roster.
+Its change and fee allowance use the payment count, which may differ from the number
+of equal outputs. Mixed outputs precede script-sorted changes and payments. Review
+checks the exact payment multiset and scripts, all roster changes, all selected and
+verified inputs, every own output, the fee cap, and the canonical transaction before
+explicit signing. Existing ownership, persistence, reservation, expiry and signature
+checks remain mandatory.
+
+Protocol source: Kilombino/kilojoin docs/PROTOCOL.md section 13, blob
+8fb9751826e2bdfbab6dce4e3e6d235d15e72246; official vectors blob
+9a4ed8a5787bb6463ff15c8f378e98bc620d13b2.
+The v5 Kotlin harness pins unchanged Kilowallet sources at
+08971c226f5c61cf32f861ecaa28bf5fa14c03ec with a separate SHA256 manifest.
+
+This is join-only. It does not add payment-pool creation, automatic relay recovery,
+restart resumption, or automatic acceptance of a creator's restarted closing round.
+Those recovery capabilities require separate qualification. V5 does not by itself
+repair a disconnected membership socket. A source implementation is not a released
+TestFlight binary; the existing exact-source native release gates still apply.

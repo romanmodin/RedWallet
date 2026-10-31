@@ -1,6 +1,6 @@
 import { ChainValidationError } from './chain-error';
 import { rejectionReason, RejectionReason, rosterFailureCode, RosterInputFailure } from './feedback';
-/** Participant-only v3/v4 controller. Transport and secure persistence are injected.
+/** Participant-only v3/v4/v5 controller. Transport and secure persistence are injected.
  * This controller never automatically signs or broadcasts a transaction.
  */
 import { script as bitcoinScript } from 'bitcoinjs-lib';
@@ -12,7 +12,19 @@ import { changeMessage, memberMac, passwordKey, passwordProof, Terms, tokenHash,
 import { ChainCoin, Seat, validateRoster } from './roster';
 import { Journal, Round } from './round';
 import { participantStageFailure } from './relay-error';
-import { assemble, coinScript, isType, outpoint, Plan, plan, Review, verifySignature } from './transaction';
+import {
+  assemble,
+  coinScript,
+  isType,
+  outpoint,
+  Plan,
+  plan,
+  paymentOutputs,
+  paymentAmounts,
+  Output,
+  Review,
+  verifySignature,
+} from './transaction';
 
 type OutputState = {
   script: string;
@@ -28,6 +40,8 @@ export type TerminalCause = 'creator-rejected' | 'creator-aborted';
 type PendingVote = { by: string; voteId: string; createdAt: number };
 export type SessionState = {
   phase: Phase;
+  phaseStartedAt?: number;
+  outputProgress?: { total: number; submitted: number; prepared: boolean };
   terminalCause?: TerminalCause;
   terminalReason?: RejectionReason;
   lastRosterFailure?: string;
@@ -38,7 +52,10 @@ export type SessionState = {
   poolSecret?: string;
   voteId?: string;
   retiredVoteIds?: string[];
+  closingResponse?: { voteId: string; accept: boolean };
   roundId?: string;
+  closingCreatedAt?: number;
+  retiredRoundIds?: string[];
   deadline: number;
   prepared?: string;
   inverse?: string;
@@ -47,6 +64,7 @@ export type SessionState = {
   outputNotBefore?: number;
   outputStates?: OutputState[];
   outputs?: string[];
+  payments?: Output[];
   signatures: Record<string, string>;
 };
 export interface SessionEnvironment {
@@ -85,7 +103,10 @@ export class ParticipantSession {
     private readonly round: Round,
     private readonly env: SessionEnvironment,
   ) {
-    this.terms = Object.freeze({ ...terms });
+    this.terms = Object.freeze({
+      ...terms,
+      ...(terms.v === 5 ? { payments: Object.freeze(paymentAmounts(terms.payments, terms.denomination, outputCount(terms))) } : {}),
+    });
     this.mixScripts = typeof mixScript === 'string' ? [mixScript] : [...mixScript];
     this.seat = JSON.parse(JSON.stringify(seat));
     this.joinSecret = Buffer.from(joinSecret);
@@ -108,6 +129,7 @@ export class ParticipantSession {
     this.inbox = new MessageInbox(terms.creator, terms.public_key, joinSecret, env.now());
     this.state = {
       phase: 'joining',
+      phaseStartedAt: env.now(),
       sequence: -1,
       seats: [],
       signatures: {},
@@ -167,6 +189,12 @@ export class ParticipantSession {
     delete state.poolSecret;
     delete state.prepared;
     delete state.inverse;
+    if (state.outputStates)
+      state.outputProgress = {
+        total: state.outputStates.length,
+        submitted: state.outputStates.filter(output => output.submitted).length,
+        prepared: state.outputStates.every(output => !!output.signature),
+      };
     delete state.outputStates;
     return state;
   }
@@ -201,6 +229,11 @@ export class ParticipantSession {
   }
 
   private async save(next: SessionState): Promise<void> {
+    // Local stage-entry time, never the creator's unknown pool opening time.
+    const newStage = next.phase !== this.state.phase || (next.phase === 'voting' && next.voteId !== this.state.voteId);
+    // A duplicated closing does not restart the original output-phase timer.
+    next = { ...next, phaseStartedAt: newStage ? this.env.now() : this.state.phaseStartedAt };
+
     try {
       await this.env.saveEncrypted(copy(next));
     } catch {
@@ -491,24 +524,56 @@ export class ParticipantSession {
           break;
         }
         case 'closing': {
-          if (!['open', 'voting'].includes(this.state.phase)) break;
-          this.requireOpenPool();
-          const roundId = identifier(body.round_id),
-            seats = await this.checkedSeats(body.seats, this.state.sequence + 1);
+          const replacing = this.state.phase === 'closing';
+          if (replacing) {
+            // Older creators can emit several initial closings before their
+            // first relay echo returns. Recover only before receiving any blind
+            // signature; intentional roster-shrinking ("again" > 0) is separate.
+            // Upstream omits "again" on initial closings, meaning zero.
+            if (
+              (body.again !== undefined && body.again !== 0) ||
+              this.round.snapshot().phase !== 'joined' ||
+              this.state.outputSignature ||
+              !this.state.outputStates?.length ||
+              this.state.outputStates.some(o => o.signature || o.submitted || o.notBefore !== undefined) ||
+              this.state.closingCreatedAt === undefined ||
+              message.createdAt <= this.state.closingCreatedAt
+            )
+              break;
+          } else {
+            if (!['open', 'voting'].includes(this.state.phase)) break;
+            this.requireOpenPool();
+          }
+          const roundId = identifier(body.round_id);
+          const retired = this.state.retiredRoundIds ?? [];
+          if (replacing && (roundId === this.state.roundId || retired.includes(roundId))) break;
+          if (replacing) {
+            this.require(['closing']);
+            if (retired.length >= 256) throw new Error('Session closing history limit');
+          }
+          const seats = await this.checkedSeats(body.seats, this.state.sequence + 1);
+          if (replacing && this.rosterCommitment(seats) !== this.rosterCommitment(this.state.seats))
+            throw new Error('Replacement closing changed roster');
           if (seats.length < this.terms.min_peers) throw new Error('Too few participants');
           const deadline = body.deadline ?? message.createdAt + 300;
           if (!Number.isSafeInteger(deadline) || (deadline as number) <= this.env.now() || (deadline as number) > message.createdAt + 300)
             throw new Error('Invalid closing deadline');
-          const outputStates = this.mixScripts.map(script => {
-            const prepared = prepare(hex(script), this.env.random);
-            const blinded = blind(publicKey(this.terms.blind_key), prepared, this.env.random);
-            return {
-              script,
-              prepared: prepared.toString('hex'),
-              inverse: blinded.inv.toString(16),
-              blinded: blinded.blinded.toString('hex'),
-            };
-          });
+          // Chain checks are asynchronous. Recheck expiry before committing or
+          // publishing, and never extend the first output-registration window.
+          if (replacing) this.require(['closing']);
+          else this.requireOpenPool();
+          const outputStates = replacing
+            ? this.state.outputStates!
+            : this.mixScripts.map(script => {
+                const prepared = prepare(hex(script), this.env.random);
+                const blinded = blind(publicKey(this.terms.blind_key), prepared, this.env.random);
+                return {
+                  script,
+                  prepared: prepared.toString('hex'),
+                  inverse: blinded.inv.toString(16),
+                  blinded: blinded.blinded.toString('hex'),
+                };
+              });
           await this.save({
             ...this.state,
             phase: 'closing',
@@ -516,12 +581,15 @@ export class ParticipantSession {
             lastRosterFailure: undefined,
             lastRosterFailureInput: undefined,
             roundId,
-            deadline: Math.min(deadline as number, this.round.snapshot().deadline),
+            closingCreatedAt: message.createdAt,
+            ...(replacing ? { retiredRoundIds: [...retired, this.state.roundId!] } : {}),
+            deadline: Math.min(deadline as number, this.round.snapshot().deadline, replacing ? this.state.deadline : Infinity),
             prepared: outputStates[0].prepared,
             inverse: outputStates[0].inverse,
             blinded: outputStates[0].blinded,
             outputStates,
           });
+          this.require(['closing']);
           await this.sendBlind();
           break;
         }
@@ -534,7 +602,7 @@ export class ParticipantSession {
           )
             return;
           this.require(['closing']);
-          const sigs = this.terms.v === 4 ? body.sigs : [body.sig];
+          const sigs = outputCount(this.terms) > 1 ? body.sigs : [body.sig];
           const pending = this.state.outputStates!;
           if (!Array.isArray(sigs) || sigs.length !== pending.length) throw new Error('Blind signature count mismatch');
           const outputStates = pending.map((output, i) => {
@@ -567,12 +635,16 @@ export class ParticipantSession {
             !this.state.outputSignature ||
             body.round_id !== this.state.roundId ||
             !Array.isArray(body.scripts) ||
-            body.scripts.length !== this.state.seats.length * outputCount(this.terms) ||
+            body.scripts.length !== (this.state.seats.length - (this.terms.v === 5 ? 1 : 0)) * outputCount(this.terms) ||
             !body.scripts.every(s => typeof s === 'string' && isType(s, this.terms.script))
           )
             throw new Error('Invalid outputs');
           const outputs = body.scripts as string[],
-            next = { ...this.state, outputs };
+            next = {
+              ...this.state,
+              outputs,
+              ...(this.terms.v === 5 ? { payments: paymentOutputs(body.payments, this.terms.payments!, this.terms.script) } : {}),
+            };
           const p = this.buildPlan(next),
             expected = await this.reviewContext();
           await this.round.review(p, expected, this.env.now());
@@ -641,12 +713,28 @@ export class ParticipantSession {
     });
   }
 
+  private rosterCommitment(seats: Seat[]): string {
+    // Proofs are validated above; alternative valid proof encodings do not
+    // change a seat's commitment. Ignore ordering, but bind every input/change.
+    return JSON.stringify(
+      seats
+        .map(s => [
+          s.token_hash,
+          s.join_pub,
+          s.coins.map(c => [c.txid, c.vout, c.value, c.pubkey, c.type]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+          s.change_script,
+          s.change_value,
+        ])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    );
+  }
+
   private async sendBlind(): Promise<void> {
     await this.publish({
       type: 'blind',
       token_hash: this.ownSeat().token_hash,
       round_id: this.state.roundId,
-      blinded: this.terms.v === 4 ? this.state.outputStates!.map(o => o.blinded) : this.state.blinded,
+      blinded: outputCount(this.terms) > 1 ? this.state.outputStates!.map(o => o.blinded) : this.state.blinded,
       mac: memberMac(
         this.state.token!,
         'blind',
@@ -702,6 +790,8 @@ export class ParticipantSession {
         accept,
         mac: memberMac(this.state.token!, 'vote', this.state.voteId!, accept),
       });
+      // Relay publication is not proof that the creator accepted or counted the vote.
+      await this.save({ ...this.state, closingResponse: { voteId: this.state.voteId!, accept } });
     });
   }
 
@@ -713,6 +803,7 @@ export class ParticipantSession {
       state.seats.filter(s => s.change_value > 0).map(s => ({ script: s.change_script, value: s.change_value })),
       this.terms.denomination,
       outputCount(this.terms),
+      this.terms.v === 5 ? paymentOutputs(state.payments, this.terms.payments!, this.terms.script) : [],
     );
   }
 
@@ -736,6 +827,15 @@ export class ParticipantSession {
       maxFee: this.maxFee,
       feeRate: this.terms.fee_rate,
       seatInputs: this.state.seats.map(s => s.coins.length),
+      ...(this.terms.v === 5
+        ? {
+            paymentPool: {
+              amounts: this.terms.payments!,
+              creatorIndex: this.state.seats.findIndex(s => s.join_pub === this.terms.public_key),
+              changes: this.state.seats.filter(s => s.change_value > 0).map(s => ({ script: s.change_script, value: s.change_value })),
+            },
+          }
+        : {}),
       verified: chain,
     };
   }

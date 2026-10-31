@@ -34,6 +34,9 @@ import english from '../../loc/en.json';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { lifecycleFormats } from '../native/lifecycle-formats';
 import { observeNativeCondition } from '../native/observe-native-condition';
+import { observeTransitionVisibility } from '../native/observe-transition-visibility';
+import { nativeActionOnce } from '../native/native-action-once';
+import { captureIosStall } from '../native/ios-stall-diagnostics';
 import { dismissFeeKeyboard } from '../native/dismiss-fee-keyboard';
 import { lifecycleCaseTimeoutMs } from '../native/lifecycle-timeouts';
 import { backendOptions, eventually, KnotsFulcrumHarness } from '../native/knots-fulcrum-harness';
@@ -198,16 +201,23 @@ async function beginRecovery(): Promise<void> {
     .scroll(500, 'right');
   console.info('[native-lifecycle] opening add-wallet screen');
   await element(by.id('CreateAWallet')).tap();
-  // The native wait in 39418586405 never returned, even after its deadline.
-  // Release the native request between read-only observations. Do not retry
-  // the navigation tap or relax visibility/the original 15-second deadline.
-  await observeNativeCondition(
-    'Add-wallet import control',
-    async () => {
-      await nativeExpect(element(by.id('ImportWallet'))).toBeVisible();
-    },
-    15_000,
-  );
+  // Preserve the host-side deadline around native polling; a wedged request
+  // still fails once, without another tap or queued visibility observation.
+  if (device.getPlatform() === 'ios') {
+    await observeTransitionVisibility('Add-wallet import control', timeoutMs =>
+      waitFor(element(by.id('ImportWallet')))
+        .toBeVisible()
+        .withTimeout(timeoutMs),
+    );
+  } else {
+    await observeNativeCondition(
+      'Add-wallet import control',
+      async () => {
+        await nativeExpect(element(by.id('ImportWallet'))).toBeVisible();
+      },
+      15_000,
+    );
+  }
   console.info('[native-lifecycle] add-wallet import control visible');
   await element(by.id('ImportWallet')).tap();
   await waitForId('ImportWalletScroll', 15_000);
@@ -423,7 +433,7 @@ async function bump(
     assert.equal(await dismissAlertByText(english._.yes, 15_000, false), true);
   }
   await waitForId('SendSuccessDone', 60_000);
-  await element(by.id('SendSuccessDone')).tap();
+  await nativeActionOnce('Fee-bump success Done tap', () => element(by.id('SendSuccessDone')).tap());
   return tx;
 }
 
@@ -566,7 +576,9 @@ native('isolated native live wallet stages and final acceptance', () => {
             await element(by.id('ConfirmBroadcastButton')).tap();
             await waitForId('SendSuccessDone', 60_000);
             assert.ok((await backend.rpc('getrawmempool')).includes(original.getId()));
-            await element(by.id('SendSuccessDone')).tap();
+            markStep('initial send accepted; dismiss success');
+            await nativeActionOnce('Initial send success Done tap', () => element(by.id('SendSuccessDone')).tap());
+            markStep('initial success dismissed; wallet list');
             await waitForId('WalletTransactionsList');
             await refresh();
             await openSentTransaction(original.getId());
@@ -723,6 +735,28 @@ native('isolated native live wallet stages and final acceptance', () => {
         } catch (error) {
           // Record the original failure before diagnostics/teardown can fail.
           console.error('[native-lifecycle] original failure at ' + stage + '/' + format + '/' + currentStep + ':', error);
+          mkdirSync(artifactDirectory, { recursive: true });
+          writeFileSync(
+            path.join(artifactDirectory, 'native-failure.json'),
+            JSON.stringify(
+              {
+                stage,
+                format,
+                currentStep,
+                elapsedMs: Date.now() - startedAt,
+                error: String(error),
+              },
+              null,
+              2,
+            ) + '\n',
+          );
+          if (isIOS) {
+            try {
+              captureIosStall(device.id, artifactDirectory);
+            } catch (diagnosticError) {
+              console.warn('[native-lifecycle] host-side iOS sampling failed:', diagnosticError);
+            }
+          }
           await boundedDiagnostic(() => device.takeScreenshot('native-live-lifecycle-failure'));
           if (!isIOS) {
             // App-only logcat misses system activity/backgrounding events. Keep

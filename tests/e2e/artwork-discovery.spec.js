@@ -1,3 +1,5 @@
+import { prepareArtworkApp, setSimulatorAppearance } from './artwork-setup';
+import { observeNativeSetupStep } from './native-setup-step';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -57,25 +59,42 @@ const capture = (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = f
 };
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
-    await device.clearKeychain();
-    // Detox 20 has no setAppearance API. Set the selected disposable simulator
-    // through Apple's native command before launching the app.
-    execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'dark']);
-    await device.launchApp({
-      delete: true,
-      permissions: { notifications: 'NO' },
-    });
-    await waitForWalletsList();
-    await element(by.id('SettingsButton')).tap();
-    await element(by.id('NetworkSettings')).tap();
-    await element(by.id('ElectrumSettings')).tap();
-    await waitForId('ElectrumConnectionEnabledSwitch');
+    const setupDirectory = path.resolve('artifacts/appearance-discovery');
+    fs.mkdirSync(setupDirectory, { recursive: true });
+    const setup = async (name, action, timeoutMs = 60000) => {
+      try {
+        return await observeNativeSetupStep(
+          name,
+          action,
+          entry => fs.appendFileSync(path.join(setupDirectory, 'setup-trace.jsonl'), JSON.stringify(entry) + '\n'),
+          timeoutMs,
+        );
+      } catch (error) {
+        // Independent of a potentially stalled Detox command queue. Failure to
+        // capture must never replace or suppress the original setup failure.
+        try {
+          execFileSync('xcrun', ['simctl', 'io', device.id, 'screenshot', path.join(setupDirectory, 'setup-failure.png')], {
+            timeout: 15000,
+            stdio: 'pipe',
+          });
+        } catch {
+          fs.appendFileSync(path.join(setupDirectory, 'setup-trace.jsonl'), JSON.stringify({ name, status: 'capture-unavailable' }) + '\n');
+        }
+        throw error;
+      }
+    };
+    const appearance = await prepareArtworkApp({ device, setup, waitForReady: waitForWalletsList, run: execFileSync });
+    fs.writeFileSync(path.join(setupDirectory, 'appearance.json'), JSON.stringify(appearance, null, 2) + '\n');
+    await setup('open-settings', () => element(by.id('SettingsButton')).tap());
+    await setup('open-network-settings', () => element(by.id('NetworkSettings')).tap());
+    await setup('open-electrum-settings', () => element(by.id('ElectrumSettings')).tap());
+    await setup('electrum-switch-visible', () => waitForId('ElectrumConnectionEnabledSwitch'));
     if (!(await getSwitchValue('ElectrumConnectionEnabledSwitch'))) await element(by.id('ElectrumConnectionEnabledSwitch')).tap();
     await goBack();
     await goBack();
     await goBack();
-    await helperCreateWallet('Artwork Test Wallet', 'taproot');
-    await device.launchApp({ newInstance: true });
+    await setup('create-disposable-artwork-wallet', () => helperCreateWallet('Artwork Test Wallet', 'taproot'));
+    await setup('relaunch-artwork-wallet', () => device.launchApp({ newInstance: true }));
     await waitForWalletsList();
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('ArtworkSkinLogo')))
@@ -156,7 +175,7 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
       console.log('Native read-only pool discovery:', status);
     } finally {
       await device.enableSynchronization();
-      execFileSync('xcrun', ['simctl', 'ui', device.id, 'appearance', 'light']);
+      setSimulatorAppearance(execFileSync, device.id, 'light');
     }
   });
 });

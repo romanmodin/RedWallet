@@ -47,3 +47,32 @@ test('resolved, signed and uncertain rounds never demand another signature', () 
   v.session.deadline = NaN;
   expect(roundAttention(v, 400)).toBeUndefined();
 });
+
+test('a sent response clears the action demand only for the current vote, preserving error and expiry warnings', () => {
+  const v = view();
+  v.session.closingResponse = { voteId: 'vote1', accept: true };
+  expect(roundAttention(v, 400)).toBeUndefined();
+  v.session.closingResponse.accept = false;
+  expect(roundAttention(v, 400)).toBeUndefined();
+  expect(roundAttention(v, 1100)?.title).toBe('Response deadline reached');
+  v.error = 'relay failure';
+  expect(roundAttention(v, 400)?.title).toBe('Round needs attention');
+  v.error = undefined;
+  v.session.voteId = 'vote2';
+  expect(roundAttention(v, 400)?.title).toBe('Action required: closing vote');
+});
+
+test('last-minute reminders are deduplicated and catch up after suspension without acting automatically', () => {
+  const monitor = new RoundAttentionMonitor();
+  expect(monitor.check(view('review'), 400, true, false)).toBeDefined();
+  expect(monitor.check(view('review'), 939, true, false)).toBeUndefined();
+  expect(monitor.check(view('review'), 940, false, false)).toBeUndefined();
+  expect(monitor.check(view('review'), 950, true, true)).toBeUndefined();
+  expect(monitor.check(view('review'), 950, true, false)).toBeDefined();
+  expect(monitor.check(view('review'), 951, true, false)).toBeUndefined();
+  expect(monitor.check(view('review'), 1000, true, false)?.title).toContain('deadline reached');
+  const outputs = new RoundAttentionMonitor();
+  expect(outputs.check(view('closing'), 939, true, false)).toBeUndefined();
+  expect(outputs.check(view('closing'), 940, true, false)?.title).toContain('less than one minute');
+  expect(outputs.check(view('closing'), 950, true, false)).toBeUndefined();
+});

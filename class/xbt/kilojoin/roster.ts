@@ -2,7 +2,7 @@ import { ChainValidationError } from './chain-error';
 /** Strict v3 roster validation. Chain observations MUST come from our backend, never the relay. */
 import { hex } from './crypto';
 import { Terms, outputCount } from './protocol';
-import { change, Coin, coinScript, isType, outpoint, verifyOwnership } from './transaction';
+import { change, changeOf, Coin, coinScript, isType, outpoint, verifyOwnership } from './transaction';
 export type Seat = {
   token_hash: string;
   join_pub: string;
@@ -52,7 +52,10 @@ export function parseSeat(value: unknown, terms: Readonly<Terms>): Seat {
     if (!verifyOwnership(terms.id, raw.join_pub as string, c, proofs[i])) throw new Error('Invalid ownership proof');
   });
   const total = coins.reduce((n, c) => n + c.value, 0);
-  const expected = change(total, terms.denomination, terms.fee_rate, coins.length, terms.script, outputCount(terms));
+  const expected =
+    terms.v === 5 && raw.join_pub === terms.public_key
+      ? changeOf(total, terms.denomination * outputCount(terms), terms.fee_rate, coins.length, terms.script, terms.payments!.length)
+      : change(total, terms.denomination, terms.fee_rate, coins.length, terms.script, outputCount(terms));
   if (
     expected === null ||
     raw.change_value !== expected ||
@@ -91,6 +94,7 @@ export function validateRoster(
   if (!Number.isSafeInteger(context.now) || context.now < 0) throw new Error('Invalid observation time');
   if (!Array.isArray(body.seats) || body.seats.length < 1 || body.seats.length > terms.max_peers) throw new Error('Invalid roster size');
   const seats = body.seats.map(s => parseSeat(s, terms));
+  if (terms.v === 5 && seats.filter(s => s.join_pub === terms.public_key).length !== 1) throw new Error('Payment creator seat missing');
   const tokens = new Set<string>(),
     joins = new Set<string>(),
     inputs = new Set<string>(),

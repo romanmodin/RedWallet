@@ -1,0 +1,45 @@
+[
+  {
+    "id": "private-ca",
+    "name": "configured private CA and matching name",
+    "cert": "native.pem",
+    "anchor": "ca.pem",
+    "accepted": true
+  },
+  {
+    "id": "server-certificate",
+    "name": "configured server certificate and matching name",
+    "cert": "replacement.pem",
+    "anchor": "replacement.pem",
+    "accepted": true
+  },
+  {
+    "id": "expired-trusted-server",
+    "name": "expired explicitly trusted server certificate",
+    "cert": "native-expired.pem",
+    "anchor": "native-expired.pem"
+  },
+  {
+    "id": "untrusted",
+    "name": "untrusted certificate",
+    "cert": "native.pem"
+  },
+  {
+    "id": "wrong-name",
+    "name": "trusted certificate with wrong name",
+    "cert": "server.pem",
+    "anchor": "ca.pem"
+  },
+  {
+    "id": "expired",
+    "name": "expired certificate",
+    "cert": "native-expired.pem",
+    "anchor": "ca.pem"
+  },
+  {
+    "id": "replaced",
+    "name": "replaced certificate",
+    "cert": "replacement.pem",
+    "anchor": "ca.pem"
+  }
+]
