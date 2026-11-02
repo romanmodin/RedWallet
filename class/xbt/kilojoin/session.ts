@@ -65,6 +65,7 @@ export type SessionState = {
   outputStates?: OutputState[];
   outputs?: string[];
   payments?: Output[];
+  ownSignaturesAcknowledged?: boolean;
   signatures: Record<string, string>;
 };
 export interface SessionEnvironment {
@@ -710,6 +711,7 @@ export class ParticipantSession {
         if (!sig || !verifySignature(p, index, sig)) throw new Error('No persisted signature to retry');
         await this.publish({ type: 'sig', outpoint: id, sig });
       }
+      await this.save({ ...this.state, ownSignaturesAcknowledged: true });
     });
   }
 
@@ -866,6 +868,7 @@ export class ParticipantSession {
         },
       });
       for (const [id, sig] of signatures) await this.publish({ type: 'sig', outpoint: id, sig });
+      await this.save({ ...this.state, ownSignaturesAcknowledged: true });
     });
   }
 

@@ -523,13 +523,17 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             )}
             {session?.phase === 'signed' && journal?.phase === 'signed' && (
               <View style={[card, styles.completedStep]} testID="CoinjoinSigningComplete">
-                <Text style={[styles.attentionTitle, styles.completedTitle]}>✓ Your signing is complete</Text>
+                <Text style={[styles.attentionTitle, view.broadcastId || session.ownSignaturesAcknowledged ? styles.completedTitle : text]}>
+                  {view.broadcastId || session.ownSignaturesAcknowledged ? '✓ Your signing is complete' : 'Signature delivery unconfirmed'}
+                </Text>
                 <Text style={text}>
                   {view.broadcastId
                     ? 'Transaction submitted. No action is required from you right now. Waiting for confirmation; refreshing the status is optional.'
                     : signatureCount === inputCount && inputCount > 0
                       ? 'All signatures are collected. Next action: broadcast the joint transaction, then wait for confirmation.'
-                      : 'Waiting for the other participants to sign. Your signing step is done; broadcasting may still be needed once all signatures arrive.'}
+                      : session.ownSignaturesAcknowledged
+                        ? 'The relay accepted all your signatures. You can lock your phone while the other participants sign this transaction.'
+                        : 'The relay has not confirmed all your signatures. Check Recovery options before leaving.'}
                 </Text>
                 <Text style={text}>
                   Coins remain reserved until the transaction is resolved. Use Recovery options only if you need to troubleshoot.

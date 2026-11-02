@@ -312,13 +312,19 @@ export class MixingClient {
   }
 
   async retrySignatures(): Promise<void> {
-    await this.session.retrySignatures();
-    this.update();
+    try {
+      await this.session.retrySignatures();
+    } finally {
+      this.update();
+    }
   }
 
   async approve(commitment: string): Promise<void> {
-    await this.session.signApproved(commitment, walletSigner(this.wallet, this.round));
-    this.update();
+    try {
+      await this.session.signApproved(commitment, walletSigner(this.wallet, this.round));
+    } finally {
+      this.update();
+    }
   }
 
   async broadcast(): Promise<void> {

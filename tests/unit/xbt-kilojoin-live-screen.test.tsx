@@ -378,7 +378,7 @@ test.each([
   {
     signatures: { one: 'sig' },
     broadcastId: undefined,
-    message: /Waiting for the other participants to sign/,
+    message: /while the other participants sign/,
   },
   {
     signatures: { one: 'sig', two: 'sig' },
@@ -397,6 +397,7 @@ test.each([
   const live = {
     session: {
       phase: 'signed',
+      ownSignaturesAcknowledged: true,
       seats: [{ coins: [{}] }, { coins: [{}] }],
       signatures,
     },
