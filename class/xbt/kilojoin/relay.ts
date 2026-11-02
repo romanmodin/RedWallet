@@ -26,6 +26,8 @@ export class KilojoinRelay {
     timer: ReturnType<typeof setTimeout>;
   };
 
+  private historyEvents = 0;
+  private historyReady?: () => void;
   private subscription?: string;
   private subscriptionGeneration = 0;
   private subscriptionKind = 2023;
@@ -78,7 +80,7 @@ export class KilojoinRelay {
     this.socket.send(JSON.stringify(message));
   }
 
-  subscribe(authors: string[], recipients: string[], since?: number): void {
+  subscribe(authors: string[], recipients: string[], since?: number, historyReady?: () => void): void {
     if (
       authors.length < 1 ||
       authors.length > 3 ||
@@ -90,12 +92,20 @@ export class KilojoinRelay {
     authors.forEach(key => hex(key, 32));
     recipients.forEach(key => hex(key, 32));
     if (this.subscription) this.send(['CLOSE', this.subscription]);
+    this.historyEvents = 0;
+    this.historyReady = historyReady;
     this.subscriptionKind = 2023;
     this.subscription = `kilojoin-participant-${++this.subscriptionGeneration}`;
     this.send([
       'REQ',
       this.subscription,
-      { kinds: [2023], authors, '#p': recipients, ...(since === undefined ? {} : { since }), limit: 256 },
+      {
+        kinds: [2023],
+        authors,
+        '#p': recipients,
+        ...(since === undefined ? {} : { since }),
+        limit: 256,
+      },
     ]);
   }
 
@@ -175,9 +185,21 @@ export class KilojoinRelay {
         this.discovery = undefined;
         pending.resolve();
       });
+    } else if (message[0] === 'EOSE' && this.historyReady && message[1] === this.subscription) {
+      const ready = this.historyReady,
+        subscription = this.subscription;
+      this.historyReady = undefined;
+      this.sequence = this.sequence.then(() => {
+        if (!this.closed && this.subscription === subscription && this.historyEvents > 0) ready();
+      });
     } else if (message[0] === 'EVENT' && this.subscription && message[1] === this.subscription && message.length === 3) {
       const event = message[2] as NostrEvent;
       if (!verifyEvent(event) || event.kind !== this.subscriptionKind) return;
+      if (this.historyReady && ++this.historyEvents >= 256) {
+        this.onError(new Error('Relay message queue exceeded'));
+        this.close();
+        return;
+      }
       if (this.queued >= 256) {
         this.onError(new Error('Relay message queue exceeded'));
         this.close();

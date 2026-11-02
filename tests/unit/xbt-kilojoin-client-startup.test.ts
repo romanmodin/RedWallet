@@ -182,6 +182,7 @@ function fixture(type: Coin['type'], outputs: 1 | 5, reverse = false, earlyWelco
     history: NostrEvent[] = [];
     filters: Record<string, unknown>[] = [];
     constructor() {
+      if (sockets.length) this.history = sockets[0].history;
       sockets.push(this);
       queueMicrotask(() => this.onopen?.());
     }
@@ -661,3 +662,22 @@ test.each(watchOnlyMatrix)(
     }
   },
 );
+
+test('a dropped participant socket resumes the same validated round without joining or spending again', async () => {
+  const f = fixture('p2wpkh', 1);
+  try {
+    const client = await f.join();
+    const before = client.view();
+    f.sockets[0].onclose?.();
+    expect(client.view().relayInterrupted).toBe(true);
+    await client.reconnectRelay();
+    expect(client.view().error).toBeUndefined();
+    expect(client.view().session.phase).toBe(before.session.phase);
+    expect(client.view().journal).toEqual(before.journal);
+    expect(f.identities).toHaveLength(1);
+    expect(f.sockets[1].events).toHaveLength(0);
+    expect(f.broadcast).not.toHaveBeenCalled();
+  } finally {
+    await f.cleanup();
+  }
+});

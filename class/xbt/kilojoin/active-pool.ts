@@ -1,4 +1,5 @@
 import { Alert, AppState } from 'react-native';
+import { closingResponse, signingProgress } from './participation-progress';
 import { RoundAttentionMonitor } from './attention';
 import type { ClientView, MixingClient } from './client';
 import type { MixingWallet } from './wallet-adapter';
@@ -9,6 +10,11 @@ type ActivePool = {
   view?: ClientView;
   busy: boolean;
   joinedAt: number;
+  automatic?: boolean;
+  autoIssue?: string;
+  requestedClose?: boolean;
+  reconnectAfter?: number;
+  confirmAfter?: number;
 };
 type Listener = (active: Readonly<ActivePool> | undefined) => void;
 
@@ -43,7 +49,11 @@ export class ActivePoolController {
 
   async start(wallet: MixingWallet, join: (onUpdate: (view: ClientView) => void) => Promise<MixingClient>): Promise<MixingClient> {
     if (this.active) throw new Error('Return to the existing pool before starting another round');
-    const active: ActivePool = { wallet, busy: true, joinedAt: Math.floor(Date.now() / 1000) };
+    const active: ActivePool = {
+      wallet,
+      busy: true,
+      joinedAt: Math.floor(Date.now() / 1000),
+    };
     this.active = active;
     this.notify();
     try {
@@ -77,6 +87,60 @@ export class ActivePoolController {
     }
   }
 
+  setAutomatic(client: MixingClient, enabled: boolean): void {
+    const active = this.active;
+    if (!active || active.client !== client || !active.view || active.busy) throw new Error('Pool is no longer available');
+    if (enabled && (active.view.error || !['open', 'voting', 'closing', 'review'].includes(active.view.session.phase)))
+      throw new Error('Check the current pool status before authorizing it');
+    active.automatic = enabled;
+    active.autoIssue = undefined;
+    this.notify();
+  }
+
+  async advance(now: number): Promise<void> {
+    const active = this.active;
+    if (!active?.client || !active.view || active.busy) return;
+    const { client, view } = active;
+    const { journal, session } = view;
+    if (active.automatic && view.broadcastId && journal.phase === 'signed') {
+      if (now >= (active.confirmAfter ?? 0)) {
+        active.confirmAfter = now + 60;
+        try {
+          await this.perform(() => client.checkConfirmation().then(() => {}));
+        } catch {
+          // A temporary backend failure leaves the verified transaction reserved for the next check.
+        }
+      }
+      return;
+    }
+    if (['complete', 'aborted', 'uncertain'].includes(journal.phase) || now >= journal.deadline) return;
+    if (view.relayInterrupted) {
+      if (now < (active.reconnectAfter ?? 0)) return;
+      active.reconnectAfter = now + 20;
+      await this.perform(() => client.reconnectRelay());
+      return;
+    }
+    if (!active.automatic || view.error || now >= session.deadline) return;
+    try {
+      if (session.phase === 'open' && session.seats.length >= client.terms.min_peers && !active.requestedClose) {
+        active.requestedClose = true;
+        await this.perform(() => client.requestClose());
+      } else if (session.phase === 'voting' && session.voteId && closingResponse(session) === undefined) {
+        await this.perform(() => client.vote(true));
+      } else if (session.phase === 'review' && journal.phase === 'review' && journal.commitment && view.review) {
+        const commitment = journal.commitment;
+        await this.perform(() => client.approve(commitment));
+      } else if (session.phase === 'signed' && journal.phase === 'signed' && !view.broadcastId) {
+        const progress = signingProgress(session);
+        if (progress.inputs > 0 && progress.signatures === progress.inputs) await this.perform(() => client.broadcast());
+      }
+    } catch {
+      active.automatic = false;
+      active.autoIssue = 'Automatic participation paused. Open this round to review its status before continuing.';
+      this.notify();
+    }
+  }
+
   async dismiss(): Promise<void> {
     const active = this.active;
     if (!active?.client || active.busy || !active.view || !['aborted', 'complete'].includes(active.view.journal.phase))
@@ -103,6 +167,8 @@ const checkAttention = () => {
     attentionClient = active.client;
     attentionMonitor = new RoundAttentionMonitor();
   }
+  if (AppState.currentState === 'active') activePool.advance(Math.floor(Date.now() / 1000));
+  if (active.automatic && !active.view.error) return;
   const notice = attentionMonitor.check(active.view, Math.floor(Date.now() / 1000), AppState.currentState === 'active', active.busy);
   if (notice) Alert.alert(notice.title, notice.detail, [{ text: 'OK' }]);
 };
@@ -114,6 +180,21 @@ activePool.subscribe(active => {
     attentionTimer = undefined;
   }
 });
+let backgroundClient: MixingClient | undefined;
 AppState.addEventListener('change', state => {
-  if (state === 'active') checkAttention();
+  const active = activePool.snapshot();
+  if (state === 'background') backgroundClient = active?.client;
+  if (state === 'active') {
+    if (
+      backgroundClient &&
+      active?.client === backgroundClient &&
+      active.view &&
+      !active.view.broadcastId &&
+      active.view.session.phase !== 'joining' &&
+      !['complete', 'aborted', 'uncertain'].includes(active.view.journal.phase)
+    )
+      backgroundClient.interruptRelay();
+    backgroundClient = undefined;
+    checkAttention();
+  }
 });

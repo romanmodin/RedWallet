@@ -1066,3 +1066,27 @@ test('manual confirmation refresh uses a neutral pending status too', async () =
   expect(screen.queryByTestId('CoinjoinIssueCategory')).toBeNull();
   expect(screen.getByText('Reserved coins: 1')).toBeTruthy();
 });
+
+test('the one-tap consent shows round limits, arms the same attempt and leaves the pool screen', async () => {
+  const live = {
+    session: { phase: 'open', seats: [], signatures: {}, deadline: 9999999999 },
+    journal: { phase: 'joined', reserved: ['coin'], deadline: 9999999999 },
+  };
+  await activePool.start(mockWallet, async update => {
+    mockEmit = update as typeof mockEmit;
+    update(live as never);
+    return { terms: mockTerms, maxFee: 750, view: () => live, close: mockClose } as never;
+  });
+  const nav = { isFocused: () => true, addListener: () => () => {}, goBack: jest.fn() };
+  const screen = render(
+    <NavigationContext.Provider value={nav as never}>
+      <CoinjoinLive experimentalAcknowledged />
+    </NavigationContext.Provider>,
+  );
+  expect(screen.getByText(/Maximum fee: 750 sats/)).toBeTruthy();
+  expect(activePool.snapshot()?.automatic).toBeFalsy();
+  fireEvent.press(screen.getByText('I agree — finish this round'));
+  expect(nav.goBack).toHaveBeenCalledTimes(1);
+  expect(activePool.snapshot()?.automatic).toBe(true);
+  expect(mockClose).not.toHaveBeenCalled();
+});

@@ -260,7 +260,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
     journal = view?.journal;
   const progress = session && journal ? coinjoinProgress(session, journal) : undefined;
   const timing = session && journal ? roundTiming(session, journal) : undefined;
-  const attention = view ? roundAttention(view, clock) : undefined;
+  const attention = view && (!active?.automatic || view.error) ? roundAttention(view, clock) : undefined;
   const displayedError = error || view?.error;
   const issue = displayedError ? coinjoinIssue(displayedError) : undefined;
   const response = session ? closingResponse(session) : undefined;
@@ -565,10 +565,50 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
               </View>
             )}
             {journal && !['complete', 'aborted'].includes(journal.phase) && (
-              <SettingsFootnote>
-                Back keeps access to this round while the app is running. Use Return to active pool to reopen it. Background reconnection
-                and restart recovery are not yet guaranteed in RedWallet.
-              </SettingsFootnote>
+              <>
+                <SettingsFootnote>
+                  Keep RedWallet open for continuous participation. If iOS suspends it, RedWallet will try to reconnect when you return. A
+                  missed deadline can end the round.
+                </SettingsFootnote>
+                {!!active?.autoIssue && <SettingsFootnote>{active.autoIssue}</SettingsFootnote>}
+                {active?.automatic ? (
+                  <Button
+                    title="Turn off automatic participation"
+                    disabled={busy}
+                    onPress={() => {
+                      try {
+                        activePool.setAutomatic(active.client!, false);
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Pool unavailable');
+                      }
+                    }}
+                  />
+                ) : active?.client?.terms &&
+                  journal.reserved?.length > 0 &&
+                  !view.error &&
+                  ['open', 'voting', 'closing', 'review'].includes(view.session.phase) ? (
+                  <>
+                    <SettingsFootnote>
+                      For this round only: request and accept closing, sign for your {journal.reserved.length} reserved input(s), and
+                      broadcast the verified transaction. Mixed outputs: {outputCount(active.client.terms)} ×{' '}
+                      {active.client.terms.denomination} sats. Maximum fee: {active.client.maxFee} sats. After signing, coins stay reserved
+                      until resolution.
+                    </SettingsFootnote>
+                    <Button
+                      title="I agree — finish this round"
+                      disabled={busy}
+                      onPress={() => {
+                        try {
+                          activePool.setAutomatic(active.client!, true);
+                          navigation?.goBack();
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : 'Pool unavailable');
+                        }
+                      }}
+                    />
+                  </>
+                ) : null}
+              </>
             )}
             {journal && ['complete', 'aborted'].includes(journal.phase) && (
               <Button

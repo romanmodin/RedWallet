@@ -96,3 +96,36 @@ test('failed join clears only the failed pending owner and can be retried after 
   await f.owner.start(wallet, f.join);
   expect(f.owner.snapshot()?.client).toBe(f.client);
 });
+
+test('one attempt may opt in, detach, and sign only its validated review while the deadline is live', async () => {
+  const f = fixture();
+  const approve = jest.fn(async () => {});
+  const reconnectRelay = jest.fn(async () => {});
+  Object.assign(f.client, { approve, reconnectRelay });
+  await f.owner.start(wallet, f.join);
+  const review = {
+    session: { phase: 'review', deadline: 80 },
+    journal: { phase: 'review', deadline: 100, commitment: 'exact' },
+    review: {},
+  } as ClientView;
+  f.emit(review);
+  await f.owner.advance(50);
+  expect(approve).not.toHaveBeenCalled();
+  f.owner.setAutomatic(f.client, true);
+  const detach = f.owner.subscribe(jest.fn());
+  detach();
+  await f.owner.advance(80);
+  f.emit({ ...review, error: 'invalid roster' });
+  await f.owner.advance(50);
+  f.emit({ ...review, error: 'disconnected', relayInterrupted: true });
+  await f.owner.advance(50);
+  expect(reconnectRelay).toHaveBeenCalledTimes(1);
+  expect(approve).not.toHaveBeenCalled();
+  f.emit(review);
+  await Promise.all([f.owner.advance(51), f.owner.advance(51)]);
+  expect(approve).toHaveBeenCalledTimes(1);
+  expect(approve).toHaveBeenCalledWith('exact');
+  f.owner.setAutomatic(f.client, false);
+  await f.owner.advance(52);
+  expect(approve).toHaveBeenCalledTimes(1);
+});

@@ -1793,6 +1793,10 @@ test.each(outputTimeoutCases)(
       f.session,
       f.round,
       {},
+      () => {
+        throw new Error('Offline fixture does not reconnect');
+      },
+      1000,
       [],
       undefined,
       updated,
