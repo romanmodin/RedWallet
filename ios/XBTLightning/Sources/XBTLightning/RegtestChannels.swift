@@ -1,0 +1,58 @@
+import Foundation
+import Lndmobile
+
+extension RegtestNode {
+    public func details() async throws -> String {
+        let info = try ProtoFields(await XBTLightningNode.info())
+        let balance = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
+        let channels = try ProtoFields(await rpc { LndmobileChannelBalance(Data(), $0) })
+        let local = try ProtoFields(channels.bytes[3]?.first ?? Data())
+        let remote = try ProtoFields(channels.bytes[4]?.first ?? Data())
+        return [
+            "Node: " + (try info.string(1)),
+            "Chain height: " + String(info.integers[6] ?? 0),
+            "Synced: " + (info.integers[9] == 1 ? "yes" : "no"),
+            "Confirmed funding balance: " + String(balance.integers[2] ?? 0) + " test sats",
+            "Local / remote channel balance: " + String(local.integers[1] ?? 0) + " / " + String(remote.integers[1] ?? 0) + " test sats",
+            "Active channels: " + String(info.integers[4] ?? 0)
+        ].joined(separator: "\n")
+    }
+
+    public func fundingAddress() async throws -> String {
+        let fields = try ProtoFields(await rpc { LndmobileNewAddress(ProtoFields.field(1, integer: 4), $0) })
+        let address = try fields.string(1)
+        guard address.hasPrefix("bcrt1") else { throw NodeFailure.invalidReply }
+        return address
+    }
+
+    public func connect(to uri: String) async throws {
+        let parts = uri.split(separator: "@", omittingEmptySubsequences: false)
+        guard parts.count == 2 else { throw NodeFailure.invalidPeer }
+        let key = String(parts[0])
+        let endpoint = parts[1].split(separator: ":", omittingEmptySubsequences: false)
+        guard validKey(key), endpoint.count == 2, let port = UInt16(endpoint[1]), port > 0 else { throw NodeFailure.invalidPeer }
+        let host = try Self.privatePeer(String(endpoint[0])) + ":" + String(port)
+        let remote = ProtoFields.field(1, data: Data(key.utf8)) + ProtoFields.field(2, data: Data(host.utf8))
+        let request = ProtoFields.field(1, data: remote) + ProtoFields.field(3, integer: 15)
+        _ = try await rpc { LndmobileConnectPeer(request, $0) }
+    }
+
+    private func validKey(_ key: String) -> Bool {
+        key.utf8.count == 66 && (key.hasPrefix("02") || key.hasPrefix("03")) &&
+            key.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+    }
+
+    public func openChannel(to key: String, sats: UInt64) async throws -> String {
+        guard validKey(key), (20_000...1_000_000).contains(sats) else { throw NodeFailure.invalidAmount }
+        let request = ProtoFields.field(3, data: Data(key.utf8)) + ProtoFields.field(4, integer: sats) +
+            ProtoFields.field(1, integer: 1) + ProtoFields.field(8, integer: 1)
+        let point = try ProtoFields(await rpc { LndmobileOpenChannelSync(request, $0) })
+        let txid: String
+        if let bytes = point.bytes[1]?.first, bytes.count == 32 {
+            txid = bytes.reversed().map { String(format: "%02x", $0) }.joined()
+        } else {
+            txid = try point.string(2)
+        }
+        return txid + ":" + String(point.integers[3] ?? 0)
+    }
+}

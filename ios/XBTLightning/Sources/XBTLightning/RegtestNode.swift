@@ -51,6 +51,11 @@ public actor RegtestNode {
         startup = task
         // The Go engine is process-wide. A timeout does not establish it stopped.
         try await task.value
+        // The mobile startup callback only means that the transport is listening.
+        for _ in 0..<30 {
+            if try await status() != "Starting" { return }
+            try await Task.sleep(nanoseconds: 250_000_000)
+        }
     }
 
     public func status() async throws -> String {
@@ -72,7 +77,7 @@ public actor RegtestNode {
         let words: [Data]
     }
 
-    private func credentials(create: Bool) async throws -> Credentials {
+    private func credentials(create: Bool, restoring: [Data]? = nil) async throws -> Credentials {
         let match: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                      kSecAttrService as String: service, kSecAttrAccount as String: "node"]
         var query = match
@@ -82,11 +87,19 @@ public actor RegtestNode {
         if lookup == errSecSuccess, let data = item as? Data {
             let saved = try JSONDecoder().decode(Credentials.self, from: data)
             guard saved.words.count == 24 && saved.password.count == 32 else { throw NodeFailure.missingCredentials }
+            // A previous installation can leave its Keychain entry behind.
+            // Never silently initialize a second channel node with that identity.
+            if create && restoring != saved.words { throw NodeFailure.invalidRecovery }
             return saved
         }
         guard lookup == errSecItemNotFound, create else { throw NodeFailure.missingCredentials }
-        let fields = try ProtoFields(await rpc { LndmobileGenSeed(Data(), $0) })
-        guard let words = fields.bytes[1], words.count == 24, words.allSatisfy({ !$0.isEmpty }) else { throw NodeFailure.invalidReply }
+        let words: [Data]
+        if let restoring { words = restoring }
+        else {
+            let fields = try ProtoFields(await rpc { LndmobileGenSeed(Data(), $0) })
+            words = fields.bytes[1] ?? []
+        }
+        guard words.count == 24, words.allSatisfy({ !$0.isEmpty }) else { throw NodeFailure.invalidReply }
         var password = [UInt8](repeating: 0, count: 32)
         guard SecRandomCopyBytes(kSecRandomDefault, password.count, &password) == errSecSuccess else { throw NodeFailure.missingCredentials }
         let saved = Credentials(password: Data(password), words: words)
@@ -95,6 +108,25 @@ public actor RegtestNode {
         addition[kSecValueData as String] = try JSONEncoder().encode(saved)
         guard SecItemAdd(addition as CFDictionary, nil) == errSecSuccess else { throw NodeFailure.missingCredentials }
         return saved
+    }
+
+    public func recoveryFile(phrase: String) async throws -> Data {
+        let saved = try await credentials(create: false)
+        let channels = try await channelBackup()
+        return try RecoveryFile.seal(.init(words: saved.words, channelBackup: channels), phrase: phrase)
+    }
+
+    public func restore(file: Data, phrase: String) async throws {
+        guard !provisioning else { throw NodeFailure.invalidRecovery }
+        provisioning = true
+        defer { provisioning = false }
+        guard try await status() == "Needs setup" else { throw NodeFailure.invalidRecovery }
+        let material = try RecoveryFile.open(file, phrase: phrase)
+        let saved = try await credentials(create: true, restoring: material.words)
+        let snapshot = ProtoFields.field(2, data: ProtoFields.field(2, data: material.channelBackup))
+        var request = ProtoFields.field(1, data: saved.password) + ProtoFields.field(4, integer: 2500) + ProtoFields.field(5, data: snapshot)
+        for word in saved.words { request += ProtoFields.field(2, data: word) }
+        _ = try await rpc { LndmobileInitWallet(request, $0) }
     }
 
     public func setupOrUnlock() async throws {

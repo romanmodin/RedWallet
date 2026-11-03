@@ -1,3 +1,5 @@
+import { keepLocalCopy, pick, types } from '@react-native-documents/picker';
+import RNFS from 'react-native-fs';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, NativeModules, Share, Text, TextInput } from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
@@ -12,8 +14,10 @@ export default function XBTLightning() {
   const [status, setStatus] = useState('Checking');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
   const [incoming, setIncoming] = useState('');
+  const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
   const pending = useRef(false);
@@ -103,6 +107,64 @@ export default function XBTLightning() {
       </SettingsSection>
       {['RPC ready', 'Running'].includes(status) && (
         <SettingsSection>
+          <SettingsListItem
+            title="Node and channel balances"
+            disabled={busy}
+            onPress={() =>
+              run(async () => {
+                const result = await bridge.run('details', '');
+                if (mounted.current) setMessage(result);
+              })
+            }
+          />
+          <SettingsListItem
+            title="Get regtest funding address"
+            disabled={busy}
+            onPress={() =>
+              run(async () => {
+                const address = await bridge.run('fund', '');
+                if (mounted.current) setMessage(address);
+              })
+            }
+          />
+          <TextInput
+            accessibilityLabel="Lightning test peer"
+            style={{ color: colors.foregroundColor }}
+            placeholder="pubkey@private-IP:port"
+            value={lightningPeer}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!busy}
+            onChangeText={setLightningPeer}
+          />
+          <SettingsListItem
+            title="Connect Lightning test peer"
+            disabled={busy || !lightningPeer}
+            onPress={() =>
+              run(async () => {
+                const result = await bridge.invoice('connect', lightningPeer.trim(), '', '');
+                if (mounted.current) setMessage(result);
+              })
+            }
+          />
+          <SettingsListItem
+            title="Open private test channel"
+            disabled={busy || !lightningPeer}
+            onPress={() => {
+              const key = lightningPeer.trim().split('@')[0];
+              Alert.alert('Open a private test channel?', 'Commit 100,000 test sats at 1 sat/vB to ' + key, [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open channel',
+                  onPress: () =>
+                    run(async () => {
+                      const point = await bridge.invoice('open', key, '', '100000');
+                      if (mounted.current) setMessage('Funding transaction: ' + point);
+                    }),
+                },
+              ]);
+            }}
+          />
           <TextInput
             style={{ color: colors.foregroundColor }}
             accessibilityLabel="Test sats to receive"
@@ -179,7 +241,83 @@ export default function XBTLightning() {
           />
         </SettingsSection>
       )}
-      {!!message && <SettingsFootnote>{message}</SettingsFootnote>}
+      {['Needs setup', 'Running', 'RPC ready'].includes(status) && (
+        <SettingsSection>
+          <SettingsFootnote>
+            Portable test recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export again
+            after channel changes.
+          </SettingsFootnote>
+          <TextInput
+            style={{ color: colors.foregroundColor }}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="Backup passphrase"
+            placeholder="Backup passphrase (12 or more characters)"
+            value={phrase}
+            onChangeText={setPhrase}
+            editable={!busy}
+          />
+          {status === 'Needs setup' ? (
+            <SettingsListItem
+              title="Restore test wallet from file"
+              disabled={busy || phrase.length < 12}
+              onPress={() =>
+                Alert.alert(
+                  'Restore to this iPhone?',
+                  'Take the original node offline first. Static channel recovery can close channels and return funds on-chain.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Choose recovery file',
+                      onPress: () =>
+                        run(async () => {
+                          const password = phrase;
+                          setPhrase('');
+                          const [file] = await pick({ type: [types.allFiles] });
+                          const [copy] = await keepLocalCopy({
+                            files: [{ uri: file.uri, fileName: 'selected-regtest-recovery.rwln' }],
+                            destination: 'cachesDirectory',
+                          });
+                          if (copy.status !== 'success') throw Error('Could not read the selected backup.');
+                          try {
+                            await bridge.recovery('restore', password, copy.localUri);
+                            const next = await bridge.run('status', '');
+                            if (mounted.current) setStatus(next);
+                          } finally {
+                            await RNFS.unlink(decodeURIComponent(copy.localUri.replace(/^file:\/\//, ''))).catch(() => {});
+                          }
+                        }),
+                    },
+                  ],
+                )
+              }
+            />
+          ) : (
+            <SettingsListItem
+              title="Export encrypted test recovery file"
+              disabled={busy || phrase.length < 12}
+              onPress={() =>
+                run(async () => {
+                  const password = phrase;
+                  setPhrase('');
+                  const url = await bridge.recovery('export', password, '');
+                  try {
+                    if (mounted.current) await Share.share({ url });
+                  } finally {
+                    await RNFS.unlink(decodeURIComponent(url.replace(/^file:\/\//, ''))).catch(() => {});
+                  }
+                })
+              }
+            />
+          )}
+        </SettingsSection>
+      )}
+      {!!message && (
+        <Text selectable style={{ color: colors.foregroundColor }}>
+          {message}
+        </Text>
+      )}
     </SettingsScrollView>
   );
 }

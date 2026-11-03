@@ -1,4 +1,5 @@
 import XCTest
+import Lndmobile
 @testable import XBTLightning
 
 final class RegtestTests: XCTestCase {
@@ -18,8 +19,12 @@ final class RegtestTests: XCTestCase {
     func testEmbeddedNodeStartsAndReportsWalletState() async throws {
         try await RegtestNode.shared.start()
         try await RegtestNode.shared.start()
-        let status = try await RegtestNode.shared.status()
-        XCTAssertEqual(status, "Needs setup")
+        var status = try await RegtestNode.shared.status()
+        for _ in 0..<60 where status == "Starting" {
+            try await Task.sleep(nanoseconds: 500_000_000)
+            status = try await RegtestNode.shared.status()
+        }
+        try XCTUnwrap(status == "Needs setup" ? status : nil, "Expected initial wallet setup, got " + status)
         try await RegtestNode.shared.setupOrUnlock()
         var running = false
         for _ in 0..<60 {
@@ -35,5 +40,15 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(history, "No outgoing test payments.")
         let backup = try await RegtestNode.shared.channelBackup()
         XCTAssertFalse(backup.isEmpty)
+        let sealed = try await RegtestNode.shared.recoveryFile(phrase: "regtest-only-fixture-pass")
+        let material = try RecoveryFile.open(sealed, phrase: "regtest-only-fixture-pass")
+        XCTAssertEqual(material.words.count, 24)
+        XCTAssertFalse(material.channelBackup.isEmpty)
+        XCTAssertThrowsError(try RecoveryFile.open(sealed, phrase: "wrong-fixture-password"))
+        let summary = try await RegtestNode.shared.details()
+        XCTAssertTrue(summary.contains("Node: "))
+        let funding = try await RegtestNode.shared.fundingAddress()
+        XCTAssertTrue(funding.hasPrefix("bcrt1"))
+        _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }
 }

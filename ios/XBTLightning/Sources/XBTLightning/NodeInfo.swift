@@ -2,13 +2,14 @@ import Foundation
 import Lndmobile
 
 enum NodeFailure: LocalizedError {
-    case invalidReply, timedOut, invalidPeer, missingCredentials, invalidAmount
+    case invalidReply, timedOut, invalidPeer, missingCredentials, invalidAmount, invalidRecovery
     var errorDescription: String? {
         switch self {
         case .invalidReply: return "The Lightning engine returned an invalid response."
         case .timedOut: return "The Lightning engine has not answered yet. Check its status again."
         case .invalidPeer: return "Enter localhost (127.0.0.1) or the private IPv4 address of your XBT regtest chain peer."
         case .missingCredentials: return "The saved credentials for this test node are unavailable."
+        case .invalidRecovery: return "Check the regtest recovery file and its passphrase (at least 12 characters). Restore only to a new test node."
         case .invalidAmount: return "Enter a whole amount between 1 and 1,000,000 test sats."
         }
     }
