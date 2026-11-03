@@ -63,7 +63,7 @@ internal object RegtestNode {
             val words = restore?.first ?: requireNotNull(rpc { Lndmobile.genSeed(empty, it) }.blobs[1])
             require(words.size == 24)
             JSONObject().put("words", Recovery.wordsJson(words)).put("password", Recovery.encode(Recovery.randomBytes(32)))
-                .put("pending", true).also { Recovery.storeDevice(file, it) }
+                .put("pending", restore == null).also { Recovery.storeDevice(file, it) }
         }
         val words = Recovery.words(credentials)
         if (restore != null) require(restore.first.map(Recovery::encode) == words.map(Recovery::encode))
