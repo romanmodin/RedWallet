@@ -1,12 +1,21 @@
-import { keepLocalCopy, pick, types } from '@react-native-documents/picker';
+import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, NativeModules, Share, Text, TextInput } from 'react-native';
+import { Alert, NativeModules, Platform, Share, Text, TextInput } from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
 
 const bridge = NativeModules.XBTLightningBridge;
 type Review = { invoice: string; hash: string; sats: string; destination: string };
+
+async function exportBackup(url: string) {
+  if (Platform.OS === 'android') {
+    const [result] = await saveDocuments({ sourceUris: [url], copy: true, mimeType: 'application/octet-stream' });
+    if (result.error) throw new Error(result.error);
+  } else {
+    await Share.share({ url });
+  }
+}
 
 export default function XBTLightning() {
   const { colors } = useTheme();
@@ -236,7 +245,7 @@ export default function XBTLightning() {
             onPress={() =>
               run(async () => {
                 const url = await bridge.run('backup', '');
-                if (mounted.current) await Share.share({ url });
+                if (mounted.current) await exportBackup(url);
               })
             }
           />
@@ -265,7 +274,7 @@ export default function XBTLightning() {
               disabled={busy || phrase.length < 12}
               onPress={() =>
                 Alert.alert(
-                  'Restore to this iPhone?',
+                  'Restore to this device?',
                   'Take the original node offline first. Static channel recovery can close channels and return funds on-chain.',
                   [
                     { text: 'Cancel', style: 'cancel' },
@@ -304,7 +313,7 @@ export default function XBTLightning() {
                   setPhrase('');
                   const url = await bridge.recovery('export', password, '');
                   try {
-                    if (mounted.current) await Share.share({ url });
+                    if (mounted.current) await exportBackup(url);
                   } finally {
                     await RNFS.unlink(decodeURIComponent(url.replace(/^file:\/\//, ''))).catch(() => {});
                   }

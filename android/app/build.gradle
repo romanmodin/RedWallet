@@ -72,6 +72,8 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def regtestAar = project.findProperty("xbtRegtestAar")
+
 android {
     androidResources {
         noCompress += ["bundle"]
@@ -84,7 +86,8 @@ android {
     namespace "io.bluewallet.bluewallet"
     defaultConfig {
         applicationId "com.romanmodin.redwallet"
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion regtestAar ? 26 : rootProject.ext.minSdkVersion
+        if (regtestAar) applicationIdSuffix ".regtest"
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = (project.findProperty("redwalletVersionCode") ?: "1").toInteger()
         versionName "8.0.1"
@@ -102,7 +105,7 @@ android {
     sourceSets {
         main {
             assets.srcDirs = ['src/main/assets', 'src/main/res/assets']
-            java.srcDirs = ['src/main/java', '../../blue_modules/Views/SegmentedControl/android']
+            java.srcDirs = ['src/main/java', '../../blue_modules/Views/SegmentedControl/android', regtestAar ? 'src/xbtRegtest/java' : 'src/standard/java']
         }
     }
 
@@ -131,6 +134,10 @@ tasks.configureEach { task ->
 }
 
 dependencies {
+    if (regtestAar) {
+        implementation files(regtestAar)
+        implementation 'com.google.protobuf:protobuf-javalite:3.25.5'
+    }
 		androidTestImplementation('com.wix:detox:+')
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
