@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useReducer } from 'react';
-import { ActivityIndicator, Keyboard, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, NativeModules, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { Layout } from 'react-native-reanimated';
 import assert from 'assert';
 
@@ -334,6 +334,13 @@ const WalletsAdd: React.FC = () => {
           title={selectedIndex === 1 ? 'Use Native SegWit' : 'Use Taproot'}
           onPress={() => setParams({ selectedIndex: selectedIndex === 1 ? 0 : 1 })}
         />
+        {!!NativeModules.XBTLightningBridge && (
+          <BlueButtonLink
+            testID="AddXBTLightningRegtest"
+            title="Set up XBT Lightning · Test network"
+            onPress={() => navigate('XBTLightningRegtest')}
+          />
+        )}
         <View style={styles.advanced}>
           <BlueSpacing20 />
           {!isLoading ? (
