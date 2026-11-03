@@ -86,7 +86,7 @@ android {
     namespace "io.bluewallet.bluewallet"
     defaultConfig {
         applicationId "com.romanmodin.redwallet"
-        minSdkVersion(regtestAar ? 26 : rootProject.ext.minSdkVersion)
+        minSdkVersion rootProject.ext.minSdkVersion
         if (regtestAar) applicationIdSuffix ".regtest"
         manifestPlaceholders.redwalletAppLabel = regtestAar ? "RedWallet Lightning Test" : "@string/app_name"
         targetSdkVersion rootProject.ext.targetSdkVersion

@@ -38,8 +38,25 @@ jobs:
         run: |
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
           npm ci
+      - name: Restore pinned native test binaries
+        id: engine-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: |
+            ${{ runner.temp }}/Lndmobile.aar
+            ${{ runner.temp }}/lnd-regtest/ln-bin
+          key: android-xbt-engine-v1-${{ hashFiles('.github/scripts/build-xbt-lnd-android.sh') }}
       - name: Build pinned Android Lightning engine
+        if: steps.engine-cache.outputs.cache-hit != 'true'
         run: XBT_FIXTURE_BIN="$RUNNER_TEMP/lnd-regtest/ln-bin" ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" .github/scripts/build-xbt-lnd-android.sh "$RUNNER_TEMP/Lndmobile.aar"
+      - name: Cache verified build for this pull request
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: |
+            ${{ runner.temp }}/Lndmobile.aar
+            ${{ runner.temp }}/lnd-regtest/ln-bin
+          key: android-xbt-engine-v1-${{ hashFiles('.github/scripts/build-xbt-lnd-android.sh') }}
       - name: Compile the isolated Android test build
         working-directory: android
         run: ./gradlew --no-daemon --max-workers=2 :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest -PxbtRegtestAar="$RUNNER_TEMP/Lndmobile.aar" -PreactNativeArchitectures=arm64-v8a,x86_64
