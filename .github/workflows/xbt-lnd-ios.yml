@@ -13,6 +13,20 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Start a private compact-filter chain peer
+        run: |
+          set -euo pipefail
+          key="macos_$(uname -m)"
+          archive="$RUNNER_TEMP/knots.tar.gz"
+          dir="$RUNNER_TEMP/lnd-regtest"
+          mkdir -p "$dir/tools" "$dir/data"
+          curl -fsSL --retry 2 "$(jq -r --arg k "$key" '.knots[$k].url' tests/native/backend-assets.json)" -o "$archive"
+          printf '%s  %s\n' "$(jq -r --arg k "$key" '.knots[$k].sha256' tests/native/backend-assets.json)" "$archive" | shasum -a 256 -c -
+          tar -xzf "$archive" --strip-components=1 -C "$dir/tools"
+          "$dir/tools/bin/bitcoind" -datadir="$dir/data" -regtest -server -daemonwait -bind=127.0.0.1:18444 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -listenonion=0 -connect=0 -dnsseed=0 -discover=0 -blockfilterindex=1 -peerblockfilters=1
+          cli=("$dir/tools/bin/bitcoin-cli" "-datadir=$dir/data" -regtest -rpcwait)
+          "${cli[@]}" createwallet fixture >/dev/null
+          "${cli[@]}" generatetoaddress 5 "$("${cli[@]}" getnewaddress)" >/dev/null
       - name: Test the embedded engine on iPhone Simulator
         working-directory: ios/XBTLightning
         run: |
