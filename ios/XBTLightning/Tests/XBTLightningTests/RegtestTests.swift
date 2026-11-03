@@ -43,7 +43,7 @@ final class RegtestTests: XCTestCase {
             try await Task.sleep(nanoseconds: 500_000_000)
             status = try await RegtestNode.shared.status()
         }
-        try XCTUnwrap(status == "Needs setup" ? status : nil, "Expected initial wallet setup, got " + status)
+        _ = try XCTUnwrap(status == "Needs setup" ? status : nil, "Expected initial wallet setup, got " + status)
         try await RegtestNode.shared.setupOrUnlock()
         var running = false
         for _ in 0..<60 {
@@ -91,6 +91,27 @@ final class RegtestTests: XCTestCase {
         let fundedBackup = try await RegtestNode.shared.channelBackup()
         XCTAssertGreaterThan(fundedBackup.count, backup.count)
         #endif
+        let documents = try XCTUnwrap(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let recovery = try await RegtestNode.shared.recoveryFile(phrase: "disposable-restore-fixture")
+        try recovery.write(to: documents.appendingPathComponent("RestoreFixture.rwln"), options: .atomic)
+        let identity = try ProtoFields(await XBTLightningNode.info()).string(1)
+        try identity.write(to: documents.appendingPathComponent("RestoreIdentity.txt"), atomically: true, encoding: .utf8)
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }
+
+    // A separately signed, empty app container receives only this portable
+    // backup and the public identity used for comparison.
+    func testRestoresIdentityFromPortableFile() async throws {
+        let bundle = Bundle(for: RegtestTests.self)
+        let file = try XCTUnwrap(bundle.url(forResource: "RestoreFixture", withExtension: "rwln"))
+        let expected = try String(contentsOf: XCTUnwrap(bundle.url(forResource: "RestoreIdentity", withExtension: "txt")), encoding: .utf8)
+        try await RegtestNode.shared.start()
+        try await waitUntil { try await RegtestNode.shared.status() == "Needs setup" }
+        try await RegtestNode.shared.restore(file: Data(contentsOf: file), phrase: "disposable-restore-fixture")
+        try await waitUntil { try await RegtestNode.shared.status() == "Running" }
+        let info = try ProtoFields(await XBTLightningNode.info())
+        XCTAssertEqual(try info.string(1), expected)
+        _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
+    }
+
 }

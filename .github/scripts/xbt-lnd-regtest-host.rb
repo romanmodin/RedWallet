@@ -4,13 +4,15 @@ require 'xcodeproj'
 require 'fileutils'
 root = File.expand_path(ARGV.fetch(0))
 FileUtils.mkdir_p(root)
+restore = ENV['REGTEST_RESTORE'] == '1'
+namespace = restore ? 'org.redwallet.restorefixture.' : 'org.redwallet.sandbox.'
 project = Xcodeproj::Project.new(File.join(root, 'RegtestHost.xcodeproj'))
 host = project.new_target(:application, 'RegtestHost', :ios, '16.0')
 tests = project.new_target(:unit_test_bundle, 'RegtestHostTests', :ios, '16.0')
 [host, tests].each do |target|
   target.build_configurations.each do |configuration|
     configuration.build_settings.merge!(
-      'PRODUCT_BUNDLE_IDENTIFIER' => 'org.redwallet.sandbox.' + target.name,
+      'PRODUCT_BUNDLE_IDENTIFIER' => namespace + target.name,
       'GENERATE_INFOPLIST_FILE' => 'YES', 'SWIFT_VERSION' => '5.0',
       'SDKROOT' => 'iphonesimulator', 'SUPPORTED_PLATFORMS' => 'iphonesimulator',
       'TARGETED_DEVICE_FAMILY' => '1', 'CODE_SIGN_IDENTITY' => '-'
@@ -23,8 +25,8 @@ File.write(File.join(root, 'main.swift'), <<~SWIFT)
   UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))
 SWIFT
 host.source_build_phase.add_file_reference(project.main_group.new_file('main.swift'))
-entitlements = { 'application-identifier' => 'RWTESTRUN1.org.redwallet.sandbox.RegtestHost',
-                 'keychain-access-groups' => ['RWTESTRUN1.org.redwallet.sandbox.RegtestHost'] }
+entitlements = { 'application-identifier' => 'RWTESTRUN1.' + namespace + 'RegtestHost',
+                 'keychain-access-groups' => ['RWTESTRUN1.' + namespace + 'RegtestHost'] }
 Xcodeproj::Plist.write_to_path(entitlements, File.join(root, 'Host.entitlements'))
 host.build_configurations.each { |c| c.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Host.entitlements' }
 tests.add_dependency(host)
@@ -46,6 +48,11 @@ link.product_ref = product
 tests.frameworks_build_phase.files << link
 source = File.expand_path('ios/XBTLightning/Tests/XBTLightningTests/RegtestTests.swift')
 tests.source_build_phase.add_file_reference(project.main_group.new_file(source))
+if restore
+  %w[RestoreFixture.rwln RestoreIdentity.txt].each do |name|
+    tests.resources_build_phase.add_file_reference(project.main_group.new_file(name))
+  end
+end
 project.save
 scheme = Xcodeproj::XCScheme.new
 scheme.add_build_target(host)
