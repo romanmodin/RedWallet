@@ -16,12 +16,14 @@ permissions:
   contents: read
   actions: read
 env:
-  SOURCE_COMMIT: e380d221eb609015600507ea8b0c1762957ae450
-  PUBLIC_SOURCE_COMMIT: e380d221eb609015600507ea8b0c1762957ae450
-  PRODUCTION_TREE_SHA256: ef628e741f6f7a507a054bbf776d2e12810a27017d99005431a8d4399675f759
-  CI_RUN_ID: '41130458896'
-  IOS_RUN_ID: '41130458888'
-  FUNDED_IOS_RUN_ID: '41130494885'
+  SOURCE_COMMIT: 2e9e60a5d3a4d0959b2acbe8fc25ba32ecb2bbe3
+  PUBLIC_SOURCE_COMMIT: 2e9e60a5d3a4d0959b2acbe8fc25ba32ecb2bbe3
+  PRODUCTION_TREE_SHA256: fd7677243d3144effc226606020e104d838e3ba6af13742ec510cf67032c333c
+  CI_RUN_ID: '41640180813'
+  IOS_RUN_ID: '41640181039'
+  FUNDED_IOS_RUN_ID: '41664873057'
+  LND_IOS_RUN_ID: '41640181080'
+  VERIFY_LND_REGTEST_IPA: '1'
   FASTLANE_OPT_OUT_USAGE: '1'
   FASTLANE_SKIP_UPDATE_CHECK: '1'
   FASTLANE_HIDE_CHANGELOG: '1'
@@ -49,7 +51,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         fetch-depth: 0
-        ref: e380d221eb609015600507ea8b0c1762957ae450
+        ref: 2e9e60a5d3a4d0959b2acbe8fc25ba32ecb2bbe3
         persist-credentials: false
         repository: romanmodin/RedWallet
     - name: Checkout trusted verification tools
@@ -124,6 +126,8 @@ jobs:
         key: ${{ runner.os }}-pods-ios-release-${{ hashFiles('ios/Podfile.lock') }}
         restore-keys: |
           ${{ runner.os }}-pods-ios-release-
+    - name: Enable the qualified embedded LND regtest variant
+      run: bundle exec ruby .github/scripts/enable-xbt-lightning-regtest.rb
     - name: Install CocoaPods Dependencies
       env:
         RCT_USE_RN_DEP: '1'
@@ -244,7 +248,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         repository: romanmodin/RedWallet
-        ref: e380d221eb609015600507ea8b0c1762957ae450
+        ref: 2e9e60a5d3a4d0959b2acbe8fc25ba32ecb2bbe3
         persist-credentials: false
     - name: Checkout trusted verification tools
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
