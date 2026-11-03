@@ -21,7 +21,7 @@ call(chain, "generatetoaddress", "105", miner)
 class Fixture(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            length = int(self.headers["Content-Length"])
+            length = int(self.headers.get("Content-Length", "0"))
             if not 0 <= length <= 8192:
                 raise ValueError()
             value = self.rfile.read(length).decode("ascii")
