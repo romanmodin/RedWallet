@@ -1,0 +1,22 @@
+name: Embedded XBT LND
+on:
+  pull_request:
+    paths:
+      - 'ios/XBTLightning/**'
+      - 'ios/BlueWallet/XBTLightningBridge.*'
+      - '.github/workflows/xbt-lnd-ios.yml'
+permissions:
+  contents: read
+jobs:
+  regtest:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Test the embedded engine on iPhone Simulator
+        working-directory: ios/XBTLightning
+        run: |
+          set -eo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
+          xcodebuild -scheme XBTLightning -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO test
+

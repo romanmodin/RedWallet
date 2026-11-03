@@ -15,6 +15,7 @@ let package = Package(
             name: "XBTLightning",
             dependencies: ["Lndmobile"],
             linkerSettings: [.linkedLibrary("resolv"), .linkedFramework("Security"), .linkedFramework("SystemConfiguration")]
-        )
+        ),
+        .testTarget(name: "XBTLightningTests", dependencies: ["XBTLightning"])
     ]
 )

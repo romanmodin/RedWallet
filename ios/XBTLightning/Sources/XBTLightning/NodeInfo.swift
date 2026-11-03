@@ -1,31 +1,54 @@
 import Foundation
 import Lndmobile
 
-/// Read the local XBT node's serialized lnrpc.GetInfoResponse after RPC is ready.
-public enum XBTLightningNode {
-    public static func info() async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
-            LndmobileGetInfo(Data(), InfoCallback(continuation))
+enum NodeFailure: LocalizedError {
+    case invalidReply, timedOut, restartRequired, missingCredentials, invalidAmount
+    var errorDescription: String? {
+        switch self {
+        case .invalidReply: return "The Lightning engine returned an invalid response."
+        case .timedOut: return "The Lightning engine has not answered yet. Check its status again."
+        case .restartRequired: return "Restart RedWallet to start the Lightning node again."
+        case .missingCredentials: return "The saved credentials for this test node are unavailable."
+        case .invalidAmount: return "Enter a whole amount between 1 and 1,000,000 test sats."
         }
     }
 }
 
-private final class InfoCallback: NSObject, LndmobileCallbackProtocol {
-    private let continuation: CheckedContinuation<Data, Error>
+// Mobile Start can report a daemon error after the initial success. Each async
+// caller must complete exactly once, including when its RPC times out.
+private final class Reply: NSObject, LndmobileCallbackProtocol {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Data, Error>?
+    private var timer: DispatchWorkItem?
 
     init(_ continuation: CheckedContinuation<Data, Error>) {
         self.continuation = continuation
+        super.init()
+        let timer = DispatchWorkItem { [weak self] in self?.finish(.failure(NodeFailure.timedOut)) }
+        self.timer = timer
+        DispatchQueue.global().asyncAfter(deadline: .now() + 60, execute: timer)
     }
 
-    func onResponse(_ response: Data?) {
-        if let response, !response.isEmpty {
-            continuation.resume(returning: response)
-        } else {
-            continuation.resume(throwing: CocoaError(.coderReadCorrupt))
-        }
+    private func finish(_ result: Result<Data, Error>) {
+        lock.lock()
+        let pending = continuation
+        continuation = nil
+        timer?.cancel()
+        timer = nil
+        lock.unlock()
+        pending?.resume(with: result)
     }
 
-    func onError(_ error: Error?) {
-        continuation.resume(throwing: error ?? CocoaError(.coderValueNotFound))
+    func onResponse(_ response: Data?) { finish(.success(response ?? Data())) }
+    func onError(_ error: Error?) { finish(.failure(error ?? NodeFailure.invalidReply)) }
+}
+
+func rpc(_ send: (LndmobileCallbackProtocol) -> Void) async throws -> Data {
+    try await withCheckedThrowingContinuation { continuation in send(Reply(continuation)) }
+}
+
+public enum XBTLightningNode {
+    public static func info() async throws -> Data {
+        try await rpc { LndmobileGetInfo(Data(), $0) }
     }
 }
