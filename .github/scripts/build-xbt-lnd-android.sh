@@ -13,6 +13,10 @@ export PATH="$GOBIN:$PATH"
 go install "golang.org/x/mobile/cmd/gomobile@$mobile_version"
 go install "golang.org/x/mobile/cmd/gobind@$mobile_version"
 go get "golang.org/x/mobile/bind@$mobile_version"
+if [[ -n "${XBT_FIXTURE_BIN:-}" ]]; then
+    mkdir -p "$XBT_FIXTURE_BIN"
+    go build -tags="routerrpc invoicesrpc" -o "$XBT_FIXTURE_BIN/" ./cmd/lnd ./cmd/lncli
+fi
 mkdir -p "$(dirname "$out")"
 GOFLAGS=-mod=mod gomobile bind -trimpath -target=android/arm64,android/amd64 -androidapi 26 \
   -tags='mobile signrpc walletrpc chainrpc invoicesrpc routerrpc peersrpc neutrinorpc' \

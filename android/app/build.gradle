@@ -86,7 +86,7 @@ android {
     namespace "io.bluewallet.bluewallet"
     defaultConfig {
         applicationId "com.romanmodin.redwallet"
-        minSdkVersion regtestAar ? 26 : rootProject.ext.minSdkVersion
+        minSdkVersion(regtestAar ? 26 : rootProject.ext.minSdkVersion)
         if (regtestAar) applicationIdSuffix ".regtest"
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = (project.findProperty("redwalletVersionCode") ?: "1").toInteger()
@@ -103,6 +103,7 @@ android {
     }
 
     sourceSets {
+        if (regtestAar) androidTest.java.srcDirs += "src/xbtRegtestTest/java"
         main {
             assets.srcDirs = ['src/main/assets', 'src/main/res/assets']
             java.srcDirs = ['src/main/java', '../../blue_modules/Views/SegmentedControl/android', regtestAar ? 'src/xbtRegtest/java' : 'src/standard/java']
