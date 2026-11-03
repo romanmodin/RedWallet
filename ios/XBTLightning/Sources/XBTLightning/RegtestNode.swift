@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Security
 import Lndmobile
 
@@ -72,6 +73,11 @@ public actor RegtestNode {
         }
     }
 
+    private func pendingCreationURL() throws -> URL {
+        try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+            .appendingPathComponent("XBTLightning-regtest/pending-creation")
+    }
+
     private struct Credentials: Codable {
         let password: Data
         let words: [Data]
@@ -89,7 +95,10 @@ public actor RegtestNode {
             guard saved.words.count == 24 && saved.password.count == 32 else { throw NodeFailure.missingCredentials }
             // A previous installation can leave its Keychain entry behind.
             // Never silently initialize a second channel node with that identity.
-            if create && restoring != saved.words { throw NodeFailure.invalidRecovery }
+            if create && restoring != saved.words {
+                let pending = try? Data(contentsOf: pendingCreationURL())
+                guard restoring == nil && pending == Data(SHA256.hash(data: saved.password)) else { throw NodeFailure.invalidRecovery }
+            }
             return saved
         }
         guard lookup == errSecItemNotFound, create else { throw NodeFailure.missingCredentials }
@@ -106,6 +115,9 @@ public actor RegtestNode {
         var addition = match
         addition[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         addition[kSecValueData as String] = try JSONEncoder().encode(saved)
+        if restoring == nil {
+            try Data(SHA256.hash(data: saved.password)).write(to: pendingCreationURL(), options: [.atomic, .completeFileProtection])
+        }
         guard SecItemAdd(addition as CFDictionary, nil) == errSecSuccess else { throw NodeFailure.missingCredentials }
         return saved
     }
@@ -139,6 +151,7 @@ public actor RegtestNode {
             var request = ProtoFields.field(1, data: saved.password)
             for word in saved.words { request += ProtoFields.field(2, data: word) }
             _ = try await rpc { LndmobileInitWallet(request, $0) }
+            try? FileManager.default.removeItem(at: pendingCreationURL())
         case "Locked":
             let saved = try await credentials(create: false)
             _ = try await rpc { LndmobileUnlockWallet(ProtoFields.field(1, data: saved.password), $0) }

@@ -10,9 +10,19 @@ permissions:
 jobs:
   regtest:
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Build the disposable XBT Lightning peer
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/lnd-regtest"
+          mkdir -p "$dir/ln-bin"
+          git init -q "$dir/peer-src"
+          git -C "$dir/peer-src" fetch -q --depth=1 https://github.com/Kilombino/lnd.git cae303b36594a2c48c9ce0cbb238672e3a1b284e
+          git -C "$dir/peer-src" checkout -q --detach FETCH_HEAD
+          cd "$dir/peer-src"
+          go build -tags="routerrpc invoicesrpc" -o "$dir/ln-bin/" ./cmd/lnd ./cmd/lncli
       - name: Start a private compact-filter chain peer
         run: |
           set -euo pipefail
@@ -23,10 +33,18 @@ jobs:
           curl -fsSL --retry 2 "$(jq -r --arg k "$key" '.knots[$k].url' tests/native/backend-assets.json)" -o "$archive"
           printf '%s  %s\n' "$(jq -r --arg k "$key" '.knots[$k].sha256' tests/native/backend-assets.json)" "$archive" | shasum -a 256 -c -
           tar -xzf "$archive" --strip-components=1 -C "$dir/tools"
-          "$dir/tools/bin/bitcoind" -datadir="$dir/data" -regtest -server -daemonwait -bind=127.0.0.1:18444 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -listenonion=0 -connect=0 -dnsseed=0 -discover=0 -blockfilterindex=1 -peerblockfilters=1 -testactivationheight=blake2b@150
+          "$dir/tools/bin/bitcoind" -datadir="$dir/data" -regtest -server -daemonwait -bind=127.0.0.1:18444 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -listenonion=0 -connect=0 -dnsseed=0 -discover=0 -blockfilterindex=1 -peerblockfilters=1 -fallbackfee=0.00001 -testactivationheight=blake2b@150
           cli=("$dir/tools/bin/bitcoin-cli" "-datadir=$dir/data" -regtest -rpcwait)
           "${cli[@]}" createwallet fixture >/dev/null
           "${cli[@]}" generatetoaddress 5 "$("${cli[@]}" getnewaddress)" >/dev/null
+          "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=neutrino --neutrino.connect=127.0.0.1:18444 --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
+          ready=false
+          for attempt in {1..90}; do
+            if "$dir/ln-bin/lncli" --network=regtest --rpcserver=127.0.0.1:11009 --lnddir="$dir/ln-peer" getinfo 2>/dev/null | jq -e '.synced_to_chain == true' >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          python3 .github/scripts/xbt-lnd-regtest-peer.py "$dir" >"$dir/fixture.log" 2>&1 &
       - name: Test the embedded engine on iPhone Simulator
         working-directory: ios/XBTLightning
         run: |

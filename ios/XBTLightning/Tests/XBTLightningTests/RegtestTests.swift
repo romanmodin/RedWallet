@@ -16,6 +16,25 @@ final class RegtestTests: XCTestCase {
         XCTAssertThrowsError(try ProtoFields(Data(repeating: 0xff, count: 10)))
     }
 
+    private func peer(_ operation: String, _ value: String = "") async throws -> String {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:18149/" + operation)!)
+        request.httpMethod = "POST"
+        request.httpBody = Data(value.utf8)
+        request.timeoutInterval = 100
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let result = String(data: data, encoding: .utf8) else { throw NodeFailure.invalidReply }
+        return result
+    }
+
+    private func waitUntil(_ check: () async throws -> Bool) async throws {
+        for _ in 0..<90 {
+            if try await check() { return }
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+        throw NodeFailure.timedOut
+    }
+
     func testEmbeddedNodeStartsAndReportsWalletState() async throws {
         try await RegtestNode.shared.start()
         try await RegtestNode.shared.start()
@@ -49,6 +68,27 @@ final class RegtestTests: XCTestCase {
         XCTAssertTrue(summary.contains("Node: "))
         let funding = try await RegtestNode.shared.fundingAddress()
         XCTAssertTrue(funding.hasPrefix("bcrt1"))
+        let peerKey = try await peer("peer")
+        _ = try await peer("fund", funding)
+        try await waitUntil {
+            let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
+            return (funds.integers[2] ?? 0) >= 100_000
+        }
+        try await RegtestNode.shared.connect(to: peerKey + "@127.0.0.1:19735")
+        let point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)
+        _ = try await peer("confirm", point)
+        try await waitUntil { try ProtoFields(await XBTLightningNode.info()).integers[4] == 1 }
+
+        let outgoing = try await peer("invoice")
+        let review = try await RegtestNode.shared.decode(outgoing)
+        XCTAssertEqual(review.sats, 20_000)
+        let settled = try await RegtestNode.shared.pay(invoice: outgoing, expectedHash: review.hash, expectedSats: review.sats)
+        XCTAssertTrue(settled)
+        let incoming = try await RegtestNode.shared.receive(sats: 2_000)
+        let receipt = try await peer("pay", incoming)
+        XCTAssertEqual(receipt, "settled")
+        let fundedBackup = try await RegtestNode.shared.channelBackup()
+        XCTAssertGreaterThan(fundedBackup.count, backup.count)
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }
 }
