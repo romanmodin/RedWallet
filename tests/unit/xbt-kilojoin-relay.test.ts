@@ -225,3 +225,29 @@ test('a stopped relay cannot report a late handler error into the next attempt',
   for (let i = 0; i < 10; i++) await Promise.resolve();
   expect(f.errors).not.toHaveBeenCalled();
 });
+
+test('resumed pool becomes ready only after processing history for the current subscription', async () => {
+  let release!: () => void;
+  const f = fixture(
+    jest.fn(
+      () =>
+        new Promise<void>(resolve => {
+          release = resolve;
+        }),
+    ),
+  );
+  const connection = f.relay.connect();
+  f.socket.onopen!();
+  await connection;
+  const ready = jest.fn();
+  f.relay.subscribe([event.pubkey], [event.pubkey], undefined, ready);
+  f.message(['EOSE', 'other']);
+  f.message(['EVENT', 'kilojoin-participant-1', event]);
+  f.message(['EOSE', 'kilojoin-participant-1']);
+  await Promise.resolve();
+  expect(ready).not.toHaveBeenCalled();
+  release();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  expect(ready).toHaveBeenCalledTimes(1);
+  f.relay.close();
+});

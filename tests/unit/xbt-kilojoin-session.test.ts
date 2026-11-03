@@ -1793,6 +1793,10 @@ test.each(outputTimeoutCases)(
       f.session,
       f.round,
       {},
+      () => {
+        throw new Error('Offline fixture does not reconnect');
+      },
+      1000,
       [],
       undefined,
       updated,
@@ -2178,4 +2182,23 @@ describe('newer creator closing recovery', () => {
     expect(f.session.snapshot().roundId).toBe(nextId);
     expect(f.published).toHaveLength(1);
   });
+});
+
+test('signature delivery remains unconfirmed after a lost acknowledgment until the same saved signature is accepted', async () => {
+  const f = await fixture();
+  await f.advance();
+  const publish = f.env.publish;
+  f.env.publish = async () => {
+    throw new Error('missing relay acknowledgment');
+  };
+  const signer = jest.fn(async (p: Parameters<typeof f.signature>[0]) => new Map([[outpoint(p.coins[0]), f.signature(p, 0)]]));
+  await expect(f.session.signApproved(f.session.reviewed().commitment!, signer)).rejects.toThrow('missing relay acknowledgment');
+  expect(f.session.snapshot().ownSignaturesAcknowledged).not.toBe(true);
+  expect(f.round.snapshot().phase).toBe('signed');
+  const signatures = f.session.snapshot().signatures;
+  f.env.publish = publish;
+  await f.session.retrySignatures();
+  expect(f.session.snapshot().ownSignaturesAcknowledged).toBe(true);
+  expect(f.session.snapshot().signatures).toEqual(signatures);
+  expect(signer).toHaveBeenCalledTimes(1);
 });

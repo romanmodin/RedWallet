@@ -1,4 +1,4 @@
-/** Native experimental orchestration. Requires explicit opt-in; never signs automatically. */
+/** Native experimental orchestration. Signing is restricted to the joined attempt and its validated plan. */
 import { address, Transaction } from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
 import ecc from '../../../blue_modules/noble_ecc';
@@ -24,6 +24,7 @@ export type ClientView = {
   session: SessionState;
   journal: Journal;
   error?: string;
+  relayInterrupted?: boolean;
   broadcastId?: string;
   review?: ReturnType<ParticipantSession['reviewSummary']>;
 };
@@ -32,12 +33,17 @@ export class MixingClient {
   private broadcastId?: string;
   private error?: string;
   private closed = false;
+  private relayIssue?: string;
+  private reconnecting = false;
+  private catchupTimer?: ReturnType<typeof setTimeout>;
   private constructor(
     readonly terms: Readonly<Terms>,
     private readonly wallet: MixingWallet,
     private readonly session: ParticipantSession,
     private readonly round: Round,
-    private readonly relay: KilojoinRelay,
+    private relay: KilojoinRelay,
+    private readonly makeRelay: () => KilojoinRelay,
+    readonly maxFee: number,
     private readonly mixAddresses: string[],
     private readonly changeAddress: string | undefined,
     private readonly onUpdate: (view: ClientView) => void,
@@ -51,7 +57,8 @@ export class MixingClient {
       session: this.session.snapshot(),
       journal,
       // Only the persisted journal establishes whether reservations were released.
-      error: ['aborted', 'complete'].includes(journal.phase) ? undefined : this.error,
+      error: ['aborted', 'complete'].includes(journal.phase) ? undefined : this.error || this.relayIssue,
+      relayInterrupted: !!this.relayIssue && !this.error,
       broadcastId: this.broadcastId,
       review: this.session.reviewSummary(),
     };
@@ -167,17 +174,23 @@ export class MixingClient {
       session.snapshot().phase === 'joining'
         ? relay.subscribe([terms.creator], [joinPub], start - 60)
         : relay.subscribe([terms.creator, terms.public_key], [terms.public_key]);
-    const relay = new KilojoinRelay(
-      async event => {
-        const before = session.snapshot().phase;
-        await session.receive(event);
-        if (before === 'joining' && session.snapshot().phase === 'open') subscribe();
-        client?.scheduleOutputs();
-        client?.update();
-      },
-      error => client?.fail(relayFailureMessage(error)),
-    );
-    const session = new ParticipantSession(terms, seat, joinSecret, mixScripts, config.maxFee, round, {
+    const makeRelay = () =>
+      new KilojoinRelay(
+        async event => {
+          const before = session.snapshot().phase;
+          await session.receive(event);
+          if (before === 'joining' && session.snapshot().phase === 'open') subscribe();
+          client?.scheduleOutputs();
+          client?.update();
+        },
+        error => {
+          if (error.message === 'Relay disconnected' || error.message === 'Relay connection error')
+            client?.interruptRelay(relayFailureMessage(error));
+          else client?.fail(relayFailureMessage(error));
+        },
+      );
+    const relay = makeRelay();
+    const session: ParticipantSession = new ParticipantSession(terms, seat, joinSecret, mixScripts, config.maxFee, round, {
       now: clock,
       random: nativeEntropy,
       saveEncrypted: state => vault.save(state),
@@ -192,9 +205,20 @@ export class MixingClient {
               : [],
           ),
         ]),
-      publish: (event, isolated) => (isolated ? publishIsolated(event) : relay.publish(event)),
+      publish: (event, isolated) => (isolated ? publishIsolated(event) : client.relay.publish(event)),
     });
-    const client = new MixingClient(terms, wallet, session, round, relay, mixAddresses, changeAddress, config.onUpdate);
+    const client: MixingClient = new MixingClient(
+      terms,
+      wallet,
+      session,
+      round,
+      relay,
+      makeRelay,
+      config.maxFee,
+      mixAddresses,
+      changeAddress,
+      config.onUpdate,
+    );
     try {
       await relay.connect();
       subscribe();
@@ -210,13 +234,49 @@ export class MixingClient {
     }
   }
 
+  interruptRelay(reason = 'Checking the CoinJoin relay after returning to RedWallet.'): void {
+    if (this.closed || this.session.snapshot().phase === 'joining') {
+      if (!this.closed) this.fail(reason);
+      return;
+    }
+    this.relayIssue = reason;
+    this.update();
+  }
+
+  async reconnectRelay(): Promise<void> {
+    if (this.closed || this.error || !this.relayIssue || this.reconnecting || clock() >= this.round.snapshot().deadline) return;
+    this.reconnecting = true;
+    this.relay.close();
+    const relay = this.makeRelay();
+    this.relay = relay;
+    try {
+      await relay.connect();
+      if (this.closed || this.relay !== relay) return;
+      await new Promise<void>((resolve, reject) => {
+        this.catchupTimer = setTimeout(() => reject(new Error('Pool history unavailable')), 15000);
+        relay.subscribe([this.terms.creator, this.terms.public_key], [this.terms.public_key], undefined, resolve);
+      });
+      if (this.closed || this.relay !== relay) return;
+      this.relayIssue = undefined;
+      this.scheduleOutputs();
+    } catch {
+      relay.close();
+      this.relayIssue = 'Could not reconnect to the CoinJoin relay. Your coins remain reserved.';
+    } finally {
+      clearTimeout(this.catchupTimer);
+      this.reconnecting = false;
+      if (!this.closed) this.update();
+    }
+  }
+
   private scheduleOutputs(): void {
     const state = this.session.snapshot();
-    if (this.closed || this.timer || state.phase !== 'closing' || state.outputNotBefore === undefined) return;
+    if (this.closed || this.relayIssue || this.error || this.timer || state.phase !== 'closing' || state.outputNotBefore === undefined)
+      return;
     this.timer = setTimeout(
       () => {
         this.timer = undefined;
-        if (this.closed) return;
+        if (this.closed || this.relayIssue || this.error) return;
         this.session
           .submitOutput()
           .then(() => {
@@ -252,13 +312,19 @@ export class MixingClient {
   }
 
   async retrySignatures(): Promise<void> {
-    await this.session.retrySignatures();
-    this.update();
+    try {
+      await this.session.retrySignatures();
+    } finally {
+      this.update();
+    }
   }
 
   async approve(commitment: string): Promise<void> {
-    await this.session.signApproved(commitment, walletSigner(this.wallet, this.round));
-    this.update();
+    try {
+      await this.session.signApproved(commitment, walletSigner(this.wallet, this.round));
+    } finally {
+      this.update();
+    }
   }
 
   async broadcast(): Promise<void> {

@@ -96,3 +96,69 @@ test('failed join clears only the failed pending owner and can be retried after 
   await f.owner.start(wallet, f.join);
   expect(f.owner.snapshot()?.client).toBe(f.client);
 });
+
+test('one attempt may opt in, detach, and sign only its validated review while the deadline is live', async () => {
+  const f = fixture();
+  const approve = jest.fn(async () => {});
+  const reconnectRelay = jest.fn(async () => {});
+  Object.assign(f.client, { approve, reconnectRelay });
+  await f.owner.start(wallet, f.join);
+  const review = {
+    session: { phase: 'review', deadline: 80 },
+    journal: { phase: 'review', deadline: 100, commitment: 'exact' },
+    review: {},
+  } as ClientView;
+  f.emit(review);
+  await f.owner.advance(50);
+  expect(approve).not.toHaveBeenCalled();
+  f.owner.setAutomatic(f.client, true);
+  const detach = f.owner.subscribe(jest.fn());
+  detach();
+  await f.owner.advance(80);
+  f.emit({ ...review, error: 'invalid roster' });
+  await f.owner.advance(50);
+  f.emit({ ...review, error: 'disconnected', relayInterrupted: true });
+  await f.owner.advance(50);
+  expect(reconnectRelay).toHaveBeenCalledTimes(1);
+  expect(approve).not.toHaveBeenCalled();
+  f.emit(review);
+  await Promise.all([f.owner.advance(51), f.owner.advance(51)]);
+  expect(approve).toHaveBeenCalledTimes(1);
+  expect(approve).toHaveBeenCalledWith('exact');
+  f.owner.setAutomatic(f.client, false);
+  await f.owner.advance(52);
+  expect(approve).toHaveBeenCalledTimes(1);
+});
+
+test('authorized round requests closing once, respects a saved vote and waits for every signature before broadcasting', async () => {
+  const f = fixture();
+  const requestClose = jest.fn(async () => {});
+  const vote = jest.fn(async () => {});
+  const broadcast = jest.fn(async () => {});
+  Object.assign(f.client, { terms: { min_peers: 2 }, requestClose, vote, broadcast });
+  await f.owner.start(wallet, f.join);
+  const seats = [{ coins: [{ txid: 'a', vout: 0 }] }, { coins: [{ txid: 'b', vout: 0 }] }];
+  const open = { session: { phase: 'open', seats, signatures: {}, deadline: 80 }, journal: { phase: 'joined', deadline: 90 } };
+  f.emit(open as unknown as ClientView);
+  f.owner.setAutomatic(f.client, true);
+  await f.owner.advance(50);
+  await f.owner.advance(51);
+  expect(requestClose).toHaveBeenCalledTimes(1);
+  const voting = { ...open.session, phase: 'voting', voteId: 'v' };
+  f.emit({ ...open, session: voting } as unknown as ClientView);
+  await f.owner.advance(52);
+  expect(vote).toHaveBeenCalledWith(true);
+  f.emit({ ...open, session: { ...voting, closingResponse: { voteId: 'v', accept: false } } } as unknown as ClientView);
+  await f.owner.advance(53);
+  expect(vote).toHaveBeenCalledTimes(1);
+  const signed = {
+    session: { ...open.session, phase: 'signed', signatures: { 'a:0': 'sig' } },
+    journal: { phase: 'signed', deadline: 90 },
+  };
+  f.emit(signed as unknown as ClientView);
+  await f.owner.advance(54);
+  expect(broadcast).not.toHaveBeenCalled();
+  f.emit({ ...signed, session: { ...signed.session, signatures: { 'a:0': 'sig', 'b:0': 'sig' } } } as unknown as ClientView);
+  await f.owner.advance(55);
+  expect(broadcast).toHaveBeenCalledTimes(1);
+});
