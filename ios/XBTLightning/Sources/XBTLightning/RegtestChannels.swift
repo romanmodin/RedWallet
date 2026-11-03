@@ -8,14 +8,20 @@ extension RegtestNode {
         let channels = try ProtoFields(await rpc { LndmobileChannelBalance(Data(), $0) })
         let local = try ProtoFields(channels.bytes[3]?.first ?? Data())
         let remote = try ProtoFields(channels.bytes[4]?.first ?? Data())
-        return [
-            "Node: " + (try info.string(1)),
-            "Chain height: " + String(info.integers[6] ?? 0),
-            "Synced: " + (info.integers[9] == 1 ? "yes" : "no"),
-            "Confirmed funding balance: " + String(balance.integers[2] ?? 0) + " test sats",
-            "Local / remote channel balance: " + String(local.integers[1] ?? 0) + " / " + String(remote.integers[1] ?? 0) + " test sats",
-            "Active channels: " + String(info.integers[4] ?? 0)
-        ].joined(separator: "\n")
+        let publicKey = try info.string(1)
+        let height = info.integers[6] ?? 0
+        let synced = info.integers[9] == 1 ? "yes" : "no"
+        let onChain = balance.integers[2] ?? 0
+        let outbound = local.integers[1] ?? 0, inbound = remote.integers[1] ?? 0
+        let count = info.integers[4] ?? 0
+        return """
+        Node: \(publicKey)
+        Chain height: \(height)
+        Synced: \(synced)
+        Confirmed funding balance: \(onChain) test sats
+        Local / remote channel balance: \(outbound) / \(inbound) test sats
+        Active channels: \(count)
+        """
     }
 
     public func fundingAddress() async throws -> String {
