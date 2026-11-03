@@ -92,6 +92,11 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
             assert info.get("CFBundleDisplayName") == "RedWallet", "Wrong app display name"
             assert entitlements.get("com.apple.security.application-groups") == ["group.com.romanmodin.redwallet"], "Wrong app group"
             assert entitlements.get("aps-environment") == "production", "Incorrect push entitlement for distribution"
+            if os.environ.get("VERIFY_LND_REGTEST_IPA") == "1":
+                assert info.get("MinimumOSVersion") == "16.0", "Incorrect Lightning beta deployment target"
+                binary = (bundle / info["CFBundleExecutable"]).read_bytes()
+                assert b"XBTLightningBridge" in binary, "Missing native Lightning bridge"
+                assert b"bitcoin.regtest=true" in binary, "Missing regtest configuration"
             main_info = info
         receipt.append({"bundleId": identifier, "version": info["CFBundleShortVersionString"],
                         "build": info["CFBundleVersion"], "architectures": architectures,

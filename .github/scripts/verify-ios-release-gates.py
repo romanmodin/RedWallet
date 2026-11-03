@@ -46,7 +46,10 @@ def main():
     if not re.fullmatch(r"[0-9a-f]{40}", source):
         raise RuntimeError("Expected a full source commit")
     receipts = []
-    for variable, workflow, required_jobs in GATES:
+    gates = GATES
+    if os.environ.get("VERIFY_LND_REGTEST_IPA") == "1":
+        gates += (("LND_IOS_RUN_ID", ".github/workflows/xbt-lnd-ios.yml", {"regtest (wallet)", "regtest (payments)"}),)
+    for variable, workflow, required_jobs in gates:
         run_id = os.environ[variable]
         if not run_id.isdecimal():
             raise RuntimeError("Invalid gate run ID")

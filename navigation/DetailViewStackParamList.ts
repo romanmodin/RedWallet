@@ -95,6 +95,7 @@ export type DetailViewStackParamList = {
   Settings: undefined;
   Currency: undefined;
   XbtPrice: undefined;
+  XBTLightning: undefined;
   CoinjoinExperimental: undefined;
   GeneralSettings: undefined;
   Licensing: undefined;
