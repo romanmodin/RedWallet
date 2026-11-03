@@ -179,6 +179,15 @@ jobs:
         run: |
           test "$(git -C app rev-parse HEAD)" = "$KILOWALLET_SOURCE_COMMIT"
           python3 -I signing/distribution/kilowallet/verify_gates.py
+      - name: Fetch verified Kilowallet 1.0 native engines
+        if: ${{ startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
+        working-directory: app
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/fetch-lnd-engine.sh
+          ./scripts/fetch-ark-engine.sh
+          ./scripts/fetch-tor-engine.sh
       - name: Install Apple-signed Transporter for TestFlight uploads
         if: ${{ inputs.upload_to_testflight }}
         run: |

@@ -1,6 +1,6 @@
 import copy
 import unittest
-from verify_gates import REPOSITORY, validate
+from verify_gates import REPOSITORY, validate, checkout_sha, verify_tree
 
 class GatesTest(unittest.TestCase):
     def setUp(self):
@@ -21,6 +21,17 @@ class GatesTest(unittest.TestCase):
             with self.subTest(key=key):
                 run=copy.deepcopy(self.run);run[key]=value
                 with self.assertRaises(RuntimeError): self.check(run=run)
+    def test_checkout_log_and_equivalent_merge_tree(self):
+        head,merge,tree="a"*40,"b"*40,"c"*40
+        log="2026-11-03T12:00:00Z [command]/opt/homebrew/bin/git log -1 --format=%H\n2026-11-03T12:00:01Z "+merge+"\n"
+        self.assertEqual(merge, checkout_sha(log))
+        for bad in ["",log+log,log.replace(merge, "branch")]:
+            with self.assertRaises(RuntimeError): checkout_sha(bad)
+        commit={"sha":merge,"tree":{"sha":tree},"parents":[{"sha":head}]}
+        self.assertEqual(tree,verify_tree(head,tree,merge,commit,"pull_request")["tree"])
+        for bad,event in [(dict(commit,tree={"sha":"d"*40}),"pull_request"),(dict(commit,parents=[]),"pull_request"),(commit,"workflow_dispatch")]:
+            with self.assertRaises(RuntimeError): verify_tree(head,tree,merge,bad,event)
+
     def test_incomplete_or_failed_gate(self):
         for key,value in [("status","in_progress"),("conclusion","failure"),("conclusion","skipped")]:
             run=copy.deepcopy(self.run);run[key]=value
