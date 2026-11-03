@@ -82,7 +82,8 @@ export default function XBTLightning() {
     <SettingsScrollView testID="XBTLightningScreen">
       <SettingsSection>
         <SettingsFootnote>
-          Private XBT test network (regtest). Enter the private IPv4 address of your regtest chain peer. The node connects on port 18444.
+          Private XBT test network (regtest). Enter the private IPv4 address of your regtest chain peer. The node connects on port 18444 and
+          requires the BLAKE2b activation block at height 150.
         </SettingsFootnote>
         {status === 'Stopped' && (
           <TextInput
@@ -105,7 +106,7 @@ export default function XBTLightning() {
         )}
         <SettingsListItem title="Refresh status" disabled={busy} onPress={() => node('status')} />
       </SettingsSection>
-      {['RPC ready', 'Running'].includes(status) && (
+      {status === 'Running' && (
         <SettingsSection>
           <SettingsListItem
             title="Node and channel balances"
@@ -241,7 +242,7 @@ export default function XBTLightning() {
           />
         </SettingsSection>
       )}
-      {['Needs setup', 'Running', 'RPC ready'].includes(status) && (
+      {['Needs setup', 'Running'].includes(status) && (
         <SettingsSection>
           <SettingsFootnote>
             Portable test recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export again

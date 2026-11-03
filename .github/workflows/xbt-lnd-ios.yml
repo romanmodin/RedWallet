@@ -51,7 +51,9 @@ jobs:
           "$dir/tools/bin/bitcoind" -datadir="$dir/data" -regtest -server -daemonwait -bind=127.0.0.1:18444 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -listenonion=0 -connect=0 -dnsseed=0 -discover=0 -blockfilterindex=1 -peerblockfilters=1 -fallbackfee=0.00001 -testactivationheight=blake2b@150
           cli=("$dir/tools/bin/bitcoin-cli" "-datadir=$dir/data" -regtest -rpcwait)
           "${cli[@]}" createwallet fixture >/dev/null
-          "${cli[@]}" generatetoaddress 5 "$("${cli[@]}" getnewaddress)" >/dev/null
+          "${cli[@]}" generatetoaddress 151 "$("${cli[@]}" getnewaddress)" >/dev/null
+          header=$("${cli[@]}" getblockheader "$("${cli[@]}" getblockhash 150)" false)
+          test "${#header}" -eq 328
       - name: Start the isolated routing peer
         if: matrix.tier == 'payments'
         run: |

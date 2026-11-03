@@ -16,7 +16,6 @@ def call(command, *args):
     return result.stdout.strip()
 
 miner = call(chain, "getnewaddress")
-call(chain, "generatetoaddress", "105", miner)
 
 class Fixture(BaseHTTPRequestHandler):
     def do_POST(self):
