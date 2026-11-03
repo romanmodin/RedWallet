@@ -101,7 +101,8 @@ public actor RegtestNode {
             }
             return saved
         }
-        guard lookup == errSecItemNotFound, create else { throw NodeFailure.missingCredentials }
+        guard lookup == errSecItemNotFound else { throw NodeFailure.keychain(lookup) }
+        guard create else { throw NodeFailure.missingCredentials }
         let words: [Data]
         if let restoring { words = restoring }
         else {
@@ -118,7 +119,8 @@ public actor RegtestNode {
         if restoring == nil {
             try Data(SHA256.hash(data: saved.password)).write(to: pendingCreationURL(), options: [.atomic, .completeFileProtection])
         }
-        guard SecItemAdd(addition as CFDictionary, nil) == errSecSuccess else { throw NodeFailure.missingCredentials }
+        let added = SecItemAdd(addition as CFDictionary, nil)
+        guard added == errSecSuccess else { throw NodeFailure.keychain(added) }
         return saved
     }
 

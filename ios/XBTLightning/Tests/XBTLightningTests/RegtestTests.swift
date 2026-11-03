@@ -68,6 +68,7 @@ final class RegtestTests: XCTestCase {
         XCTAssertTrue(summary.contains("Node: "))
         let funding = try await RegtestNode.shared.fundingAddress()
         XCTAssertTrue(funding.hasPrefix("bcrt1"))
+        #if XBT_LND_ROUTED_TEST
         let peerKey = try await peer("peer")
         _ = try await peer("fund", funding)
         try await waitUntil {
@@ -89,6 +90,7 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(receipt, "settled")
         let fundedBackup = try await RegtestNode.shared.channelBackup()
         XCTAssertGreaterThan(fundedBackup.count, backup.count)
+        #endif
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }
 }

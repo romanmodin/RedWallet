@@ -1,10 +1,13 @@
 import Foundation
+import Security
 import Lndmobile
 
 enum NodeFailure: LocalizedError {
     case invalidReply, timedOut, invalidPeer, missingCredentials, invalidAmount, invalidRecovery
+    case keychain(OSStatus)
     var errorDescription: String? {
         switch self {
+        case .keychain(let code): return "Keychain could not access the test wallet (status \(code))."
         case .invalidReply: return "The Lightning engine returned an invalid response."
         case .timedOut: return "The Lightning engine has not answered yet. Check its status again."
         case .invalidPeer: return "Enter localhost (127.0.0.1) or the private IPv4 address of your XBT regtest chain peer."

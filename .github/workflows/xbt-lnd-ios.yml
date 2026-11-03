@@ -5,19 +5,30 @@ on:
       - 'ios/XBTLightning/**'
       - 'ios/BlueWallet/XBTLightningBridge.*'
       - '.github/workflows/xbt-lnd-ios.yml'
+      - '.github/scripts/xbt-lnd-regtest-*'
 permissions:
   contents: read
 jobs:
   regtest:
+    strategy:
+      fail-fast: false
+      matrix:
+        tier: [wallet, payments]
     runs-on: macos-26
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        if: matrix.tier == 'payments'
         with:
           go-version: '1.27.3'
           cache: false
       - name: Build the disposable XBT Lightning peer
+        if: matrix.tier == 'payments'
         run: |
           set -euo pipefail
           dir="$RUNNER_TEMP/lnd-regtest"
@@ -41,6 +52,11 @@ jobs:
           cli=("$dir/tools/bin/bitcoin-cli" "-datadir=$dir/data" -regtest -rpcwait)
           "${cli[@]}" createwallet fixture >/dev/null
           "${cli[@]}" generatetoaddress 5 "$("${cli[@]}" getnewaddress)" >/dev/null
+      - name: Start the isolated routing peer
+        if: matrix.tier == 'payments'
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/lnd-regtest"
           "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=neutrino --neutrino.connect=127.0.0.1:18444 --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
           ready=false
           for attempt in {1..90}; do
@@ -50,9 +66,11 @@ jobs:
           test "$ready" = true
           python3 .github/scripts/xbt-lnd-regtest-peer.py "$dir" >"$dir/fixture.log" 2>&1 &
       - name: Test the embedded engine on iPhone Simulator
-        working-directory: ios/XBTLightning
+        env:
+          REGTEST_TIER: ${{ matrix.tier }}
         run: |
           set -eo pipefail
+          bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/xbt-host"
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
-          xcodebuild -scheme XBTLightning -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO test
+          xcodebuild -project "$RUNNER_TEMP/xbt-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO test
 
