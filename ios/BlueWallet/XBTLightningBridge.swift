@@ -28,12 +28,12 @@ final class XBTLightningBridge: NSObject {
         }
     }
 
-    @objc(run:resolver:rejecter:)
-    func run(_ action: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    @objc(run:peer:resolver:rejecter:)
+    func run(_ action: String, peer: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task {
             do {
                 switch action {
-                case "start": try await RegtestNode.shared.start()
+                case "start": try await RegtestNode.shared.start(peer: peer)
                 case "setup": try await RegtestNode.shared.setupOrUnlock()
                 case "history":
                     resolve(try await RegtestNode.shared.recentPayments())

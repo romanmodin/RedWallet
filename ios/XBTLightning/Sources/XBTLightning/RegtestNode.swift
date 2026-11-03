@@ -8,7 +8,19 @@ public actor RegtestNode {
     private var provisioning = false
     private let service = "com.redwallet.xbt-lightning.regtest.v1"
 
-    public func start() async throws {
+    // Accept a literal local IPv4 address only. Neither a URL nor arbitrary LND
+    // config text is accepted from the app.
+    static func privatePeer(_ host: String) throws -> String {
+        let components = host.split(separator: ".", omittingEmptySubsequences: false)
+        let ip = components.compactMap { UInt8($0) }
+        guard ip.count == 4, ip.map(String.init).joined(separator: ".") == host,
+              ip[0] == 127 || ip[0] == 10 || (ip[0] == 192 && ip[1] == 168) ||
+              (ip[0] == 172 && (16...31).contains(ip[1])) else { throw NodeFailure.invalidPeer }
+        return host
+    }
+
+    public func start(peer: String = "127.0.0.1") async throws {
+        let peer = try Self.privatePeer(peer)
         if let startup { return try await startup.value }
         let task = Task<Void, Error> {
             let manager = FileManager.default
@@ -32,7 +44,7 @@ public actor RegtestNode {
             bitcoin.blake2b-activation-height=150
             bitcoin.node=neutrino
             [neutrino]
-            neutrino.connect=127.0.0.1:18444
+            neutrino.connect=\(peer):18444
             """.write(to: conf, atomically: true, encoding: .utf8)
             _ = try await rpc { LndmobileStart("--lnddir=" + folder.path + " --configfile=" + conf.path, $0) }
         }

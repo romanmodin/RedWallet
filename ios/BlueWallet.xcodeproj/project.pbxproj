@@ -7,9 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		524C4E440000000000000001 = {isa = PBXBuildFile; productRef = 524C4E440000000000000002; platformFilter = ios; };
-		524C4E440000000000000003 = {isa = PBXBuildFile; fileRef = 524C4E440000000000000005; };
-		524C4E440000000000000004 = {isa = PBXBuildFile; fileRef = 524C4E440000000000000006; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		17CDA0718F42DB2CE856C872 /* libPods-BlueWallet.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 040819EDF8BD9C50A9C83E24 /* libPods-BlueWallet.a */; };
 		32F0A29A2311DBB20095C559 /* ComplicationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32F0A2992311DBB20095C559 /* ComplicationController.swift */; };
@@ -227,8 +224,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		524C4E440000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueWallet/XBTLightningBridge.swift; sourceTree = SOURCE_ROOT; };
-		524C4E440000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BlueWallet/XBTLightningBridge.m; sourceTree = SOURCE_ROOT; };
 		00E356F11AD99517003FC87E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		040819EDF8BD9C50A9C83E24 /* libPods-BlueWallet.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-BlueWallet.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07F961A680F5B00A75B9A /* BlueWallet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlueWallet.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -404,7 +399,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				782F075B5DD048449E2DECE9 /* libz.tbd in Frameworks */,
-				524C4E440000000000000001,
 				764B49B1420D4AEB8109BF62 /* libsqlite3.0.tbd in Frameworks */,
 				C978A716948AB7DEC5B6F677 /* (null) in Frameworks */,
 				17CDA0718F42DB2CE856C872 /* libPods-BlueWallet.a in Frameworks */,
@@ -465,8 +459,6 @@
 			isa = PBXGroup;
 			children = (
 				B461B851299599F800E431AA /* AppDelegate.swift */,
-				524C4E440000000000000005,
-				524C4E440000000000000006,
 				32C7944323B8879D00BE2AFA /* BlueWalletRelease.entitlements */,
 				32F0A2502310B0910095C559 /* BlueWallet.entitlements */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -806,7 +798,6 @@
 			);
 			name = BlueWallet;
 			productName = "Hello World";
-			packageProductDependencies = (524C4E440000000000000002,);
 			productReference = 13B07F961A680F5B00A75B9A /* BlueWallet.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -926,7 +917,6 @@
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
 			packageReferences = (
-				524C4E440000000000000007,
 				6DFC806E24EA0B6C007B8700 /* XCRemoteSwiftPackageReference "EFQRCode" */,
 				B41B76832B66B2FF002C48D5 /* XCRemoteSwiftPackageReference "bugsnag-cocoa" */,
 			);
@@ -1095,8 +1085,6 @@
 				B409AB062D71E07500BA06F8 /* MenuElementsEmitter.swift in Sources */,
 				B44033CE2BCC352900162242 /* UserDefaultsGroup.swift in Sources */,
 				B461B852299599F800E431AA /* AppDelegate.swift in Sources */,
-				524C4E440000000000000003,
-				524C4E440000000000000004,
 				B44033F42BCC377F00162242 /* WidgetData.swift in Sources */,
 				B49A28C52CD1A894006B08E4 /* MarketData.swift in Sources */,
 				B4AA75242DAA339E00CF5CBE /* MenuElementsEmitter.m in Sources */,
@@ -1937,12 +1925,8 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
-/* Begin XCLocalSwiftPackageReference section */
-		524C4E440000000000000007 = {isa = XCLocalSwiftPackageReference; relativePath = XBTLightning; };
-/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		524C4E440000000000000002 = {isa = XCSwiftPackageProductDependency; package = 524C4E440000000000000007; productName = XBTLightning; };
 		6DFC806F24EA0B6C007B8700 /* EFQRCode */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 6DFC806E24EA0B6C007B8700 /* XCRemoteSwiftPackageReference "EFQRCode" */;

@@ -8,6 +8,7 @@ type Review = { invoice: string; hash: string; sats: string; destination: string
 
 export default function XBTLightning() {
   const { colors } = useTheme();
+  const [peer, setPeer] = useState('127.0.0.1');
   const [status, setStatus] = useState('Checking');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,13 +35,22 @@ export default function XBTLightning() {
   };
   const node = (action: string) =>
     run(async () => {
-      const next = await bridge.run(action);
+      const next = await bridge.run(action, peer);
       if (mounted.current) setStatus(next);
     });
   useEffect(() => {
     mounted.current = true;
-    node('status');
+    let active = true;
+    bridge.run('status', '').then(
+      (value: string) => {
+        if (active) setStatus(value);
+      },
+      () => {
+        if (active) setMessage('Could not read the test node status.');
+      },
+    );
     return () => {
+      active = false;
       mounted.current = false;
     };
   }, []);
@@ -68,8 +78,18 @@ export default function XBTLightning() {
     <SettingsScrollView testID="XBTLightningScreen">
       <SettingsSection>
         <SettingsFootnote>
-          Private XBT test network (regtest). This test wallet uses a chain peer on localhost, port 18444.
+          Private XBT test network (regtest). Enter the private IPv4 address of your regtest chain peer. The node connects on port 18444.
         </SettingsFootnote>
+        {status === 'Stopped' && (
+          <TextInput
+            style={{ color: colors.foregroundColor }}
+            accessibilityLabel="Regtest chain peer"
+            value={peer}
+            onChangeText={setPeer}
+            keyboardType="decimal-pad"
+            editable={!busy}
+          />
+        )}
         <SettingsListItem title="Node status" subtitle={busy ? 'Working…' : status} />
         {status === 'Stopped' && <SettingsListItem title="Start test node" disabled={busy} onPress={() => node('start')} />}
         {(status === 'Needs setup' || status === 'Locked') && (
@@ -142,7 +162,7 @@ export default function XBTLightning() {
             disabled={busy}
             onPress={() =>
               run(async () => {
-                const history = await bridge.run('history');
+                const history = await bridge.run('history', '');
                 if (mounted.current) setMessage(history);
               })
             }
@@ -152,7 +172,7 @@ export default function XBTLightning() {
             disabled={busy}
             onPress={() =>
               run(async () => {
-                const url = await bridge.run('backup');
+                const url = await bridge.run('backup', '');
                 if (mounted.current) await Share.share({ url });
               })
             }

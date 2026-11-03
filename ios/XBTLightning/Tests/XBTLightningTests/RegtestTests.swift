@@ -2,6 +2,12 @@ import XCTest
 @testable import XBTLightning
 
 final class RegtestTests: XCTestCase {
+    func testLocalPeerValidation() throws {
+        XCTAssertEqual(try RegtestNode.privatePeer("192.168.1.10"), "192.168.1.10")
+        for host in ["8.8.8.8", "127.0.0.1:18444", "127.0.0.1\nbitcoin.mainnet=true", "10.0.999.1"] {
+            XCTAssertThrowsError(try RegtestNode.privatePeer(host))
+        }
+    }
     func testProtobufBounds() throws {
         let message = ProtoFields.field(2, data: Data("test".utf8))
         XCTAssertEqual(try ProtoFields(message).bytes[2], [Data("test".utf8)])
