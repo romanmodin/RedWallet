@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { NativeModules, StyleSheet } from 'react-native';
 import { useTheme } from '../../components/themes';
 
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
@@ -24,6 +24,15 @@ const SettingsTools: React.FC = () => {
   return (
     <SettingsScrollView testID="SettingsToolsRoot">
       <SettingsSection>
+        {!!NativeModules.XBTLightningBridge && (
+          <SettingsListItem
+            title="XBT Lightning"
+            iconName="lightning"
+            subtitle="On-device test node · Regtest"
+            onPress={() => navigation.navigate('XBTLightning')}
+            chevron
+          />
+        )}
         <SettingsListItem
           title="CoinJoin — Experimental"
           subtitle="Opt-in mixing · Still in testing"

@@ -1,3 +1,4 @@
+import XBTLightning from '../screen/settings/XBTLightning';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import React, { lazy } from 'react';
@@ -19,6 +20,7 @@ import { ScanQRCodeParamList } from './DetailViewStackParamList';
 type HeaderRightRenderer = NonNullable<NativeStackNavigationOptions['headerRight']>;
 
 export type AddWalletStackParamList = {
+  XBTLightningRegtest: undefined;
   AddWallet: {
     entropy?: string;
     words?: number;
@@ -270,6 +272,7 @@ const AddWalletStack = () => {
   const theme = useTheme();
   return (
     <Stack.Navigator initialRouteName="AddWallet">
+      <Stack.Screen name="XBTLightningRegtest" component={XBTLightning} options={{ title: 'XBT Lightning' }} />
       <Stack.Screen name="AddWallet" component={AddComponent} options={createAddWalletOptions(theme)} />
       <Stack.Screen name="ImportWallet" component={ImportWalletComponent} options={createImportWalletOptions(theme)} />
       <Stack.Screen
