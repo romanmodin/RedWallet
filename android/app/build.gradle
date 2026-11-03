@@ -88,6 +88,7 @@ android {
         applicationId "com.romanmodin.redwallet"
         minSdkVersion(regtestAar ? 26 : rootProject.ext.minSdkVersion)
         if (regtestAar) applicationIdSuffix ".regtest"
+        manifestPlaceholders.redwalletAppLabel = regtestAar ? "RedWallet Lightning Test" : "@string/app_name"
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = (project.findProperty("redwalletVersionCode") ?: "1").toInteger()
         versionName "8.0.1"

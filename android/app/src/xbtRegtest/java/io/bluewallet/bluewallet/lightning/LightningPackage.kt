@@ -11,7 +11,7 @@ class LightningPackage : ReactPackage {
 }
 
 private val nodeThread = Executors.newSingleThreadExecutor()
-private class LightningBridge(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
+class LightningBridge(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
     override fun getName() = "XBTLightningBridge"
     private fun submit(promise: Promise, action: () -> Any) {
         nodeThread.execute {

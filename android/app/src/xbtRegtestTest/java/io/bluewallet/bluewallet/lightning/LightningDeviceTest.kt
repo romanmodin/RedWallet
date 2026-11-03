@@ -17,7 +17,7 @@ class LightningDeviceTest {
         fail("Timed out waiting for the regtest node")
     }
     private fun fixture(action: String, arg: String = ""): String {
-        val request = URL("http://127.0.0.1:18149/" + action).openConnection() as HttpURLConnection
+        val request = URL("http://localhost:18149/" + action).openConnection() as HttpURLConnection
         return try {
             request.requestMethod = "POST"
             request.connectTimeout = 10000
