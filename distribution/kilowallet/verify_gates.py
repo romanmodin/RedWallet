@@ -17,6 +17,7 @@ NATIVE_JOB = "iPhone release and simulator qualification"
 NATIVE_STEPS = (
     "Select supported Xcode",
     "Unit tests (JVM and iOS simulator)",
+    "Check native tests actually ran on the Intel simulator",
     "Build the app for the iOS Simulator (no signing)",
     "Boot a simulator, launch the app and take screenshots",
     "Build Release for iphoneos without signing",

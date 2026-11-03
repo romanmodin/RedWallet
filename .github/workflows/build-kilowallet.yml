@@ -57,7 +57,7 @@ jobs:
     needs: qualify
     if: ${{ github.ref == 'refs/heads/main' }}
     environment: ios-signing
-    runs-on: macos-26
+    runs-on: macos-15-intel
     timeout-minutes: 20
     steps:
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
@@ -144,7 +144,7 @@ jobs:
   sign:
     needs: certificate
     environment: ios-upload
-    runs-on: macos-26
+    runs-on: macos-15-intel
     timeout-minutes: 60
     env:
       TEAM_ID: ${{ secrets.TEAM_ID }}
