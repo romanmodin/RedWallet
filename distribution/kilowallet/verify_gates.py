@@ -13,6 +13,24 @@ GATES = (
     ("KILOWALLET_SCREENSHOT_RUN_ID", ".github/workflows/screenshot-check.yml", {"verify"}),
 )
 
+NATIVE_JOB = "iPhone release and simulator qualification"
+NATIVE_STEPS = (
+    "Select supported Xcode",
+    "Unit tests (JVM and iOS simulator)",
+    "Build the app for the iOS Simulator (no signing)",
+    "Boot a simulator, launch the app and take screenshots",
+    "Build Release for iphoneos without signing",
+)
+
+def verify_native_steps(job):
+    evidence = {}
+    for name in NATIVE_STEPS:
+        matches = [step for step in job["steps"] if step["name"] == name]
+        if len(matches) != 1 or matches[0]["status"] != "completed" or matches[0]["conclusion"] != "success":
+            raise RuntimeError("Missing or unsuccessful native step: " + name)
+        evidence[name] = matches[0]["number"]
+    return evidence
+
 def validate(run, jobs, source, workflow, required):
     if any(run[k]["full_name"] != REPOSITORY for k in ("repository", "head_repository")):
         raise RuntimeError("Wrong Kilowallet repository")
@@ -77,7 +95,12 @@ def main():
         if not run_id.isdecimal(): raise RuntimeError("Invalid qualification run")
         run = api(f"repos/{REPOSITORY}/actions/runs/{run_id}")
         jobs = api(f"repos/{REPOSITORY}/actions/runs/{run_id}/attempts/{run['run_attempt']}/jobs?per_page=100")["jobs"]
+        combined = variable == "KILOWALLET_IOS_RUN_ID" and os.environ.get("KILOWALLET_MARKETING_VERSION","").startswith("1.")
+        if combined:
+            required = {NATIVE_JOB}
         receipt=validate(run, jobs, source, workflow, required)
+        if combined:
+            receipt["requiredSteps"] = verify_native_steps(next(job for job in jobs if job["name"] == NATIVE_JOB))
         if os.environ.get("KILOWALLET_MARKETING_VERSION","").startswith("1."):
             receipt["checkouts"]=checked_trees(run,receipt,source)
         receipts.append(receipt)
