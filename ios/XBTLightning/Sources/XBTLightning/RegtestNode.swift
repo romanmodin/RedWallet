@@ -29,6 +29,7 @@ public actor RegtestNode {
             tlsdisableautofill=true
             [Bitcoin]
             bitcoin.regtest=true
+            bitcoin.blake2b-activation-height=150
             bitcoin.node=neutrino
             [neutrino]
             neutrino.connect=127.0.0.1:18444
