@@ -20,6 +20,7 @@ NATIVE_STEPS = (
     "Check native tests actually ran on the Intel simulator",
     "Build the app for the iOS Simulator (no signing)",
     "Boot a simulator, launch the app and take screenshots",
+    "Verify live native engine outcomes",
     "Build Release for iphoneos without signing",
 )
 
