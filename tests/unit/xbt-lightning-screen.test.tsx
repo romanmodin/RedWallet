@@ -12,8 +12,9 @@ jest.mock('../../components/themes', () => {
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
 const bridge = {
-  manage: jest.fn(async (action: string) =>
-    action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
+  manage: jest.fn(
+    async (action: string): Promise<unknown> =>
+      action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
   ),
   run: jest.fn(async () => 'Running'),
   invoice: jest.fn(async (action: string) =>
@@ -122,4 +123,31 @@ test('editing withdrawal details invalidates the prior review', async () => {
   fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '2000');
   expect(screen.queryByText('Withdraw 1000 sats')).toBeNull();
   screen.unmount();
+});
+
+test('cooperative close confirms the selected channel and fee rate and ignores a repeated tap', async () => {
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  bridge.manage.mockClear();
+  bridge.manage.mockResolvedValueOnce([{ point: 'fixture-point:0', peer: 'fixture-peer', active: true, localSats: '82000' }]);
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '2');
+    await act(async () => fireEvent.press(screen.getByText('Refresh channels')));
+    fireEvent.press(screen.getByText('Close channel · 82000 local sats'));
+    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['channels']);
+    const [, detail, buttons] = prompt.mock.calls[0];
+    expect(detail).toContain('2 sat/vB');
+    fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '3');
+    const confirm = buttons!.find(button => button.text === 'Close channel')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(bridge.manage).toHaveBeenCalledWith('close', 'fixture-point:0', '', '2');
+    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['channels', 'close']);
+    screen.unmount();
+  } finally {
+    prompt.mockRestore();
+  }
 });
