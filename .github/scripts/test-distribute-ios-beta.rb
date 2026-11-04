@@ -86,9 +86,9 @@ Dir.mktmpdir('redwallet-beta-fixtures') do |dir|
       check(release.writes.empty?, 'Unknown compliance mutated Apple state')
     end
     release = factory.call; release.review_state = nil; release.run
-    check(RedWalletBetaRelease::GROUPS.length == 1 && RedWalletBetaRelease::GROUPS.first[:internal], 'Regtest must be internal only')
+    check(RedWalletBetaRelease::GROUPS.length == 1 && RedWalletBetaRelease::GROUPS.first[:internal], 'Internal beta must be internal only')
     check(release.assigned == [RedWalletBetaRelease::GROUPS.first[:id]], 'Wrong internal tester assignment')
-    check(release.writes.none? { |w| w[1] == '/v1/betaAppReviewSubmissions' }, 'Regtest must never submit external beta review')
+    check(release.writes.none? { |w| w[1] == '/v1/betaAppReviewSubmissions' }, 'Internal beta must never submit external beta review')
     check(report.call['status'] == 'AVAILABLE_TO_INTERNAL_TESTERS', 'Internal availability was not recognized')
     release = factory.call; release.existing = true; release.run
     check(release.writes.all? { |w| w[0] == 'PATCH' }, 'Idempotent run reassigned groups or submitted review')
