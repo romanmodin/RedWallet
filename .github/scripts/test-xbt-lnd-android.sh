@@ -13,7 +13,7 @@ cli=("$dir/tools/bin/bitcoin-cli" "-datadir=$dir/data" -regtest -rpcwait)
 header=$("${cli[@]}" getblockheader "$("${cli[@]}" getblockhash 150)" false)
 test "${#header}" -eq 328
 cookie=$(<"$dir/data/regtest/.cookie")
-"$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${cookie%%:*}" --bitcoind.rpcpass="${cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
+"$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${cookie%%:*}" --bitcoind.rpcpass="${cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --noseedbackup --nobootstrap --norest --debuglevel=info,FNDG=debug >"$dir/peer.log" 2>&1 &
 for i in {1..90}; do
   "$dir/ln-bin/lncli" --network=regtest --rpcserver=127.0.0.1:11009 --lnddir="$dir/ln-peer" getinfo >/dev/null 2>&1 && break
   sleep 2

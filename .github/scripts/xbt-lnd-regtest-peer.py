@@ -17,6 +17,16 @@ def call(command, *args):
 
 miner = call(chain, "getnewaddress")
 
+def wait_for_peer_sync():
+    expected_height = int(call(chain, "getblockcount"))
+    for _ in range(90):
+        info = json.loads(call(lightning, "getinfo"))
+        if info.get("synced_to_chain") and info.get("block_height", 0) >= expected_height:
+            return
+        time.sleep(1)
+    raise ValueError("routing peer has not synced to the funded chain")
+
+
 class Fixture(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
@@ -29,6 +39,7 @@ class Fixture(BaseHTTPRequestHandler):
             elif self.path == "/fund" and re.fullmatch(r"bcrt1[a-z0-9]{20,90}", value):
                 result = call(chain, "sendtoaddress", value, "0.005")
                 call(chain, "generatetoaddress", "6", miner)
+                wait_for_peer_sync()
             elif self.path == "/confirm" and re.fullmatch(r"[a-f0-9]{64}:[0-9]+", value):
                 for _ in range(30):
                     if value.split(":")[0] in json.loads(call(chain, "getrawmempool")):
