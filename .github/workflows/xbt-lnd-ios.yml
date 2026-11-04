@@ -8,6 +8,9 @@ on:
       - '.github/scripts/xbt-lnd-regtest-*'
 permissions:
   contents: read
+concurrency:
+  group: xbt-lnd-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   regtest:
     strategy:

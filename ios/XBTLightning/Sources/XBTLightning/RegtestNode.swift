@@ -7,6 +7,9 @@ public actor RegtestNode {
     public static let shared = RegtestNode()
     private var startup: Task<Void, Error>?
     private var provisioning = false
+    var managementBusy = false
+    var withdrawalReviews: [String: (WithdrawalReview, Date)] = [:]
+    var closingPoints: Set<String> = []
     private(set) var mainnet = false
     private var service: String { mainnet ? MainnetConfiguration.credentialService : "com.redwallet.xbt-lightning.regtest.v1" }
     private var directoryName: String { mainnet ? MainnetConfiguration.directoryName : "XBTLightning-regtest" }

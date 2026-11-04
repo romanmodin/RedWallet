@@ -96,6 +96,28 @@ final class RegtestTests: XCTestCase {
         try recovery.write(to: documents.appendingPathComponent("RestoreFixture.rwln"), options: .atomic)
         let identity = try ProtoFields(await XBTLightningNode.info()).string(1)
         try identity.write(to: documents.appendingPathComponent("RestoreIdentity.txt"), atomically: true, encoding: .utf8)
+        #if XBT_LND_ROUTED_TEST
+        let beforeClose = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) }).integers[2] ?? 0
+        let closing = try await RegtestNode.shared.closeChannel(point: point, feeRate: 1)
+        XCTAssertEqual(closing.count, 64)
+        _ = try await peer("confirm", closing + ":0")
+        try await waitUntil {
+            let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
+            return (funds.integers[2] ?? 0) > beforeClose
+        }
+        let target = try await peer("withdraw-address")
+        let withdrawal = try await RegtestNode.shared.reviewWithdrawal(address: target, sats: 1000, feeRate: 1)
+        let txid = try await RegtestNode.shared.withdraw(token: withdrawal.token)
+        XCTAssertEqual(txid.count, 64)
+        do {
+            _ = try await RegtestNode.shared.withdraw(token: withdrawal.token)
+            XCTFail("A consumed withdrawal review must not submit again")
+        } catch { }
+        let delivered = try await peer("verify-withdraw", txid)
+        XCTAssertEqual(delivered, "received-1000")
+        let history = try await RegtestNode.shared.onchainHistory()
+        XCTAssertTrue(history.contains(txid))
+        #endif
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }
 

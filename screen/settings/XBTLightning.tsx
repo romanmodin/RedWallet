@@ -6,6 +6,8 @@ import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection
 import { useTheme } from '../../components/themes';
 
 const bridge = NativeModules.XBTLightningBridge;
+type Channel = { point: string; peer: string; active: boolean; localSats: string };
+type Withdrawal = { token: string; address: string; sats: string; feeRate: string };
 type Review = {
   invoice: string;
   hash: string;
@@ -26,6 +28,13 @@ export default function XBTLightning() {
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [destination, setDestination] = useState('');
+  const [withdrawSats, setWithdrawSats] = useState('');
+  const [feeRate, setFeeRate] = useState('1');
+  const [withdrawal, setWithdrawal] = useState<Withdrawal>();
+  const submitted = useRef(new Set<string>());
+  const validFeeRate = /^[1-9][0-9]{0,2}$/.test(feeRate) && Number(feeRate) <= 100;
   const pending = useRef(false);
   const mounted = useRef(false);
   const pendingPayment = useRef<string | undefined>(undefined);
@@ -105,6 +114,49 @@ export default function XBTLightning() {
           }),
       },
     ]);
+  const confirmWithdrawal = (item: Withdrawal) =>
+    Alert.alert('Withdraw XBT?', item.sats + ' sats to ' + item.address + '. Network fee added at ' + item.feeRate + ' sat/vB.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Withdraw',
+        onPress: () =>
+          run(async () => {
+            if (submitted.current.has(item.token)) return;
+            submitted.current.add(item.token);
+            setWithdrawal(undefined);
+            try {
+              const txid = await bridge.manage('withdraw', item.token, '', '');
+              if (mounted.current) setMessage('Withdrawal broadcast: ' + txid);
+            } catch {
+              if (mounted.current) setMessage('Withdrawal outcome unknown. Check on-chain history before creating another withdrawal.');
+            }
+          }),
+      },
+    ]);
+  const confirmClose = (channel: Channel) => {
+    const rate = feeRate;
+    Alert.alert(
+      'Close this channel?',
+      'Return this channel’s funds to the Lightning node’s on-chain wallet. Fee rate: ' + rate + ' sat/vB. The peer must be online.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Close channel',
+          onPress: () =>
+            run(async () => {
+              if (submitted.current.has(channel.point)) return;
+              submitted.current.add(channel.point);
+              try {
+                const txid = await bridge.manage('close', channel.point, '', rate);
+                if (mounted.current) setMessage('Channel close broadcast: ' + txid + '. Funds become available after confirmation.');
+              } catch {
+                if (mounted.current) setMessage('Channel close was not confirmed. Check channels and on-chain history before retrying.');
+              }
+            }),
+        },
+      ],
+    );
+  };
   return (
     <SettingsScrollView testID="XBTLightningScreen">
       <SettingsSection>
@@ -274,6 +326,96 @@ export default function XBTLightning() {
               run(async () => {
                 const url = await bridge.run('backup', '');
                 if (mounted.current) await Share.share({ url });
+              })
+            }
+          />
+        </SettingsSection>
+      )}
+      {status === 'Running' && (
+        <SettingsSection>
+          <SettingsFootnote>
+            Manage channels and withdraw the Lightning node’s on-chain balance. Closing a channel requires its peer online and a
+            confirmation before withdrawing the returned funds.
+          </SettingsFootnote>
+          <TextInput
+            accessibilityLabel="On-chain fee rate"
+            style={{ color: colors.foregroundColor }}
+            value={feeRate}
+            keyboardType="number-pad"
+            editable={!busy}
+            onChangeText={value => {
+              setFeeRate(value);
+              setWithdrawal(undefined);
+            }}
+          />
+          <SettingsListItem
+            title="Refresh channels"
+            disabled={busy}
+            onPress={() =>
+              run(async () => {
+                const items = await bridge.manage('channels', '', '', '');
+                if (mounted.current) setChannels(items);
+              })
+            }
+          />
+          {channels.map(channel => (
+            <SettingsListItem
+              key={channel.point}
+              title={'Close channel · ' + channel.localSats + ' local sats'}
+              subtitle={channel.point}
+              disabled={busy || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
+              onPress={() => confirmClose(channel)}
+            />
+          ))}
+          <TextInput
+            accessibilityLabel="Withdrawal address"
+            placeholder="XBT address"
+            style={{ color: colors.foregroundColor }}
+            value={destination}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!busy}
+            onChangeText={value => {
+              setDestination(value);
+              setWithdrawal(undefined);
+            }}
+          />
+          <TextInput
+            accessibilityLabel="Withdrawal sats"
+            placeholder="Amount in sats"
+            style={{ color: colors.foregroundColor }}
+            value={withdrawSats}
+            keyboardType="number-pad"
+            editable={!busy}
+            onChangeText={value => {
+              setWithdrawSats(value);
+              setWithdrawal(undefined);
+            }}
+          />
+          <SettingsListItem
+            title="Review withdrawal"
+            disabled={busy || !validFeeRate || !destination.trim() || !/^[1-9][0-9]{0,6}$/.test(withdrawSats)}
+            onPress={() =>
+              run(async () => {
+                const item = await bridge.manage('withdrawReview', destination.trim(), withdrawSats, feeRate);
+                if (mounted.current) setWithdrawal(item);
+              })
+            }
+          />
+          {withdrawal && (
+            <SettingsListItem
+              title={'Withdraw ' + withdrawal.sats + ' sats'}
+              disabled={busy}
+              onPress={() => confirmWithdrawal(withdrawal)}
+            />
+          )}
+          <SettingsListItem
+            title="On-chain history"
+            disabled={busy}
+            onPress={() =>
+              run(async () => {
+                const history = await bridge.manage('history', '', '', '');
+                if (mounted.current) setMessage(history);
               })
             }
           />

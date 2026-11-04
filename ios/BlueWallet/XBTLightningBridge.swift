@@ -36,6 +36,33 @@ final class XBTLightningBridge: NSObject {
         }
     }
 
+    @objc(manage:value:sats:feeRate:resolver:rejecter:)
+    func manage(_ operation: String, value: String, sats: String, feeRate: String,
+                resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch operation {
+                case "channels":
+                    let channels = try await RegtestNode.shared.listChannels()
+                    resolve(channels.map { ["point": $0.point, "peer": $0.peer, "active": $0.active,
+                                           "localSats": String($0.localSats)] as [String: Any] })
+                case "withdrawReview":
+                    let review = try await RegtestNode.shared.reviewWithdrawal(address: value, sats: UInt64(sats) ?? 0,
+                                                                              feeRate: UInt64(feeRate) ?? 0)
+                    resolve(["token": review.token, "address": review.address, "sats": String(review.sats),
+                             "feeRate": String(review.feeRate)])
+                case "withdraw":
+                    resolve(try await RegtestNode.shared.withdraw(token: value))
+                case "close":
+                    resolve(try await RegtestNode.shared.closeChannel(point: value, feeRate: UInt64(feeRate) ?? 0))
+                case "history":
+                    resolve(try await RegtestNode.shared.onchainHistory())
+                default: reject("unknown_action", "Unknown node management operation.", nil)
+                }
+            } catch { reject("management_failed", error.localizedDescription, nil) }
+        }
+    }
+
     @objc(invoice:value:hash:sats:resolver:rejecter:)
     func invoice(_ operation: String, value: String, hash: String, sats: String,
                  resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {

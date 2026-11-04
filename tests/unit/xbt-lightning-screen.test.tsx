@@ -12,6 +12,9 @@ jest.mock('../../components/themes', () => {
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
 const bridge = {
+  manage: jest.fn(async (action: string) =>
+    action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
+  ),
   run: jest.fn(async () => 'Running'),
   invoice: jest.fn(async (action: string) =>
     action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
@@ -78,4 +81,45 @@ test('public node setup defaults to automatic XBT peers and does not request a r
   } finally {
     bridge.run.mockResolvedValue('Running');
   }
+});
+
+test('withdrawal requires confirmation, binds the reviewed token, and submits once', async () => {
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  bridge.manage.mockClear();
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    fireEvent.changeText(screen.getByLabelText('Withdrawal address'), 'bc1q-fixture');
+    fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '1000');
+    fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '2');
+    await act(async () => fireEvent.press(screen.getByText('Review withdrawal')));
+    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['withdrawReview']);
+    fireEvent.press(screen.getByText('Withdraw 1000 sats'));
+    const [, detail, buttons] = prompt.mock.calls[0];
+    expect(detail).toContain('bc1q-fixture');
+    expect(detail).toContain('2 sat/vB');
+    const confirm = buttons!.find(button => button.text === 'Withdraw')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(bridge.manage).toHaveBeenCalledWith('withdraw', 'review-token', '', '');
+    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['withdrawReview', 'withdraw']);
+    expect(screen.getByText('Withdrawal broadcast: fixture-txid')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    prompt.mockRestore();
+  }
+});
+
+test('editing withdrawal details invalidates the prior review', async () => {
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  fireEvent.changeText(screen.getByLabelText('Withdrawal address'), 'bc1q-fixture');
+  fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '1000');
+  await act(async () => fireEvent.press(screen.getByText('Review withdrawal')));
+  expect(screen.getByText('Withdraw 1000 sats')).toBeTruthy();
+  fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '2000');
+  expect(screen.queryByText('Withdraw 1000 sats')).toBeNull();
+  screen.unmount();
 });
