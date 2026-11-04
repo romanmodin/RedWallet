@@ -1,0 +1,15 @@
+RedWallet — embedded XBT Lightning internal beta
+
+This build runs an XBT Lightning node on your iPhone. It uses public XBT compact-filter peers by default; your home node is optional. You can select a custom chain peer and connect to a compatible XBT Lightning peer.
+
+Initial setup and sync
+Open Add Wallet → Set up XBT Lightning. Start the node, create or unlock its wallet, and keep the app open while it syncs. Status refreshes automatically. A last-observed sync height appears when available. Payment controls become available after chain sync.
+
+Funding and payments
+The Lightning node has its own on-chain balance and recovery file. Export its recovery file and keep the password separately before funding. The earlier private-network preview wallet is separate and does not become a mainnet wallet. Use only a small amount for this beta. Opening a channel commits on-chain funds and pays a network fee; receiving Lightning payments also requires inbound channel liquidity.
+
+Available controls
+Create and review XBT invoices, confirm payments, connect a Lightning peer, open a private channel, view channels and on-chain history, request cooperative channel closure, and review an on-chain withdrawal. The close confirmation shows its starting fee rate and the maximum negotiated rate for channels funded by your node. The peer must be online for cooperative closing.
+
+Current limitations
+Closing or locking the phone can suspend the node. This build does not guarantee background Lightning service or background CoinJoin completion. Onion peer transport is not available. Portable recovery has been tested for restoring node identity; full channel-fund recovery after losing a device has not yet been demonstrated. This is an internal beta, not an App Store release.
