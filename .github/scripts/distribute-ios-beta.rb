@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-# Assign only the verified combined iOS build to the two existing RedWallet beta groups.
+# Assign the verified LND regtest build only to the existing internal tester group.
 require 'json'
 require 'net/http'
 require 'openssl'
@@ -12,11 +12,10 @@ class BetaReleaseError < StandardError; end
 class RedWalletBetaRelease
   APP_ID = '6817118871'
   BUNDLE_ID = 'com.romanmodin.redwallet'
-  BUILD = '1793471660'
+  BUILD = '1793759935'
   VERSION = '8.0.1'
   GROUPS = [
-    { id: '0bc2722a-48b6-4520-871d-dd5a4a8988cb', name: 'Roman iPhone Testing', internal: true },
-    { id: '463ff340-3283-4f17-949d-39c7aa929da2', name: 'RedWallet Early Testers', internal: false }
+    { id: '0bc2722a-48b6-4520-871d-dd5a4a8988cb', name: 'Roman iPhone Testing', internal: true }
   ].freeze
 
   def initialize(key_path:, notes_path:, receipt_path:, token: nil)
@@ -143,37 +142,20 @@ class RedWalletBetaRelease
     end
     @report[:betaNotesUpdated] = true
     add_group(build_id, GROUPS.first.fetch(:id))
-    review = api('GET', '/v1/betaAppReviewSubmissions', { 'filter[build]' => build_id }).fetch('data').first
-    raise BetaReleaseError, 'Beta review rejected; owner follow-up required' if review&.dig('attributes', 'betaReviewState') == 'REJECTED'
-    beta = build_info(build_id).fetch('included', []).find { |item| item['type'] == 'buildBetaDetails' }
-    raise BetaReleaseError, 'Apple beta testing state unavailable' unless beta
-    if !review && beta.dig('attributes', 'externalBuildState') == 'READY_FOR_BETA_SUBMISSION'
-      api('POST', '/v1/betaAppReviewSubmissions',
-          payload: { data: { type: 'betaAppReviewSubmissions', relationships: { build: { data: { type: 'builds', id: build_id } } } } })
-      @report[:betaReviewSubmitted] = true
-    end
-    add_group(build_id, GROUPS.last.fetch(:id))
 
     info = nil
     6.times do
       info = build_info(build_id)
       included = info.fetch('included', [])
       beta = included.find { |item| item['type'] == 'buildBetaDetails' }
-      review = included.find { |item| item['type'] == 'betaAppReviewSubmissions' }
-      break if beta&.dig('attributes', 'internalBuildState') == 'IN_BETA_TESTING' &&
-        (beta&.dig('attributes', 'externalBuildState') == 'IN_BETA_TESTING' ||
-         %w[WAITING_FOR_REVIEW IN_REVIEW].include?(review&.dig('attributes', 'betaReviewState')))
+      break if beta&.dig('attributes', 'internalBuildState') == 'IN_BETA_TESTING'
       sleep 10
     end
     groups = info.fetch('included', []).select { |item| item['type'] == 'betaGroups' }.map { |item| item['id'] }
     raise BetaReleaseError, 'Tester group assignment was not confirmed' unless GROUPS.all? { |group| groups.include?(group[:id]) }
     beta = info.fetch('included', []).find { |item| item['type'] == 'buildBetaDetails' }
-    review = info.fetch('included', []).find { |item| item['type'] == 'betaAppReviewSubmissions' }
-    status = if beta&.dig('attributes', 'internalBuildState') == 'IN_BETA_TESTING' &&
-                beta&.dig('attributes', 'externalBuildState') == 'IN_BETA_TESTING'
-               'AVAILABLE_TO_TESTERS'
-             elsif %w[WAITING_FOR_REVIEW IN_REVIEW].include?(review&.dig('attributes', 'betaReviewState'))
-               'BETA_REVIEW_PENDING'
+    status = if beta&.dig('attributes', 'internalBuildState') == 'IN_BETA_TESTING'
+               'AVAILABLE_TO_INTERNAL_TESTERS'
              else
                'TESTER_STATE_PROPAGATION_PENDING'
              end
