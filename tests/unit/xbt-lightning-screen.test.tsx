@@ -62,3 +62,20 @@ test('unlocked startup refreshes automatically instead of leaving a static scree
     bridge.run.mockResolvedValue('Running');
   }
 });
+
+test('public node setup defaults to automatic XBT peers and does not request a regtest server', async () => {
+  bridge.run.mockClear();
+  bridge.run.mockResolvedValueOnce('Stopped').mockResolvedValue('Needs setup');
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    expect(screen.getByLabelText('Optional XBT chain peer').props.value).toBe('');
+    expect(screen.queryByText(/Private XBT test network/)).toBeNull();
+    await act(async () => fireEvent.press(screen.getByText('Start XBT node')));
+    expect(bridge.run).toHaveBeenCalledWith('start', '');
+    expect(screen.getByText('Create Lightning wallet')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    bridge.run.mockResolvedValue('Running');
+  }
+});
