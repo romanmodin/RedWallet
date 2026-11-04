@@ -87,3 +87,22 @@ jobs:
           REGTEST_RESTORE=1 bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$rebuilt"
           xcodebuild -project "$rebuilt/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/RegtestTests/testRestoresIdentityFromPortableFile test
 
+
+  public-sync:
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+      - name: Sync a disposable public XBT node without funding it
+        env:
+          XBT_PUBLIC_SMOKE: "1"
+        run: |
+          set -eo pipefail
+          bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/xbt-public-host"
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
+          xcrun simctl bootstatus "$device" -b
+          xcodebuild -project "$RUNNER_TEMP/xbt-public-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/MainnetSmokeTests test

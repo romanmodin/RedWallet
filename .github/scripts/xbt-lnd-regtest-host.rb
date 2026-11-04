@@ -35,6 +35,11 @@ tests.build_configurations.each do |c|
   c.build_settings['BUNDLE_LOADER'] = '$(TEST_HOST)'
   c.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = '$(inherited) XBT_LND_ROUTED_TEST' if ENV['REGTEST_TIER'] == 'payments'
 end
+if ENV['XBT_PUBLIC_SMOKE'] == '1'
+  tests.build_configurations.each do |c|
+    c.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = '$(inherited) XBT_LND_PUBLIC_SMOKE'
+  end
+end
 objects = Xcodeproj::Project::Object
 package = project.new(objects::XCLocalSwiftPackageReference)
 package.relative_path = File.expand_path('ios/XBTLightning')
