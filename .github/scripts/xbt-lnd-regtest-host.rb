@@ -46,8 +46,9 @@ tests.package_product_dependencies << product
 link = project.new(objects::PBXBuildFile)
 link.product_ref = product
 tests.frameworks_build_phase.files << link
-source = File.expand_path('ios/XBTLightning/Tests/XBTLightningTests/RegtestTests.swift')
-tests.source_build_phase.add_file_reference(project.main_group.new_file(source))
+Dir.glob('ios/XBTLightning/Tests/XBTLightningTests/*.swift').sort.each do |path|
+  tests.source_build_phase.add_file_reference(project.main_group.new_file(File.expand_path(path)))
+end
 if restore
   %w[RestoreFixture.rwln RestoreIdentity.txt].each do |name|
     tests.resources_build_phase.add_file_reference(project.main_group.new_file(name))

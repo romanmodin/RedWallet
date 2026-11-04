@@ -2,6 +2,16 @@ import XCTest
 @testable import XBTLightning
 
 final class MainnetConfigurationTests: XCTestCase {
+    func testRecoveryFilesAreBoundToTheirNetwork() throws {
+        let material = RecoveryFile.Material(words: Array(repeating: Data("fixture".utf8), count: 24), channelBackup: Data([1, 2, 3]))
+        let password = "fixture-passphrase-only"
+        let publicFile = try RecoveryFile.seal(material, phrase: password, mainnet: true)
+        XCTAssertEqual(try RecoveryFile.open(publicFile, phrase: password, mainnet: true).words, material.words)
+        XCTAssertThrowsError(try RecoveryFile.open(publicFile, phrase: password))
+        let testFile = try RecoveryFile.seal(material, phrase: password)
+        XCTAssertThrowsError(try RecoveryFile.open(testFile, phrase: password, mainnet: true))
+    }
+
     func testPublicChainConfiguration() throws {
         let config = try MainnetConfiguration.text()
         XCTAssertTrue(config.contains("bitcoin.mainnet=true"))

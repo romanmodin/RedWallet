@@ -15,9 +15,10 @@ type Review = {
 
 export default function XBTLightning() {
   const { colors } = useTheme();
-  const [peer, setPeer] = useState('127.0.0.1');
+  const [peer, setPeer] = useState('');
   const [status, setStatus] = useState('Checking');
   const [message, setMessage] = useState('');
+  const [progress, setProgress] = useState('');
   const [busy, setBusy] = useState(false);
   const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
@@ -64,11 +65,13 @@ export default function XBTLightning() {
     };
   }, []);
   useEffect(() => {
-    if (!['Starting', 'Unlocked', 'RPC ready'].includes(status)) return;
+    if (!['Starting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status)) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
       try {
+        const detail = await bridge.run('progress', '');
+        if (active) setProgress(detail);
         const next = await bridge.run('status', '');
         if (active) setStatus(next);
       } catch {
@@ -83,7 +86,7 @@ export default function XBTLightning() {
     };
   }, [status]);
   const confirm = (payment: Review) =>
-    Alert.alert('Pay test invoice?', payment.sats + ' test sats to ' + payment.destination + '. Maximum routing fee: 10 test sats.', [
+    Alert.alert('Pay invoice?', payment.sats + ' sats to ' + payment.destination + '. Maximum routing fee: 10 sats.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Pay',
@@ -106,30 +109,34 @@ export default function XBTLightning() {
     <SettingsScrollView testID="XBTLightningScreen">
       <SettingsSection>
         <SettingsFootnote>
-          Private XBT test network (regtest). Enter the private IPv4 address of your regtest chain peer. The node connects on port 18444 and
-          requires the BLAKE2b activation block at height 150.
+          XBT Lightning runs on this iPhone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
+          your own compact-filter chain peer as host:port. Your home node is optional.
         </SettingsFootnote>
         {status === 'Stopped' && (
           <TextInput
             style={{ color: colors.foregroundColor }}
-            accessibilityLabel="Regtest chain peer"
+            accessibilityLabel="Optional XBT chain peer"
+            placeholder="Automatic XBT peers, or host:port"
+            autoCapitalize="none"
+            autoCorrect={false}
             value={peer}
             onChangeText={setPeer}
-            keyboardType="decimal-pad"
+            keyboardType="url"
             editable={!busy}
           />
         )}
-        {['Starting', 'Unlocked', 'RPC ready'].includes(status) && (
+        {['Starting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status) && (
           <SettingsFootnote>
-            The wallet is unlocked but the node is still starting or syncing. Status updates automatically. If this does not advance, the
-            configured chain peer may be unreachable.
+            The node is starting or syncing. Status updates automatically. If this does not advance, the configured chain peer may be
+            unreachable.
           </SettingsFootnote>
         )}
+        {!!progress && <SettingsFootnote>{progress}</SettingsFootnote>}
         <SettingsListItem title="Node status" subtitle={busy ? 'Working…' : status} />
-        {status === 'Stopped' && <SettingsListItem title="Start test node" disabled={busy} onPress={() => node('start')} />}
+        {status === 'Stopped' && <SettingsListItem title="Start XBT node" disabled={busy} onPress={() => node('start')} />}
         {(status === 'Needs setup' || status === 'Locked') && (
           <SettingsListItem
-            title={status === 'Locked' ? 'Unlock test wallet' : 'Create test wallet'}
+            title={status === 'Locked' ? 'Unlock Lightning wallet' : 'Create Lightning wallet'}
             disabled={busy}
             onPress={() => node('setup')}
           />
@@ -149,7 +156,7 @@ export default function XBTLightning() {
             }
           />
           <SettingsListItem
-            title="Get regtest funding address"
+            title="Get XBT funding address"
             disabled={busy}
             onPress={() =>
               run(async () => {
@@ -159,9 +166,9 @@ export default function XBTLightning() {
             }
           />
           <TextInput
-            accessibilityLabel="Lightning test peer"
+            accessibilityLabel="Lightning peer"
             style={{ color: colors.foregroundColor }}
-            placeholder="pubkey@private-IP:port"
+            placeholder="pubkey@host:port"
             value={lightningPeer}
             autoCapitalize="none"
             autoCorrect={false}
@@ -169,7 +176,7 @@ export default function XBTLightning() {
             onChangeText={setLightningPeer}
           />
           <SettingsListItem
-            title="Connect Lightning test peer"
+            title="Connect Lightning peer"
             disabled={busy || !lightningPeer}
             onPress={() =>
               run(async () => {
@@ -179,11 +186,11 @@ export default function XBTLightning() {
             }
           />
           <SettingsListItem
-            title="Open private test channel"
+            title="Open private channel"
             disabled={busy || !lightningPeer}
             onPress={() => {
               const key = lightningPeer.trim().split('@')[0];
-              Alert.alert('Open a private test channel?', 'Commit 100,000 test sats at 1 sat/vB to ' + key, [
+              Alert.alert('Open a private channel?', 'Commit 100,000 sats at 1 sat/vB to ' + key, [
                 { text: 'Cancel', style: 'cancel' },
                 {
                   text: 'Open channel',
@@ -198,14 +205,14 @@ export default function XBTLightning() {
           />
           <TextInput
             style={{ color: colors.foregroundColor }}
-            accessibilityLabel="Test sats to receive"
-            placeholder="Test sats to receive"
+            accessibilityLabel="Sats to receive"
+            placeholder="Sats to receive"
             keyboardType="number-pad"
             value={amount}
             onChangeText={setAmount}
           />
           <SettingsListItem
-            title="Create test invoice"
+            title="Create invoice"
             disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
             onPress={() =>
               run(async () => {
@@ -221,8 +228,8 @@ export default function XBTLightning() {
           )}
           <TextInput
             style={{ color: colors.foregroundColor }}
-            accessibilityLabel="Test invoice to pay"
-            placeholder="Paste a regtest invoice"
+            accessibilityLabel="Invoice to pay"
+            placeholder="Paste a reginvoice"
             autoCapitalize="none"
             autoCorrect={false}
             value={outgoing}
@@ -233,7 +240,7 @@ export default function XBTLightning() {
             editable={!busy}
           />
           <SettingsListItem
-            title="Review test invoice"
+            title="Review invoice"
             disabled={busy || !outgoing.trim()}
             onPress={() =>
               run(async () => {
@@ -245,13 +252,13 @@ export default function XBTLightning() {
           />
           {review && (
             <SettingsListItem
-              title={'Pay ' + review.sats + ' test sats'}
+              title={'Pay ' + review.sats + ' sats'}
               disabled={busy || pendingPayment.current === review.hash}
               onPress={() => confirm(review)}
             />
           )}
           <SettingsListItem
-            title="Recent test payments"
+            title="Recent payments"
             disabled={busy}
             onPress={() =>
               run(async () => {
@@ -275,8 +282,8 @@ export default function XBTLightning() {
       {['Needs setup', 'Running'].includes(status) && (
         <SettingsSection>
           <SettingsFootnote>
-            Portable test recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export again
-            after channel changes.
+            Portable Lightning recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export
+            again after channel changes.
           </SettingsFootnote>
           <TextInput
             style={{ color: colors.foregroundColor }}
@@ -291,7 +298,7 @@ export default function XBTLightning() {
           />
           {status === 'Needs setup' ? (
             <SettingsListItem
-              title="Restore test wallet from file"
+              title="Restore Lightning wallet from file"
               disabled={busy || phrase.length < 12}
               onPress={() =>
                 Alert.alert(
@@ -310,7 +317,7 @@ export default function XBTLightning() {
                             files: [
                               {
                                 uri: file.uri,
-                                fileName: 'selected-regtest-recovery.rwln',
+                                fileName: 'selected-mainnet-recovery.rwln',
                               },
                             ],
                             destination: 'cachesDirectory',
@@ -331,7 +338,7 @@ export default function XBTLightning() {
             />
           ) : (
             <SettingsListItem
-              title="Export encrypted test recovery file"
+              title="Export encrypted Lightning recovery file"
               disabled={busy || phrase.length < 12}
               onPress={() =>
                 run(async () => {

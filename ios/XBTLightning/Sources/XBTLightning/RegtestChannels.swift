@@ -18,8 +18,8 @@ extension RegtestNode {
         Node: \(publicKey)
         Chain height: \(height)
         Synced: \(synced)
-        Confirmed funding balance: \(onChain) test sats
-        Local / remote channel balance: \(outbound) / \(inbound) test sats
+        Confirmed funding balance: \(onChain) \(units)
+        Local / remote channel balance: \(outbound) / \(inbound) \(units)
         Active channels: \(count)
         """
     }
@@ -27,7 +27,7 @@ extension RegtestNode {
     public func fundingAddress() async throws -> String {
         let fields = try ProtoFields(await rpc { LndmobileNewAddress(ProtoFields.field(1, integer: 4), $0) })
         let address = try fields.string(1)
-        guard address.hasPrefix("bcrt1") else { throw NodeFailure.invalidReply }
+        guard address.hasPrefix(addressPrefix) else { throw NodeFailure.invalidReply }
         return address
     }
 
@@ -37,7 +37,9 @@ extension RegtestNode {
         let key = String(parts[0])
         let endpoint = parts[1].split(separator: ":", omittingEmptySubsequences: false)
         guard validKey(key), endpoint.count == 2, let port = UInt16(endpoint[1]), port > 0 else { throw NodeFailure.invalidPeer }
-        let host = try Self.privatePeer(String(endpoint[0])) + ":" + String(port)
+        let host: String
+        if mainnet { host = try MainnetConfiguration.endpoint(String(parts[1])) }
+        else { host = try Self.privatePeer(String(endpoint[0])) + ":" + String(port) }
         let remote = ProtoFields.field(1, data: Data(key.utf8)) + ProtoFields.field(2, data: Data(host.utf8))
         let request = ProtoFields.field(1, data: remote) + ProtoFields.field(3, integer: 15)
         _ = try await rpc { LndmobileConnectPeer(request, $0) }
@@ -49,6 +51,7 @@ extension RegtestNode {
     }
 
     public func openChannel(to key: String, sats: UInt64) async throws -> String {
+        try await requireSynced()
         guard validKey(key), (20_000...1_000_000).contains(sats) else { throw NodeFailure.invalidAmount }
         let request = ProtoFields.field(3, data: Data(key.utf8)) + ProtoFields.field(4, integer: sats) +
             ProtoFields.field(1, integer: 1) + ProtoFields.field(8, integer: 1)

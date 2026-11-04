@@ -15,18 +15,18 @@ final class XBTLightningBridge: NSObject {
                 switch operation {
                 case "export":
                     let bytes = try await RegtestNode.shared.recoveryFile(phrase: phrase)
-                    let file = FileManager.default.temporaryDirectory.appendingPathComponent("RedWallet-regtest-" + UUID().uuidString + ".rwln")
+                    let file = FileManager.default.temporaryDirectory.appendingPathComponent("RedWallet-mainnet-" + UUID().uuidString + ".rwln")
                     try bytes.write(to: file, options: [.atomic, .completeFileProtection])
                     resolve(file.absoluteString)
                 case "restore":
                     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].resolvingSymlinksInPath()
                     guard let url = URL(string: source), url.isFileURL,
                           url.resolvingSymlinksInPath().path.hasPrefix(caches.path + "/") else {
-                        reject("invalid_file", "Choose a local regtest recovery file.", nil); return
+                        reject("invalid_file", "Choose a local Lightning recovery file.", nil); return
                     }
                     let properties = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
                     guard properties.isRegularFile == true, let size = properties.fileSize, size <= 4 * 1024 * 1024 else {
-                        reject("invalid_file", "Invalid regtest recovery file.", nil); return
+                        reject("invalid_file", "Invalid Lightning recovery file.", nil); return
                     }
                     try await RegtestNode.shared.restore(file: Data(contentsOf: url), phrase: phrase)
                     resolve("Recovery submitted.")
@@ -67,7 +67,9 @@ final class XBTLightningBridge: NSObject {
         Task {
             do {
                 switch action {
-                case "start": try await RegtestNode.shared.start(peer: peer)
+                case "start":
+                    let peers = peer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    try await RegtestNode.shared.startMainnet(peers: peers.isEmpty ? MainnetConfiguration.defaultPeers : [peers])
                 case "setup": try await RegtestNode.shared.setupOrUnlock()
                 case "details":
                     resolve(try await RegtestNode.shared.details())
@@ -80,11 +82,14 @@ final class XBTLightningBridge: NSObject {
                     return
                 case "backup":
                     let backup = try await RegtestNode.shared.channelBackup()
-                    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("xbt-regtest-channel-backup", isDirectory: true)
+                    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("xbt-mainnet-channel-backup", isDirectory: true)
                     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                     let file = folder.appendingPathComponent("channel.backup")
                     try backup.write(to: file, options: [.atomic, .completeFileProtection])
                     resolve(file.absoluteString)
+                    return
+                case "progress":
+                    resolve(await RegtestNode.shared.syncProgress())
                     return
                 case "status": break
                 default: reject("unknown_action", "Unknown Lightning operation.", nil); return

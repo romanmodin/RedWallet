@@ -7,7 +7,29 @@ public actor RegtestNode {
     public static let shared = RegtestNode()
     private var startup: Task<Void, Error>?
     private var provisioning = false
-    private let service = "com.redwallet.xbt-lightning.regtest.v1"
+    private(set) var mainnet = false
+    private var service: String { mainnet ? MainnetConfiguration.credentialService : "com.redwallet.xbt-lightning.regtest.v1" }
+    private var directoryName: String { mainnet ? MainnetConfiguration.directoryName : "XBTLightning-regtest" }
+    var units: String { mainnet ? "sats" : "test sats" }
+    var invoicePrefix: String { mainnet ? "lnbc" : "lnbcrt" }
+    var addressPrefix: String { mainnet ? "bc1" : "bcrt1" }
+
+    public func startMainnet(peers: [String] = MainnetConfiguration.defaultPeers) async throws {
+        if startup != nil {
+            guard mainnet else { throw NodeFailure.invalidReply }
+            return
+        }
+        let config = try MainnetConfiguration.text(peers: peers)
+        mainnet = true
+        try await startConfiguration(config)
+    }
+
+    // SERVER_ACTIVE alone does not establish that the chain has caught up.
+    func requireSynced() async throws {
+        let info = try ProtoFields(await XBTLightningNode.info())
+        guard info.integers[9] == 1 else { throw NodeFailure.notSynced }
+    }
+
 
     // Accept a literal local IPv4 address only. Neither a URL nor arbitrary LND
     // config text is accepted from the app.
@@ -22,31 +44,36 @@ public actor RegtestNode {
 
     public func start(peer: String = "127.0.0.1") async throws {
         let peer = try Self.privatePeer(peer)
-        if let startup { return try await startup.value }
+        guard !mainnet else { throw NodeFailure.invalidReply }
+        try await startConfiguration("""
+        [Application Options]
+        nolisten=true
+        norest=true
+        nobootstrap=true
+        tlsdisableautofill=true
+        [Bitcoin]
+        bitcoin.regtest=true
+        bitcoin.blake2b-activation-height=150
+        bitcoin.node=neutrino
+        [neutrino]
+        neutrino.connect=\(peer):18444
+        """)
+    }
+
+    private func startConfiguration(_ configuration: String) async throws {
+        if startup != nil { return }
+        let directory = directoryName
         let task = Task<Void, Error> {
             let manager = FileManager.default
             var folder = try manager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-                .appendingPathComponent("XBTLightning-regtest", isDirectory: true)
+                .appendingPathComponent(directory, isDirectory: true)
             try manager.createDirectory(at: folder, withIntermediateDirectories: true,
                                         attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
             var flags = URLResourceValues()
             flags.isExcludedFromBackup = true
             try folder.setResourceValues(flags)
             let conf = folder.appendingPathComponent("lnd.conf")
-            // Regtest only. No public peers, listener, remote REST API or mainnet discovery.
-            try """
-            [Application Options]
-            nolisten=true
-            norest=true
-            nobootstrap=true
-            tlsdisableautofill=true
-            [Bitcoin]
-            bitcoin.regtest=true
-            bitcoin.blake2b-activation-height=150
-            bitcoin.node=neutrino
-            [neutrino]
-            neutrino.connect=\(peer):18444
-            """.write(to: conf, atomically: true, encoding: .utf8)
+            try configuration.write(to: conf, atomically: true, encoding: .utf8)
             _ = try await rpc { LndmobileStart("--lnddir=" + folder.path + " --configfile=" + conf.path, $0) }
         }
         startup = task
@@ -67,15 +94,42 @@ public actor RegtestNode {
         case 1: return "Locked"
         case 2: return "Unlocked"
         case 3: return "RPC ready"
-        case 4: return "Running"
+        case 4:
+            if mainnet {
+                let info = try ProtoFields(await XBTLightningNode.info())
+                return info.integers[9] == 1 ? "Running" : "Syncing"
+            }
+            return "Running"
         case 255: return "Starting"
         default: throw NodeFailure.invalidReply
         }
     }
 
+    // Bounded log inspection also works before the main RPC becomes available.
+    public func syncProgress() -> String {
+        guard startup != nil else { return "Ready to start the XBT node." }
+        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return "Starting node…" }
+        let chain = mainnet ? "mainnet" : "regtest"
+        let url = base.appendingPathComponent(directoryName + "/logs/bitcoin/" + chain + "/lnd.log")
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return "Waiting for node startup…" }
+        defer { try? handle.close() }
+        guard let size = try? handle.seekToEnd() else { return "Starting node…" }
+        do {
+            try handle.seek(toOffset: size > 64_000 ? size - 64_000 : 0)
+            let bytes = try handle.read(upToCount: 64_000) ?? Data()
+            let text = String(decoding: bytes, as: UTF8.self)
+            let pattern = try NSRegularExpression(pattern: "height[= ]([0-9]{3,7})")
+            let ns = text as NSString
+            let height = pattern.matches(in: text, range: NSRange(location: 0, length: ns.length))
+                .compactMap { Int(ns.substring(with: $0.range(at: 1))) }.max()
+            if let height { return "Last observed sync height: " + String(height) }
+            return "Connecting to XBT chain peers. Initial sync may take several minutes."
+        } catch { return "Waiting for sync progress…" }
+    }
+
     private func pendingCreationURL() throws -> URL {
         try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-            .appendingPathComponent("XBTLightning-regtest/pending-creation")
+            .appendingPathComponent(directoryName + "/pending-creation")
     }
 
     private struct Credentials: Codable {
@@ -127,7 +181,7 @@ public actor RegtestNode {
     public func recoveryFile(phrase: String) async throws -> Data {
         let saved = try await credentials(create: false)
         let channels = try await channelBackup()
-        return try RecoveryFile.seal(.init(words: saved.words, channelBackup: channels), phrase: phrase)
+        return try RecoveryFile.seal(.init(words: saved.words, channelBackup: channels), phrase: phrase, mainnet: mainnet)
     }
 
     public func restore(file: Data, phrase: String) async throws {
@@ -135,7 +189,7 @@ public actor RegtestNode {
         provisioning = true
         defer { provisioning = false }
         guard try await status() == "Needs setup" else { throw NodeFailure.invalidRecovery }
-        let material = try RecoveryFile.open(file, phrase: phrase)
+        let material = try RecoveryFile.open(file, phrase: phrase, mainnet: mainnet)
         let saved = try await credentials(create: true, restoring: material.words)
         let snapshot = ProtoFields.field(2, data: ProtoFields.field(2, data: material.channelBackup))
         var request = ProtoFields.field(1, data: saved.password) + ProtoFields.field(4, integer: 2500) + ProtoFields.field(5, data: snapshot)

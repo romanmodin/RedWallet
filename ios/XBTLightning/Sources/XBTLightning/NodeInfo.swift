@@ -3,17 +3,18 @@ import Security
 import Lndmobile
 
 enum NodeFailure: LocalizedError {
-    case invalidReply, timedOut, invalidPeer, missingCredentials, invalidAmount, invalidRecovery
+    case invalidReply, timedOut, invalidPeer, missingCredentials, invalidAmount, invalidRecovery, notSynced
     case keychain(OSStatus)
     var errorDescription: String? {
         switch self {
-        case .keychain(let code): return "Keychain could not access the test wallet (status \(code))."
+        case .notSynced: return "Wait for the XBT chain to finish syncing before using channels or payments."
+        case .keychain(let code): return "Keychain could not access the Lightning wallet (status \(code))."
         case .invalidReply: return "The Lightning engine returned an invalid response."
         case .timedOut: return "The Lightning engine has not answered yet. Check its status again."
-        case .invalidPeer: return "Enter localhost (127.0.0.1) or the private IPv4 address of your XBT regtest chain peer."
-        case .missingCredentials: return "The saved credentials for this test node are unavailable."
-        case .invalidRecovery: return "Check the regtest recovery file and its passphrase (at least 12 characters). Restore only to a new test node."
-        case .invalidAmount: return "Enter a whole amount between 1 and 1,000,000 test sats."
+        case .invalidPeer: return "Enter a valid chain or Lightning peer address."
+        case .missingCredentials: return "The saved credentials for this Lightning node are unavailable."
+        case .invalidRecovery: return "Check the recovery file for this network and its passphrase (at least 12 characters). Restore only to a new Lightning node."
+        case .invalidAmount: return "Enter a whole amount between 1 and 1,000,000 sats."
         }
     }
 }

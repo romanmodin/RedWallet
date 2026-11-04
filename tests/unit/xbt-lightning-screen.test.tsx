@@ -25,12 +25,12 @@ test('review decodes an invoice without paying; confirmation binds the amount an
   try {
     const screen = render(<XBTLightning />);
     await act(async () => {});
-    fireEvent.changeText(screen.getByLabelText('Test invoice to pay'), 'lnbcrt-fixture');
-    await act(async () => fireEvent.press(screen.getByText('Review test invoice')));
+    fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+    await act(async () => fireEvent.press(screen.getByText('Review invoice')));
     expect(bridge.invoice.mock.calls.map(call => call[0])).toEqual(['decode']);
-    fireEvent.press(screen.getByText('Pay 500 test sats'));
+    fireEvent.press(screen.getByText('Pay 500 sats'));
     const [, detail, buttons] = prompt.mock.calls[0];
-    expect(detail).toContain('10 test sats');
+    expect(detail).toContain('10 sats');
     const approve = buttons!.find(button => button.text === 'Pay')!.onPress!;
     await act(async () => {
       approve();
