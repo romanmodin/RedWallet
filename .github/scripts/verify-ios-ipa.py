@@ -92,11 +92,17 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
             assert info.get("CFBundleDisplayName") == "RedWallet", "Wrong app display name"
             assert entitlements.get("com.apple.security.application-groups") == ["group.com.romanmodin.redwallet"], "Wrong app group"
             assert entitlements.get("aps-environment") == "production", "Incorrect push entitlement for distribution"
-            if os.environ.get("VERIFY_LND_REGTEST_IPA") == "1":
+            regtest = os.environ.get("VERIFY_LND_REGTEST_IPA") == "1"
+            mainnet = os.environ.get("VERIFY_LND_MAINNET_IPA") == "1"
+            assert not (regtest and mainnet), "Ambiguous Lightning network qualification"
+            if regtest or mainnet:
                 assert info.get("MinimumOSVersion") == "16.0", "Incorrect Lightning beta deployment target"
                 binary = (bundle / info["CFBundleExecutable"]).read_bytes()
                 assert b"XBTLightningBridge" in binary, "Missing native Lightning bridge"
-                assert b"bitcoin.regtest=true" in binary, "Missing regtest configuration"
+                expected_config = b"bitcoin.mainnet=true" if mainnet else b"bitcoin.regtest=true"
+                assert expected_config in binary, "Missing qualified Lightning configuration"
+                if mainnet:
+                    assert b"XBTLightning-mainnet" in binary, "Missing isolated mainnet data directory"
             main_info = info
         receipt.append({"bundleId": identifier, "version": info["CFBundleShortVersionString"],
                         "build": info["CFBundleVersion"], "architectures": architectures,
@@ -104,6 +110,10 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
     assert seen == expected_ids, "Missing required extension"
     digest = hashlib.sha256(ipa.read_bytes()).hexdigest()
     result = {"ipaSha256": digest, "bundles": receipt, "signatureVerification": "passed", "sourceCommit": os.environ.get("GITHUB_SHA")}
+    if os.environ.get("VERIFY_LND_MAINNET_IPA") == "1":
+        result["lightningNetwork"] = "mainnet"
+    elif os.environ.get("VERIFY_LND_REGTEST_IPA") == "1":
+        result["lightningNetwork"] = "regtest"
     Path("ios-ipa-verification.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
     if os.environ.get("GITHUB_ENV"):

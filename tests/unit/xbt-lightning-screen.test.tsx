@@ -17,7 +17,7 @@ const bridge = {
     async (action: string): Promise<unknown> =>
       action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
   ),
-  run: jest.fn(async () => 'Running'),
+  run: jest.fn<Promise<string>, [string, string]>(async () => 'Running'),
   invoice: jest.fn(async (action: string) =>
     action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
   ),
@@ -138,7 +138,8 @@ test('cooperative close confirms the selected channel and fee rate and ignores a
     fireEvent.press(screen.getByText('Close channel · 82000 local sats'));
     expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['channels']);
     const [, detail, buttons] = prompt.mock.calls[0];
-    expect(detail).toContain('2 sat/vB');
+    expect(detail).toContain('Starting fee rate: 2 sat/vB');
+    expect(detail).toContain('capped at 6 sat/vB');
     fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '3');
     const confirm = buttons!.find(button => button.text === 'Close channel')!.onPress!;
     await act(async () => {

@@ -54,7 +54,7 @@ internal object NodeManagement {
             val point = message { writeString(2,parts[0]); writeUInt64(3,index) }
             closing.add(value)
             val result = RegtestNode.rpc { callback ->
-                Lndmobile.closeChannel(message { writeByteArray(1,point); writeUInt64(6,fee) },object : RecvStream {
+                Lndmobile.closeChannel(message { writeByteArray(1,point); writeUInt64(6,fee); writeUInt64(7,fee * 3) },object : RecvStream {
                     override fun onError(error: Exception) { callback.onError(error) }
                     override fun onResponse(data: ByteArray?) {
                         try {

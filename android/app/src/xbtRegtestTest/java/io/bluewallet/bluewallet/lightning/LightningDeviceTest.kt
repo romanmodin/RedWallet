@@ -71,7 +71,8 @@ class LightningDeviceTest {
         File(requireNotNull(exported.path)).copyTo(File(ctx.cacheDir,"recovery.rwln"),overwrite = true)
         val listed = NodeManagement.run("channels","","","") as com.facebook.react.bridge.ReadableArray
         assertEquals(point,listed.getMap(0)!!.getString("point"))
-        val closing = NodeManagement.run("close",point,"","1") as String
+        // The disposable routing peer uses a fixed 50 sat/vB estimate.
+        val closing = NodeManagement.run("close",point,"","50") as String
         assertEquals(64,closing.length)
         fixture("confirm",closing + ":0")
         waitFor { (NodeManagement.run("channels","","","") as com.facebook.react.bridge.ReadableArray).size() == 0 }

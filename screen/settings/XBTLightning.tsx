@@ -156,7 +156,11 @@ export default function XBTLightning() {
     const rate = feeRate;
     Alert.alert(
       'Close this channel?',
-      'Return this channel’s funds to the Lightning node’s on-chain wallet. Fee rate: ' + rate + ' sat/vB. The peer must be online.',
+      'Return this channel’s funds to the Lightning node’s on-chain wallet. Starting fee rate: ' +
+        rate +
+        ' sat/vB. For channels funded by this node, the negotiated fee rate is capped at ' +
+        Number(rate) * 3 +
+        ' sat/vB. The peer must be online.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -180,7 +184,7 @@ export default function XBTLightning() {
     <SettingsScrollView testID="XBTLightningScreen">
       <SettingsSection>
         <SettingsFootnote>
-          XBT Lightning runs on this iPhone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
+          XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
           your own compact-filter chain peer as host:port. Your home node is optional.
         </SettingsFootnote>
         {status === 'Stopped' && (

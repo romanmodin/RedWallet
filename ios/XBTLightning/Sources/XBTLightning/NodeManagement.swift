@@ -62,8 +62,11 @@ extension RegtestNode {
               parts[0].utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else { throw NodeFailure.invalidReply }
         closingPoints.insert(point)
         let channel = ProtoFields.field(2, data: Data(parts[0].utf8)) + ProtoFields.field(3, integer: UInt64(index))
-        // Cooperative close only. No force-close is silently substituted.
-        let request = ProtoFields.field(1, data: channel) + ProtoFields.field(6, integer: feeRate)
+        // Cooperative close only. Match the reviewed negotiation ceiling rather
+        // than relying on LND's implicit three-times starting-fee default.
+        // LND applies this ceiling when our node funded the channel.
+        let request = ProtoFields.field(1, data: channel) + ProtoFields.field(6, integer: feeRate) +
+            ProtoFields.field(7, integer: feeRate * 3)
         let response = try await rpc { LndmobileCloseChannel(request, CloseBroadcast($0)) }
         return String(decoding: response, as: UTF8.self)
     }
