@@ -16,6 +16,10 @@ def call(command, *args):
     return result.stdout.strip()
 
 miner = call(chain, "getnewaddress")
+# Knots' XBT wallet defaults to legacy addresses even after activation.
+# The current iPhone withdrawal UI supports native SegWit/Taproot destinations.
+withdrawal_target = call(chain, "getnewaddress", "withdrawal-fixture", "bech32")
+assert withdrawal_target.startswith("bcrt1q"), "Expected native SegWit fixture destination"
 
 class Fixture(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -39,7 +43,7 @@ class Fixture(BaseHTTPRequestHandler):
                 call(chain, "generatetoaddress", "8", miner)
                 result = "mined"
             elif self.path == "/withdraw-address":
-                result = miner
+                result = withdrawal_target
             elif self.path == "/verify-withdraw" and re.fullmatch(r"[a-f0-9]{64}", value):
                 for _ in range(30):
                     if value in json.loads(call(chain, "getrawmempool")):
@@ -49,7 +53,7 @@ class Fixture(BaseHTTPRequestHandler):
                     raise ValueError("withdrawal transaction missing")
                 call(chain, "generatetoaddress", "6", miner)
                 tx = json.loads(call(chain, "gettransaction", value))
-                assert any(d.get("category") == "receive" and d.get("address") == miner and
+                assert any(d.get("category") == "receive" and d.get("address") == withdrawal_target and
                            abs(d.get("amount", 0) - 0.00001) < 0.000000001 for d in tx["details"])
                 result = "received-1000"
             elif self.path == "/invoice":
@@ -72,7 +76,7 @@ class Fixture(BaseHTTPRequestHandler):
             self.send_response(200)
             self.end_headers()
             self.wfile.write(result.encode("ascii"))
-        except (ValueError, KeyError, UnicodeError, subprocess.SubprocessError) as error:
+        except (ValueError, KeyError, UnicodeError, AssertionError, subprocess.SubprocessError) as error:
             # Include the fixture step, never the invoice, macaroon or seed.
             print("Fixture failed:", self.path, type(error).__name__, flush=True)
             self.send_error(500)

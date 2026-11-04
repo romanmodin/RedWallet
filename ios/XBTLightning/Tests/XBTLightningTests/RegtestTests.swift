@@ -118,8 +118,18 @@ final class RegtestTests: XCTestCase {
         } catch { }
         let delivered = try await peer("verify-withdraw", txid)
         XCTAssertEqual(delivered, "received-1000")
+        try await waitUntil {
+            let transactions = try ProtoFields(await rpc { LndmobileGetTransactions(Data(), $0) })
+            return try (transactions.bytes[1] ?? []).contains {
+                let tx = try ProtoFields($0)
+                return try tx.string(1) == txid && (tx.integers[3] ?? 0) > 0
+            }
+        }
         let chainHistory = try await RegtestNode.shared.onchainHistory()
         XCTAssertTrue(chainHistory.contains(txid))
+        let remaining = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) }).integers[2] ?? 0
+        XCTAssertGreaterThan(remaining, 100_000)
+        try String(remaining).write(to: documents.appendingPathComponent("RestoreBalance.txt"), atomically: true, encoding: .utf8)
         #endif
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }
@@ -136,6 +146,22 @@ final class RegtestTests: XCTestCase {
         try await waitUntil { try await RegtestNode.shared.status() == "Running" }
         let info = try ProtoFields(await XBTLightningNode.info())
         XCTAssertEqual(try info.string(1), expected)
+        #if XBT_LND_ROUTED_TEST
+        // The original daemon is stopped. A different signed app has only the
+        // portable backup: prove discovery AND spending of recovered on-chain
+        // funds, rather than accepting the same public identity as recovery.
+        let expectedBalance = try XCTUnwrap(UInt64(String(contentsOf:
+            XCTUnwrap(bundle.url(forResource: "RestoreBalance", withExtension: "txt")), encoding: .utf8)))
+        try await waitUntil {
+            let balance = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
+            return (balance.integers[2] ?? 0) == expectedBalance
+        }
+        let target = try await peer("withdraw-address")
+        let review = try await RegtestNode.shared.reviewWithdrawal(address: target, sats: 1000, feeRate: 1)
+        let txid = try await RegtestNode.shared.withdraw(token: review.token)
+        let received = try await peer("verify-withdraw", txid)
+        XCTAssertEqual(received, "received-1000")
+        #endif
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }
 
