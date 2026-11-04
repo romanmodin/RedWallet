@@ -2,6 +2,20 @@ import XCTest
 @testable import XBTLightning
 
 final class MainnetConfigurationTests: XCTestCase {
+    func testPeerSelectionPersistsAndCorruptionDoesNotFallBack() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("peer.json")
+        XCTAssertEqual(try MainnetPeerStore.load(at: file), "")
+        try MainnetPeerStore.save("192.168.1.5:8333", at: file)
+        XCTAssertEqual(try MainnetPeerStore.load(at: file), "192.168.1.5:8333")
+        try MainnetPeerStore.save("", at: file)
+        XCTAssertEqual(try MainnetPeerStore.load(at: file), "")
+        try Data("invalid-json".utf8).write(to: file)
+        XCTAssertThrowsError(try MainnetPeerStore.load(at: file))
+        XCTAssertThrowsError(try MainnetPeerStore.save("host:8333\nbitcoin.regtest=true", at: file))
+    }
+
     func testRecoveryFilesAreBoundToTheirNetwork() throws {
         let material = RecoveryFile.Material(words: Array(repeating: Data("fixture".utf8), count: 24), channelBackup: Data([1, 2, 3]))
         let password = "fixture-passphrase-only"

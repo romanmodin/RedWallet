@@ -18,6 +18,7 @@ type Review = {
 export default function XBTLightning() {
   const { colors } = useTheme();
   const [peer, setPeer] = useState('');
+  const [peerLoaded, setPeerLoaded] = useState(false);
   const [status, setStatus] = useState('Checking');
   const [message, setMessage] = useState('');
   const [progress, setProgress] = useState('');
@@ -65,12 +66,16 @@ export default function XBTLightning() {
   useEffect(() => {
     mounted.current = true;
     let active = true;
-    bridge.run('status', '').then(
-      (value: string) => {
-        if (active) setStatus(value);
+    Promise.all([bridge.run('status', ''), bridge.peer()]).then(
+      ([value, savedPeer]: [string, string]) => {
+        if (active) {
+          setPeer(savedPeer);
+          setPeerLoaded(true);
+          setStatus(value);
+        }
       },
       () => {
-        if (active) setMessage('Could not read the test node status.');
+        if (active) setMessage('Could not read node status or saved peer settings. Reopen this screen to retry.');
       },
     );
     return () => {
@@ -195,7 +200,7 @@ export default function XBTLightning() {
         )}
         {!!progress && <SettingsFootnote>{progress}</SettingsFootnote>}
         <SettingsListItem title="Node status" subtitle={busy ? 'Working…' : status} />
-        {status === 'Stopped' && <SettingsListItem title="Start XBT node" disabled={busy} onPress={() => node('start')} />}
+        {status === 'Stopped' && <SettingsListItem title="Start XBT node" disabled={busy || !peerLoaded} onPress={() => node('start')} />}
         {(status === 'Needs setup' || status === 'Locked') && (
           <SettingsListItem
             title={status === 'Locked' ? 'Unlock Lightning wallet' : 'Create Lightning wallet'}

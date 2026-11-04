@@ -115,8 +115,8 @@ final class RegtestTests: XCTestCase {
         } catch { }
         let delivered = try await peer("verify-withdraw", txid)
         XCTAssertEqual(delivered, "received-1000")
-        let history = try await RegtestNode.shared.onchainHistory()
-        XCTAssertTrue(history.contains(txid))
+        let chainHistory = try await RegtestNode.shared.onchainHistory()
+        XCTAssertTrue(chainHistory.contains(txid))
         #endif
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }

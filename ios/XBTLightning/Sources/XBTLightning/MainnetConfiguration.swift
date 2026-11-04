@@ -54,3 +54,19 @@ public enum MainnetConfiguration {
         """
     }
 }
+
+// Keep the explicit user selection separate from LND's generated configuration.
+// A corrupt setting is an error; it must never silently fall back to public peers.
+enum MainnetPeerStore {
+    static func load(at file: URL) throws -> String {
+        guard FileManager.default.fileExists(atPath: file.path) else { return "" }
+        let saved = try JSONDecoder().decode(String.self, from: Data(contentsOf: file))
+        return saved.isEmpty ? "" : try MainnetConfiguration.endpoint(saved)
+    }
+
+    static func save(_ peer: String, at file: URL) throws {
+        let value = peer.isEmpty ? "" : try MainnetConfiguration.endpoint(peer)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(value).write(to: file, options: .atomic)
+    }
+}

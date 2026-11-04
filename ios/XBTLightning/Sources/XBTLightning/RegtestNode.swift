@@ -18,6 +18,26 @@ public actor RegtestNode {
     var invoicePrefix: String { mainnet ? "lnbc" : "lnbcrt" }
     var addressPrefix: String { mainnet ? "bc1" : "bcrt1" }
 
+    private func peerSelectionURL() throws -> URL {
+        try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                    appropriateFor: nil, create: true).appendingPathComponent("XBTLightning-mainnet-peer.json")
+    }
+
+    public func savedMainnetPeer() throws -> String {
+        try MainnetPeerStore.load(at: peerSelectionURL())
+    }
+
+    public func startSelectedMainnet(peer: String) async throws {
+        guard startup == nil else {
+            guard mainnet else { throw NodeFailure.invalidReply }
+            return
+        }
+        let selected = peer.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validated = selected.isEmpty ? "" : try MainnetConfiguration.endpoint(selected)
+        try MainnetPeerStore.save(validated, at: peerSelectionURL())
+        try await startMainnet(peers: validated.isEmpty ? MainnetConfiguration.defaultPeers : [validated])
+    }
+
     public func startMainnet(peers: [String] = MainnetConfiguration.defaultPeers) async throws {
         if startup != nil {
             guard mainnet else { throw NodeFailure.invalidReply }

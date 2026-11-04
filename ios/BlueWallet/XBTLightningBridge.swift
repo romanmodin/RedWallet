@@ -7,6 +7,14 @@ import XBTLightning
 final class XBTLightningBridge: NSObject {
     @objc static func requiresMainQueueSetup() -> Bool { false }
 
+    @objc(peer:rejecter:)
+    func peer(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do { resolve(try await RegtestNode.shared.savedMainnetPeer()) }
+            catch { reject("peer_settings_failed", "Could not read saved XBT peer settings.", nil) }
+        }
+    }
+
     @objc(recovery:phrase:source:resolver:rejecter:)
     func recovery(_ operation: String, phrase: String, source: String,
                   resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
@@ -95,8 +103,7 @@ final class XBTLightningBridge: NSObject {
             do {
                 switch action {
                 case "start":
-                    let peers = peer.trimmingCharacters(in: .whitespacesAndNewlines)
-                    try await RegtestNode.shared.startMainnet(peers: peers.isEmpty ? MainnetConfiguration.defaultPeers : [peers])
+                    try await RegtestNode.shared.startSelectedMainnet(peer: peer)
                 case "setup": try await RegtestNode.shared.setupOrUnlock()
                 case "details":
                     resolve(try await RegtestNode.shared.details())

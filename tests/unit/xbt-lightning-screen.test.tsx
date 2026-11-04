@@ -12,6 +12,7 @@ jest.mock('../../components/themes', () => {
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
 const bridge = {
+  peer: jest.fn(async () => ''),
   manage: jest.fn(
     async (action: string): Promise<unknown> =>
       action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
@@ -160,6 +161,38 @@ test('a failed native start shows a restart instruction instead of remaining on 
     await act(async () => fireEvent.press(screen.getByText('Start XBT node')));
     expect(screen.getByText(/Close and reopen RedWallet/)).toBeTruthy();
     expect(screen.queryByText('Start XBT node')).toBeNull();
+    screen.unmount();
+  } finally {
+    bridge.run.mockResolvedValue('Running');
+  }
+});
+
+test('saved custom peer is shown and reused without switching to automatic peers', async () => {
+  bridge.peer.mockResolvedValueOnce('192.168.1.5:8333');
+  bridge.run.mockResolvedValueOnce('Stopped').mockResolvedValue('Needs setup');
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    expect(screen.getByLabelText('Optional XBT chain peer').props.value).toBe('192.168.1.5:8333');
+    await act(async () => fireEvent.press(screen.getByText('Start XBT node')));
+    expect(bridge.run).toHaveBeenCalledWith('start', '192.168.1.5:8333');
+    screen.unmount();
+  } finally {
+    bridge.run.mockResolvedValue('Running');
+  }
+});
+
+test('unreadable peer settings do not silently start with public defaults', async () => {
+  bridge.run.mockClear();
+  bridge.run.mockResolvedValue('Stopped');
+  bridge.peer.mockRejectedValueOnce(new Error('Unreadable settings'));
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    expect(screen.getByText(/Could not read node status or saved peer settings/)).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByText('Refresh status')));
+    fireEvent.press(screen.getByText('Start XBT node'));
+    expect(bridge.run.mock.calls.some(call => call[0] === 'start')).toBe(false);
     screen.unmount();
   } finally {
     bridge.run.mockResolvedValue('Running');
