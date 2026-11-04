@@ -98,7 +98,10 @@ final class RegtestTests: XCTestCase {
         try identity.write(to: documents.appendingPathComponent("RestoreIdentity.txt"), atomically: true, encoding: .utf8)
         #if XBT_LND_ROUTED_TEST
         let beforeClose = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) }).integers[2] ?? 0
-        let closing = try await RegtestNode.shared.closeChannel(point: point, feeRate: 1)
+        // The isolated bitcoind-backed LND peer uses the fork's fixed regtest
+        // estimate of 50 sat/vB. A 1 sat/vB request cannot negotiate with it
+        // within the wallet's reviewed three-times fee ceiling.
+        let closing = try await RegtestNode.shared.closeChannel(point: point, feeRate: 50)
         XCTAssertEqual(closing.count, 64)
         _ = try await peer("confirm", closing + ":0")
         try await waitUntil {
