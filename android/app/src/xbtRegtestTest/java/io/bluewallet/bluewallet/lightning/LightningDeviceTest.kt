@@ -4,6 +4,10 @@ import android.net.Uri
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Test
+import lndmobile.Callback
+import lndmobile.Lndmobile
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -50,6 +54,14 @@ class LightningDeviceTest {
         val review = RegtestNode.invoice("decode",outgoing,"","") as com.facebook.react.bridge.ReadableMap
         val hash = requireNotNull(review.getString("hash"))
         assertEquals("20000",review.getString("sats"))
+        waitFor {
+            val result = CompletableFuture<ByteArray>()
+            Lndmobile.queryRoutes(message { writeString(1, remote); writeUInt64(2, 20000) }, object : Callback {
+                override fun onResponse(data: ByteArray?) { result.complete(data ?: ByteArray(0)) }
+                override fun onError(error: Exception) { result.completeExceptionally(error) }
+            })
+            runCatching { !Fields(result.get(10, TimeUnit.SECONDS)).blobs[1].isNullOrEmpty() }.getOrDefault(false)
+        }
         assertTrue(runCatching { RegtestNode.invoice("pay",outgoing,hash,"19999") }.isFailure)
         assertEquals(true,RegtestNode.invoice("pay",outgoing,hash,"20000"))
         assertEquals("settled",fixture("pay",RegtestNode.invoice("receive","","","2000") as String))

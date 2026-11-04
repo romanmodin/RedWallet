@@ -83,6 +83,14 @@ final class RegtestTests: XCTestCase {
         let outgoing = try await peer("invoice")
         let review = try await RegtestNode.shared.decode(outgoing)
         XCTAssertEqual(review.sats, 20_000)
+        try await waitUntil {
+            do {
+                let request = ProtoFields.field(1, data: Data(peerKey.utf8)) +
+                    ProtoFields.field(2, integer: 20_000)
+                let routes = try ProtoFields(await rpc { LndmobileQueryRoutes(request, $0) })
+                return !(routes.bytes[1] ?? []).isEmpty
+            } catch { return false }
+        }
         let settled = try await RegtestNode.shared.pay(invoice: outgoing, expectedHash: review.hash, expectedSats: review.sats)
         XCTAssertTrue(settled)
         let incoming = try await RegtestNode.shared.receive(sats: 2_000)
