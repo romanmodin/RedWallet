@@ -49,6 +49,20 @@ class Fixture(BaseHTTPRequestHandler):
                     raise ValueError("channel funding transaction missing")
                 call(chain, "generatetoaddress", "8", miner)
                 result = "mined"
+            elif self.path == "/withdraw-address":
+                result = miner
+            elif self.path == "/verify-withdraw" and re.fullmatch(r"[a-f0-9]{64}", value):
+                for _ in range(30):
+                    if value in json.loads(call(chain, "getrawmempool")):
+                        break
+                    time.sleep(1)
+                else:
+                    raise ValueError("withdrawal transaction missing")
+                call(chain, "generatetoaddress", "6", miner)
+                tx = json.loads(call(chain, "gettransaction", value))
+                assert any(d.get("category") == "receive" and d.get("address") == miner and
+                           abs(d.get("amount", 0) - 0.00001) < 0.000000001 for d in tx["details"])
+                result = "received-1000"
             elif self.path == "/invoice":
                 result = json.loads(call(lightning, "addinvoice", "--amt=20000"))["payment_request"]
             elif self.path == "/pay" and re.fullmatch(r"lnbcrt[a-z0-9]{60,4096}", value):
