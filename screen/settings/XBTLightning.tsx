@@ -6,7 +6,12 @@ import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection
 import { useTheme } from '../../components/themes';
 
 const bridge = NativeModules.XBTLightningBridge;
-type Review = { invoice: string; hash: string; sats: string; destination: string };
+type Review = {
+  invoice: string;
+  hash: string;
+  sats: string;
+  destination: string;
+};
 
 export default function XBTLightning() {
   const { colors } = useTheme();
@@ -58,6 +63,25 @@ export default function XBTLightning() {
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    if (!['Starting', 'Unlocked', 'RPC ready'].includes(status)) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try {
+        const next = await bridge.run('status', '');
+        if (active) setStatus(next);
+      } catch {
+        if (active) setMessage('The node has not answered yet. Check the chain peer connection.');
+      }
+      if (active) timer = setTimeout(refresh, 3000);
+    };
+    timer = setTimeout(refresh, 3000);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [status]);
   const confirm = (payment: Review) =>
     Alert.alert('Pay test invoice?', payment.sats + ' test sats to ' + payment.destination + '. Maximum routing fee: 10 test sats.', [
       { text: 'Cancel', style: 'cancel' },
@@ -94,6 +118,12 @@ export default function XBTLightning() {
             keyboardType="decimal-pad"
             editable={!busy}
           />
+        )}
+        {['Starting', 'Unlocked', 'RPC ready'].includes(status) && (
+          <SettingsFootnote>
+            The wallet is unlocked but the node is still starting or syncing. Status updates automatically. If this does not advance, the
+            configured chain peer may be unreachable.
+          </SettingsFootnote>
         )}
         <SettingsListItem title="Node status" subtitle={busy ? 'Working…' : status} />
         {status === 'Stopped' && <SettingsListItem title="Start test node" disabled={busy} onPress={() => node('start')} />}
@@ -277,7 +307,12 @@ export default function XBTLightning() {
                           setPhrase('');
                           const [file] = await pick({ type: [types.allFiles] });
                           const [copy] = await keepLocalCopy({
-                            files: [{ uri: file.uri, fileName: 'selected-regtest-recovery.rwln' }],
+                            files: [
+                              {
+                                uri: file.uri,
+                                fileName: 'selected-regtest-recovery.rwln',
+                              },
+                            ],
                             destination: 'cachesDirectory',
                           });
                           if (copy.status !== 'success') throw Error('Could not read the selected backup.');

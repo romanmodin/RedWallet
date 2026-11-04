@@ -43,3 +43,22 @@ test('review decodes an invoice without paying; confirmation binds the amount an
     prompt.mockRestore();
   }
 });
+
+test('unlocked startup refreshes automatically instead of leaving a static screen', async () => {
+  jest.useFakeTimers();
+  bridge.run.mockResolvedValueOnce('Unlocked').mockResolvedValue('Running');
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    expect(screen.getByText(/Status updates automatically/)).toBeTruthy();
+    expect(screen.queryByText('Node and channel balances')).toBeNull();
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText('Node and channel balances')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    jest.useRealTimers();
+    bridge.run.mockResolvedValue('Running');
+  }
+});
