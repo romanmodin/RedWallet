@@ -1,4 +1,4 @@
-name: Android embedded XBT Lightning regtest
+name: Android embedded XBT Lightning
 on:
   pull_request:
     paths:
@@ -7,11 +7,17 @@ on:
       - '.github/workflows/xbt-lnd-android.yml'
       - 'screen/settings/XBTLightning.tsx'
       - '.github/scripts/test-xbt-lnd-android.sh'
+      - '.github/scripts/test-xbt-lnd-android-mainnet.sh'
+      - '.github/scripts/xbt-lnd-regtest-peer.py'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   regtest:
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [regtest, mainnet]
     runs-on: ubuntu-24.04
     timeout-minutes: 110
     steps:
@@ -68,28 +74,40 @@ jobs:
             android-lightning-${{ runner.os }}-
       - name: Compile the isolated Android test build
         working-directory: android
-        run: ./gradlew --no-daemon --max-workers=2 :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest -PxbtRegtestAar="$RUNNER_TEMP/Lndmobile.aar" -PreactNativeArchitectures=arm64-v8a,x86_64
+        run: |
+          property=xbtRegtestAar
+          if [ "${{ matrix.network }}" = mainnet ]; then property=xbtMainnetAar; fi
+          ./gradlew --no-daemon --max-workers=2 :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest "-P$property=$RUNNER_TEMP/Lndmobile.aar" -PreactNativeArchitectures=arm64-v8a,x86_64 -PredwalletVersionCode=${{ github.run_number }}
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Verify routed payments and clean-install recovery on Android
+        if: matrix.network == 'regtest'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: 36
           arch: x86_64
           disable-animations: true
           script: .github/scripts/test-xbt-lnd-android.sh
+      - name: Verify public XBT sync without funding
+        if: matrix.network == 'mainnet'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          arch: x86_64
+          disable-animations: true
+          script: .github/scripts/test-xbt-lnd-android-mainnet.sh
       - name: Retain failed regtest diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: android-lightning-failure-diagnostics
+          name: android-lightning-${{ matrix.network }}-failure-diagnostics
           path: ${{ runner.temp }}/lnd-regtest/diagnostics/
           if-no-files-found: ignore
           retention-days: 7
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: redwallet-android-xbt-regtest-unsigned
+          name: redwallet-android-xbt-${{ matrix.network }}-unsigned
           path: android/app/build/outputs/apk/release/app-release-unsigned.apk

@@ -16,9 +16,12 @@ class LightningBridge(private val context: ReactApplicationContext) : ReactConte
     private fun submit(promise: Promise, action: () -> Any) {
         nodeThread.execute {
             try { promise.resolve(action()) }
-            catch (e: Exception) { promise.reject("xbt_regtest_failed", "Test node operation failed. Check the node state and supplied values.") }
+            catch (e: Exception) { promise.reject("xbt_node_failed", if (e is IllegalStateException) e.message ?: "Node operation failed." else "Node operation failed. Check the supplied values, connection and node state.") }
         }
     }
+    @ReactMethod fun peer(promise: Promise) = submit(promise) { MainnetConfiguration.savedPeer(context) }
+    @ReactMethod fun manage(operation: String, value: String, sats: String, feeRate: String, promise: Promise) =
+        submit(promise) { NodeManagement.run(operation, value, sats, feeRate) }
     @ReactMethod fun run(action: String, peer: String, promise: Promise) = submit(promise) { RegtestNode.run(context,action,peer) }
     @ReactMethod fun invoice(operation: String, value: String, hash: String, sats: String, promise: Promise) =
         submit(promise) { RegtestNode.invoice(operation,value,hash,sats) }

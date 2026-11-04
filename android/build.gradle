@@ -2,7 +2,7 @@
 
 buildscript {
     ext {
-        minSdkVersion = project.hasProperty("xbtRegtestAar") ? 26 : 24
+        minSdkVersion = (project.hasProperty("xbtRegtestAar") || project.hasProperty("xbtMainnetAar")) ? 26 : 24
         buildToolsVersion = "36.0.0"
         compileSdkVersion = 36
         targetSdkVersion = 36

@@ -19,8 +19,8 @@ import javax.crypto.spec.SecretKeySpec
 
 internal object Recovery {
     const val LIMIT = 4 * 1024 * 1024
-    private const val ALIAS = "redwallet.xbt.regtest.credentials.v1"
-    private val header = "RedWallet-XBT-regtest-1\n".toByteArray()
+    private val ALIAS get() = "redwallet.xbt.${MainnetConfiguration.network}.credentials.v1"
+    private val header get() = "RedWallet-XBT-${MainnetConfiguration.network}-1\n".toByteArray()
     private val random = SecureRandom()
     fun randomBytes(size: Int) = ByteArray(size).also(random::nextBytes)
     fun encode(data: ByteArray): String = Base64.encodeToString(data, Base64.NO_WRAP)

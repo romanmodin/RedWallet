@@ -36,6 +36,7 @@ class LightningDeviceTest {
         waitFor { node("status") == "Needs setup" }
     }
     @Test fun payments() {
+        assertFalse(MainnetConfiguration.live)
         start()
         node("setup")
         waitFor { node("status") == "Running" }
@@ -68,6 +69,22 @@ class LightningDeviceTest {
         assertTrue(node("history").contains("Settled"))
         val exported = Uri.parse(RegtestNode.recovery(ctx,"export",phrase,""))
         File(requireNotNull(exported.path)).copyTo(File(ctx.cacheDir,"recovery.rwln"),overwrite = true)
+        val listed = NodeManagement.run("channels","","","") as com.facebook.react.bridge.ReadableArray
+        assertEquals(point,listed.getMap(0)!!.getString("point"))
+        val closing = NodeManagement.run("close",point,"","1") as String
+        assertEquals(64,closing.length)
+        fixture("confirm",closing + ":0")
+        waitFor { (NodeManagement.run("channels","","","") as com.facebook.react.bridge.ReadableArray).size() == 0 }
+        waitFor { runCatching { RegtestNode.requireSynced(); true }.getOrDefault(false) }
+        val target = fixture("withdraw-address")
+        val withdrawal = NodeManagement.run("withdrawReview",target,"1000","1") as com.facebook.react.bridge.ReadableMap
+        val token = requireNotNull(withdrawal.getString("token"))
+        assertTrue(runCatching { NodeManagement.run("withdraw","wrong-token","","") }.isFailure)
+        val txid = NodeManagement.run("withdraw",token,"","") as String
+        assertEquals(64,txid.length)
+        assertTrue(runCatching { NodeManagement.run("withdraw",token,"","") }.isFailure)
+        assertEquals("received-1000",fixture("verify-withdraw",txid))
+        assertTrue((NodeManagement.run("history","","","") as String).contains(txid))
     }
     @Test fun restore() {
         start()
