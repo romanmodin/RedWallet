@@ -92,9 +92,16 @@ jobs:
           rebuilt="$RUNNER_TEMP/xbt-restore"
           mkdir -p "$rebuilt"
           cp "$src/Documents/RestoreFixture.rwln" "$src/Documents/RestoreIdentity.txt" "$rebuilt/"
+          if [ "$REGTEST_TIER" = payments ]; then cp "$src/Documents/RestoreBalance.txt" "$rebuilt/"; fi
           REGTEST_RESTORE=1 bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$rebuilt"
           xcodebuild -project "$rebuilt/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/RegtestTests/testRestoresIdentityFromPortableFile test
 
+      - name: Diagnose isolated peer failures
+        if: failure()
+        run: |
+          for logfile in "$RUNNER_TEMP/lnd-regtest/fixture.log" "$RUNNER_TEMP/lnd-regtest/peer.log"; do
+            if [ -f "$logfile" ]; then tail -40 "$logfile"; fi
+          done
 
   public-sync:
     runs-on: macos-26

@@ -31,6 +31,14 @@ class LightningDeviceTest {
             request.inputStream.bufferedReader().use { it.readText() }
         } finally { request.disconnect() }
     }
+    private fun balance() = RegtestNode.rpc { Lndmobile.walletBalance(ByteArray(0),it) }.number(2)
+    private fun waitForFixtureSync() {
+        val tip = fixture("height").toLong()
+        waitFor {
+            val info = RegtestNode.rpc { Lndmobile.getInfo(ByteArray(0),it) }
+            info.number(6) == tip && info.number(9) == 1L
+        }
+    }
     private fun start() {
         node("start","127.0.0.1")
         waitFor { node("status") == "Needs setup" }
@@ -48,8 +56,10 @@ class LightningDeviceTest {
         waitFor { Regex("Confirmed funding balance: ([0-9]+)").find(node("details"))!!.groupValues[1].toLong() >= 100000 }
         val remote = fixture("peer")
         RegtestNode.invoice("connect",remote + "@127.0.0.1:19735","","")
+        waitForFixtureSync()
         val point = RegtestNode.invoice("open",remote,"","100000") as String
         fixture("confirm",point)
+        waitForFixtureSync()
         waitFor { node("details").contains("Active channels: 1") }
         val outgoing = fixture("invoice")
         val review = RegtestNode.invoice("decode",outgoing,"","") as com.facebook.react.bridge.ReadableMap
@@ -71,10 +81,14 @@ class LightningDeviceTest {
         File(requireNotNull(exported.path)).copyTo(File(ctx.cacheDir,"recovery.rwln"),overwrite = true)
         val listed = NodeManagement.run("channels","","","") as com.facebook.react.bridge.ReadableArray
         assertEquals(point,listed.getMap(0)!!.getString("point"))
+        waitForFixtureSync()
+        val beforeClose = balance()
         // The disposable routing peer uses a fixed 50 sat/vB estimate.
         val closing = NodeManagement.run("close",point,"","50") as String
         assertEquals(64,closing.length)
         fixture("confirm",closing + ":0")
+        waitForFixtureSync()
+        waitFor { balance() > beforeClose }
         waitFor { (NodeManagement.run("channels","","","") as com.facebook.react.bridge.ReadableArray).size() == 0 }
         waitFor { runCatching { RegtestNode.requireSynced(); true }.getOrDefault(false) }
         val target = fixture("withdraw-address")
@@ -85,7 +99,14 @@ class LightningDeviceTest {
         assertEquals(64,txid.length)
         assertTrue(runCatching { NodeManagement.run("withdraw",token,"","") }.isFailure)
         assertEquals("received-1000",fixture("verify-withdraw",txid))
+        waitForFixtureSync()
+        waitFor {
+            RegtestNode.rpc { Lndmobile.getTransactions(ByteArray(0),it) }.blobs[1].orEmpty().map(::Fields)
+                .any { it.string(1) == txid && it.number(3) > 0 }
+        }
         assertTrue((NodeManagement.run("history","","","") as String).contains(txid))
+        assertTrue(balance() > 100000)
+        File(ctx.cacheDir,"balance").writeText(balance().toString())
     }
     @Test fun restore() {
         start()
@@ -95,5 +116,12 @@ class LightningDeviceTest {
         RegtestNode.recovery(ctx,"restore",phrase,uri)
         waitFor { node("status") == "Running" }
         assertEquals(File(ctx.cacheDir,"identity").readText(),node("details").lineSequence().first())
+        waitForFixtureSync()
+        val expected = File(ctx.cacheDir,"balance").readText().toLong()
+        waitFor { balance() == expected }
+        val target = fixture("withdraw-address")
+        val review = NodeManagement.run("withdrawReview",target,"1000","1") as com.facebook.react.bridge.ReadableMap
+        val txid = NodeManagement.run("withdraw",requireNotNull(review.getString("token")),"","") as String
+        assertEquals("received-1000",fixture("verify-withdraw",txid))
     }
 }

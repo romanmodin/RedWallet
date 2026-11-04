@@ -55,7 +55,9 @@ Dir.glob('ios/XBTLightning/Tests/XBTLightningTests/*.swift').sort.each do |path|
   tests.source_build_phase.add_file_reference(project.main_group.new_file(File.expand_path(path)))
 end
 if restore
-  %w[RestoreFixture.rwln RestoreIdentity.txt].each do |name|
+  resources = %w[RestoreFixture.rwln RestoreIdentity.txt]
+  resources << 'RestoreBalance.txt' if ENV['REGTEST_TIER'] == 'payments'
+  resources.each do |name|
     tests.resources_build_phase.add_file_reference(project.main_group.new_file(name))
   end
 end

@@ -9,6 +9,7 @@ on:
       - '.github/scripts/test-xbt-lnd-android.sh'
       - '.github/scripts/test-xbt-lnd-android-mainnet.sh'
       - '.github/scripts/xbt-lnd-regtest-peer.py'
+      - '.github/scripts/test-xbt-lnd-regtest-peer.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +23,8 @@ jobs:
     timeout-minutes: 110
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Validate disposable routing readiness
+        run: python3 .github/scripts/test-xbt-lnd-regtest-peer.py
       - name: Free build space
         run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android/sdk/ndk
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16

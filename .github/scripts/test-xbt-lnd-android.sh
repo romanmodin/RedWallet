@@ -38,9 +38,9 @@ run_case() {
   fi
 }
 run_case payments
-for f in recovery.rwln identity; do adb exec-out run-as "$app" cat "cache/$f" > "$dir/$f"; done
+for f in recovery.rwln identity balance; do adb exec-out run-as "$app" cat "cache/$f" > "$dir/$f"; done
 adb shell am force-stop "$app"
 adb shell pm clear "$app"
 adb shell run-as "$app" mkdir -p cache
-for f in recovery.rwln identity; do adb shell -T "run-as $app sh -c 'cat > cache/$f'" < "$dir/$f"; done
+for f in recovery.rwln identity balance; do adb shell -T "run-as $app sh -c 'cat > cache/$f'" < "$dir/$f"; done
 run_case restore

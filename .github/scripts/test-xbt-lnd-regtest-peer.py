@@ -1,0 +1,75 @@
+"""Exercise the fixture without starting a chain or moving any funds."""
+import ast
+import io
+import json
+from pathlib import Path
+import subprocess
+import unittest
+from unittest.mock import Mock
+
+source = Path(__file__).with_name('xbt-lnd-regtest-peer.py')
+tree = ast.parse(source.read_text())
+# Import only definitions; the server's top-level chain startup must not run.
+tree.body = [n for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.ClassDef))]
+ns = {}
+exec(compile(tree, str(source), 'exec'), ns)
+
+
+class Request:
+    path = '/pay'
+    def __init__(self):
+        value = b'lnbcrt' + b'a' * 70
+        self.headers = {'Content-Length': str(len(value))}
+        self.rfile = io.BytesIO(value)
+        self.wfile = io.BytesIO()
+        self.status = None
+    def send_error(self, code): self.status = code
+    def send_response(self, code): self.status = code
+    def end_headers(self): pass
+
+
+class ReadinessTests(unittest.TestCase):
+    def setUp(self):
+        ns['lightning'] = ['disposable-lncli']
+        ns['time'] = Mock()
+        self.commands = []
+
+    def dispatch(self, route_responses):
+        outcomes = iter(route_responses)
+        def call(command, action, *args):
+            self.commands.append(action)
+            if action == 'decodepayreq':
+                return json.dumps({'destination': '02' + 'a' * 64, 'num_satoshis': '2000'})
+            if action == 'queryroutes':
+                self.assertIn('--amt=2000', args)
+                result = next(outcomes)
+                if isinstance(result, Exception): raise result
+                return json.dumps(result)
+            if action == 'payinvoice':
+                return '{"status":"IN_FLIGHT"}\n{"status":"SUCCEEDED"}'
+            self.fail('Unexpected fixture command: ' + action)
+        ns['call'] = call
+        request = Request()
+        ns['Fixture'].do_POST(request)
+        return request
+
+    def test_waits_for_route_then_submits_exactly_once(self):
+        request = self.dispatch([subprocess.CalledProcessError(1, 'queryroutes'), {'routes': []}, {'routes': [{}]}])
+        self.assertEqual(request.status, 200)
+        self.assertEqual(request.wfile.getvalue(), b'settled')
+        self.assertEqual(self.commands, ['decodepayreq', 'queryroutes', 'queryroutes', 'queryroutes', 'payinvoice'])
+
+    def test_no_payment_if_readiness_times_out(self):
+        request = self.dispatch([{'routes': []}] * 60)
+        self.assertEqual(request.status, 500)
+        self.assertNotIn('payinvoice', self.commands)
+
+    def test_invalid_invoice_does_not_query_or_pay(self):
+        ns['call'] = Mock(return_value=json.dumps({'destination': 'invalid', 'num_satoshis': '2000'}))
+        request = Request()
+        ns['Fixture'].do_POST(request)
+        self.assertEqual(request.status, 500)
+        self.assertEqual(ns['call'].call_count, 1)
+
+
+if __name__ == '__main__': unittest.main()

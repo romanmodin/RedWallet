@@ -363,7 +363,8 @@ export default function XBTLightning() {
         <SettingsSection>
           <SettingsFootnote>
             Manage channels and withdraw the Lightning node’s on-chain balance. Closing a channel requires its peer online and a
-            confirmation before withdrawing the returned funds.
+            confirmation before withdrawing the returned funds. Withdrawals currently support SegWit and Taproot addresses beginning with
+            bc1.
           </SettingsFootnote>
           <TextInput
             accessibilityLabel="On-chain fee rate"
@@ -397,7 +398,7 @@ export default function XBTLightning() {
           ))}
           <TextInput
             accessibilityLabel="Withdrawal address"
-            placeholder="XBT address"
+            placeholder="XBT address (bc1…)"
             style={{ color: colors.foregroundColor }}
             value={destination}
             autoCapitalize="none"
