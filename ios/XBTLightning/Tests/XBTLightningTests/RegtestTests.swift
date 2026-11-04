@@ -35,6 +35,19 @@ final class RegtestTests: XCTestCase {
         throw NodeFailure.timedOut
     }
 
+    // A confirmed balance may arrive before Neutrino's sync flag catches up.
+    // Observe the fixture's actual tip and LND readiness before each next step;
+    // do not retry any spending operation or weaken the production sync guard.
+    private func waitForFixtureSync(_ stage: String) async throws {
+        print("Fixture stage: " + stage)
+        let tipText = try await peer("height")
+        let tip = try XCTUnwrap(UInt64(tipText))
+        try await waitUntil {
+            let info = try ProtoFields(await XBTLightningNode.info())
+            return info.integers[6] == tip && info.integers[9] == 1
+        }
+    }
+
     func testEmbeddedNodeStartsAndReportsWalletState() async throws {
         try await RegtestNode.shared.start()
         try await RegtestNode.shared.start()
@@ -51,6 +64,9 @@ final class RegtestTests: XCTestCase {
             try await Task.sleep(nanoseconds: 1_000_000_000)
         }
         XCTAssertTrue(running)
+        #if XBT_LND_ROUTED_TEST
+        try await waitForFixtureSync("initial wallet ready")
+        #endif
         let invoice = try await RegtestNode.shared.receive(sats: 1234)
         let decoded = try await RegtestNode.shared.decode(invoice)
         XCTAssertEqual(decoded.sats, 1234)
@@ -76,8 +92,10 @@ final class RegtestTests: XCTestCase {
             return (funds.integers[2] ?? 0) >= 100_000
         }
         try await RegtestNode.shared.connect(to: peerKey + "@127.0.0.1:19735")
+        try await waitForFixtureSync("funding confirmed; opening channel")
         let point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)
         _ = try await peer("confirm", point)
+        try await waitForFixtureSync("channel funding confirmed")
         try await waitUntil { try ProtoFields(await XBTLightningNode.info()).integers[4] == 1 }
 
         let outgoing = try await peer("invoice")
@@ -97,6 +115,7 @@ final class RegtestTests: XCTestCase {
         let identity = try ProtoFields(await XBTLightningNode.info()).string(1)
         try identity.write(to: documents.appendingPathComponent("RestoreIdentity.txt"), atomically: true, encoding: .utf8)
         #if XBT_LND_ROUTED_TEST
+        try await waitForFixtureSync("payments settled; closing channel")
         let beforeClose = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) }).integers[2] ?? 0
         // The isolated bitcoind-backed LND peer uses the fork's fixed regtest
         // estimate of 50 sat/vB. A 1 sat/vB request cannot negotiate with it
@@ -104,6 +123,7 @@ final class RegtestTests: XCTestCase {
         let closing = try await RegtestNode.shared.closeChannel(point: point, feeRate: 50)
         XCTAssertEqual(closing.count, 64)
         _ = try await peer("confirm", closing + ":0")
+        try await waitForFixtureSync("cooperative close confirmed")
         try await waitUntil {
             let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
             return (funds.integers[2] ?? 0) > beforeClose
@@ -118,6 +138,7 @@ final class RegtestTests: XCTestCase {
         } catch { }
         let delivered = try await peer("verify-withdraw", txid)
         XCTAssertEqual(delivered, "received-1000")
+        try await waitForFixtureSync("withdrawal confirmed")
         try await waitUntil {
             let transactions = try ProtoFields(await rpc { LndmobileGetTransactions(Data(), $0) })
             return try (transactions.bytes[1] ?? []).contains {
@@ -147,6 +168,7 @@ final class RegtestTests: XCTestCase {
         let info = try ProtoFields(await XBTLightningNode.info())
         XCTAssertEqual(try info.string(1), expected)
         #if XBT_LND_ROUTED_TEST
+        try await waitForFixtureSync("portable wallet restored")
         // The original daemon is stopped. A different signed app has only the
         // portable backup: prove discovery AND spending of recovered on-chain
         // funds, rather than accepting the same public identity as recovery.
