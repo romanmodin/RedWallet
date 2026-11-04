@@ -28,7 +28,9 @@ class Fixture(BaseHTTPRequestHandler):
             if not 0 <= length <= 8192:
                 raise ValueError()
             value = self.rfile.read(length).decode("ascii")
-            if self.path == "/peer":
+            if self.path == "/height":
+                result = call(chain, "getblockcount")
+            elif self.path == "/peer":
                 result = json.loads(call(lightning, "getinfo"))["identity_pubkey"]
             elif self.path == "/fund" and re.fullmatch(r"bcrt1[a-z0-9]{20,90}", value):
                 result = call(chain, "sendtoaddress", value, "0.005")
