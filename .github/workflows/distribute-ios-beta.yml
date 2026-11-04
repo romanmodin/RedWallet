@@ -1,4 +1,4 @@
-name: Assign verified combined iOS TestFlight beta
+name: Assign verified LND regtest internal iOS beta
 "on":
   pull_request:
     paths:
@@ -6,15 +6,15 @@ name: Assign verified combined iOS TestFlight beta
       - ".github/scripts/test-distribute-ios-beta.rb"
       - ".github/scripts/verify-uploaded-beta.py"
       - ".github/scripts/verify-ios-release-gates.py"
-      - ".github/release/combined-ios-beta-notes.txt"
+      - ".github/release/lnd-regtest-ios-beta-notes.txt"
       - ".github/workflows/distribute-ios-beta.yml"
   workflow_dispatch:
     inputs:
       upload_run_id:
-        description: Reviewed completed combined iOS upload run for build 1793471660
+        description: Verified embedded LND regtest upload for build 1793759935
         required: true
         type: string
-        default: "41229700035"
+        default: "41688640570"
 permissions:
   contents: read
   actions: read
@@ -53,7 +53,7 @@ jobs:
     env:
       UPLOAD_RUN_ID: ${{ inputs.upload_run_id }}
       UPLOAD_RECEIPT_PATH: ${{ github.workspace }}/upload-receipt/ios-ipa-verification.json
-      BETA_NOTES_PATH: ${{ github.workspace }}/.github/release/combined-ios-beta-notes.txt
+      BETA_NOTES_PATH: ${{ github.workspace }}/.github/release/lnd-regtest-ios-beta-notes.txt
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
@@ -78,7 +78,7 @@ jobs:
           bundle install --jobs 4 --retry 3 --quiet
       - name: Set temporary credential path
         run: printf 'APPLE_API_KEY_PATH=%s/redwallet-beta-api-key.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-      - name: Assign existing tester groups and verify Apple status
+      - name: Assign the existing internal tester group and verify Apple status
         env:
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |

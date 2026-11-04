@@ -1,0 +1,10 @@
+Embedded XBT Lightning — internal regtest preview
+Build 8.0.1 (1793759935)
+
+LND runs inside RedWallet. No home Umbrel is required. This preview supports test coins only and needs an accessible private regtest peer; it cannot connect to the public XBT Lightning network.
+
+Open Add Wallet > Set up XBT Lightning · Test network, or Settings > Tools > XBT Lightning. iOS 16 or later is required for this preview.
+
+Includes node setup, test funding and channels, reviewed invoice payments, payment history, and encrypted seed/channel-backup export and restore. Simulator tests sent and received test payments and restored the node identity into a clean installation. Physical iPhone testing and a full channel-recovery sweep remain unverified.
+
+iOS may suspend the app when locked or minimized. This build does not guarantee unattended background payments or CoinJoin completion. Do not use real funds to test Lightning or experimental CoinJoin.
