@@ -16,14 +16,14 @@ permissions:
   contents: read
   actions: read
 env:
-  SOURCE_COMMIT: 2e9e60a5d3a4d0959b2acbe8fc25ba32ecb2bbe3
-  PUBLIC_SOURCE_COMMIT: 2e9e60a5d3a4d0959b2acbe8fc25ba32ecb2bbe3
-  PRODUCTION_TREE_SHA256: fd7677243d3144effc226606020e104d838e3ba6af13742ec510cf67032c333c
-  CI_RUN_ID: '41640180813'
-  IOS_RUN_ID: '41640181039'
-  FUNDED_IOS_RUN_ID: '41664873057'
-  LND_IOS_RUN_ID: '41640181080'
-  VERIFY_LND_REGTEST_IPA: '1'
+  SOURCE_COMMIT: 656f2ab348ca95259f064045e7c89d60296e0e90
+  PUBLIC_SOURCE_COMMIT: 656f2ab348ca95259f064045e7c89d60296e0e90
+  PRODUCTION_TREE_SHA256: da5e1ad4efb72b95da7372d90e325f82e9a3f7f01159ac298010fa94db76eec4
+  CI_RUN_ID: '41815906819'
+  IOS_RUN_ID: '41815907354'
+  FUNDED_IOS_RUN_ID: '41815901073'
+  LND_IOS_RUN_ID: '41815907091'
+  VERIFY_LND_MAINNET_IPA: '1'
   FASTLANE_OPT_OUT_USAGE: '1'
   FASTLANE_SKIP_UPDATE_CHECK: '1'
   FASTLANE_HIDE_CHANGELOG: '1'
@@ -51,7 +51,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         fetch-depth: 0
-        ref: 2e9e60a5d3a4d0959b2acbe8fc25ba32ecb2bbe3
+        ref: 656f2ab348ca95259f064045e7c89d60296e0e90
         persist-credentials: false
         repository: romanmodin/RedWallet
     - name: Checkout trusted verification tools
@@ -126,7 +126,7 @@ jobs:
         key: ${{ runner.os }}-pods-ios-release-${{ hashFiles('ios/Podfile.lock') }}
         restore-keys: |
           ${{ runner.os }}-pods-ios-release-
-    - name: Enable the qualified embedded LND regtest variant
+    - name: Enable the qualified embedded public XBT node
       run: bundle exec ruby .github/scripts/enable-xbt-lightning-regtest.rb
     - name: Install CocoaPods Dependencies
       env:
@@ -248,7 +248,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         repository: romanmodin/RedWallet
-        ref: 2e9e60a5d3a4d0959b2acbe8fc25ba32ecb2bbe3
+        ref: 656f2ab348ca95259f064045e7c89d60296e0e90
         persist-credentials: false
     - name: Checkout trusted verification tools
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
