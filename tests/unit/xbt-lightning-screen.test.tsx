@@ -17,7 +17,7 @@ const bridge = {
     async (action: string): Promise<unknown> =>
       action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
   ),
-  run: jest.fn(async () => 'Running'),
+  run: jest.fn<Promise<string>, [string, string]>(async () => 'Running'),
   invoice: jest.fn(async (action: string) =>
     action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
   ),

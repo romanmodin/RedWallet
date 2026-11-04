@@ -5,7 +5,9 @@ import XCTest
 // Disposable simulator identity; no funding, channels, or payments.
 final class MainnetSmokeTests: XCTestCase {
     func testPublicXBTNodeSyncsWithoutHomeServer() async throws {
-        try await RegtestNode.shared.startMainnet()
+        try await RegtestNode.shared.startSelectedMainnet(peer: "")
+        let selection = try await RegtestNode.shared.savedMainnetPeer()
+        XCTAssertEqual(selection, "")
         for _ in 0..<120 {
             let state = try await RegtestNode.shared.status()
             if state == "Needs setup" || state == "Locked" {
