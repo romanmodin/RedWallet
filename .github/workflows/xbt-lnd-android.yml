@@ -72,6 +72,14 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: .github/scripts/test-xbt-lnd-android.sh
+      - name: Retain failed regtest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: android-lightning-failure-diagnostics
+          path: ${{ runner.temp }}/lnd-regtest/diagnostics/
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: redwallet-android-xbt-regtest-unsigned

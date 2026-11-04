@@ -23,9 +23,19 @@ for p in 18444 19735 18149; do adb reverse "tcp:$p" "tcp:$p"; done
 adb install android/app/build/outputs/apk/debug/app-debug.apk
 adb install android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 app=com.romanmodin.redwallet.regtest
+collect_failure() {
+  mkdir -p "$dir/diagnostics"
+  cp "$dir/instrumentation.log" "$dir/diagnostics/instrumentation.log"
+  cp "$dir/fixture.log" "$dir/diagnostics/fixture.log"
+  grep -E 'ERR|WRN|funding|synced|synchroniz' "$dir/ln-peer/logs/bitcoin/regtest/lnd.log" | tail -150 > "$dir/diagnostics/peer.log" || true
+  adb exec-out run-as "$app" cat no_backup/XBTLightning-regtest/logs/bitcoin/regtest/lnd.log | grep -E 'ERR|WRN|funding|synced|synchroniz' | tail -150 > "$dir/diagnostics/mobile.log" || true
+}
 run_case() {
   adb shell am instrument -w -r -e class "io.bluewallet.bluewallet.lightning.LightningDeviceTest#$1" "$app.test/androidx.test.runner.AndroidJUnitRunner" | tee "$dir/instrumentation.log"
-  grep -q 'OK (1 test)' "$dir/instrumentation.log"
+  if ! grep -q 'OK (1 test)' "$dir/instrumentation.log"; then
+    collect_failure
+    return 1
+  fi
 }
 run_case payments
 for f in recovery.rwln identity; do adb exec-out run-as "$app" cat "cache/$f" > "$dir/$f"; done
