@@ -6,7 +6,9 @@ import Security
 // Versioned RedWallet regtest backup. The file holds aezeed and the encrypted
 // static channel backup; an old live channel database must never be restored.
 enum RecoveryFile {
-    private static let header = Data("RedWallet-XBT-regtest-1\n".utf8)
+    private static func header(mainnet: Bool) -> Data {
+        Data((mainnet ? "RedWallet-XBT-mainnet-1\n" : "RedWallet-XBT-regtest-1\n").utf8)
+    }
     static let maximumBytes = 4 * 1024 * 1024
 
     struct Material: Codable {
@@ -30,7 +32,8 @@ enum RecoveryFile {
         return SymmetricKey(data: derived)
     }
 
-    static func seal(_ material: Material, phrase: String) throws -> Data {
+    static func seal(_ material: Material, phrase: String, mainnet: Bool = false) throws -> Data {
+        let header = header(mainnet: mainnet)
         var salt = [UInt8](repeating: 0, count: 16)
         guard SecRandomCopyBytes(kSecRandomDefault, salt.count, &salt) == errSecSuccess else { throw NodeFailure.invalidRecovery }
         let prefix = header + Data(salt)
@@ -41,7 +44,8 @@ enum RecoveryFile {
         return prefix + bytes
     }
 
-    static func open(_ file: Data, phrase: String) throws -> Material {
+    static func open(_ file: Data, phrase: String, mainnet: Bool = false) throws -> Material {
+        let header = header(mainnet: mainnet)
         let prefixSize = header.count + 16
         guard file.count <= maximumBytes, file.count >= prefixSize + 28, file.starts(with: header) else { throw NodeFailure.invalidRecovery }
         let prefix = file.prefix(prefixSize)

@@ -12,7 +12,12 @@ jest.mock('../../components/themes', () => {
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
 const bridge = {
-  run: jest.fn(async () => 'Running'),
+  peer: jest.fn(async () => ''),
+  manage: jest.fn(
+    async (action: string): Promise<unknown> =>
+      action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
+  ),
+  run: jest.fn<Promise<string>, [string, string]>(async () => 'Running'),
   invoice: jest.fn(async (action: string) =>
     action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
   ),
@@ -25,12 +30,12 @@ test('review decodes an invoice without paying; confirmation binds the amount an
   try {
     const screen = render(<XBTLightning />);
     await act(async () => {});
-    fireEvent.changeText(screen.getByLabelText('Test invoice to pay'), 'lnbcrt-fixture');
-    await act(async () => fireEvent.press(screen.getByText('Review test invoice')));
+    fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+    await act(async () => fireEvent.press(screen.getByText('Review invoice')));
     expect(bridge.invoice.mock.calls.map(call => call[0])).toEqual(['decode']);
-    fireEvent.press(screen.getByText('Pay 500 test sats'));
+    fireEvent.press(screen.getByText('Pay 500 sats'));
     const [, detail, buttons] = prompt.mock.calls[0];
-    expect(detail).toContain('10 test sats');
+    expect(detail).toContain('10 sats');
     const approve = buttons!.find(button => button.text === 'Pay')!.onPress!;
     await act(async () => {
       approve();
@@ -41,5 +46,156 @@ test('review decodes an invoice without paying; confirmation binds the amount an
     expect(screen.getByText('Payment settled.')).toBeTruthy();
   } finally {
     prompt.mockRestore();
+  }
+});
+
+test('unlocked startup refreshes automatically instead of leaving a static screen', async () => {
+  jest.useFakeTimers();
+  bridge.run.mockResolvedValueOnce('Unlocked').mockResolvedValue('Running');
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    expect(screen.getByText(/Status updates automatically/)).toBeTruthy();
+    expect(screen.queryByText('Node and channel balances')).toBeNull();
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText('Node and channel balances')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    jest.useRealTimers();
+    bridge.run.mockResolvedValue('Running');
+  }
+});
+
+test('public node setup defaults to automatic XBT peers and does not request a regtest server', async () => {
+  bridge.run.mockClear();
+  bridge.run.mockResolvedValueOnce('Stopped').mockResolvedValue('Needs setup');
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    expect(screen.getByLabelText('Optional XBT chain peer').props.value).toBe('');
+    expect(screen.queryByText(/Private XBT test network/)).toBeNull();
+    await act(async () => fireEvent.press(screen.getByText('Start XBT node')));
+    expect(bridge.run).toHaveBeenCalledWith('start', '');
+    expect(screen.getByText('Create Lightning wallet')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    bridge.run.mockResolvedValue('Running');
+  }
+});
+
+test('withdrawal requires confirmation, binds the reviewed token, and submits once', async () => {
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  bridge.manage.mockClear();
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    fireEvent.changeText(screen.getByLabelText('Withdrawal address'), 'bc1q-fixture');
+    fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '1000');
+    fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '2');
+    await act(async () => fireEvent.press(screen.getByText('Review withdrawal')));
+    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['withdrawReview']);
+    fireEvent.press(screen.getByText('Withdraw 1000 sats'));
+    const [, detail, buttons] = prompt.mock.calls[0];
+    expect(detail).toContain('bc1q-fixture');
+    expect(detail).toContain('2 sat/vB');
+    const confirm = buttons!.find(button => button.text === 'Withdraw')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(bridge.manage).toHaveBeenCalledWith('withdraw', 'review-token', '', '');
+    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['withdrawReview', 'withdraw']);
+    expect(screen.getByText('Withdrawal broadcast: fixture-txid')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    prompt.mockRestore();
+  }
+});
+
+test('editing withdrawal details invalidates the prior review', async () => {
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  fireEvent.changeText(screen.getByLabelText('Withdrawal address'), 'bc1q-fixture');
+  fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '1000');
+  await act(async () => fireEvent.press(screen.getByText('Review withdrawal')));
+  expect(screen.getByText('Withdraw 1000 sats')).toBeTruthy();
+  fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '2000');
+  expect(screen.queryByText('Withdraw 1000 sats')).toBeNull();
+  screen.unmount();
+});
+
+test('cooperative close confirms the selected channel and fee rate and ignores a repeated tap', async () => {
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  bridge.manage.mockClear();
+  bridge.manage.mockResolvedValueOnce([{ point: 'fixture-point:0', peer: 'fixture-peer', active: true, localSats: '82000' }]);
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '2');
+    await act(async () => fireEvent.press(screen.getByText('Refresh channels')));
+    fireEvent.press(screen.getByText('Close channel · 82000 local sats'));
+    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['channels']);
+    const [, detail, buttons] = prompt.mock.calls[0];
+    expect(detail).toContain('Starting fee rate: 2 sat/vB');
+    expect(detail).toContain('capped at 6 sat/vB');
+    fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '3');
+    const confirm = buttons!.find(button => button.text === 'Close channel')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(bridge.manage).toHaveBeenCalledWith('close', 'fixture-point:0', '', '2');
+    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['channels', 'close']);
+    screen.unmount();
+  } finally {
+    prompt.mockRestore();
+  }
+});
+
+test('a failed native start shows a restart instruction instead of remaining on Unlocked', async () => {
+  bridge.run.mockResolvedValueOnce('Stopped').mockRejectedValueOnce(new Error('Startup failed'));
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    await act(async () => fireEvent.press(screen.getByText('Start XBT node')));
+    expect(screen.getByText(/Close and reopen RedWallet/)).toBeTruthy();
+    expect(screen.queryByText('Start XBT node')).toBeNull();
+    screen.unmount();
+  } finally {
+    bridge.run.mockResolvedValue('Running');
+  }
+});
+
+test('saved custom peer is shown and reused without switching to automatic peers', async () => {
+  bridge.peer.mockResolvedValueOnce('192.168.1.5:8333');
+  bridge.run.mockResolvedValueOnce('Stopped').mockResolvedValue('Needs setup');
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    expect(screen.getByLabelText('Optional XBT chain peer').props.value).toBe('192.168.1.5:8333');
+    await act(async () => fireEvent.press(screen.getByText('Start XBT node')));
+    expect(bridge.run).toHaveBeenCalledWith('start', '192.168.1.5:8333');
+    screen.unmount();
+  } finally {
+    bridge.run.mockResolvedValue('Running');
+  }
+});
+
+test('unreadable peer settings do not silently start with public defaults', async () => {
+  bridge.run.mockClear();
+  bridge.run.mockResolvedValue('Stopped');
+  bridge.peer.mockRejectedValueOnce(new Error('Unreadable settings'));
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    expect(screen.getByText(/Could not read node status or saved peer settings/)).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByText('Refresh status')));
+    fireEvent.press(screen.getByText('Start XBT node'));
+    expect(bridge.run.mock.calls.some(call => call[0] === 'start')).toBe(false);
+    screen.unmount();
+  } finally {
+    bridge.run.mockResolvedValue('Running');
   }
 });
