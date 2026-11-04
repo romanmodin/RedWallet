@@ -57,3 +57,34 @@ public enum XBTLightningNode {
         try await rpc { LndmobileGetInfo(Data(), $0) }
     }
 }
+
+// LND may report a terminal startup error after its initial transport callback.
+// Keep that lifecycle signal even after the one-shot RPC continuation finished.
+final class DaemonObservation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stopped = false
+    var failed: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return stopped
+    }
+    func recordFailure() {
+        lock.lock()
+        stopped = true
+        lock.unlock()
+    }
+}
+
+final class StartupCallback: NSObject, LndmobileCallbackProtocol {
+    private let reply: LndmobileCallbackProtocol
+    private let observation: DaemonObservation
+    init(_ reply: LndmobileCallbackProtocol, observation: DaemonObservation) {
+        self.reply = reply
+        self.observation = observation
+    }
+    func onResponse(_ response: Data?) { reply.onResponse(response) }
+    func onError(_ error: Error?) {
+        observation.recordFailure()
+        reply.onError(error)
+    }
+}

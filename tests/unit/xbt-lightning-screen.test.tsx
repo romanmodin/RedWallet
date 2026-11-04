@@ -151,3 +151,17 @@ test('cooperative close confirms the selected channel and fee rate and ignores a
     prompt.mockRestore();
   }
 });
+
+test('a failed native start shows a restart instruction instead of remaining on Unlocked', async () => {
+  bridge.run.mockResolvedValueOnce('Stopped').mockRejectedValueOnce(new Error('Startup failed'));
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    await act(async () => fireEvent.press(screen.getByText('Start XBT node')));
+    expect(screen.getByText(/Close and reopen RedWallet/)).toBeTruthy();
+    expect(screen.queryByText('Start XBT node')).toBeNull();
+    screen.unmount();
+  } finally {
+    bridge.run.mockResolvedValue('Running');
+  }
+});

@@ -6,6 +6,7 @@ import Lndmobile
 public actor RegtestNode {
     public static let shared = RegtestNode()
     private var startup: Task<Void, Error>?
+    private let daemonObservation = DaemonObservation()
     private var provisioning = false
     var managementBusy = false
     var withdrawalReviews: [String: (WithdrawalReview, Date)] = [:]
@@ -66,6 +67,7 @@ public actor RegtestNode {
     private func startConfiguration(_ configuration: String) async throws {
         if startup != nil { return }
         let directory = directoryName
+        let observation = daemonObservation
         let task = Task<Void, Error> {
             let manager = FileManager.default
             var folder = try manager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
@@ -77,11 +79,12 @@ public actor RegtestNode {
             try folder.setResourceValues(flags)
             let conf = folder.appendingPathComponent("lnd.conf")
             try configuration.write(to: conf, atomically: true, encoding: .utf8)
-            _ = try await rpc { LndmobileStart("--lnddir=" + folder.path + " --configfile=" + conf.path, $0) }
+            _ = try await rpc { LndmobileStart("--lnddir=" + folder.path + " --configfile=" + conf.path, StartupCallback($0, observation: observation)) }
         }
         startup = task
         // The Go engine is process-wide. A timeout does not establish it stopped.
-        try await task.value
+        do { try await task.value }
+        catch { daemonObservation.recordFailure(); throw error }
         // The mobile startup callback only means that the transport is listening.
         for _ in 0..<30 {
             if try await status() != "Starting" { return }
@@ -91,6 +94,7 @@ public actor RegtestNode {
 
     public func status() async throws -> String {
         guard startup != nil else { return "Stopped" }
+        if daemonObservation.failed { return "Failed" }
         let fields = try ProtoFields(await rpc { LndmobileGetState(Data(), $0) })
         switch fields.integers[1] ?? 0 {
         case 0: return "Needs setup"

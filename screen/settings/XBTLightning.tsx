@@ -54,8 +54,13 @@ export default function XBTLightning() {
   };
   const node = (action: string) =>
     run(async () => {
-      const next = await bridge.run(action, peer);
-      if (mounted.current) setStatus(next);
+      try {
+        const next = await bridge.run(action, peer);
+        if (mounted.current) setStatus(next);
+      } catch (error) {
+        if (action === 'start' && mounted.current) setStatus('Failed');
+        throw error;
+      }
     });
   useEffect(() => {
     mounted.current = true;
@@ -181,6 +186,11 @@ export default function XBTLightning() {
           <SettingsFootnote>
             The node is starting or syncing. Status updates automatically. If this does not advance, the configured chain peer may be
             unreachable.
+          </SettingsFootnote>
+        )}
+        {status === 'Failed' && (
+          <SettingsFootnote>
+            The Lightning node could not finish starting. Close and reopen RedWallet to retry. Your saved wallet is retained.
           </SettingsFootnote>
         )}
         {!!progress && <SettingsFootnote>{progress}</SettingsFootnote>}
