@@ -8,6 +8,45 @@ public struct LightningChannel: Sendable {
     public let localSats: UInt64
 }
 
+// A read-only snapshot includes channels that ListChannels deliberately omits.
+public struct LightningChannelStatus: Sendable {
+    public let point: String
+    public let peer: String
+    public let state: String
+    public let localSats: UInt64
+    public let confirmationsRemaining: UInt64?
+
+    static func decode(open: Data, pending: Data) throws -> [LightningChannelStatus] {
+        var items: [String: LightningChannelStatus] = [:]
+        for bytes in try ProtoFields(open).bytes[11] ?? [] {
+            let channel = try ProtoFields(bytes)
+            let point = try channel.string(3)
+            items[point] = LightningChannelStatus(
+                point: point, peer: try channel.string(2),
+                state: channel.integers[1] == 1 ? "active" : "inactive",
+                localSats: channel.integers[6] ?? 0, confirmationsRemaining: nil)
+        }
+        let response = try ProtoFields(pending)
+        let states: [(UInt64, String)] = [(2, "pending"), (3, "closing"), (5, "closing"), (4, "forceClosing")]
+        for (field, state) in states {
+            for bytes in response.bytes[field] ?? [] {
+                let wrapper = try ProtoFields(bytes)
+                guard let raw = wrapper.bytes[1]?.first else { throw NodeFailure.invalidReply }
+                let channel = try ProtoFields(raw)
+                let point = try channel.string(2)
+                // RPC snapshots can straddle a state transition. Count each
+                // funding outpoint once; open supersedes pending, closing wins.
+                if state == "pending", items[point] != nil { continue }
+                items[point] = LightningChannelStatus(
+                    point: point, peer: try channel.string(1), state: state,
+                    localSats: channel.integers[4] ?? 0,
+                    confirmationsRemaining: state == "pending" ? wrapper.integers[7] : nil)
+            }
+        }
+        return items.values.sorted { $0.point < $1.point }
+    }
+}
+
 public struct WithdrawalReview: Sendable {
     public let token: String
     public let address: String
@@ -23,6 +62,12 @@ extension RegtestNode {
             return LightningChannel(point: try channel.string(3), peer: try channel.string(2),
                                     active: channel.integers[1] == 1, localSats: channel.integers[6] ?? 0)
         }
+    }
+
+    public func channelStatus() async throws -> [LightningChannelStatus] {
+        let pending = try await rpc { LndmobilePendingChannels(Data(), $0) }
+        let open = try await rpc { LndmobileListChannels(Data(), $0) }
+        return try LightningChannelStatus.decode(open: open, pending: pending)
     }
 
     // Tokens bind confirmation to immutable arguments and can be used only once.

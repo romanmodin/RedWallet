@@ -114,7 +114,7 @@ jobs:
           rm -f ios/BlueWallet.xcodeproj/xcshareddata/xcschemes/Stickers.xcscheme
 
       - name: Enable the embedded public XBT node for qualification
-        if: github.ref == 'refs/heads/fix/lnd-startup-feedback'
+        if: github.ref == 'refs/heads/fix/lnd-startup-feedback' || startsWith(github.head_ref, 'release/ios-combined-lightning-') || startsWith(github.ref, 'refs/heads/release/ios-combined-lightning-')
         run: bundle exec ruby .github/scripts/enable-xbt-lightning-regtest.rb
 
       - name: Install CocoaPods dependencies

@@ -42,6 +42,16 @@ class PackageTest(unittest.TestCase):
         self.assertEqual("a"*40,receipt["sourceCommit"])
         self.assertIsNone(receipt["usesNonExemptEncryption"])
         self.assertEqual(64,len(receipt["executableSha256"]))
+    def test_v1_requires_real_tor_binary_and_encryption_declaration(self):
+        os.environ['KILOWALLET_MARKETING_VERSION']='1.0.0'
+        self.info.update(CFBundleShortVersionString='1.0.0', ITSAppUsesNonExemptEncryption=True,
+            UIBackgroundModes=['fetch','processing'], BGTaskSchedulerPermittedIdentifiers=[BUNDLE+'.ark-renew', BUNDLE+'.watch'])
+        with self.assertRaisesRegex(AssertionError, 'Missing embedded Tor'): self.call()
+        tor=self.app/'Frameworks'/'KilombinoTor.framework'/'KilombinoTor'
+        tor.parent.mkdir(parents=True); tor.write_bytes(b'synthetic-test-framework')
+        self.assertTrue(self.call()['usesNonExemptEncryption'])
+        self.info['ITSAppUsesNonExemptEncryption']=False
+        with self.assertRaisesRegex(AssertionError, 'Incorrect encryption'): self.call()
     def test_wrong_version_bundle_build_or_sdk(self):
         for key,value in [("CFBundleIdentifier","other"),("CFBundleVersion","4"),
                           ("CFBundleShortVersionString","0.1.0"),("DTSDKName","iphoneos25.1"),

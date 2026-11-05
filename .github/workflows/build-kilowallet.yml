@@ -15,10 +15,10 @@ permissions:
   contents: read
   actions: read
 env:
-  KILOWALLET_SOURCE_COMMIT: 7c38da214682544e13ba81f472a0d1038a4d4426
-  KILOWALLET_MARKETING_VERSION: '0.4.0'
-  KILOWALLET_IOS_RUN_ID: '40211577658'
-  KILOWALLET_SCREENSHOT_RUN_ID: '40211577657'
+  KILOWALLET_SOURCE_COMMIT: 59b13da3d145f1ead205be2b8b2c8e326a65c5c5
+  KILOWALLET_MARKETING_VERSION: '1.0.0'
+  KILOWALLET_IOS_RUN_ID: '41948432455'
+  KILOWALLET_SCREENSHOT_RUN_ID: '41948432456'
 
 concurrency:
   group: kilowallet-apple-upload
@@ -57,7 +57,7 @@ jobs:
     needs: qualify
     if: ${{ github.ref == 'refs/heads/main' }}
     environment: ios-signing
-    runs-on: macos-26
+    runs-on: macos-15-intel
     timeout-minutes: 20
     steps:
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
@@ -144,8 +144,9 @@ jobs:
   sign:
     needs: certificate
     environment: ios-upload
-    runs-on: macos-26
-    timeout-minutes: 60
+    runs-on: macos-15-intel
+    # Native Release compilation alone exceeded 55 minutes on the qualified runner.
+    timeout-minutes: 120
     env:
       TEAM_ID: ${{ secrets.TEAM_ID }}
       APPLE_UPLOAD: '0'
@@ -179,6 +180,15 @@ jobs:
         run: |
           test "$(git -C app rev-parse HEAD)" = "$KILOWALLET_SOURCE_COMMIT"
           python3 -I signing/distribution/kilowallet/verify_gates.py
+      - name: Fetch verified Kilowallet 1.0 native engines
+        if: ${{ startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
+        working-directory: app
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/fetch-lnd-engine.sh
+          ./scripts/fetch-ark-engine.sh
+          ./scripts/fetch-tor-engine.sh
       - name: Install Apple-signed Transporter for TestFlight uploads
         if: ${{ inputs.upload_to_testflight }}
         run: |

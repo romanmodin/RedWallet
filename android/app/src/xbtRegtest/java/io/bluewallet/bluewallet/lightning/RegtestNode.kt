@@ -135,7 +135,8 @@ internal object RegtestNode {
         "start" -> { start(context,peer); status() }
         "setup" -> { provision(context); status() }
         "backup" -> export(context,".backup",backup())
-        "fund" -> rpc { Lndmobile.newAddress(message { writeUInt64(1,4) },it) }.string(1).also { require(it.startsWith(MainnetConfiguration.addressPrefix)) }
+        // UNUSED_TAPROOT_PUBKEY keeps the receiving address until LND observes a deposit.
+        "fund" -> rpc { Lndmobile.newAddress(message { writeUInt64(1,5) },it) }.string(1).also { require(it.startsWith(MainnetConfiguration.addressPrefix)) }
         "details" -> {
             val info = rpc { Lndmobile.getInfo(empty,it) }
             val wallet = rpc { Lndmobile.walletBalance(empty,it) }
