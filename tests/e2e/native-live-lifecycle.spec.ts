@@ -201,8 +201,8 @@ async function beginRecovery(): Promise<void> {
     .scroll(500, 'right');
   console.info('[native-lifecycle] opening add-wallet screen');
   await element(by.id('CreateAWallet')).tap();
-  // Preserve the host-side deadline around native polling; a wedged request
-  // still fails once, without another tap or queued visibility observation.
+  // Preserve a bounded host-side deadline around the native transition check;
+  // a wedged request fails once, without another tap or queued observation.
   if (device.getPlatform() === 'ios') {
     await observeTransitionVisibility('Add-wallet import control', timeoutMs =>
       waitFor(element(by.id('ImportWallet')))
