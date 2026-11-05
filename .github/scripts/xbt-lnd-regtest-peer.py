@@ -21,6 +21,36 @@ miner = call(chain, "getnewaddress")
 withdrawal_target = call(chain, "getnewaddress", "withdrawal-fixture", "bech32")
 assert withdrawal_target.startswith("bcrt1q"), "Expected native SegWit fixture destination"
 
+def wait_for_peer_sync():
+    expected_height = int(call(chain, "getblockcount"))
+    for _ in range(90):
+        info = json.loads(call(lightning, "getinfo"))
+        if info.get("synced_to_chain") and info.get("block_height", 0) >= expected_height:
+            return
+        time.sleep(1)
+    raise ValueError("routing peer has not synced to the funded chain")
+
+
+def wait_for_payment_route(invoice):
+    # The first payment may settle before the peer's router sees its new
+    # outbound balance. Query readiness; never retry a submitted payment.
+    decoded = json.loads(call(lightning, "decodepayreq", invoice))
+    destination = decoded["destination"]
+    amount = int(decoded["num_satoshis"])
+    if not re.fullmatch(r"0[23][a-f0-9]{64}", destination) or not 1 <= amount <= 1_000_000:
+        raise ValueError("invalid fixture invoice")
+    for _ in range(60):
+        try:
+            routes = json.loads(call(lightning, "queryroutes", "--dest=" + destination,
+                                     "--amt=" + str(amount), "--fee_limit=10"))
+            if routes.get("routes"):
+                return
+        except subprocess.CalledProcessError:
+            pass
+        time.sleep(1)
+    raise ValueError("return-payment route did not become ready")
+
+
 class Fixture(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
@@ -35,6 +65,7 @@ class Fixture(BaseHTTPRequestHandler):
             elif self.path == "/fund" and re.fullmatch(r"bcrt1[a-z0-9]{20,90}", value):
                 result = call(chain, "sendtoaddress", value, "0.005")
                 call(chain, "generatetoaddress", "6", miner)
+                wait_for_peer_sync()
             elif self.path == "/confirm" and re.fullmatch(r"[a-f0-9]{64}:[0-9]+", value):
                 for _ in range(30):
                     if value.split(":")[0] in json.loads(call(chain, "getrawmempool")):
@@ -61,6 +92,7 @@ class Fixture(BaseHTTPRequestHandler):
             elif self.path == "/invoice":
                 result = json.loads(call(lightning, "addinvoice", "--amt=20000"))["payment_request"]
             elif self.path == "/pay" and re.fullmatch(r"lnbcrt[a-z0-9]{60,4096}", value):
+                wait_for_payment_route(value)
                 response = call(lightning, "payinvoice", "--force", "--json", "--fee_limit=10", value)
                 # lncli can print more than one JSON update. Find the terminal status.
                 decoder = json.JSONDecoder()
