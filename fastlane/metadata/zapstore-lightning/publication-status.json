@@ -20,10 +20,13 @@
   "publicRootIdentityConfigurationMatches": true,
   "signingCertificateProofVerified": true,
   "googlePlayUploaded": false,
-  "googlePlayBlocker": "Publisher access not configured in available environment",
+  "googlePlayBlocker": "Available signed-in Google account opens developer registration; enrollment or another enrolled account is required",
   "publisherTool": {
     "version": "2.0.1",
     "sha256": "1ef5373f8ecd9ba63d2c3fab98abb0d31b2244a2aac31b3749fb205c7d5f5b38",
     "officialAssetDigestVerified": true
-  }
+  },
+  "googlePlayEnrollmentPage": "https://play.google.com/console/signup",
+  "zapstoreSupportRequest": "SUPPORT-REQUEST.md",
+  "zapstoreSupportRequestSubmitted": false
 }
