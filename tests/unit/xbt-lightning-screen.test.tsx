@@ -253,7 +253,7 @@ test('created receive invoices and empty channel results are surfaced in the act
   expect(panel.getByText('ln-xbt-invoice')).toBeTruthy();
   bridge.manage.mockResolvedValueOnce([]);
   await act(async () => fireEvent.press(screen.getByText('Refresh channels')));
-  expect(panel.getByText('No open channels.')).toBeTruthy();
+  expect(panel.getByText('No open channels. Pending channels may still be awaiting confirmation. Check On-chain history.')).toBeTruthy();
   expect(panel.queryByText('ln-xbt-invoice')).toBeNull();
   screen.unmount();
 });

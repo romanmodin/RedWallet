@@ -385,17 +385,28 @@ export default function XBTLightning() {
             disabled={busy || !lightningPeer}
             onPress={() => {
               const key = lightningPeer.trim().split('@')[0];
-              Alert.alert('Open a private channel?', 'Commit 100,000 sats at 1 sat/vB to ' + key, [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Open channel',
-                  onPress: () =>
-                    run('Open private channel', async () => {
-                      const point = await bridge.invoice('open', key, '', '100000');
-                      if (mounted.current) setMessage('Funding transaction: ' + point);
-                    }),
-                },
-              ]);
+              Alert.alert(
+                'Open a private channel?',
+                'Commit 100,000 sats at 1 sat/vB to ' +
+                  key +
+                  '. Each confirmation creates a new channel. After opening, wait for the funding transaction to confirm.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Open channel',
+                    onPress: () =>
+                      run('Open private channel', async () => {
+                        const point = await bridge.invoice('open', key, '', '100000');
+                        if (mounted.current)
+                          setMessage(
+                            'Funding transaction: ' +
+                              point +
+                              '\nChannel requested. Wait for confirmations. Opening again creates another channel.',
+                          );
+                      }),
+                  },
+                ],
+              );
             }}
           />
           <TextInput
@@ -502,7 +513,11 @@ export default function XBTLightning() {
                 const items = await bridge.manage('channels', '', '', '');
                 if (mounted.current) {
                   setChannels(items);
-                  setMessage(items.length ? items.length + ' channel(s) loaded below.' : 'No open channels.');
+                  setMessage(
+                    items.length
+                      ? items.length + ' channel(s) loaded below.'
+                      : 'No open channels. Pending channels may still be awaiting confirmation. Check On-chain history.',
+                  );
                 }
               })
             }
