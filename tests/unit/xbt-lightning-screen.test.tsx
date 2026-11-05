@@ -4,6 +4,7 @@ import { Alert, NativeModules } from 'react-native';
 
 jest.mock('@react-native-documents/picker', () => ({ types: {} }));
 jest.mock('react-native-fs', () => ({}));
+jest.mock('../../components/QRCode', () => () => null);
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: 0 }),
 }));
@@ -18,8 +19,9 @@ const bridge = {
       action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
   ),
   run: jest.fn<Promise<string>, [string, string]>(async () => 'Running'),
-  invoice: jest.fn(async (action: string) =>
-    action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
+  invoice: jest.fn(
+    async (action: string): Promise<unknown> =>
+      action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
   ),
 };
 NativeModules.XBTLightningBridge = bridge;
@@ -198,4 +200,31 @@ test('unreadable peer settings do not silently start with public defaults', asyn
   } finally {
     bridge.run.mockResolvedValue('Running');
   }
+});
+
+test('receiving captures the requested amount and leaves a scrollable compact invoice screen', async () => {
+  let finish!: (invoice: string) => void;
+  bridge.invoice.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  fireEvent.changeText(screen.getByLabelText('Sats to receive'), '1000');
+  await act(async () => {
+    fireEvent.press(screen.getByText('Create invoice'));
+  });
+  fireEvent.changeText(screen.getByLabelText('Sats to receive'), '2000');
+  const invoice = 'lnbc10u1' + 'q'.repeat(800);
+  await act(async () => finish(invoice));
+  expect(screen.getByText('Receive 1000 sats')).toBeTruthy();
+  expect(screen.queryByText(invoice)).toBeNull();
+  expect(screen.getByText('Copy invoice')).toBeTruthy();
+  expect(screen.getByPlaceholderText('Paste a Lightning invoice')).toBeTruthy();
+  expect(screen.getByTestId('XBTLightningScreen').props.keyboardDismissMode).toBe('on-drag');
+  expect(screen.getByTestId('XBTLightningScreen').props.keyboardShouldPersistTaps).toBe('handled');
+  expect(screen.getByText('Export encrypted Lightning recovery file')).toBeTruthy();
+  screen.unmount();
 });

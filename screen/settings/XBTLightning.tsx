@@ -1,9 +1,10 @@
 import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, NativeModules, Platform, Share, Text, TextInput } from 'react-native';
+import { Alert, Keyboard, NativeModules, Platform, Share, Text, TextInput } from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
+import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
 const bridge = NativeModules.XBTLightningBridge;
 type Channel = { point: string; peer: string; active: boolean; localSats: string };
@@ -34,7 +35,7 @@ export default function XBTLightning() {
   const [busy, setBusy] = useState(false);
   const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
-  const [incoming, setIncoming] = useState('');
+  const [incoming, setIncoming] = useState<LightningReceiveInvoice>();
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
@@ -181,7 +182,12 @@ export default function XBTLightning() {
     );
   };
   return (
-    <SettingsScrollView testID="XBTLightningScreen">
+    <SettingsScrollView
+      testID="XBTLightningScreen"
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator
+    >
       <SettingsSection>
         <SettingsFootnote>
           XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
@@ -296,20 +302,18 @@ export default function XBTLightning() {
             disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
             onPress={() =>
               run(async () => {
-                const invoice = await bridge.invoice('receive', '', '', amount);
-                if (mounted.current) setIncoming(invoice);
+                Keyboard.dismiss();
+                const requestedSats = amount;
+                const invoice = await bridge.invoice('receive', '', '', requestedSats);
+                if (mounted.current) setIncoming({ invoice, sats: requestedSats });
               })
             }
           />
-          {!!incoming && (
-            <Text selectable style={{ color: colors.foregroundColor }}>
-              {incoming}
-            </Text>
-          )}
+          {incoming && <XBTLightningInvoice key={incoming.invoice} {...incoming} />}
           <TextInput
             style={{ color: colors.foregroundColor }}
             accessibilityLabel="Invoice to pay"
-            placeholder="Paste a reginvoice"
+            placeholder="Paste a Lightning invoice"
             autoCapitalize="none"
             autoCorrect={false}
             value={outgoing}
