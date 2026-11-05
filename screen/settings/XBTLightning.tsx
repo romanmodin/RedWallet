@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
+import XBTLightningNetwork from '../../components/XBTLightningNetwork';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
 const bridge = NativeModules.XBTLightningBridge;
@@ -89,6 +90,7 @@ async function exportBackup(url: string) {
 export default function XBTLightning() {
   const { colors, dark } = useTheme();
   const panelBackground = dark ? colors.cardSectionBackground : colors.hdbackgroundColor;
+  const [torActive, setTorActive] = useState(false);
   const [peer, setPeer] = useState('');
   const [peerLoaded, setPeerLoaded] = useState(false);
   const [status, setStatus] = useState('Checking');
@@ -172,13 +174,21 @@ export default function XBTLightning() {
   const node = (action: string) =>
     run(action === 'start' ? 'Starting node' : action === 'setup' ? 'Setting up wallet' : 'Node status', async () => {
       try {
+        if (action === 'start') setStatus('Starting');
         const next = await bridge.run(action, peer);
         if (mounted.current) {
           setStatus(next);
           setMessage('Node status: ' + next);
         }
       } catch (error) {
-        if (action === 'start' && mounted.current) setStatus('Failed');
+        if (action === 'start' && mounted.current) {
+          try {
+            const current = await bridge.run('status', '');
+            if (mounted.current) setStatus(current);
+          } catch {
+            setStatus('Failed');
+          }
+        }
         throw error;
       }
     });
@@ -203,7 +213,7 @@ export default function XBTLightning() {
     };
   }, []);
   useEffect(() => {
-    if (!['Starting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status)) return;
+    if (!['Starting', 'Tor connecting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status)) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
@@ -350,7 +360,7 @@ export default function XBTLightning() {
             editable={!busy}
           />
         )}
-        {['Starting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status) && (
+        {['Starting', 'Tor connecting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status) && (
           <SettingsFootnote style={{ color: colors.foregroundColor }}>
             The node is starting or syncing. Status updates automatically. If this does not advance, the configured chain peer may be
             unreachable.
@@ -446,6 +456,9 @@ export default function XBTLightning() {
           </ScrollView>
         </View>
       </View>
+      {bridge.network && bridge.watchtower && (
+        <XBTLightningNetwork status={status} busy={busy} run={run} report={setMessage} onTorChange={setTorActive} />
+      )}
       {status === 'Running' && (
         <SettingsSection>
           <SettingsListItem
@@ -491,9 +504,11 @@ export default function XBTLightning() {
             disabled={busy || !lightningPeer}
             onPress={() =>
               run('Connect Lightning peer', async () => {
-                if (/\.onion(?::[0-9]+)?$/i.test(lightningPeer.trim())) {
+                if (!torActive && /\.onion(?::[0-9]+)?$/i.test(lightningPeer.trim())) {
                   throw new Error(
-                    'Tor-only Lightning peers are not supported by this build. Use a reachable IP or DNS address for the same XBT network.',
+                    bridge.network
+                      ? 'Select Tor for Lightning, then restart RedWallet to connect to an onion peer.'
+                      : 'Tor-only Lightning peers are not supported by this build. Use a reachable IP or DNS address for the same XBT network.',
                   );
                 }
                 const result = await bridge.invoice('connect', lightningPeer.trim(), '', '');

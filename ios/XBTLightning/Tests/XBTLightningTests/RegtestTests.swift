@@ -88,6 +88,11 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(sameFunding, funding, "Repeated requests must retain the unused receiving address")
         #if XBT_LND_ROUTED_TEST
         let peerKey = try await peer("peer")
+        let towerURI = try await peer("tower")
+        try await RegtestNode.shared.addWatchtower(towerURI)
+        let registeredTowers = try await RegtestNode.shared.watchtowers()
+        XCTAssertEqual(registeredTowers.count, 1)
+        XCTAssertEqual(registeredTowers[0].acknowledged, 0)
         _ = try await peer("fund", funding)
         try await waitUntil {
             let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
@@ -125,6 +130,10 @@ final class RegtestTests: XCTestCase {
         let incoming = try await RegtestNode.shared.receive(sats: 2_000)
         let receipt = try await peer("pay", incoming)
         XCTAssertEqual(receipt, "settled")
+        try await waitUntil {
+            let towers = try await RegtestNode.shared.watchtowers()
+            return towers.contains { $0.acknowledged > 0 && $0.pending == 0 }
+        }
         let fundedBackup = try await RegtestNode.shared.channelBackup()
         XCTAssertGreaterThan(fundedBackup.count, backup.count)
         #endif

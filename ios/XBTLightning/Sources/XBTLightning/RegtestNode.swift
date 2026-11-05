@@ -6,6 +6,28 @@ import Lndmobile
 public actor RegtestNode {
     public static let shared = RegtestNode()
     private var startup: Task<Void, Error>?
+    private var preparing: Task<Void, Error>?
+    private(set) var activeTransport: LightningTransport = .direct
+
+    private func networkSelectionURL() throws -> URL {
+        try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+            appropriateFor: nil, create: true).appendingPathComponent("XBTLightning-mainnet-network.json")
+    }
+    public func selectedTransport() throws -> LightningTransport { try LightningNetworkStore.load(at: networkSelectionURL()) }
+    public func selectTransport(_ value: String) throws {
+        guard let mode = LightningTransport(rawValue: value), preparing == nil else { throw NodeFailure.invalidReply }
+        if mode == .tor { guard #available(iOS 17.0, *) else { throw TransportFailure.requiresNewerSystem } }
+        try LightningNetworkStore.save(mode, at: networkSelectionURL())
+    }
+    public func networkState(resume: Bool = false) async throws -> [String: Any] {
+        if resume && activeTransport == .tor && startup != nil { _ = try await LightningTor.shared.start() }
+        let selected = try selectedTransport()
+        let running = startup != nil || preparing != nil
+        return ["selected": selected.rawValue, "active": activeTransport.rawValue, "running": running,
+                "restartRequired": running && selected != activeTransport,
+                "status": activeTransport == .tor ? await LightningTor.shared.status() : "Direct connection",
+                "defaultTower": LightningWatchtower.defaultURI]
+    }
     private let daemonObservation = DaemonObservation()
     private var provisioning = false
     var managementBusy = false
@@ -28,14 +50,28 @@ public actor RegtestNode {
     }
 
     public func startSelectedMainnet(peer: String) async throws {
+        if let preparing { return try await preparing.value }
+        let mode = try selectedTransport()
         guard startup == nil else {
             guard mainnet else { throw NodeFailure.invalidReply }
+            guard mode == activeTransport else { throw TransportFailure.restartRequired }
+            if mode == .tor { _ = try await LightningTor.shared.start() }
             return
         }
         let selected = peer.trimmingCharacters(in: .whitespacesAndNewlines)
-        let validated = selected.isEmpty ? "" : try MainnetConfiguration.endpoint(selected)
+        let validated = selected.isEmpty ? "" : try MainnetConfiguration.endpoint(selected, usingTor: mode == .tor)
         try MainnetPeerStore.save(validated, at: peerSelectionURL())
-        try await startMainnet(peers: validated.isEmpty ? MainnetConfiguration.defaultPeers : [validated])
+        let peers = validated.isEmpty ? MainnetConfiguration.defaultPeers : [validated]
+        activeTransport = mode
+        let task = Task<Void, Error> {
+            let connection = mode == .tor ? try await LightningTor.shared.start() : nil
+            let config = try MainnetConfiguration.text(peers: peers, torPort: connection?.port, torFeeURL: connection?.feeURL)
+            mainnet = true
+            try await startConfiguration(config)
+        }
+        preparing = task
+        do { try await task.value; preparing = nil }
+        catch { preparing = nil; throw error }
     }
 
     public func startMainnet(peers: [String] = MainnetConfiguration.defaultPeers) async throws {
@@ -81,6 +117,8 @@ public actor RegtestNode {
         bitcoin.node=neutrino
         [neutrino]
         neutrino.connect=\(peer):18444
+        [wtclient]
+        wtclient.active=true
         """)
     }
 
@@ -113,7 +151,7 @@ public actor RegtestNode {
     }
 
     public func status() async throws -> String {
-        guard startup != nil else { return "Stopped" }
+        guard startup != nil else { return preparing != nil ? (activeTransport == .tor ? "Tor connecting" : "Starting") : "Stopped" }
         if daemonObservation.failed { return "Failed" }
         let fields = try ProtoFields(await rpc { LndmobileGetState(Data(), $0) })
         switch fields.integers[1] ?? 0 {
@@ -133,7 +171,8 @@ public actor RegtestNode {
     }
 
     // Bounded log inspection also works before the main RPC becomes available.
-    public func syncProgress() -> String {
+    public func syncProgress() async -> String {
+        if preparing != nil && activeTransport == .tor { return await LightningTor.shared.status() }
         guard startup != nil else { return "Ready to start the XBT node." }
         guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return "Starting node…" }
         let chain = mainnet ? "mainnet" : "regtest"

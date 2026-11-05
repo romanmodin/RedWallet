@@ -62,6 +62,8 @@ class Fixture(BaseHTTPRequestHandler):
                 result = call(chain, "getblockcount")
             elif self.path == "/peer":
                 result = json.loads(call(lightning, "getinfo"))["identity_pubkey"]
+            elif self.path == "/tower":
+                result = json.loads(call(lightning, "tower", "info"))["pubkey"] + "@127.0.0.1:19911"
             elif self.path == "/fund" and re.fullmatch(r"bcrt1[a-z0-9]{20,90}", value):
                 result = call(chain, "sendtoaddress", value, "0.005")
                 call(chain, "generatetoaddress", "6", miner)

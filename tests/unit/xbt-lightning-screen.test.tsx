@@ -176,7 +176,7 @@ test('cooperative close confirms the selected channel and fee rate and ignores a
 });
 
 test('a failed native start shows a restart instruction instead of remaining on Unlocked', async () => {
-  bridge.run.mockResolvedValueOnce('Stopped').mockRejectedValueOnce(new Error('Startup failed'));
+  bridge.run.mockResolvedValueOnce('Stopped').mockRejectedValueOnce(new Error('Startup failed')).mockResolvedValueOnce('Failed');
   try {
     const screen = render(<XBTLightning />);
     await act(async () => {});

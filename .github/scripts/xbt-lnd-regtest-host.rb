@@ -40,6 +40,9 @@ if ENV['XBT_PUBLIC_SMOKE'] == '1'
     c.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = '$(inherited) XBT_LND_PUBLIC_SMOKE'
   end
 end
+if ENV['XBT_TOR_SMOKE'] == '1'
+  tests.build_configurations.each { |c| c.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = '$(inherited) XBT_LND_TOR_SMOKE' }
+end
 objects = Xcodeproj::Project::Object
 package = project.new(objects::XCLocalSwiftPackageReference)
 package.relative_path = File.expand_path('ios/XBTLightning')

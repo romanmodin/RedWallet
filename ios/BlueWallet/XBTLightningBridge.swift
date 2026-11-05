@@ -7,6 +7,35 @@ import XBTLightning
 final class XBTLightningBridge: NSObject {
     @objc static func requiresMainQueueSetup() -> Bool { false }
 
+    @objc(network:value:resolver:rejecter:)
+    func network(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                if action == "select" { try await RegtestNode.shared.selectTransport(value) }
+                else if action != "get" && action != "resume" { throw NSError(domain: "Network", code: 1) }
+                resolve(try await RegtestNode.shared.networkState(resume: action == "resume"))
+            } catch { reject("network_failed", error.localizedDescription, nil) }
+        }
+    }
+
+    @objc(watchtower:value:resolver:rejecter:)
+    func watchtower(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch action {
+                case "add": try await RegtestNode.shared.addWatchtower(value)
+                case "remove": try await RegtestNode.shared.removeWatchtower(value)
+                case "list": break
+                default: throw NSError(domain: "Watchtower", code: 1)
+                }
+                resolve(try await RegtestNode.shared.watchtowers().map {
+                    ["key": $0.key, "addresses": $0.addresses, "eligible": $0.eligible, "sessions": String($0.sessions),
+                     "acknowledged": String($0.acknowledged), "pending": String($0.pending)] as [String: Any]
+                })
+            } catch { reject("watchtower_failed", error.localizedDescription, nil) }
+        }
+    }
+
     @objc(peer:rejecter:)
     func peer(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task {

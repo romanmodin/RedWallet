@@ -39,7 +39,7 @@ extension RegtestNode {
         let endpoint = parts[1].split(separator: ":", omittingEmptySubsequences: false)
         guard validKey(key), endpoint.count == 2, let port = UInt16(endpoint[1]), port > 0 else { throw NodeFailure.invalidPeer }
         let host: String
-        if mainnet { host = try MainnetConfiguration.endpoint(String(parts[1])) }
+        if mainnet { host = try MainnetConfiguration.endpoint(String(parts[1]), usingTor: activeTransport == .tor) }
         else { host = try Self.privatePeer(String(endpoint[0])) + ":" + String(port) }
         let remote = ProtoFields.field(1, data: Data(key.utf8)) + ProtoFields.field(2, data: Data(host.utf8))
         let request = ProtoFields.field(1, data: remote) + ProtoFields.field(3, integer: 15)
