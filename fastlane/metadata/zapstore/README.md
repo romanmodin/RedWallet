@@ -1,13 +1,14 @@
 # Zapstore publisher metadata
 
-This publishes the existing signed Android tester beta; it does not rebuild or re-sign the APK. The root zapstore.yaml contains only public publisher/app metadata. The dedicated RedWallet Nostr public key is pinned there for repository verification. No private publisher key, Android keystore or password belongs in this repository.
+The root `zapstore.yaml` targets the original `com.romanmodin.redwallet` application and original publisher identity. The isolated `.lightning` APK is a separate testing package and is not the existing-app store update.
 
-The four screenshots are from the exact signed APK, capture run 37115128237, on an Android emulator with an empty disposable wallet and a manually entered demo quote. Do not fund the displayed address. The real Android handset/cold-signer interoperability checks remain open.
+The candidate adds live XBT Lightning and QR/text invoice cards. Current-source lint, unit tests, the disabled-Firebase native regression, and public XBT sync passed. An installed signed upgrade preserved the empty wallet and receiving address originally created in standard version 1791613448. The existing empty Lightning wallet unlocked after the update. The signed APK also passed QR decoding, QR/text switching, scrolling, complete clipboard copy/paste, and foreground resume. Parent Android UI and disposable-chain lifecycle checks cover unchanged wallet and Lightning bridge code. The signing certificate is unchanged. Physical-phone and funded live payment tests remain open.
 
-The production-tree verifier excludes only the root zapstore.yaml as store metadata, alongside the existing fastlane/metadata exclusion. App source, lockfiles and dependencies remain covered. The reviewed 941-entry production hash remains unchanged. Historical package receipts retain their original tree definition.
+The original four store screenshots show an earlier standard Android beta with an empty disposable wallet and a manual demo quote. The two Lightning invoice screenshots come from this exact signed APK on an empty emulator node. Do not fund the pictured address. No private signing credentials belong in the repository.
 
-Publisher key: npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0
+Current candidate details and store acceptance are recorded in `publication-status.json`. Historical verified publication evidence remains in `publication-receipt.json` and `RELEASE.md`; it is not proof that this new candidate has been accepted.
 
-Android APK SHA-256: e966c2f9594f9e1894c48bf6857fe4df07f51dc04cb83bc53c9db77ed11f438c
-
-Publication status is recorded in RELEASE.md after relay acceptance and read-back verification.
+Publisher: npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0
+APK source: b33416b427766a07e315ce937a6766c3fdac9e70
+Version code: 1793900454
+APK SHA-256: b7d3b20108f5f0a285c8a868cdd32992fed6e83b9ba4f705d6b509b277140e5a

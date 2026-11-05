@@ -1,9 +1,11 @@
-## Refresh and transaction-history hotfix
+## Live XBT Lightning and invoice QR codes
 
-Fixes "Internal error: unable to decode address from output script" while refreshing transaction history. Raw outputs without addresses retain their value, script and index, and P2WSH destinations are decoded correctly; coinbase history no longer queries a nonexistent parent. The earlier same-server batch-limit recovery is retained. Other errors and failed individual requests remain visible; they are not treated as empty history. Update, then refresh your existing wallet. No wallet re-import is required for this fix.
+Adds the embedded live XBT Lightning engine to the existing RedWallet Android app. Create invoices as QR cards, tap to switch between QR and full text, and copy or share the full invoice. The Lightning panel scrolls across the QR card. Node activity, channel counts, balances, payment history, channel management and encrypted recovery exports are available from XBT Lightning settings.
 
-Includes the preceding Taproot creation/recovery/key-path signing, opt-in BIP86 watch-only signed-PSBT cold-signing flow, RBF fee bumps funded from sufficient change, and single-parent CPFP. Signing requires an XBT Unified (0x21) capable signer; ordinary Bitcoin signer firmware is incompatible. No script paths, annexes, multisig, RBF cancellation/added inputs or multiple unconfirmed CPFP ancestors. Return signed PSBT, not raw hex; after app restart create a fresh signing request.
+The original package and signing certificate are retained, with a newer Android version code. Installation over the previous signed candidate preserved an existing empty wallet and its receiving address on an Android 16 emulator. The earlier on-chain wallet, Taproot, PSBT, fee-bump and transaction-history features remain available.
 
-Original Android application ID and release certificate retained. Automated tests and emulator installation/launch passed; no physical Android-phone or funded cold-device interoperability claim. No Google Play publication. No built-in/community Fulcrum server; configure your own.
+Fixes the optional push-notification crash when Firebase is unconfigured, including refresh callbacks from jobs queued by an older APK. Firebase remains unconfigured. Current-source software and native regression checks passed, including public XBT sync. The installed signed APK passed QR decoding, QR/text switching, scrolling, complete clipboard copy/paste, and foreground resume. Parent disposable-chain payment and recovery checks cover unchanged Lightning bridge code. Physical-phone and funded live payment testing remain open. Tor and continuous background operation are unsupported.
 
-Thanks to the testers who reported the refresh failure and all contributors. Source identity was verified against the reviewed public commit; this is not a binary-reproducibility claim.
+Earlier `.lightning` testing builds retain their separate wallet and node data.
+
+Requires Android 8.0 or newer, on arm64-v8a or x86_64. Retain offline wallet backups and the separate Lightning recovery files before updating. Do not downgrade encrypted storage.
