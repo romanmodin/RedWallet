@@ -1,0 +1,29 @@
+{
+  "package": "com.romanmodin.redwallet.lightning",
+  "version": "8.0.1",
+  "versionCode": 22,
+  "sourceCommit": "a9cdd1542a88d500d24f0cd35916bf570a3cbbbe",
+  "apkSha256": "3331bfb2f74d850b64a9d08ab5b91e78cd4ce749a2793c269586f5ed86b58c48",
+  "publicGitHubRelease": "https://github.com/romanmodin/RedWallet/releases/tag/android-live-xbt-42008700794",
+  "gitHubPublished": true,
+  "unauthenticatedRepositoryAndReleaseVerified": true,
+  "zapstorePublished": false,
+  "zapstoreStatus": "blocked",
+  "zapstoreError": {
+    "code": "upload_rejected",
+    "summary": "The publish operation failed.",
+    "detail": "blob upload rejected: upload icon: status 403: authenticated pubkey is not allowed. Visit https://zapstore.dev/docs/publish for more information.",
+    "retryable": false,
+    "next_step": null
+  },
+  "publisherIdentityPreserved": true,
+  "publicRootIdentityConfigurationMatches": true,
+  "signingCertificateProofVerified": true,
+  "googlePlayUploaded": false,
+  "googlePlayBlocker": "Publisher access not configured in available environment",
+  "publisherTool": {
+    "version": "2.0.1",
+    "sha256": "1ef5373f8ecd9ba63d2c3fab98abb0d31b2244a2aac31b3749fb205c7d5f5b38",
+    "officialAssetDigestVerified": true
+  }
+}

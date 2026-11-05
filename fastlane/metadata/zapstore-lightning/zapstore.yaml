@@ -1,0 +1,36 @@
+# Explicit separate package; do not replace the regular RedWallet listing.
+repository: https://github.com/romanmodin/RedWallet
+release_source: https://github.com/romanmodin/RedWallet/releases/download/android-live-xbt-42008700794/RedWallet-Live-XBT-Lightning-8.0.1-22.apk
+icon: ./icon.png
+channel: beta
+prerelease_channel: beta
+metadata_sources: []
+name: RedWallet Lightning (XBT Beta)
+summary: Self-custody live XBT Lightning with an embedded LND node, QR invoices and encrypted recovery.
+license: MIT
+website: https://github.com/romanmodin/RedWallet
+tags:
+  - bitcoin
+  - lightning
+  - wallet
+  - beta
+description: |
+  RedWallet Lightning is an early Android beta for the live XBT/BLAKE2b network.
+  It runs an embedded LND node on your phone and uses built-in public XBT peers
+  or your own compact-filter peer. Your home node is optional.
+  Create invoice QR codes, tap to view invoice text, and copy or share the full invoice.
+  View active and pending channel counts, payment history, and node activity.
+  Manage channels, review payments and on-chain withdrawals, and export encrypted recovery files.
+  The funding address is retained until a deposit is detected.
+  This installs as a separate RedWallet Lightning app alongside regular RedWallet.
+  Automated tests cover public sync and disposable-chain payments and recovery.
+  The signed APK passed QR scanning from a real emulator screenshot, QR/text switching,
+  scrolling across the QR panel, and complete invoice clipboard copying.
+  Physical Android phones and funded live payments remain unverified.
+  Tor/.onion Lightning peers and continuous background operation are unsupported.
+  Screenshots show an empty disposable emulator wallet; no funds were sent or received.
+  Based on BlueWallet and the XBT Lightning fork. Thanks to their contributors and testers.
+images:
+  - ./android-invoice-qr.png
+  - ./android-invoice-text.png
+release_notes: ./RELEASE-NOTES.md
