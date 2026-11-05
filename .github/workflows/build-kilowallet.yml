@@ -145,7 +145,8 @@ jobs:
     needs: certificate
     environment: ios-upload
     runs-on: macos-15-intel
-    timeout-minutes: 60
+    # Native Release compilation alone exceeded 55 minutes on the qualified runner.
+    timeout-minutes: 120
     env:
       TEAM_ID: ${{ secrets.TEAM_ID }}
       APPLE_UPLOAD: '0'
