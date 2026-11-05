@@ -28,5 +28,8 @@
   },
   "googlePlayEnrollmentPage": "https://play.google.com/console/signup",
   "zapstoreSupportRequest": "SUPPORT-REQUEST.md",
-  "zapstoreSupportRequestSubmitted": false
+  "zapstoreSupportRequestSubmitted": true,
+  "zapstoreSupportIssueUrl": "https://github.com/zapstore/relay/issues/13",
+  "googlePlayEnrollmentHandoffApproved": true,
+  "googlePlayEnrollmentCompleted": false
 }

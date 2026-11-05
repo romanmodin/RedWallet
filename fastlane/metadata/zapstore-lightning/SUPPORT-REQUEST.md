@@ -1,7 +1,6 @@
-# Draft: publisher rejected despite matching repository identity and active certificate proof
+# Publisher rejected despite matching repository identity and active certificate proof
 
-Proposed destination: https://github.com/zapstore/relay/issues
-Status: prepared for owner review; not submitted.
+Submitted with owner approval: https://github.com/zapstore/relay/issues/13
 
 The existing RedWallet publisher cannot publish a separate RedWallet Lightning Android beta. The current official publisher zsp 2.0.1 returns:
 

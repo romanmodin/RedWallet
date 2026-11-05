@@ -24,7 +24,7 @@ authenticated pubkey is not allowed. Visit https://zapstore.dev/docs/publish for
 
 The existing publisher identity was preserved. Its non-expired certificate proof was independently verified by the prior official publisher, and the public default-branch root `zapstore.yaml` exactly matches that identity. No replacement key was generated. No Lightning app/release events were found on the official relay after the rejected older-client attempt.
 
-The available signed-in Google account opens Play Console developer registration rather than a publishing dashboard. Enrollment or an already-enrolled account is required before upload. No account was created, agreement accepted, fee paid, or Play upload performed. An access request for Zapstore maintainers is prepared in SUPPORT-REQUEST.md and has not been submitted.
+The available signed-in Google account opens Play Console developer registration rather than a publishing dashboard. Enrollment or an already-enrolled account is required before upload. No account was created, agreement accepted, fee paid, or Play upload performed. The owner-approved access request was submitted as https://github.com/zapstore/relay/issues/13 and its body and author were verified. Google Play enrollment handoff is approved; enrollment is not yet complete.
 
 The complete listing configuration and media are ready here. Use the official publisher with the existing owner-managed signer once Zapstore restores access:
 
