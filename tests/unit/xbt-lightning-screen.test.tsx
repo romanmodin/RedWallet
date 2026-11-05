@@ -5,6 +5,7 @@ import { Alert, AppState, NativeModules } from 'react-native';
 
 jest.mock('@react-native-documents/picker', () => ({ types: {} }));
 jest.mock('react-native-fs', () => ({}));
+jest.mock('../../components/QRCode', () => () => null);
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: 0 }),
 }));
@@ -28,8 +29,9 @@ const bridge = {
           : 'fixture-txid',
   ),
   run: jest.fn<Promise<string>, [string, string]>(async () => 'Running'),
-  invoice: jest.fn(async (action: string) =>
-    action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
+  invoice: jest.fn(
+    async (action: string): Promise<unknown> =>
+      action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
   ),
 };
 NativeModules.XBTLightningBridge = bridge;
@@ -268,7 +270,8 @@ test('created receive invoices and empty channel results are surfaced in the act
   fireEvent.changeText(screen.getByLabelText('Sats to receive'), '500');
   bridge.invoice.mockResolvedValueOnce('ln-xbt-invoice' as never);
   await act(async () => fireEvent.press(screen.getByText('Create invoice')));
-  expect(panel.getByText('ln-xbt-invoice')).toBeTruthy();
+  expect(panel.getByText('Invoice ready to receive 500 sats. QR code below.')).toBeTruthy();
+  expect(screen.getByText('Receive 500 sats')).toBeTruthy();
   bridge.manage.mockResolvedValueOnce([]);
   await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Refresh channels' })));
   expect(panel.getByText('No open or pending channels.')).toBeTruthy();
@@ -416,5 +419,32 @@ test('Tor-only Lightning peers get an explicit explanation before any connection
     ),
   ).toBeTruthy();
   expect(bridge.invoice).not.toHaveBeenCalled();
+  screen.unmount();
+});
+
+test('receiving captures the requested amount and leaves a scrollable compact invoice screen', async () => {
+  let finish!: (invoice: string) => void;
+  bridge.invoice.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  fireEvent.changeText(screen.getByLabelText('Sats to receive'), '1000');
+  await act(async () => {
+    fireEvent.press(screen.getByText('Create invoice'));
+  });
+  fireEvent.changeText(screen.getByLabelText('Sats to receive'), '2000');
+  const invoice = 'lnbc10u1' + 'q'.repeat(800);
+  await act(async () => finish(invoice));
+  expect(screen.getByText('Receive 1000 sats')).toBeTruthy();
+  expect(screen.queryByText(invoice)).toBeNull();
+  expect(screen.getByText('Copy invoice')).toBeTruthy();
+  expect(screen.getByPlaceholderText('Paste a Lightning invoice')).toBeTruthy();
+  expect(screen.getByTestId('XBTLightningScreen').props.keyboardDismissMode).toBe('on-drag');
+  expect(screen.getByTestId('XBTLightningScreen').props.keyboardShouldPersistTaps).toBe('handled');
+  expect(screen.getByText('Export encrypted Lightning recovery file')).toBeTruthy();
   screen.unmount();
 });

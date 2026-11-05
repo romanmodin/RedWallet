@@ -1,15 +1,16 @@
-RedWallet — embedded XBT Lightning internal beta
+RedWallet — Lightning display and invoice update
 
-This build runs an XBT Lightning node on your iPhone. It uses public XBT compact-filter peers by default; your home node is optional. You can select a custom chain peer and connect to a compatible XBT Lightning peer.
+New in this build
+• A compact red activity panel keeps progress, results and errors visible while you scroll.
+• Open, active, inactive, pending and closing channel counts refresh automatically while the screen is in use.
+• Channel details show the peer, funding transaction, local balance and remaining confirmations when reported by LND.
+• Receive invoices appear as QR codes. Tap the QR to view the text; Copy and Share include the full invoice.
+• Improved scrolling, keyboard dismissal and input contrast.
+• The previously unlabeled value is now clearly labeled Fee rate (sat/vB).
+• Channel-opening feedback explains that another confirmation creates another channel.
 
-Initial setup and sync
-Open Add Wallet → Set up XBT Lightning. Start the node, create or unlock its wallet, and keep the app open while it syncs. Status refreshes automatically. A last-observed sync height appears when available. Payment controls become available after chain sync.
-
-Funding and payments
-The Lightning node has its own on-chain balance and recovery file. Export its recovery file and keep the password separately before funding. The earlier private-network preview wallet is separate and does not become a mainnet wallet. Use only a small amount for this beta. Opening a channel commits on-chain funds and pays a network fee; receiving Lightning payments also requires inbound channel liquidity.
-
-Available controls
-Create and review XBT invoices, confirm payments, connect a Lightning peer, open a private channel, view channels and on-chain history, request cooperative channel closure, and review an on-chain withdrawal. The close confirmation shows its starting fee rate and the maximum negotiated rate for channels funded by your node. The peer must be online for cooperative closing.
+Existing Lightning functionality
+Embedded LND for public XBT mainnet, optional custom chain peers, peer connections, private channels, invoices, payment review/history, funding addresses, cooperative closure, reviewed on-chain withdrawals and encrypted recovery exports.
 
 Current limitations
-Closing or locking the phone can suspend the node. This build does not guarantee background Lightning service or background CoinJoin completion. Onion peer transport is not available. Portable recovery tests cover restoring node identity and spending recovered on-chain funds; full channel-fund recovery after losing a device has not yet been demonstrated. This is an internal beta, not an App Store release.
+Tor-only/.onion Lightning peers are not supported in this build. A clear explanation is shown for those attempts. Closing or locking the phone can suspend the node; background Lightning and CoinJoin completion are not guaranteed. The Lightning node has its own balance and recovery file. Full channel-fund recovery after losing a device has not yet been demonstrated. This is a TestFlight beta.

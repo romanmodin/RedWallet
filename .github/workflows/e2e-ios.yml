@@ -127,7 +127,7 @@ jobs:
           rm -f ios/BlueWallet.xcodeproj/xcshareddata/xcschemes/Stickers.xcscheme
 
       - name: Enable the iOS 16 Lightning regtest variant
-        if: github.head_ref == 'feat/xbt-lnd-ios' || github.head_ref == 'fix/lnd-startup-feedback'
+        if: github.head_ref == 'feat/xbt-lnd-ios' || github.head_ref == 'fix/lnd-startup-feedback' || startsWith(github.head_ref, 'release/ios-combined-lightning-')
         run: bundle exec ruby .github/scripts/enable-xbt-lightning-regtest.rb
 
       - name: Install CocoaPods dependencies

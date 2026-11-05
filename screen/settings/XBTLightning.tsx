@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
+import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
 const bridge = NativeModules.XBTLightningBridge;
 type Channel = {
@@ -102,6 +103,7 @@ export default function XBTLightning() {
   const [busy, setBusy] = useState(false);
   const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
+  const [incoming, setIncoming] = useState<LightningReceiveInvoice>();
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
@@ -312,6 +314,8 @@ export default function XBTLightning() {
       testID="XBTLightningScreen"
       stickyHeaderIndices={[1]}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      showsVerticalScrollIndicator
       scrollEventThrottle={16}
       onLayout={event => {
         viewport.current.height = event.nativeEvent.layout.height;
@@ -548,11 +552,16 @@ export default function XBTLightning() {
             disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
             onPress={() =>
               run('Invoice to receive', async () => {
-                const invoice = await bridge.invoice('receive', '', '', amount);
-                if (mounted.current) setMessage(invoice);
+                const requestedSats = amount;
+                const invoice = await bridge.invoice('receive', '', '', requestedSats);
+                if (mounted.current) {
+                  setIncoming({ invoice, sats: requestedSats });
+                  setMessage('Invoice ready to receive ' + requestedSats + ' sats. QR code below.');
+                }
               })
             }
           />
+          {incoming && <XBTLightningInvoice key={incoming.invoice} {...incoming} />}
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             style={[
