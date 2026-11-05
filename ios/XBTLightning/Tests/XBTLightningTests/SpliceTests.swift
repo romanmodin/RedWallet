@@ -46,6 +46,24 @@ final class SpliceTests: XCTestCase {
         XCTAssertEqual(snapshot.txid, "")
     }
 
+    func testNewSubmissionCannotReuseThePreviousLockedSnapshotBeforePendingAppears() throws {
+        let last = ProtoFields.field(4, data: Data("old-tx".utf8)) + ProtoFields.field(6, data: Data("locked".utf8))
+        let old = ProtoFields.field(1002, data: Data("ok".utf8)) + ProtoFields.field(1004, data: last)
+        let channel = ProtoFields.field(2, data: Data("peer".utf8)) + ProtoFields.field(3, data: Data(point.utf8)) + old
+        let open = ProtoFields.field(11, data: channel)
+        let waiting = try XCTUnwrap(LightningChannelStatus.decode(open: open, pending: Data(), awaitingSplices: [point]).first?.splice)
+        XCTAssertEqual(waiting.txid, "")
+        XCTAssertEqual(waiting.progress, "awaiting_update")
+        XCTAssertFalse(SpliceChannelState.permits(waiting.status))
+        let completed = try XCTUnwrap(LightningChannelStatus.decode(open: open, pending: Data()).first?.splice)
+        XCTAssertEqual(completed.txid, "old-tx")
+        XCTAssertEqual(completed.progress, "locked")
+        let pending = ProtoFields.field(2, data: Data("broadcast".utf8)) + ProtoFields.field(8, data: Data("new-tx".utf8))
+        let current = try SpliceChannelState.decode(ProtoFields(old + ProtoFields.field(1003, data: pending)), awaitingNewAttempt: true)
+        XCTAssertEqual(current.txid, "new-tx")
+        XCTAssertEqual(current.progress, "broadcast")
+    }
+
     func testProto3OptionalFieldsDefaultEmptyWithoutWeakeningRequiredIdentifiers() throws {
         let empty = try ProtoFields(Data())
         XCTAssertEqual(try empty.optionalString(15), "")

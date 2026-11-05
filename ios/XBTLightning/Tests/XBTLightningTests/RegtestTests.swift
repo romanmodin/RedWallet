@@ -157,10 +157,15 @@ final class RegtestTests: XCTestCase {
             do { _ = try await RegtestNode.shared.splice(token: resize.token); XCTFail("A splice token must be consumed once") } catch { }
             try await waitUntil {
                 let rows = try await RegtestNode.shared.channelStatus()
-                return rows.contains { $0.point == point && !($0.splice?.txid ?? "").isEmpty }
+                return rows.contains {
+                    $0.point == point && !($0.splice?.txid ?? "").isEmpty &&
+                        $0.splice?.txid != point.split(separator: ":").first.map(String.init)
+                }
             }
             let resizing = try await RegtestNode.shared.channelStatus()
             let txid = try XCTUnwrap(resizing.first(where: { $0.point == point })?.splice?.txid)
+            XCTAssertNotEqual(txid, point.split(separator: ":").first.map(String.init), "A new resize must not confirm the previous funding transaction")
+            print("Fixture stage: confirming new splice " + direction + " · " + txid)
             _ = try await peer("confirm-splice", txid + ":" + String(resize.estimate.lockDepth + 2))
             try await waitForFixtureSync("splice confirmed " + direction)
             try await waitUntil {

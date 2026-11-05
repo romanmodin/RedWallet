@@ -29,10 +29,17 @@ public struct SpliceChannelState: Sendable {
     public let txid: String
     public let confirmations: UInt64
     public let lockDepth: UInt64
-    static func decode(_ channel: ProtoFields) throws -> SpliceChannelState {
+    static func decode(_ channel: ProtoFields, awaitingNewAttempt: Bool = false) throws -> SpliceChannelState {
         let pending = try ProtoFields(channel.bytes[1003]?.first ?? Data())
         let last = try ProtoFields(channel.bytes[1004]?.first ?? Data())
         let hasPending = channel.bytes[1003]?.first != nil
+        // SpliceChannel first reports preparing, before ListChannels necessarily
+        // publishes its pending record. A previous locked splice is not evidence
+        // that this newly submitted attempt has finished or may be submitted again.
+        if awaitingNewAttempt && !hasPending {
+            return SpliceChannelState(status: "awaiting_update", progress: "awaiting_update",
+                                      txid: "", confirmations: 0, lockDepth: 0)
+        }
         return SpliceChannelState(status: try channel.optionalString(1002),
             progress: hasPending ? try pending.optionalString(2) : try last.optionalString(6),
             txid: hasPending ? try pending.optionalString(8) : try last.optionalString(4),
