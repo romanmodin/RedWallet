@@ -28,7 +28,7 @@ const SettingsTools: React.FC = () => {
           <SettingsListItem
             title="XBT Lightning"
             iconName="lightning"
-            subtitle="On-device test node · Regtest"
+            subtitle="On-device XBT Lightning node"
             onPress={() => navigation.navigate('XBTLightning')}
             chevron
           />
