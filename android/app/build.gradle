@@ -148,6 +148,8 @@ dependencies {
     if (lightningAar) {
         implementation files(lightningAar)
         implementation 'com.google.protobuf:protobuf-javalite:3.25.5'
+        // The native disabled-Firebase regression calls the SDK directly.
+        androidTestImplementation "com.google.firebase:firebase-messaging:${rootProject.ext.firebaseVersion}"
     }
 		androidTestImplementation('com.wix:detox:+')
     // The version of react-native is set by the React Native Gradle Plugin
