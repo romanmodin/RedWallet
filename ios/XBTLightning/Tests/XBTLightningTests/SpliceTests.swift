@@ -46,6 +46,18 @@ final class SpliceTests: XCTestCase {
         XCTAssertEqual(snapshot.txid, "")
     }
 
+    func testProto3OptionalFieldsDefaultEmptyWithoutWeakeningRequiredIdentifiers() throws {
+        let empty = try ProtoFields(Data())
+        XCTAssertEqual(try empty.optionalString(15), "")
+        XCTAssertThrowsError(try empty.string(1))
+        let malformed = try ProtoFields(ProtoFields.field(15, data: Data([0xff])))
+        XCTAssertThrowsError(try malformed.optionalString(15))
+        let unsupported = try SpliceChannelState.decode(empty)
+        XCTAssertEqual(unsupported.status, "")
+        XCTAssertFalse(SpliceChannelState.permits(unsupported.status))
+        XCTAssertEqual(unsupported.txid, "")
+    }
+
     func testReviewsAreSingleUseAndExpireBeforeAnyExecution() throws {
         let now = Date()
         let e = try SpliceEstimate.decode(estimate(), sats: 20_000, feeRate: 2, removing: false)

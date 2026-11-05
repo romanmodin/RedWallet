@@ -55,6 +55,18 @@ final class XBTLightningBridge: NSObject {
         }
     }
 
+    @objc(wallet:value:resolver:rejecter:)
+    func wallet(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                if action == "overview" { resolve(try await RegtestNode.shared.walletOverview()); return }
+                guard let offset = UInt64(value) else { throw NSError(domain: "Wallet", code: 1) }
+                resolve(try await RegtestNode.shared.walletActivity(action, offset: offset))
+            } catch { reject("wallet_snapshot_failed", error.localizedDescription, nil) }
+        }
+    }
+
     @objc(peer:rejecter:)
     func peer(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task {

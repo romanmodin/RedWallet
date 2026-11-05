@@ -1,6 +1,16 @@
 import Foundation
 import Lndmobile
 
+extension ProtoFields {
+    // Proto3 omits default empty strings. Keep required identifiers strict while
+    // allowing explicitly optional refusal/progress/transaction fields to be absent.
+    func optionalString(_ number: UInt64) throws -> String {
+        guard let value = bytes[number]?.first else { return "" }
+        guard let text = String(data: value, encoding: .utf8) else { throw NodeFailure.invalidReply }
+        return text
+    }
+}
+
 public enum SpliceFailure: LocalizedError {
     case unavailable(String), changed, reviewExpired, outcomeUnknown
     public var errorDescription: String? {
@@ -23,9 +33,9 @@ public struct SpliceChannelState: Sendable {
         let pending = try ProtoFields(channel.bytes[1003]?.first ?? Data())
         let last = try ProtoFields(channel.bytes[1004]?.first ?? Data())
         let hasPending = channel.bytes[1003]?.first != nil
-        return SpliceChannelState(status: try channel.string(1002),
-            progress: hasPending ? try pending.string(2) : try last.string(6),
-            txid: hasPending ? try pending.string(8) : try last.string(4),
+        return SpliceChannelState(status: try channel.optionalString(1002),
+            progress: hasPending ? try pending.optionalString(2) : try last.optionalString(6),
+            txid: hasPending ? try pending.optionalString(8) : try last.optionalString(4),
             confirmations: pending.integers[10] ?? 0, lockDepth: pending.integers[11] ?? 0)
     }
     static func permits(_ status: String) -> Bool { status == "ok" || status == "peer_not_announcing" }
@@ -40,7 +50,7 @@ public struct SpliceEstimate: Equatable, Sendable {
     public let lockDepth: UInt64
     static func decode(_ data: Data, sats: UInt64, feeRate: UInt64, removing: Bool) throws -> SpliceEstimate {
         let f = try ProtoFields(data)
-        let refusal = try f.string(15)
+        let refusal = try f.optionalString(15)
         guard refusal.isEmpty else {
             let message: String
             switch refusal {
@@ -182,8 +192,8 @@ private final class SpliceStream: NSObject, LndmobileRecvStreamProtocol {
                 throw NodeFailure.invalidReply
             }
             observe(state)
-            if state == "aborted" { reply.onError(SpliceFailure.unavailable(try fields.string(5))); return }
-            let txid = try fields.string(2)
+            if state == "aborted" { reply.onError(SpliceFailure.unavailable(try fields.optionalString(5))); return }
+            let txid = try fields.optionalString(2)
             reply.onResponse(Data(("Resize " + state + (txid.isEmpty ? "" : " · " + txid) +
                 ". Refresh channels to follow progress. Funds become available after the splice locks.").utf8))
         } catch { reply.onError(error) }

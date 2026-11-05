@@ -10,5 +10,6 @@ RCT_EXTERN_METHOD(splice:(NSString *)action value:(NSString *)value resolver:(RC
 RCT_EXTERN_METHOD(peer:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(network:(NSString *)action value:(NSString *)value resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(watchtower:(NSString *)action value:(NSString *)value resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(wallet:(NSString *)action value:(NSString *)value resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 @end
 #endif

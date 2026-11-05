@@ -1,3 +1,4 @@
+import { LndWallet } from './wallets/lnd-wallet';
 import { WalletJournalStore } from './xbt/kilojoin/wallet-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sha256 } from '@noble/hashes/sha256';
@@ -396,7 +397,11 @@ export class BlueApp {
       const data: TBucketStorage = JSON.parse(dataRaw);
       if (!data.wallets) return false;
       const wallets = data.wallets;
-      if (wallets.some(key => ![XbtSegwitBech32Wallet.type, XbtTaprootWallet.type, WatchOnlyWallet.type].includes(JSON.parse(key).type))) {
+      if (
+        wallets.some(
+          key => ![XbtSegwitBech32Wallet.type, XbtTaprootWallet.type, WatchOnlyWallet.type, LndWallet.type].includes(JSON.parse(key).type),
+        )
+      ) {
         this.storageLoadBlocked = true;
         throw new UnsupportedWalletStorageError();
       }
@@ -415,6 +420,10 @@ export class BlueApp {
           unserializedWallet = XbtSegwitBech32Wallet.fromJson(key) as unknown as XbtSegwitBech32Wallet;
         } else if (tempObj.type === XbtTaprootWallet.type) {
           unserializedWallet = XbtTaprootWallet.fromJson(key) as unknown as XbtTaprootWallet;
+        } else if (tempObj.type === LndWallet.type) {
+          unserializedWallet = LndWallet.fromJson(key) as LndWallet;
+          // A cached balance is useful; a persisted green connection is not evidence.
+          unserializedWallet.observedAt = 0;
         } else {
           // Existing watch-only records remain read-only; never restore an inherited BTC signer.
           unserializedWallet = WatchOnlyWallet.fromJson(key) as unknown as WatchOnlyWallet;
@@ -585,9 +594,11 @@ export class BlueApp {
       if (realm) {
         const activeIds = new Set(this.wallets.filter(wallet => typeof wallet !== 'boolean').map(wallet => wallet.getID()));
         realm.write(() => {
-          const obsolete = Array.from(realm.objects('WalletTransactions') as Realm.Results<{ walletid: string }>).filter(
-            tx => !activeIds.has(tx.walletid),
-          );
+          const obsolete = Array.from(
+            realm.objects('WalletTransactions') as Realm.Results<{
+              walletid: string;
+            }>,
+          ).filter(tx => !activeIds.has(tx.walletid));
           realm.delete(obsolete);
         });
       }

@@ -448,3 +448,20 @@ test('receiving captures the requested amount and leaves a scrollable compact in
   expect(screen.getByText('Export encrypted Lightning recovery file')).toBeTruthy();
   screen.unmount();
 });
+
+test.each([
+  ['pay', 'Review invoice', 'Create invoice', 'Withdrawal address'],
+  ['invoice', 'Create invoice', 'Review invoice', 'Withdrawal address'],
+  ['send', 'Review withdrawal', 'Create invoice', 'Invoice to pay'],
+  ['receive', 'Get XBT funding address', 'Review invoice', 'Withdrawal address'],
+])('focused %s route exposes only the selected task and retains foreground activity', async (mode, shown, hidden, hiddenInput) => {
+  const screen = render(<XBTLightning route={{ params: { mode } }} />);
+  await act(async () => {});
+  expect(screen.getByText(shown)).toBeTruthy();
+  expect(screen.queryByText(hidden)).toBeNull();
+  expect(screen.queryByLabelText(hiddenInput)).toBeNull();
+  expect(screen.queryByText('Open private channel')).toBeNull();
+  expect(screen.queryByText('Export encrypted Lightning recovery file')).toBeNull();
+  expect(screen.getByTestId('LightningActivityPanel')).toBeTruthy();
+  screen.unmount();
+});

@@ -130,6 +130,19 @@ final class RegtestTests: XCTestCase {
         let incoming = try await RegtestNode.shared.receive(sats: 2_000)
         let receipt = try await peer("pay", incoming)
         XCTAssertEqual(receipt, "settled")
+        let overview = try await RegtestNode.shared.walletOverview()
+        XCTAssertEqual(overview["synced"] as? Bool, true)
+        XCTAssertEqual(overview["activeChannels"] as? String, "1")
+        let outgoingPage = try await RegtestNode.shared.walletActivity("payments", offset: 0)
+        let outgoingRows = outgoingPage["rows"] as? [[String: Any]] ?? []
+        XCTAssertTrue(outgoingRows.contains { $0["id"] as? String == review.hash && $0["state"] as? String == "settled" && $0["sats"] as? String == "20000" })
+        let receivedHash = try await RegtestNode.shared.decode(incoming).hash
+        let incomingPage = try await RegtestNode.shared.walletActivity("invoices", offset: 0)
+        let incomingRows = incomingPage["rows"] as? [[String: Any]] ?? []
+        XCTAssertTrue(incomingRows.contains { $0["id"] as? String == receivedHash && $0["state"] as? String == "settled" && $0["sats"] as? String == "2000" })
+        let fundingPage = try await RegtestNode.shared.walletActivity("funding", offset: 0)
+        let fundingRows = fundingPage["rows"] as? [[String: Any]] ?? []
+        XCTAssertTrue(fundingRows.contains { $0["direction"] as? String == "received" && ($0["confirmations"] as? Int64 ?? 0) > 0 })
         try await waitUntil {
             let towers = try await RegtestNode.shared.watchtowers()
             return towers.contains { $0.acknowledged > 0 && $0.pending == 0 }

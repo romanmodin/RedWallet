@@ -1,3 +1,4 @@
+import QRCodeComponent from '../../components/QRCode';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -31,7 +32,13 @@ type Channel = {
   localSats: string;
   state: 'active' | 'inactive' | 'pending' | 'closing' | 'forceClosing';
   confirmationsRemaining?: number;
-  splice?: { status: string; progress: string; txid: string; confirmations: string; lockDepth: string };
+  splice?: {
+    status: string;
+    progress: string;
+    txid: string;
+    confirmations: string;
+    lockDepth: string;
+  };
 };
 type Withdrawal = {
   token: string;
@@ -89,7 +96,13 @@ async function exportBackup(url: string) {
   }
 }
 
-export default function XBTLightning() {
+export default function XBTLightning({
+  route,
+}: {
+  route?: { params?: { mode?: 'pay' | 'invoice' | 'send' | 'receive' } };
+} = {}) {
+  const mode = route?.params?.mode;
+  const tools = !mode;
   const { colors, dark } = useTheme();
   const panelBackground = dark ? colors.cardSectionBackground : colors.hdbackgroundColor;
   const [torActive, setTorActive] = useState(false);
@@ -107,6 +120,7 @@ export default function XBTLightning() {
   const [busy, setBusy] = useState(false);
   const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
+  const [fundingAddress, setFundingAddress] = useState('');
   const [incoming, setIncoming] = useState<LightningReceiveInvoice>();
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
@@ -337,10 +351,12 @@ export default function XBTLightning() {
       }}
     >
       <SettingsSection>
-        <SettingsFootnote style={{ color: colors.foregroundColor }}>
-          XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
-          your own compact-filter chain peer as host:port. Your home node is optional.
-        </SettingsFootnote>
+        {tools && (
+          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+            XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
+            your own compact-filter chain peer as host:port. Your home node is optional.
+          </SettingsFootnote>
+        )}
         {status === 'Stopped' && (
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
@@ -401,7 +417,7 @@ export default function XBTLightning() {
             },
           ]}
         >
-          {status === 'Running' && (
+          {tools && status === 'Running' && (
             <View testID="LightningChannelSummary" style={[styles.channelSummary, { borderBottomColor: colors.hdborderColor }]}>
               <Text style={[styles.activityTitle, { color: colors.alternativeTextColor2 }]}>
                 {channels ? 'Channels · ' + summarizeChannels(channels).open + ' open' : 'Channels'}
@@ -458,192 +474,236 @@ export default function XBTLightning() {
           </ScrollView>
         </View>
       </View>
-      {bridge.network && bridge.watchtower && (
+      {tools && bridge.network && bridge.watchtower && (
         <XBTLightningNetwork status={status} busy={busy} run={run} report={setMessage} onTorChange={setTorActive} />
       )}
       {status === 'Running' && (
         <SettingsSection>
-          <SettingsListItem
-            title="Node and channel balances"
-            disabled={busy}
-            onPress={() =>
-              run('Node and channel balances', async () => {
-                const result = await bridge.run('details', '');
-                if (mounted.current) setMessage(result);
-              })
-            }
-          />
-          <SettingsListItem
-            title="Get XBT funding address"
-            disabled={busy}
-            onPress={() =>
-              run('XBT funding address', async () => {
-                const address = await bridge.run('fund', '');
-                if (mounted.current) setMessage(address);
-              })
-            }
-          />
-          <TextInput
-            placeholderTextColor={colors.alternativeTextColor2}
-            accessibilityLabel="Lightning peer"
-            style={[
-              styles.input,
-              {
-                color: colors.foregroundColor,
-                backgroundColor: panelBackground,
-                borderColor: colors.hdborderColor,
-              },
-            ]}
-            placeholder="pubkey@host:port"
-            value={lightningPeer}
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!busy}
-            onChangeText={setLightningPeer}
-          />
-          <SettingsListItem
-            title="Connect Lightning peer"
-            disabled={busy || !lightningPeer}
-            onPress={() =>
-              run('Connect Lightning peer', async () => {
-                if (!torActive && /\.onion(?::[0-9]+)?$/i.test(lightningPeer.trim())) {
-                  throw new Error(
-                    bridge.network
-                      ? 'Select Tor for Lightning, then restart RedWallet to connect to an onion peer.'
-                      : 'Tor-only Lightning peers are not supported by this build. Use a reachable IP or DNS address for the same XBT network.',
-                  );
+          {tools && (
+            <>
+              <SettingsListItem
+                title="Node and channel balances"
+                disabled={busy}
+                onPress={() =>
+                  run('Node and channel balances', async () => {
+                    const result = await bridge.run('details', '');
+                    if (mounted.current) setMessage(result);
+                  })
                 }
-                const result = await bridge.invoice('connect', lightningPeer.trim(), '', '');
-                if (mounted.current) setMessage(result);
-              })
-            }
-          />
-          <SettingsListItem
-            title="Open private channel"
-            disabled={busy || !lightningPeer}
-            onPress={() => {
-              const key = lightningPeer.trim().split('@')[0];
-              Alert.alert(
-                'Open a private channel?',
-                'Commit 100,000 sats at 1 sat/vB to ' +
-                  key +
-                  '. Tapping Open channel creates a new channel. After opening, wait for the funding transaction to confirm.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Open channel',
-                    onPress: () =>
-                      run('Open private channel', async () => {
-                        const point = await bridge.invoice('open', key, '', '100000');
-                        refreshChannels().catch(() => {});
-                        if (mounted.current)
-                          setMessage(
-                            'Funding transaction: ' +
-                              point +
-                              '\nChannel requested. Wait for confirmations. Opening again creates another channel.',
-                          );
-                      }),
-                  },
-                ],
-              );
-            }}
-          />
-          <TextInput
-            placeholderTextColor={colors.alternativeTextColor2}
-            style={[
-              styles.input,
-              {
-                color: colors.foregroundColor,
-                backgroundColor: panelBackground,
-                borderColor: colors.hdborderColor,
-              },
-            ]}
-            accessibilityLabel="Sats to receive"
-            placeholder="Sats to receive"
-            keyboardType="number-pad"
-            value={amount}
-            onChangeText={setAmount}
-          />
-          <SettingsListItem
-            title="Create invoice"
-            disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
-            onPress={() =>
-              run('Invoice to receive', async () => {
-                const requestedSats = amount;
-                const invoice = await bridge.invoice('receive', '', '', requestedSats);
-                if (mounted.current) {
-                  setIncoming({ invoice, sats: requestedSats });
-                  setMessage('Invoice ready to receive ' + requestedSats + ' sats. QR code below.');
-                }
-              })
-            }
-          />
-          {incoming && <XBTLightningInvoice key={incoming.invoice} {...incoming} />}
-          <TextInput
-            placeholderTextColor={colors.alternativeTextColor2}
-            style={[
-              styles.input,
-              {
-                color: colors.foregroundColor,
-                backgroundColor: panelBackground,
-                borderColor: colors.hdborderColor,
-              },
-            ]}
-            accessibilityLabel="Invoice to pay"
-            placeholder="Paste a Lightning invoice"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={outgoing}
-            onChangeText={value => {
-              setReview(undefined);
-              setOutgoing(value);
-            }}
-            editable={!busy}
-          />
-          <SettingsListItem
-            title="Review invoice"
-            disabled={busy || !outgoing.trim()}
-            onPress={() =>
-              run('Review invoice', async () => {
-                const invoice = outgoing.trim();
-                const decoded = await bridge.invoice('decode', invoice, '', '');
-                if (mounted.current) {
-                  setReview({ ...decoded, invoice });
-                  setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
-                }
-              })
-            }
-          />
-          {review && (
-            <SettingsListItem
-              title={'Pay ' + review.sats + ' sats'}
-              disabled={busy || pendingPayment.current === review.hash}
-              onPress={() => confirm(review)}
-            />
+              />
+            </>
           )}
-          <SettingsListItem
-            title="Recent payments"
-            disabled={busy}
-            onPress={() =>
-              run('Recent payments', async () => {
-                const history = await bridge.run('history', '');
-                if (mounted.current) setMessage(history);
-              })
-            }
-          />
-          <SettingsListItem
-            title="Export static channel backup"
-            disabled={busy}
-            onPress={() =>
-              run('Export channel backup', async () => {
-                const url = await bridge.run('backup', '');
-                if (mounted.current) await exportBackup(url);
-              })
-            }
-          />
+          {(tools || mode === 'receive') && (
+            <>
+              <SettingsListItem
+                title="Get XBT funding address"
+                disabled={busy}
+                onPress={() =>
+                  run('XBT funding address', async () => {
+                    const address = await bridge.run('fund', '');
+                    if (mounted.current) {
+                      setFundingAddress(address);
+                      setMessage(address);
+                    }
+                  })
+                }
+              />
+              {!!fundingAddress && mode === 'receive' && (
+                <View style={styles.fundingQR}>
+                  <View pointerEvents="none">
+                    <QRCodeComponent value={fundingAddress} size={220} isLogoRendered={false} isMenuAvailable={false} />
+                  </View>
+                  <Text selectable style={{ color: colors.foregroundColor }}>
+                    {fundingAddress}
+                  </Text>
+                  <SettingsListItem title="Copy address" onPress={() => Clipboard.setString(fundingAddress)} />
+                  <SettingsListItem
+                    title="Share address"
+                    onPress={() =>
+                      Share.share({ message: fundingAddress }).catch(() => setMessage('Sharing unavailable. Use Copy address.'))
+                    }
+                  />
+                </View>
+              )}
+            </>
+          )}
+          {tools && (
+            <>
+              <TextInput
+                placeholderTextColor={colors.alternativeTextColor2}
+                accessibilityLabel="Lightning peer"
+                style={[
+                  styles.input,
+                  {
+                    color: colors.foregroundColor,
+                    backgroundColor: panelBackground,
+                    borderColor: colors.hdborderColor,
+                  },
+                ]}
+                placeholder="pubkey@host:port"
+                value={lightningPeer}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!busy}
+                onChangeText={setLightningPeer}
+              />
+              <SettingsListItem
+                title="Connect Lightning peer"
+                disabled={busy || !lightningPeer}
+                onPress={() =>
+                  run('Connect Lightning peer', async () => {
+                    if (!torActive && /\.onion(?::[0-9]+)?$/i.test(lightningPeer.trim())) {
+                      throw new Error(
+                        bridge.network
+                          ? 'Select Tor for Lightning, then restart RedWallet to connect to an onion peer.'
+                          : 'Tor-only Lightning peers are not supported by this build. Use a reachable IP or DNS address for the same XBT network.',
+                      );
+                    }
+                    const result = await bridge.invoice('connect', lightningPeer.trim(), '', '');
+                    if (mounted.current) setMessage(result);
+                  })
+                }
+              />
+              <SettingsListItem
+                title="Open private channel"
+                disabled={busy || !lightningPeer}
+                onPress={() => {
+                  const key = lightningPeer.trim().split('@')[0];
+                  Alert.alert(
+                    'Open a private channel?',
+                    'Commit 100,000 sats at 1 sat/vB to ' +
+                      key +
+                      '. Tapping Open channel creates a new channel. After opening, wait for the funding transaction to confirm.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Open channel',
+                        onPress: () =>
+                          run('Open private channel', async () => {
+                            const point = await bridge.invoice('open', key, '', '100000');
+                            refreshChannels().catch(() => {});
+                            if (mounted.current)
+                              setMessage(
+                                'Funding transaction: ' +
+                                  point +
+                                  '\nChannel requested. Wait for confirmations. Opening again creates another channel.',
+                              );
+                          }),
+                      },
+                    ],
+                  );
+                }}
+              />
+            </>
+          )}
+          {(tools || mode === 'invoice') && (
+            <>
+              <TextInput
+                placeholderTextColor={colors.alternativeTextColor2}
+                style={[
+                  styles.input,
+                  {
+                    color: colors.foregroundColor,
+                    backgroundColor: panelBackground,
+                    borderColor: colors.hdborderColor,
+                  },
+                ]}
+                accessibilityLabel="Sats to receive"
+                placeholder="Sats to receive"
+                keyboardType="number-pad"
+                value={amount}
+                onChangeText={setAmount}
+              />
+              <SettingsListItem
+                title="Create invoice"
+                disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
+                onPress={() =>
+                  run('Invoice to receive', async () => {
+                    const requestedSats = amount;
+                    const invoice = await bridge.invoice('receive', '', '', requestedSats);
+                    if (mounted.current) {
+                      setIncoming({ invoice, sats: requestedSats });
+                      setMessage('Invoice ready to receive ' + requestedSats + ' sats. QR code below.');
+                    }
+                  })
+                }
+              />
+              {incoming && <XBTLightningInvoice key={incoming.invoice} {...incoming} />}
+            </>
+          )}
+          {(tools || mode === 'pay') && (
+            <>
+              <TextInput
+                placeholderTextColor={colors.alternativeTextColor2}
+                style={[
+                  styles.input,
+                  {
+                    color: colors.foregroundColor,
+                    backgroundColor: panelBackground,
+                    borderColor: colors.hdborderColor,
+                  },
+                ]}
+                accessibilityLabel="Invoice to pay"
+                placeholder="Paste a Lightning invoice"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={outgoing}
+                onChangeText={value => {
+                  setReview(undefined);
+                  setOutgoing(value);
+                }}
+                editable={!busy}
+              />
+              <SettingsListItem
+                title="Review invoice"
+                disabled={busy || !outgoing.trim()}
+                onPress={() =>
+                  run('Review invoice', async () => {
+                    const invoice = outgoing.trim();
+                    const decoded = await bridge.invoice('decode', invoice, '', '');
+                    if (mounted.current) {
+                      setReview({ ...decoded, invoice });
+                      setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
+                    }
+                  })
+                }
+              />
+              {review && (
+                <SettingsListItem
+                  title={'Pay ' + review.sats + ' sats'}
+                  disabled={busy || pendingPayment.current === review.hash}
+                  onPress={() => confirm(review)}
+                />
+              )}
+            </>
+          )}
+          {tools && (
+            <>
+              <SettingsListItem
+                title="Recent payments"
+                disabled={busy}
+                onPress={() =>
+                  run('Recent payments', async () => {
+                    const history = await bridge.run('history', '');
+                    if (mounted.current) setMessage(history);
+                  })
+                }
+              />
+              <SettingsListItem
+                title="Export static channel backup"
+                disabled={busy}
+                onPress={() =>
+                  run('Export channel backup', async () => {
+                    const url = await bridge.run('backup', '');
+                    if (mounted.current) await exportBackup(url);
+                  })
+                }
+              />
+            </>
+          )}
         </SettingsSection>
       )}
-      {status === 'Running' && (
+      {status === 'Running' && (tools || mode === 'send') && (
         <SettingsSection>
           <SettingsFootnote style={{ color: colors.foregroundColor }}>
             Manage channels and withdraw the Lightning node’s on-chain balance. Closing a channel requires its peer online and a
@@ -670,47 +730,52 @@ export default function XBTLightning() {
               setWithdrawal(undefined);
             }}
           />
-          <SettingsListItem
-            title="Refresh channels"
-            disabled={busy}
-            onPress={() =>
-              run('Refresh channels', async () => {
-                const items = await refreshChannels();
-                if (mounted.current) setMessage(items.length ? channelSummary(items) + '. Details below.' : 'No open or pending channels.');
-              })
-            }
-          />
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
-            Open includes active and inactive channels. Pending channels are still opening. Counts refresh while this screen is open.
-          </SettingsFootnote>
-          {(channels ?? []).map(channel => (
-            <View key={channel.point}>
+          {tools && (
+            <>
               <SettingsListItem
-                title={channelState(channel)}
-                subtitle={'Local balance: ' + channel.localSats + ' sats\nPeer: ' + channel.peer + '\nFunding: ' + channel.point}
+                title="Refresh channels"
+                disabled={busy}
+                onPress={() =>
+                  run('Refresh channels', async () => {
+                    const items = await refreshChannels();
+                    if (mounted.current)
+                      setMessage(items.length ? channelSummary(items) + '. Details below.' : 'No open or pending channels.');
+                  })
+                }
               />
-              {bridge.splice && ['active', 'inactive'].includes(channel.state) && (
-                <XBTLightningChannelFunds
-                  point={channel.point}
-                  active={channel.active}
-                  splice={channel.splice}
-                  busy={busy}
-                  run={run}
-                  report={setMessage}
-                  onUpdated={() => {
-                    refreshChannels().catch(() => {});
-                  }}
-                />
-              )}
-              {['active', 'inactive'].includes(channel.state) && (
-                <SettingsListItem
-                  title={'Close channel · ' + channel.localSats + ' local sats'}
-                  disabled={busy || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
-                  onPress={() => confirmClose(channel)}
-                />
-              )}
-            </View>
-          ))}
+              <SettingsFootnote style={{ color: colors.foregroundColor }}>
+                Open includes active and inactive channels. Pending channels are still opening. Counts refresh while this screen is open.
+              </SettingsFootnote>
+              {(channels ?? []).map(channel => (
+                <View key={channel.point}>
+                  <SettingsListItem
+                    title={channelState(channel)}
+                    subtitle={'Local balance: ' + channel.localSats + ' sats\nPeer: ' + channel.peer + '\nFunding: ' + channel.point}
+                  />
+                  {bridge.splice && ['active', 'inactive'].includes(channel.state) && (
+                    <XBTLightningChannelFunds
+                      point={channel.point}
+                      active={channel.active}
+                      splice={channel.splice}
+                      busy={busy}
+                      run={run}
+                      report={setMessage}
+                      onUpdated={() => {
+                        refreshChannels().catch(() => {});
+                      }}
+                    />
+                  )}
+                  {['active', 'inactive'].includes(channel.state) && (
+                    <SettingsListItem
+                      title={'Close channel · ' + channel.localSats + ' local sats'}
+                      disabled={busy || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
+                      onPress={() => confirmClose(channel)}
+                    />
+                  )}
+                </View>
+              ))}
+            </>
+          )}
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="Withdrawal address"
@@ -772,19 +837,23 @@ export default function XBTLightning() {
               onPress={() => confirmWithdrawal(withdrawal)}
             />
           )}
-          <SettingsListItem
-            title="On-chain history"
-            disabled={busy}
-            onPress={() =>
-              run('On-chain history', async () => {
-                const history = await bridge.manage('history', '', '', '');
-                if (mounted.current) setMessage(history);
-              })
-            }
-          />
+          {tools && (
+            <>
+              <SettingsListItem
+                title="On-chain history"
+                disabled={busy}
+                onPress={() =>
+                  run('On-chain history', async () => {
+                    const history = await bridge.manage('history', '', '', '');
+                    if (mounted.current) setMessage(history);
+                  })
+                }
+              />
+            </>
+          )}
         </SettingsSection>
       )}
-      {['Needs setup', 'Running'].includes(status) && (
+      {tools && ['Needs setup', 'Running'].includes(status) && (
         <SettingsSection>
           <SettingsFootnote style={{ color: colors.foregroundColor }}>
             Portable Lightning recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export
@@ -903,6 +972,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
   },
+  fundingQR: { alignItems: 'center', padding: 16, gap: 16 },
   input: {
     marginHorizontal: 12,
     marginVertical: 6,

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useReducer } from 'react';
+import { LndWallet } from '../../class/wallets/lnd-wallet';
+import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 import { ActivityIndicator, Keyboard, NativeModules, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { Layout } from 'react-native-reanimated';
 import assert from 'assert';
@@ -62,8 +63,16 @@ interface TAction {
 }
 
 const index2walletType: Record<number, { text: string; subtitle: string; walletType: string }> = {
-  0: { subtitle: 'Native SegWit (BIP84)', text: 'RedWallet XBT', walletType: XbtSegwitBech32Wallet.type },
-  1: { subtitle: 'Taproot (BIP86)', text: 'RedWallet XBT', walletType: XbtTaprootWallet.type },
+  0: {
+    subtitle: 'Native SegWit (BIP84)',
+    text: 'RedWallet XBT',
+    walletType: XbtSegwitBech32Wallet.type,
+  },
+  1: {
+    subtitle: 'Taproot (BIP86)',
+    text: 'RedWallet XBT',
+    walletType: XbtTaprootWallet.type,
+  },
 };
 
 const initialState: State = {
@@ -81,7 +90,11 @@ const walletReducer = (state: State, action: TAction): State => {
     case ActionTypes.SET_WALLET_BASE_URI:
       return { ...state, walletBaseURI: action.payload };
     case ActionTypes.SET_SELECTED_INDEX:
-      return { ...state, selectedIndex: action.payload, selectedWalletType: ButtonSelected.ONCHAIN };
+      return {
+        ...state,
+        selectedIndex: action.payload,
+        selectedWalletType: ButtonSelected.ONCHAIN,
+      };
     case ActionTypes.SET_LABEL:
       return { ...state, label: action.payload };
     case ActionTypes.SET_SELECTED_WALLET_TYPE:
@@ -97,6 +110,7 @@ type RouteProps = RouteProp<AddWalletStackParamList, 'AddWallet'>;
 
 const WalletsAdd: React.FC = () => {
   const { colors } = useTheme();
+  const addingLnd = useRef(false);
   const layoutTransition = useMemo(() => Layout.springify().damping(16).stiffness(180), []);
 
   // State
@@ -105,7 +119,7 @@ const WalletsAdd: React.FC = () => {
   const walletBaseURI = state.walletBaseURI;
   const label = state.label;
   //
-  const { addWallet, saveToDisk } = useStorage();
+  const { wallets, addWallet, saveToDisk } = useStorage();
   const route = useRoute<RouteProps>();
   const { entropy: entropyHex } = route.params || {};
   const selectedIndex = route.params?.selectedIndex === 1 ? 1 : 0;
@@ -224,7 +238,9 @@ const WalletsAdd: React.FC = () => {
       }
     } else if (selectedWalletType === ButtonSelected.VAULT) {
       setIsLoading(false);
-      navigate('WalletsAddMultisig', { walletLabel: label.trim().length > 0 ? label : loc.multisig.default_label });
+      navigate('WalletsAddMultisig', {
+        walletLabel: label.trim().length > 0 ? label : loc.multisig.default_label,
+      });
     }
   };
 
@@ -287,7 +303,9 @@ const WalletsAdd: React.FC = () => {
   };
 
   const navigateToImportWallet = () => {
-    navigate('ImportWallet', { xbtFormat: selectedIndex === 1 ? 'taproot' : 'segwit' });
+    navigate('ImportWallet', {
+      xbtFormat: selectedIndex === 1 ? 'taproot' : 'segwit',
+    });
   };
 
   const handleOnBitcoinButtonPressed = () => {
@@ -335,7 +353,29 @@ const WalletsAdd: React.FC = () => {
           onPress={() => setParams({ selectedIndex: selectedIndex === 1 ? 0 : 1 })}
         />
         {!!NativeModules.XBTLightningBridge && (
-          <BlueButtonLink testID="AddXBTLightningRegtest" title="Set up XBT Lightning" onPress={() => navigate('XBTLightningRegtest')} />
+          <BlueButtonLink
+            testID="AddXBTLightningRegtest"
+            title={NativeModules.XBTLightningBridge.wallet ? 'Add LND wallet' : 'Set up XBT Lightning'}
+            onPress={async () => {
+              if (isLoading || addingLnd.current) return;
+              addingLnd.current = true;
+              setIsLoading(true);
+              try {
+                if (NativeModules.XBTLightningBridge.wallet && !wallets.some(wallet => wallet.type === LndWallet.type)) {
+                  addWallet(new LndWallet().setLabel(label || 'XBT Lightning'));
+                  await saveToDisk();
+                }
+                navigate('XBTLightningRegtest');
+              } catch (error) {
+                presentAlert({
+                  message: error instanceof Error ? error.message : 'Could not add the LND wallet.',
+                });
+              } finally {
+                addingLnd.current = false;
+                setIsLoading(false);
+              }
+            }}
+          />
         )}
         <View style={styles.advanced}>
           <BlueSpacing20 />
