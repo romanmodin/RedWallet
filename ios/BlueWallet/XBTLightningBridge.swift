@@ -36,6 +36,25 @@ final class XBTLightningBridge: NSObject {
         }
     }
 
+    @objc(splice:value:resolver:rejecter:)
+    func splice(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                if action == "confirm" { resolve(try await RegtestNode.shared.splice(token: value)); return }
+                guard action == "review", let data = value.data(using: .utf8), data.count <= 1024,
+                      let fields = try JSONSerialization.jsonObject(with: data) as? [String: String],
+                      let point = fields["point"], let direction = fields["direction"],
+                      let sats = fields["sats"].flatMap(UInt64.init), let rate = fields["feeRate"].flatMap(UInt64.init) else {
+                    throw NSError(domain: "Splice", code: 1, userInfo: [NSLocalizedDescriptionKey: "Enter a valid channel resize amount and fee rate."])
+                }
+                resolve(try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: sats, feeRate: rate).dictionary)
+            } catch SpliceFailure.outcomeUnknown {
+                reject("splice_unknown", SpliceFailure.outcomeUnknown.localizedDescription, nil)
+            } catch { reject("splice_failed", error.localizedDescription, nil) }
+        }
+    }
+
     @objc(peer:rejecter:)
     func peer(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task {
@@ -89,6 +108,10 @@ final class XBTLightningBridge: NSObject {
                         var item: [String: Any] = [
                             "point": channel.point, "peer": channel.peer, "state": channel.state,
                             "active": channel.state == "active", "localSats": String(channel.localSats)]
+                        if let splice = channel.splice {
+                            item["splice"] = ["status": splice.status, "progress": splice.progress, "txid": splice.txid,
+                                              "confirmations": String(splice.confirmations), "lockDepth": String(splice.lockDepth)]
+                        }
                         if let remaining = channel.confirmationsRemaining {
                             item["confirmationsRemaining"] = remaining
                         }

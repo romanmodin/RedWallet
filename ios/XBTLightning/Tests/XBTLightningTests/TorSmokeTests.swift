@@ -14,9 +14,20 @@ final class TorSmokeTests: XCTestCase {
             try await Task.sleep(nanoseconds: 1_000_000_000)
         }
         var running = false
-        for attempt in 0..<360 {
-            if try await RegtestNode.shared.status() == "Running" { running = true; break }
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(1800))
+        var attempt = 0
+        while clock.now < deadline {
+            do {
+                if try await RegtestNode.shared.status() == "Running" { running = true; break }
+            } catch NodeFailure.timedOut {
+                // During a fresh Tor header/filter sync, the read-only RPC can
+                // be busy for its 60s limit. Keep observing within the existing
+                // startup budget; never retry a connection or spending action.
+                print("Startup status RPC busy; observing actual readiness again")
+            }
             if attempt % 12 == 0 { print(await RegtestNode.shared.syncProgress()) }
+            attempt += 1
             try await Task.sleep(nanoseconds: 5_000_000_000)
         }
         XCTAssertTrue(running, "Tor XBT sync did not complete; no funds were used")

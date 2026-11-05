@@ -58,6 +58,7 @@ public enum MainnetConfiguration {
         alias=RedWallet
         nobootstrap=true
         maxpendingchannels=3
+        protocol.splice=true
         [Bitcoin]
         bitcoin.mainnet=true
         bitcoin.node=neutrino

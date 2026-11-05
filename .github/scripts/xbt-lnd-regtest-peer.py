@@ -77,6 +77,19 @@ class Fixture(BaseHTTPRequestHandler):
                     raise ValueError("channel funding transaction missing")
                 call(chain, "generatetoaddress", "8", miner)
                 result = "mined"
+            elif self.path == "/mempool":
+                result = json.dumps(sorted(json.loads(call(chain, "getrawmempool"))))
+            elif self.path == "/confirm-splice" and re.fullmatch(r"[a-f0-9]{64}:[0-9]+", value):
+                txid, depth = value.split(":")
+                assert 1 <= int(depth) <= 146
+                for _ in range(60):
+                    if txid in json.loads(call(chain, "getrawmempool")):
+                        break
+                    time.sleep(1)
+                else:
+                    raise ValueError("splice transaction missing")
+                call(chain, "generatetoaddress", depth, miner)
+                result = "mined-splice"
             elif self.path == "/withdraw-address":
                 result = withdrawal_target
             elif self.path == "/verify-withdraw" and re.fullmatch(r"[a-f0-9]{64}", value):

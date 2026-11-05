@@ -30,6 +30,8 @@ public actor RegtestNode {
     }
     private let daemonObservation = DaemonObservation()
     private var provisioning = false
+    var spliceReviews = SpliceReviews()
+    var splicingPoints: Set<String> = []
     var managementBusy = false
     var withdrawalReviews: [String: (WithdrawalReview, Date)] = [:]
     var closingPoints: Set<String> = []
@@ -110,6 +112,7 @@ public actor RegtestNode {
         nolisten=true
         norest=true
         nobootstrap=true
+        protocol.splice=true
         tlsdisableautofill=true
         [Bitcoin]
         bitcoin.regtest=true
