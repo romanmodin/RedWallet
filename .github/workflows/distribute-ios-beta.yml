@@ -1,4 +1,4 @@
-name: Assign verified LND regtest internal iOS beta
+name: Assign verified public XBT Lightning internal iOS beta
 "on":
   pull_request:
     paths:
@@ -6,15 +6,15 @@ name: Assign verified LND regtest internal iOS beta
       - ".github/scripts/test-distribute-ios-beta.rb"
       - ".github/scripts/verify-uploaded-beta.py"
       - ".github/scripts/verify-ios-release-gates.py"
-      - ".github/release/lnd-regtest-ios-beta-notes.txt"
+      - ".github/release/lnd-mainnet-ios-beta-notes.txt"
       - ".github/workflows/distribute-ios-beta.yml"
   workflow_dispatch:
     inputs:
       upload_run_id:
-        description: Verified embedded LND regtest upload for build 1793759935
+        description: Verified embedded public XBT Lightning upload for build 1793820415
         required: true
         type: string
-        default: "41688640570"
+        default: "41895465041"
 permissions:
   contents: read
   actions: read
@@ -53,7 +53,7 @@ jobs:
     env:
       UPLOAD_RUN_ID: ${{ inputs.upload_run_id }}
       UPLOAD_RECEIPT_PATH: ${{ github.workspace }}/upload-receipt/ios-ipa-verification.json
-      BETA_NOTES_PATH: ${{ github.workspace }}/.github/release/lnd-regtest-ios-beta-notes.txt
+      BETA_NOTES_PATH: ${{ github.workspace }}/.github/release/lnd-mainnet-ios-beta-notes.txt
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:

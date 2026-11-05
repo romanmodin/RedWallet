@@ -16,5 +16,19 @@ export async function resetWalletTestApp(device, options = {}, run = execFileSyn
   await device.installApp();
   const reset = await resetArtworkSimulator(run, device.id, { permissions });
   console.info('[wallet-test-reset]', JSON.stringify(reset));
+  // The combined AppleSimulatorUtils reset can leave camera authorization unset
+  // on iOS 26. Apply the requested TCC choice after the replacement shell is ready.
+  // Unlike another AppleSimulatorUtils permission pass, this does not request a
+  // second SpringBoard restart. A failed privacy command must stop the test.
+  if (permissions.camera) {
+    run(
+      'xcrun',
+      ['simctl', 'privacy', device.id, permissions.camera === 'YES' ? 'grant' : 'revoke', 'camera', 'com.romanmodin.redwallet'],
+      {
+        encoding: 'utf8',
+        timeout: 15000,
+      },
+    );
+  }
   await device.launchApp({ ...launchOptions, newInstance: false });
 }

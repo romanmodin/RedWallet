@@ -335,11 +335,7 @@ const WalletsAdd: React.FC = () => {
           onPress={() => setParams({ selectedIndex: selectedIndex === 1 ? 0 : 1 })}
         />
         {!!NativeModules.XBTLightningBridge && (
-          <BlueButtonLink
-            testID="AddXBTLightningRegtest"
-            title="Set up XBT Lightning · Test network"
-            onPress={() => navigate('XBTLightningRegtest')}
-          />
+          <BlueButtonLink testID="AddXBTLightningRegtest" title="Set up XBT Lightning" onPress={() => navigate('XBTLightningRegtest')} />
         )}
         <View style={styles.advanced}>
           <BlueSpacing20 />

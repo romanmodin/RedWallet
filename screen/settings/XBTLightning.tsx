@@ -1,18 +1,36 @@
-import { keepLocalCopy, pick, types } from '@react-native-documents/picker';
+import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, NativeModules, Share, Text, TextInput } from 'react-native';
+import { Alert, NativeModules, Platform, Share, Text, TextInput } from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
 
 const bridge = NativeModules.XBTLightningBridge;
-type Review = { invoice: string; hash: string; sats: string; destination: string };
+type Channel = { point: string; peer: string; active: boolean; localSats: string };
+type Withdrawal = { token: string; address: string; sats: string; feeRate: string };
+type Review = {
+  invoice: string;
+  hash: string;
+  sats: string;
+  destination: string;
+};
+
+async function exportBackup(url: string) {
+  if (Platform.OS === 'android') {
+    const [result] = await saveDocuments({ sourceUris: [url], copy: true, mimeType: 'application/octet-stream' });
+    if (result.error) throw new Error(result.error);
+  } else {
+    await Share.share({ url });
+  }
+}
 
 export default function XBTLightning() {
   const { colors } = useTheme();
-  const [peer, setPeer] = useState('127.0.0.1');
+  const [peer, setPeer] = useState('');
+  const [peerLoaded, setPeerLoaded] = useState(false);
   const [status, setStatus] = useState('Checking');
   const [message, setMessage] = useState('');
+  const [progress, setProgress] = useState('');
   const [busy, setBusy] = useState(false);
   const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
@@ -20,6 +38,13 @@ export default function XBTLightning() {
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [destination, setDestination] = useState('');
+  const [withdrawSats, setWithdrawSats] = useState('');
+  const [feeRate, setFeeRate] = useState('1');
+  const [withdrawal, setWithdrawal] = useState<Withdrawal>();
+  const submitted = useRef(new Set<string>());
+  const validFeeRate = /^[1-9][0-9]{0,2}$/.test(feeRate) && Number(feeRate) <= 100;
   const pending = useRef(false);
   const mounted = useRef(false);
   const pendingPayment = useRef<string | undefined>(undefined);
@@ -39,18 +64,27 @@ export default function XBTLightning() {
   };
   const node = (action: string) =>
     run(async () => {
-      const next = await bridge.run(action, peer);
-      if (mounted.current) setStatus(next);
+      try {
+        const next = await bridge.run(action, peer);
+        if (mounted.current) setStatus(next);
+      } catch (error) {
+        if (action === 'start' && mounted.current) setStatus('Failed');
+        throw error;
+      }
     });
   useEffect(() => {
     mounted.current = true;
     let active = true;
-    bridge.run('status', '').then(
-      (value: string) => {
-        if (active) setStatus(value);
+    Promise.all([bridge.run('status', ''), bridge.peer()]).then(
+      ([value, savedPeer]: [string, string]) => {
+        if (active) {
+          setPeer(savedPeer);
+          setPeerLoaded(true);
+          setStatus(value);
+        }
       },
       () => {
-        if (active) setMessage('Could not read the test node status.');
+        if (active) setMessage('Could not read node status or saved peer settings. Reopen this screen to retry.');
       },
     );
     return () => {
@@ -58,8 +92,29 @@ export default function XBTLightning() {
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    if (!['Starting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status)) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try {
+        const detail = await bridge.run('progress', '');
+        if (active) setProgress(detail);
+        const next = await bridge.run('status', '');
+        if (active) setStatus(next);
+      } catch {
+        if (active) setMessage('The node has not answered yet. Check the chain peer connection.');
+      }
+      if (active) timer = setTimeout(refresh, 3000);
+    };
+    timer = setTimeout(refresh, 3000);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [status]);
   const confirm = (payment: Review) =>
-    Alert.alert('Pay test invoice?', payment.sats + ' test sats to ' + payment.destination + '. Maximum routing fee: 10 test sats.', [
+    Alert.alert('Pay invoice?', payment.sats + ' sats to ' + payment.destination + '. Maximum routing fee: 10 sats.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Pay',
@@ -78,28 +133,90 @@ export default function XBTLightning() {
           }),
       },
     ]);
+  const confirmWithdrawal = (item: Withdrawal) =>
+    Alert.alert('Withdraw XBT?', item.sats + ' sats to ' + item.address + '. Network fee added at ' + item.feeRate + ' sat/vB.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Withdraw',
+        onPress: () =>
+          run(async () => {
+            if (submitted.current.has(item.token)) return;
+            submitted.current.add(item.token);
+            setWithdrawal(undefined);
+            try {
+              const txid = await bridge.manage('withdraw', item.token, '', '');
+              if (mounted.current) setMessage('Withdrawal broadcast: ' + txid);
+            } catch {
+              if (mounted.current) setMessage('Withdrawal outcome unknown. Check on-chain history before creating another withdrawal.');
+            }
+          }),
+      },
+    ]);
+  const confirmClose = (channel: Channel) => {
+    const rate = feeRate;
+    Alert.alert(
+      'Close this channel?',
+      'Return this channel’s funds to the Lightning node’s on-chain wallet. Starting fee rate: ' +
+        rate +
+        ' sat/vB. For channels funded by this node, the negotiated fee rate is capped at ' +
+        Number(rate) * 3 +
+        ' sat/vB. The peer must be online.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Close channel',
+          onPress: () =>
+            run(async () => {
+              if (submitted.current.has(channel.point)) return;
+              submitted.current.add(channel.point);
+              try {
+                const txid = await bridge.manage('close', channel.point, '', rate);
+                if (mounted.current) setMessage('Channel close broadcast: ' + txid + '. Funds become available after confirmation.');
+              } catch {
+                if (mounted.current) setMessage('Channel close was not confirmed. Check channels and on-chain history before retrying.');
+              }
+            }),
+        },
+      ],
+    );
+  };
   return (
     <SettingsScrollView testID="XBTLightningScreen">
       <SettingsSection>
         <SettingsFootnote>
-          Private XBT test network (regtest). Enter the private IPv4 address of your regtest chain peer. The node connects on port 18444 and
-          requires the BLAKE2b activation block at height 150.
+          XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
+          your own compact-filter chain peer as host:port. Your home node is optional.
         </SettingsFootnote>
         {status === 'Stopped' && (
           <TextInput
             style={{ color: colors.foregroundColor }}
-            accessibilityLabel="Regtest chain peer"
+            accessibilityLabel="Optional XBT chain peer"
+            placeholder="Automatic XBT peers, or host:port"
+            autoCapitalize="none"
+            autoCorrect={false}
             value={peer}
             onChangeText={setPeer}
-            keyboardType="decimal-pad"
+            keyboardType="url"
             editable={!busy}
           />
         )}
+        {['Starting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status) && (
+          <SettingsFootnote>
+            The node is starting or syncing. Status updates automatically. If this does not advance, the configured chain peer may be
+            unreachable.
+          </SettingsFootnote>
+        )}
+        {status === 'Failed' && (
+          <SettingsFootnote>
+            The Lightning node could not finish starting. Close and reopen RedWallet to retry. Your saved wallet is retained.
+          </SettingsFootnote>
+        )}
+        {!!progress && <SettingsFootnote>{progress}</SettingsFootnote>}
         <SettingsListItem title="Node status" subtitle={busy ? 'Working…' : status} />
-        {status === 'Stopped' && <SettingsListItem title="Start test node" disabled={busy} onPress={() => node('start')} />}
+        {status === 'Stopped' && <SettingsListItem title="Start XBT node" disabled={busy || !peerLoaded} onPress={() => node('start')} />}
         {(status === 'Needs setup' || status === 'Locked') && (
           <SettingsListItem
-            title={status === 'Locked' ? 'Unlock test wallet' : 'Create test wallet'}
+            title={status === 'Locked' ? 'Unlock Lightning wallet' : 'Create Lightning wallet'}
             disabled={busy}
             onPress={() => node('setup')}
           />
@@ -119,7 +236,7 @@ export default function XBTLightning() {
             }
           />
           <SettingsListItem
-            title="Get regtest funding address"
+            title="Get XBT funding address"
             disabled={busy}
             onPress={() =>
               run(async () => {
@@ -129,9 +246,9 @@ export default function XBTLightning() {
             }
           />
           <TextInput
-            accessibilityLabel="Lightning test peer"
+            accessibilityLabel="Lightning peer"
             style={{ color: colors.foregroundColor }}
-            placeholder="pubkey@private-IP:port"
+            placeholder="pubkey@host:port"
             value={lightningPeer}
             autoCapitalize="none"
             autoCorrect={false}
@@ -139,7 +256,7 @@ export default function XBTLightning() {
             onChangeText={setLightningPeer}
           />
           <SettingsListItem
-            title="Connect Lightning test peer"
+            title="Connect Lightning peer"
             disabled={busy || !lightningPeer}
             onPress={() =>
               run(async () => {
@@ -149,11 +266,11 @@ export default function XBTLightning() {
             }
           />
           <SettingsListItem
-            title="Open private test channel"
+            title="Open private channel"
             disabled={busy || !lightningPeer}
             onPress={() => {
               const key = lightningPeer.trim().split('@')[0];
-              Alert.alert('Open a private test channel?', 'Commit 100,000 test sats at 1 sat/vB to ' + key, [
+              Alert.alert('Open a private channel?', 'Commit 100,000 sats at 1 sat/vB to ' + key, [
                 { text: 'Cancel', style: 'cancel' },
                 {
                   text: 'Open channel',
@@ -168,14 +285,14 @@ export default function XBTLightning() {
           />
           <TextInput
             style={{ color: colors.foregroundColor }}
-            accessibilityLabel="Test sats to receive"
-            placeholder="Test sats to receive"
+            accessibilityLabel="Sats to receive"
+            placeholder="Sats to receive"
             keyboardType="number-pad"
             value={amount}
             onChangeText={setAmount}
           />
           <SettingsListItem
-            title="Create test invoice"
+            title="Create invoice"
             disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
             onPress={() =>
               run(async () => {
@@ -191,8 +308,8 @@ export default function XBTLightning() {
           )}
           <TextInput
             style={{ color: colors.foregroundColor }}
-            accessibilityLabel="Test invoice to pay"
-            placeholder="Paste a regtest invoice"
+            accessibilityLabel="Invoice to pay"
+            placeholder="Paste a reginvoice"
             autoCapitalize="none"
             autoCorrect={false}
             value={outgoing}
@@ -203,7 +320,7 @@ export default function XBTLightning() {
             editable={!busy}
           />
           <SettingsListItem
-            title="Review test invoice"
+            title="Review invoice"
             disabled={busy || !outgoing.trim()}
             onPress={() =>
               run(async () => {
@@ -215,13 +332,13 @@ export default function XBTLightning() {
           />
           {review && (
             <SettingsListItem
-              title={'Pay ' + review.sats + ' test sats'}
+              title={'Pay ' + review.sats + ' sats'}
               disabled={busy || pendingPayment.current === review.hash}
               onPress={() => confirm(review)}
             />
           )}
           <SettingsListItem
-            title="Recent test payments"
+            title="Recent payments"
             disabled={busy}
             onPress={() =>
               run(async () => {
@@ -236,7 +353,98 @@ export default function XBTLightning() {
             onPress={() =>
               run(async () => {
                 const url = await bridge.run('backup', '');
-                if (mounted.current) await Share.share({ url });
+                if (mounted.current) await exportBackup(url);
+              })
+            }
+          />
+        </SettingsSection>
+      )}
+      {status === 'Running' && (
+        <SettingsSection>
+          <SettingsFootnote>
+            Manage channels and withdraw the Lightning node’s on-chain balance. Closing a channel requires its peer online and a
+            confirmation before withdrawing the returned funds. Withdrawals currently support SegWit and Taproot addresses beginning with
+            bc1.
+          </SettingsFootnote>
+          <TextInput
+            accessibilityLabel="On-chain fee rate"
+            style={{ color: colors.foregroundColor }}
+            value={feeRate}
+            keyboardType="number-pad"
+            editable={!busy}
+            onChangeText={value => {
+              setFeeRate(value);
+              setWithdrawal(undefined);
+            }}
+          />
+          <SettingsListItem
+            title="Refresh channels"
+            disabled={busy}
+            onPress={() =>
+              run(async () => {
+                const items = await bridge.manage('channels', '', '', '');
+                if (mounted.current) setChannels(items);
+              })
+            }
+          />
+          {channels.map(channel => (
+            <SettingsListItem
+              key={channel.point}
+              title={'Close channel · ' + channel.localSats + ' local sats'}
+              subtitle={channel.point}
+              disabled={busy || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
+              onPress={() => confirmClose(channel)}
+            />
+          ))}
+          <TextInput
+            accessibilityLabel="Withdrawal address"
+            placeholder="XBT address (bc1…)"
+            style={{ color: colors.foregroundColor }}
+            value={destination}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!busy}
+            onChangeText={value => {
+              setDestination(value);
+              setWithdrawal(undefined);
+            }}
+          />
+          <TextInput
+            accessibilityLabel="Withdrawal sats"
+            placeholder="Amount in sats"
+            style={{ color: colors.foregroundColor }}
+            value={withdrawSats}
+            keyboardType="number-pad"
+            editable={!busy}
+            onChangeText={value => {
+              setWithdrawSats(value);
+              setWithdrawal(undefined);
+            }}
+          />
+          <SettingsListItem
+            title="Review withdrawal"
+            disabled={busy || !validFeeRate || !destination.trim() || !/^[1-9][0-9]{0,6}$/.test(withdrawSats)}
+            onPress={() =>
+              run(async () => {
+                const item = await bridge.manage('withdrawReview', destination.trim(), withdrawSats, feeRate);
+                if (mounted.current) setWithdrawal(item);
+              })
+            }
+          />
+          {withdrawal && (
+            <SettingsListItem
+              title={'Withdraw ' + withdrawal.sats + ' sats'}
+              disabled={busy}
+              onPress={() => confirmWithdrawal(withdrawal)}
+            />
+          )}
+          <SettingsListItem
+            title="On-chain history"
+            disabled={busy}
+            onPress={() =>
+              run(async () => {
+                const history = await bridge.manage('history', '', '', '');
+                if (mounted.current) setMessage(history);
               })
             }
           />
@@ -245,8 +453,8 @@ export default function XBTLightning() {
       {['Needs setup', 'Running'].includes(status) && (
         <SettingsSection>
           <SettingsFootnote>
-            Portable test recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export again
-            after channel changes.
+            Portable Lightning recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export
+            again after channel changes.
           </SettingsFootnote>
           <TextInput
             style={{ color: colors.foregroundColor }}
@@ -261,11 +469,11 @@ export default function XBTLightning() {
           />
           {status === 'Needs setup' ? (
             <SettingsListItem
-              title="Restore test wallet from file"
+              title="Restore Lightning wallet from file"
               disabled={busy || phrase.length < 12}
               onPress={() =>
                 Alert.alert(
-                  'Restore to this iPhone?',
+                  'Restore to this device?',
                   'Take the original node offline first. Static channel recovery can close channels and return funds on-chain.',
                   [
                     { text: 'Cancel', style: 'cancel' },
@@ -277,7 +485,12 @@ export default function XBTLightning() {
                           setPhrase('');
                           const [file] = await pick({ type: [types.allFiles] });
                           const [copy] = await keepLocalCopy({
-                            files: [{ uri: file.uri, fileName: 'selected-regtest-recovery.rwln' }],
+                            files: [
+                              {
+                                uri: file.uri,
+                                fileName: 'selected-mainnet-recovery.rwln',
+                              },
+                            ],
                             destination: 'cachesDirectory',
                           });
                           if (copy.status !== 'success') throw Error('Could not read the selected backup.');
@@ -296,7 +509,7 @@ export default function XBTLightning() {
             />
           ) : (
             <SettingsListItem
-              title="Export encrypted test recovery file"
+              title="Export encrypted Lightning recovery file"
               disabled={busy || phrase.length < 12}
               onPress={() =>
                 run(async () => {
@@ -304,7 +517,7 @@ export default function XBTLightning() {
                   setPhrase('');
                   const url = await bridge.recovery('export', password, '');
                   try {
-                    if (mounted.current) await Share.share({ url });
+                    if (mounted.current) await exportBackup(url);
                   } finally {
                     await RNFS.unlink(decodeURIComponent(url.replace(/^file:\/\//, ''))).catch(() => {});
                   }

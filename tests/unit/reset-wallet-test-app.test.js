@@ -7,6 +7,7 @@ function fixture(platform = 'ios') {
   let running = true;
   let installed = true;
   let shell = 1;
+  let camera;
   const device = {
     id,
     getPlatform: () => platform,
@@ -26,14 +27,22 @@ function fixture(platform = 'ios') {
     clearKeychain: jest.fn(async () => events.push('clear')),
     launchApp: jest.fn(async options => {
       if (platform === 'ios' && (!installed || shell !== 2 || options.permissions || options.delete)) throw new Error('unsafe launch');
+      if (device.expectedCamera && camera !== device.expectedCamera) throw new Error('camera permission prompt would block scan');
       events.push('launch');
     }),
   };
   const run = jest.fn((command, args) => {
+    if (command === 'xcrun' && args[1] === 'privacy') {
+      if (running || !installed || shell !== 2) throw new Error('permission applied before reset settled');
+      camera = args[3] === 'grant' ? 'YES' : 'NO';
+      events.push('camera-' + args[3]);
+      return '';
+    }
     if (command === 'applesimutils') {
       if (running || !installed) throw new Error('reset raced live app or install');
       events.push('reset');
       shell = 2;
+      camera = undefined; // Observed iOS failure: combined reset did not retain camera authorization.
       return '';
     }
     return 'PID Status Label\n' + shell + ' 0 com.apple.SpringBoard\n';
@@ -41,12 +50,32 @@ function fixture(platform = 'ios') {
   return { device, events, run };
 }
 
-test.each([{}, { notifications: 'YES' }, { notifications: 'YES', camera: 'YES' }])(
+test.each([{}, { notifications: 'YES' }, { notifications: 'YES', camera: 'YES' }, { camera: 'NO' }])(
   'fresh wallet launch preserves permissions %j and waits until the replacement shell is observed',
   async permissions => {
     const { device, events, run } = fixture();
+    device.expectedCamera = permissions.camera;
     await resetWalletTestApp(device, { permissions, launchArgs: { example: 1 } }, run);
-    expect(events).toEqual(['terminate', 'uninstall', 'install', 'reset', 'launch']);
+    expect(events).toEqual([
+      'terminate',
+      'uninstall',
+      'install',
+      'reset',
+      ...(permissions.camera ? ['camera-' + (permissions.camera === 'YES' ? 'grant' : 'revoke')] : []),
+      'launch',
+    ]);
+    const privacyCalls = run.mock.calls.filter(([command, args]) => command === 'xcrun' && args[1] === 'privacy');
+    expect(privacyCalls).toEqual(
+      permissions.camera
+        ? [
+            [
+              'xcrun',
+              ['simctl', 'privacy', id, permissions.camera === 'YES' ? 'grant' : 'revoke', 'camera', 'com.romanmodin.redwallet'],
+              { encoding: 'utf8', timeout: 15000 },
+            ],
+          ]
+        : [],
+    );
     expect(device.clearKeychain).not.toHaveBeenCalled();
     const resets = run.mock.calls.filter(([command]) => command === 'applesimutils');
     expect(resets).toHaveLength(1);
@@ -123,3 +152,16 @@ test.each([null, [], { location: 'YES' }, { camera: 'MAYBE' }])(
     expect(run).not.toHaveBeenCalled();
   },
 );
+
+test('a failed camera permission command stops before launch without retrying the reset', async () => {
+  const { device, run } = fixture();
+  const original = run.getMockImplementation();
+  run.mockImplementation((command, args) => {
+    if (command === 'xcrun' && args[1] === 'privacy') throw new Error('camera grant failed');
+    return original(command, args);
+  });
+  await expect(resetWalletTestApp(device, { permissions: { camera: 'YES' } }, run)).rejects.toThrow('camera grant failed');
+  expect(device.launchApp).not.toHaveBeenCalled();
+  expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(1);
+  expect(run.mock.calls.filter(([, args]) => args[1] === 'privacy')).toHaveLength(1);
+});

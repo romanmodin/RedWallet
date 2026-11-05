@@ -15,6 +15,19 @@ GATES = (
 )
 
 
+
+def required_gates(*, regtest=False, mainnet=False):
+    if regtest and mainnet:
+        raise RuntimeError("Choose exactly one Lightning network")
+    gates = GATES
+    if regtest or mainnet:
+        jobs = {"regtest (wallet)", "regtest (payments)"}
+        if mainnet:
+            jobs.add("public-sync")
+        gates += (("LND_IOS_RUN_ID", ".github/workflows/xbt-lnd-ios.yml", jobs),)
+    return gates
+
+
 def validate_gate(run, jobs, source, workflow, required_jobs):
     if run["repository"]["full_name"] != REPOSITORY or run["head_repository"]["full_name"] != REPOSITORY:
         raise RuntimeError("Gate belongs to a different source repository")
@@ -46,9 +59,8 @@ def main():
     if not re.fullmatch(r"[0-9a-f]{40}", source):
         raise RuntimeError("Expected a full source commit")
     receipts = []
-    gates = GATES
-    if os.environ.get("VERIFY_LND_REGTEST_IPA") == "1":
-        gates += (("LND_IOS_RUN_ID", ".github/workflows/xbt-lnd-ios.yml", {"regtest (wallet)", "regtest (payments)"}),)
+    gates = required_gates(regtest=os.environ.get("VERIFY_LND_REGTEST_IPA") == "1",
+                           mainnet=os.environ.get("VERIFY_LND_MAINNET_IPA") == "1")
     for variable, workflow, required_jobs in gates:
         run_id = os.environ[variable]
         if not run_id.isdecimal():

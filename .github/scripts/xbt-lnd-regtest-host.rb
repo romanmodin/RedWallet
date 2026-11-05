@@ -35,6 +35,11 @@ tests.build_configurations.each do |c|
   c.build_settings['BUNDLE_LOADER'] = '$(TEST_HOST)'
   c.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = '$(inherited) XBT_LND_ROUTED_TEST' if ENV['REGTEST_TIER'] == 'payments'
 end
+if ENV['XBT_PUBLIC_SMOKE'] == '1'
+  tests.build_configurations.each do |c|
+    c.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = '$(inherited) XBT_LND_PUBLIC_SMOKE'
+  end
+end
 objects = Xcodeproj::Project::Object
 package = project.new(objects::XCLocalSwiftPackageReference)
 package.relative_path = File.expand_path('ios/XBTLightning')
@@ -46,10 +51,13 @@ tests.package_product_dependencies << product
 link = project.new(objects::PBXBuildFile)
 link.product_ref = product
 tests.frameworks_build_phase.files << link
-source = File.expand_path('ios/XBTLightning/Tests/XBTLightningTests/RegtestTests.swift')
-tests.source_build_phase.add_file_reference(project.main_group.new_file(source))
+Dir.glob('ios/XBTLightning/Tests/XBTLightningTests/*.swift').sort.each do |path|
+  tests.source_build_phase.add_file_reference(project.main_group.new_file(File.expand_path(path)))
+end
 if restore
-  %w[RestoreFixture.rwln RestoreIdentity.txt].each do |name|
+  resources = %w[RestoreFixture.rwln RestoreIdentity.txt]
+  resources << 'RestoreBalance.txt' if ENV['REGTEST_TIER'] == 'payments'
+  resources.each do |name|
     tests.resources_build_phase.add_file_reference(project.main_group.new_file(name))
   end
 end

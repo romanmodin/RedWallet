@@ -72,6 +72,11 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def regtestAar = project.findProperty("xbtRegtestAar")
+def mainnetAar = project.findProperty("xbtMainnetAar")
+if (regtestAar && mainnetAar) throw new GradleException("Choose exactly one Lightning network")
+def lightningAar = mainnetAar ?: regtestAar
+
 android {
     androidResources {
         noCompress += ["bundle"]
@@ -85,6 +90,10 @@ android {
     defaultConfig {
         applicationId "com.romanmodin.redwallet"
         minSdkVersion rootProject.ext.minSdkVersion
+        if (regtestAar) applicationIdSuffix ".regtest"
+        if (mainnetAar) applicationIdSuffix ".lightning"
+        buildConfigField "boolean", "XBT_LIGHTNING_MAINNET", mainnetAar ? "true" : "false"
+        manifestPlaceholders.redwalletAppLabel = mainnetAar ? "RedWallet Lightning" : (regtestAar ? "RedWallet Lightning Test" : "@string/app_name")
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = (project.findProperty("redwalletVersionCode") ?: "1").toInteger()
         versionName "8.0.1"
@@ -100,9 +109,10 @@ android {
     }
 
     sourceSets {
+        if (lightningAar) androidTest.java.srcDirs += "src/xbtRegtestTest/java"
         main {
             assets.srcDirs = ['src/main/assets', 'src/main/res/assets']
-            java.srcDirs = ['src/main/java', '../../blue_modules/Views/SegmentedControl/android']
+            java.srcDirs = ['src/main/java', '../../blue_modules/Views/SegmentedControl/android', lightningAar ? 'src/xbtRegtest/java' : 'src/standard/java']
         }
     }
 
@@ -131,6 +141,10 @@ tasks.configureEach { task ->
 }
 
 dependencies {
+    if (lightningAar) {
+        implementation files(lightningAar)
+        implementation 'com.google.protobuf:protobuf-javalite:3.25.5'
+    }
 		androidTestImplementation('com.wix:detox:+')
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")

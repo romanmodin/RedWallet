@@ -571,7 +571,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             {journal && !['complete', 'aborted'].includes(journal.phase) && (
               <>
                 <SettingsFootnote>
-                  Keep RedWallet open for continuous participation. If iOS suspends it, RedWallet will try to reconnect when you return. A
+                  Keep RedWallet open for continuous participation. If your phone suspends it, RedWallet will try to reconnect when you return. A
                   missed deadline can end the round.
                 </SettingsFootnote>
                 {!!active?.autoIssue && <SettingsFootnote>{active.autoIssue}</SettingsFootnote>}

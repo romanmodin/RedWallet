@@ -15,16 +15,17 @@ extension ProtoFields {
 
 extension RegtestNode {
     public func receive(sats: UInt64) async throws -> String {
+        try await requireSynced()
         guard (1...1_000_000).contains(sats) else { throw NodeFailure.invalidAmount }
         let request = ProtoFields.field(5, integer: sats) + ProtoFields.field(11, integer: 3600) + ProtoFields.field(15, integer: 1)
         let reply = try ProtoFields(await rpc { LndmobileAddInvoice(request, $0) })
         let invoice = try reply.string(2)
-        guard invoice.hasPrefix("lnbcrt") else { throw NodeFailure.invalidReply }
+        guard invoice.hasPrefix(invoicePrefix) && (!mainnet || !invoice.hasPrefix("lnbcrt")) else { throw NodeFailure.invalidReply }
         return invoice
     }
 
     public func decode(_ invoice: String) async throws -> (sats: UInt64, destination: String, hash: String) {
-        guard invoice.hasPrefix("lnbcrt"), invoice.utf8.count <= 8192 else { throw NodeFailure.invalidReply }
+        guard invoice.hasPrefix(invoicePrefix) && (!mainnet || !invoice.hasPrefix("lnbcrt")), invoice.utf8.count <= 8192 else { throw NodeFailure.invalidReply }
         let request = ProtoFields.field(1, data: Data(invoice.utf8))
         let reply = try ProtoFields(await rpc { LndmobileDecodePayReq(request, $0) })
         let featureBits = try (reply.bytes[13] ?? []).map { try ProtoFields($0).integers[1] }
@@ -40,9 +41,9 @@ extension RegtestNode {
         let lines = try (reply.bytes[1] ?? []).map { data -> String in
             let p = try ProtoFields(data)
             let status = [1: "In flight", 2: "Settled", 3: "Failed", 4: "Initiated"][Int(p.integers[10] ?? 0)] ?? "Unknown"
-            return "\(p.integers[7] ?? 0) test sats · " + status + " · " + String(try p.string(1).prefix(12))
+            return "\(p.integers[7] ?? 0) \(units) · " + status + " · " + String(try p.string(1).prefix(12))
         }
-        return lines.isEmpty ? "No outgoing test payments." : lines.joined(separator: "\n")
+        return lines.isEmpty ? (mainnet ? "No outgoing payments." : "No outgoing test payments.") : lines.joined(separator: "\n")
     }
 
     public func channelBackup() async throws -> Data {
@@ -71,6 +72,7 @@ private final class PaymentResult: NSObject, LndmobileRecvStreamProtocol {
 extension RegtestNode {
     // Bind the confirmation to the invoice the user actually reviewed.
     public func pay(invoice: String, expectedHash: String, expectedSats: UInt64) async throws -> Bool {
+        try await requireSynced()
         let decoded = try await decode(invoice)
         guard decoded.hash == expectedHash, decoded.sats == expectedSats else { throw NodeFailure.invalidReply }
         let request = ProtoFields.field(5, data: Data(invoice.utf8)) + ProtoFields.field(6, integer: 30) + ProtoFields.field(7, integer: 10)

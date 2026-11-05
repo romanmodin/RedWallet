@@ -1,0 +1,116 @@
+name: Android embedded XBT Lightning
+on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/scripts/build-xbt-lnd-android.sh'
+      - '.github/workflows/xbt-lnd-android.yml'
+      - 'screen/settings/XBTLightning.tsx'
+      - '.github/scripts/test-xbt-lnd-android.sh'
+      - '.github/scripts/test-xbt-lnd-android-mainnet.sh'
+      - '.github/scripts/xbt-lnd-regtest-peer.py'
+      - '.github/scripts/test-xbt-lnd-regtest-peer.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regtest:
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [regtest, mainnet]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Validate disposable routing readiness
+        run: python3 .github/scripts/test-xbt-lnd-regtest-peer.py
+      - name: Free build space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android/sdk/ndk
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install build tools
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+          npm ci
+      - name: Restore pinned native test binaries
+        id: engine-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: |
+            ${{ runner.temp }}/Lndmobile.aar
+            ${{ runner.temp }}/lnd-regtest/ln-bin
+          key: android-xbt-engine-v1-${{ hashFiles('.github/scripts/build-xbt-lnd-android.sh') }}
+      - name: Build pinned Android Lightning engine
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        run: XBT_FIXTURE_BIN="$RUNNER_TEMP/lnd-regtest/ln-bin" ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" .github/scripts/build-xbt-lnd-android.sh "$RUNNER_TEMP/Lndmobile.aar"
+      - name: Cache verified build for this pull request
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: |
+            ${{ runner.temp }}/Lndmobile.aar
+            ${{ runner.temp }}/lnd-regtest/ln-bin
+          key: android-xbt-engine-v1-${{ hashFiles('.github/scripts/build-xbt-lnd-android.sh') }}
+      - name: Restore Android build cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-lightning-${{ runner.os }}-${{ hashFiles('android/**/*.gradle', 'android/**/*.properties') }}
+          restore-keys: |
+            android-lightning-${{ runner.os }}-
+      - name: Compile the isolated Android test build
+        working-directory: android
+        run: |
+          property=xbtRegtestAar
+          if [ "${{ matrix.network }}" = mainnet ]; then property=xbtMainnetAar; fi
+          ./gradlew --no-daemon --max-workers=2 :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest "-P$property=$RUNNER_TEMP/Lndmobile.aar" -PreactNativeArchitectures=arm64-v8a,x86_64 -PredwalletVersionCode=${{ github.run_number }}
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify routed payments and clean-install recovery on Android
+        if: matrix.network == 'regtest'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          arch: x86_64
+          disable-animations: true
+          script: .github/scripts/test-xbt-lnd-android.sh
+      - name: Verify public XBT sync without funding
+        if: matrix.network == 'mainnet'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          arch: x86_64
+          disable-animations: true
+          script: .github/scripts/test-xbt-lnd-android-mainnet.sh
+      - name: Retain failed regtest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: android-lightning-${{ matrix.network }}-failure-diagnostics
+          path: ${{ runner.temp }}/lnd-regtest/diagnostics/
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: redwallet-android-xbt-${{ matrix.network }}-unsigned
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
