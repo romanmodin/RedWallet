@@ -286,6 +286,9 @@ jobs:
           name: Kilowallet_Encrypted_IPA
           path: kilowallet-ipa.enc
           retention-days: 7
+      - name: Verify US-only availability immediately before 1.0 upload
+        if: ${{ inputs.upload_to_testflight && startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
+        run: python3 signing/distribution/kilowallet/verify_territories.py
       - name: Upload Kilowallet to TestFlight
         if: ${{ inputs.upload_to_testflight }}
         run: |
@@ -307,6 +310,7 @@ jobs:
             kilowallet-archive-verification.json
             kilowallet-package-verification.json
             kilowallet-apple-processing.json
+            kilowallet-territory-preflight.json
           if-no-files-found: ignore
           retention-days: 30
       - name: Clean up temporary credentials
