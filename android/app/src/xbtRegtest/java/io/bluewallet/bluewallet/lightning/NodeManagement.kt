@@ -20,6 +20,18 @@ internal object NodeManagement {
                 putBoolean("active",channel.number(1) == 1L); putString("localSats",channel.number(6).toString())
             }) }
         }
+        "channelStatus" -> {
+            val pending = RegtestNode.rpc { Lndmobile.pendingChannels(ByteArray(0),it) }
+            val open = RegtestNode.rpc { Lndmobile.listChannels(ByteArray(0),it) }
+            Arguments.createArray().apply {
+                ChannelStatus.decode(open, pending).forEach { channel -> pushMap(Arguments.createMap().apply {
+                    putString("point",channel.point); putString("peer",channel.peer)
+                    putString("state",channel.state); putBoolean("active",channel.state == "active")
+                    putString("localSats",channel.localSats.toString())
+                    channel.confirmationsRemaining?.let { putDouble("confirmationsRemaining",it.toDouble()) }
+                }) }
+            }
+        }
         "withdrawReview" -> {
             RegtestNode.requireSynced()
             val amount = sats.toLong(); val fee = feeRate.toLong()

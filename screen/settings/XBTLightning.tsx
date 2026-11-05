@@ -1,10 +1,11 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Keyboard,
   NativeModules,
   Platform,
@@ -25,6 +26,8 @@ type Channel = {
   peer: string;
   active: boolean;
   localSats: string;
+  state: 'active' | 'inactive' | 'pending' | 'closing' | 'forceClosing';
+  confirmationsRemaining?: number;
 };
 type Withdrawal = {
   token: string;
@@ -38,6 +41,36 @@ type Review = {
   sats: string;
   destination: string;
 };
+
+function summarizeChannels(items: Channel[]) {
+  const active = items.filter(channel => channel.state === 'active').length;
+  const inactive = items.filter(channel => channel.state === 'inactive').length;
+  const pending = items.filter(channel => channel.state === 'pending').length;
+  const closing = items.filter(channel => ['closing', 'forceClosing'].includes(channel.state)).length;
+  return { open: active + inactive, active, inactive, pending, closing };
+}
+
+function channelSummary(items: Channel[]) {
+  const counts = summarizeChannels(items);
+  return counts.open + ' open · ' + counts.active + ' active · ' + counts.pending + ' pending · ' + counts.closing + ' closing';
+}
+
+function channelState(channel: Channel) {
+  switch (channel.state) {
+    case 'active':
+      return 'Active';
+    case 'inactive':
+      return 'Open · Inactive';
+    case 'pending':
+      return channel.confirmationsRemaining
+        ? 'Pending · ' + channel.confirmationsRemaining + ' confirmation(s) remaining'
+        : 'Pending · Waiting for confirmations or peer readiness';
+    case 'forceClosing':
+      return 'Force closing · Funds awaiting recovery';
+    case 'closing':
+      return 'Closing · Waiting for settlement';
+  }
+}
 
 async function exportBackup(url: string) {
   if (Platform.OS === 'android') {
@@ -72,7 +105,9 @@ export default function XBTLightning() {
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
-  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channels, setChannels] = useState<Channel[]>();
+  const [channelError, setChannelError] = useState(false);
+  const channelRequest = useRef<Promise<Channel[]> | undefined>(undefined);
   const [destination, setDestination] = useState('');
   const [withdrawSats, setWithdrawSats] = useState('');
   const [feeRate, setFeeRate] = useState('1');
@@ -82,6 +117,29 @@ export default function XBTLightning() {
   const pending = useRef(false);
   const mounted = useRef(false);
   const pendingPayment = useRef<string | undefined>(undefined);
+  const refreshChannels = useCallback((): Promise<Channel[]> => {
+    if (channelRequest.current) return channelRequest.current;
+    const request = Promise.resolve()
+      .then(() => bridge.manage('channelStatus', '', '', '') as Promise<Channel[]>)
+      .then(
+        items => {
+          if (mounted.current) {
+            setChannels(items);
+            setChannelError(false);
+          }
+          return items;
+        },
+        error => {
+          if (mounted.current) setChannelError(true);
+          throw error;
+        },
+      )
+      .finally(() => {
+        channelRequest.current = undefined;
+      });
+    channelRequest.current = request;
+    return request;
+  }, []);
   const run = async (title: string, action: () => Promise<void>) => {
     if (pending.current) return;
     pending.current = true;
@@ -163,6 +221,23 @@ export default function XBTLightning() {
       clearTimeout(timer);
     };
   }, [status]);
+  useEffect(() => {
+    if (status !== 'Running') return;
+    const refresh = () => {
+      if (AppState.currentState !== 'background' && AppState.currentState !== 'inactive') {
+        refreshChannels().catch(() => {});
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 15000);
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') refresh();
+    });
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [status, refreshChannels]);
   const confirm = (payment: Review) =>
     Alert.alert('Pay invoice?', payment.sats + ' sats to ' + payment.destination + '. Maximum routing fee: 10 sats.', [
       { text: 'Cancel', style: 'cancel' },
@@ -221,6 +296,7 @@ export default function XBTLightning() {
               submitted.current.add(channel.point);
               try {
                 const txid = await bridge.manage('close', channel.point, '', rate);
+                refreshChannels().catch(() => {});
                 if (mounted.current) setMessage('Channel close broadcast: ' + txid + '. Funds become available after confirmation.');
               } catch {
                 if (mounted.current) setMessage('Channel close was not confirmed. Check channels and on-chain history before retrying.');
@@ -252,7 +328,14 @@ export default function XBTLightning() {
         {status === 'Stopped' && (
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
-            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
+            style={[
+              styles.input,
+              {
+                color: colors.foregroundColor,
+                backgroundColor: panelBackground,
+                borderColor: colors.hdborderColor,
+              },
+            ]}
             accessibilityLabel="Optional XBT chain peer"
             placeholder="Automatic XBT peers, or host:port"
             autoCapitalize="none"
@@ -302,6 +385,28 @@ export default function XBTLightning() {
             },
           ]}
         >
+          {status === 'Running' && (
+            <View testID="LightningChannelSummary" style={[styles.channelSummary, { borderBottomColor: colors.hdborderColor }]}>
+              <Text style={[styles.activityTitle, { color: colors.alternativeTextColor2 }]}>
+                {channels ? 'Channels · ' + summarizeChannels(channels).open + ' open' : 'Channels'}
+              </Text>
+              <Text accessibilityLiveRegion="polite" style={[styles.activityText, { color: colors.foregroundColor }]}>
+                {channels
+                  ? summarizeChannels(channels).active +
+                    ' active · ' +
+                    summarizeChannels(channels).inactive +
+                    ' inactive\n' +
+                    summarizeChannels(channels).pending +
+                    ' pending · ' +
+                    summarizeChannels(channels).closing +
+                    ' closing'
+                  : channelError
+                    ? 'Channel count unavailable. Tap Refresh channels to retry.'
+                    : 'Checking channels…'}
+              </Text>
+              {channelError && channels && <Text style={{ color: colors.alternativeTextColor2 }}>Last known counts · Refresh failed</Text>}
+            </View>
+          )}
           <View style={styles.activityHeader}>
             <Text accessibilityRole="header" style={[styles.activityTitle, { color: colors.alternativeTextColor2 }]}>
               {activityError ? activityTitle + ' · Error' : activityTitle}
@@ -362,7 +467,14 @@ export default function XBTLightning() {
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="Lightning peer"
-            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
+            style={[
+              styles.input,
+              {
+                color: colors.foregroundColor,
+                backgroundColor: panelBackground,
+                borderColor: colors.hdborderColor,
+              },
+            ]}
             placeholder="pubkey@host:port"
             value={lightningPeer}
             autoCapitalize="none"
@@ -375,6 +487,11 @@ export default function XBTLightning() {
             disabled={busy || !lightningPeer}
             onPress={() =>
               run('Connect Lightning peer', async () => {
+                if (/\.onion(?::[0-9]+)?$/i.test(lightningPeer.trim())) {
+                  throw new Error(
+                    'Tor-only Lightning peers are not supported by this build. Use a reachable IP or DNS address for the same XBT network.',
+                  );
+                }
                 const result = await bridge.invoice('connect', lightningPeer.trim(), '', '');
                 if (mounted.current) setMessage(result);
               })
@@ -389,7 +506,7 @@ export default function XBTLightning() {
                 'Open a private channel?',
                 'Commit 100,000 sats at 1 sat/vB to ' +
                   key +
-                  '. Each confirmation creates a new channel. After opening, wait for the funding transaction to confirm.',
+                  '. Tapping Open channel creates a new channel. After opening, wait for the funding transaction to confirm.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {
@@ -397,6 +514,7 @@ export default function XBTLightning() {
                     onPress: () =>
                       run('Open private channel', async () => {
                         const point = await bridge.invoice('open', key, '', '100000');
+                        refreshChannels().catch(() => {});
                         if (mounted.current)
                           setMessage(
                             'Funding transaction: ' +
@@ -411,7 +529,14 @@ export default function XBTLightning() {
           />
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
-            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
+            style={[
+              styles.input,
+              {
+                color: colors.foregroundColor,
+                backgroundColor: panelBackground,
+                borderColor: colors.hdborderColor,
+              },
+            ]}
             accessibilityLabel="Sats to receive"
             placeholder="Sats to receive"
             keyboardType="number-pad"
@@ -430,7 +555,14 @@ export default function XBTLightning() {
           />
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
-            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
+            style={[
+              styles.input,
+              {
+                color: colors.foregroundColor,
+                backgroundColor: panelBackground,
+                borderColor: colors.hdborderColor,
+              },
+            ]}
             accessibilityLabel="Invoice to pay"
             placeholder="Paste a Lightning invoice"
             autoCapitalize="none"
@@ -496,7 +628,14 @@ export default function XBTLightning() {
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="On-chain fee rate"
-            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
+            style={[
+              styles.input,
+              {
+                color: colors.foregroundColor,
+                backgroundColor: panelBackground,
+                borderColor: colors.hdborderColor,
+              },
+            ]}
             value={feeRate}
             keyboardType="number-pad"
             editable={!busy}
@@ -510,32 +649,41 @@ export default function XBTLightning() {
             disabled={busy}
             onPress={() =>
               run('Refresh channels', async () => {
-                const items = await bridge.manage('channels', '', '', '');
-                if (mounted.current) {
-                  setChannels(items);
-                  setMessage(
-                    items.length
-                      ? items.length + ' channel(s) loaded below.'
-                      : 'No open channels. Pending channels may still be awaiting confirmation. Check On-chain history.',
-                  );
-                }
+                const items = await refreshChannels();
+                if (mounted.current) setMessage(items.length ? channelSummary(items) + '. Details below.' : 'No open or pending channels.');
               })
             }
           />
-          {channels.map(channel => (
-            <SettingsListItem
-              key={channel.point}
-              title={'Close channel · ' + channel.localSats + ' local sats'}
-              subtitle={channel.point}
-              disabled={busy || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
-              onPress={() => confirmClose(channel)}
-            />
+          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+            Open includes active and inactive channels. Pending channels are still opening. Counts refresh while this screen is open.
+          </SettingsFootnote>
+          {(channels ?? []).map(channel => (
+            <View key={channel.point}>
+              <SettingsListItem
+                title={channelState(channel)}
+                subtitle={'Local balance: ' + channel.localSats + ' sats\nPeer: ' + channel.peer + '\nFunding: ' + channel.point}
+              />
+              {['active', 'inactive'].includes(channel.state) && (
+                <SettingsListItem
+                  title={'Close channel · ' + channel.localSats + ' local sats'}
+                  disabled={busy || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
+                  onPress={() => confirmClose(channel)}
+                />
+              )}
+            </View>
           ))}
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="Withdrawal address"
             placeholder="XBT address (bc1…)"
-            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
+            style={[
+              styles.input,
+              {
+                color: colors.foregroundColor,
+                backgroundColor: panelBackground,
+                borderColor: colors.hdborderColor,
+              },
+            ]}
             value={destination}
             autoCapitalize="none"
             autoCorrect={false}
@@ -549,7 +697,14 @@ export default function XBTLightning() {
             placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="Withdrawal sats"
             placeholder="Amount in sats"
-            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
+            style={[
+              styles.input,
+              {
+                color: colors.foregroundColor,
+                backgroundColor: panelBackground,
+                borderColor: colors.hdborderColor,
+              },
+            ]}
             value={withdrawSats}
             keyboardType="number-pad"
             editable={!busy}
@@ -598,7 +753,14 @@ export default function XBTLightning() {
           </SettingsFootnote>
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
-            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
+            style={[
+              styles.input,
+              {
+                color: colors.foregroundColor,
+                backgroundColor: panelBackground,
+                borderColor: colors.hdborderColor,
+              },
+            ]}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
@@ -680,6 +842,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  channelSummary: { borderBottomWidth: 1, paddingBottom: 6, marginBottom: 6 },
   activityHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   activityTitle: { flex: 1, fontSize: 14, fontWeight: '600' },
   copyButton: {

@@ -58,9 +58,16 @@ class LightningDeviceTest {
         RegtestNode.invoice("connect",remote + "@127.0.0.1:19735","","")
         waitForFixtureSync()
         val point = RegtestNode.invoice("open",remote,"","100000") as String
+        val opening = NodeManagement.run("channelStatus","","","") as com.facebook.react.bridge.ReadableArray
+        assertEquals(1,opening.size())
+        assertEquals(point,opening.getMap(0)!!.getString("point"))
+        assertEquals("pending",opening.getMap(0)!!.getString("state"))
         fixture("confirm",point)
         waitForFixtureSync()
         waitFor { node("details").contains("Active channels: 1") }
+        val opened = NodeManagement.run("channelStatus","","","") as com.facebook.react.bridge.ReadableArray
+        assertEquals(1,opened.size())
+        assertEquals("active",opened.getMap(0)!!.getString("state"))
         val outgoing = fixture("invoice")
         val review = RegtestNode.invoice("decode",outgoing,"","") as com.facebook.react.bridge.ReadableMap
         val hash = requireNotNull(review.getString("hash"))

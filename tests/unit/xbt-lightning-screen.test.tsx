@@ -1,7 +1,7 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import React from 'react';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
-import { Alert, NativeModules } from 'react-native';
+import { Alert, AppState, NativeModules } from 'react-native';
 
 jest.mock('@react-native-documents/picker', () => ({ types: {} }));
 jest.mock('react-native-fs', () => ({}));
@@ -16,7 +16,16 @@ const bridge = {
   peer: jest.fn(async () => ''),
   manage: jest.fn(
     async (action: string): Promise<unknown> =>
-      action === 'withdrawReview' ? { token: 'review-token', address: 'bc1q-fixture', sats: '1000', feeRate: '2' } : 'fixture-txid',
+      action === 'channelStatus'
+        ? []
+        : action === 'withdrawReview'
+          ? {
+              token: 'review-token',
+              address: 'bc1q-fixture',
+              sats: '1000',
+              feeRate: '2',
+            }
+          : 'fixture-txid',
   ),
   run: jest.fn<Promise<string>, [string, string]>(async () => 'Running'),
   invoice: jest.fn(async (action: string) =>
@@ -96,7 +105,7 @@ test('withdrawal requires confirmation, binds the reviewed token, and submits on
     fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '1000');
     fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '2');
     await act(async () => fireEvent.press(screen.getByText('Review withdrawal')));
-    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['withdrawReview']);
+    expect(bridge.manage.mock.calls.map(c => c[0]).filter(action => action !== 'channelStatus')).toEqual(['withdrawReview']);
     fireEvent.press(screen.getByText('Withdraw 1000 sats'));
     const [, detail, buttons] = prompt.mock.calls[0];
     expect(detail).toContain('bc1q-fixture');
@@ -107,7 +116,7 @@ test('withdrawal requires confirmation, binds the reviewed token, and submits on
       confirm();
     });
     expect(bridge.manage).toHaveBeenCalledWith('withdraw', 'review-token', '', '');
-    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['withdrawReview', 'withdraw']);
+    expect(bridge.manage.mock.calls.map(c => c[0]).filter(action => action !== 'channelStatus')).toEqual(['withdrawReview', 'withdraw']);
     expect(screen.getByText('Withdrawal broadcast: fixture-txid')).toBeTruthy();
     screen.unmount();
   } finally {
@@ -130,14 +139,23 @@ test('editing withdrawal details invalidates the prior review', async () => {
 test('cooperative close confirms the selected channel and fee rate and ignores a repeated tap', async () => {
   const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   bridge.manage.mockClear();
-  bridge.manage.mockResolvedValueOnce([{ point: 'fixture-point:0', peer: 'fixture-peer', active: true, localSats: '82000' }]);
+  const channels = [
+    {
+      point: 'fixture-point:0',
+      peer: 'fixture-peer',
+      active: true,
+      state: 'active',
+      localSats: '82000',
+    },
+  ];
+  bridge.manage.mockResolvedValueOnce(channels).mockResolvedValueOnce(channels);
   try {
     const screen = render(<XBTLightning />);
     await act(async () => {});
     fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '2');
-    await act(async () => fireEvent.press(screen.getByText('Refresh channels')));
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Refresh channels' })));
     fireEvent.press(screen.getByText('Close channel · 82000 local sats'));
-    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['channels']);
+    expect(bridge.manage.mock.calls.map(c => c[0]).filter(action => action !== 'channelStatus')).toEqual([]);
     const [, detail, buttons] = prompt.mock.calls[0];
     expect(detail).toContain('Starting fee rate: 2 sat/vB');
     expect(detail).toContain('capped at 6 sat/vB');
@@ -148,7 +166,7 @@ test('cooperative close confirms the selected channel and fee rate and ignores a
       confirm();
     });
     expect(bridge.manage).toHaveBeenCalledWith('close', 'fixture-point:0', '', '2');
-    expect(bridge.manage.mock.calls.map(c => c[0])).toEqual(['channels', 'close']);
+    expect(bridge.manage.mock.calls.map(c => c[0]).filter(action => action !== 'channelStatus')).toEqual(['close']);
     screen.unmount();
   } finally {
     prompt.mockRestore();
@@ -252,8 +270,151 @@ test('created receive invoices and empty channel results are surfaced in the act
   await act(async () => fireEvent.press(screen.getByText('Create invoice')));
   expect(panel.getByText('ln-xbt-invoice')).toBeTruthy();
   bridge.manage.mockResolvedValueOnce([]);
-  await act(async () => fireEvent.press(screen.getByText('Refresh channels')));
-  expect(panel.getByText('No open channels. Pending channels may still be awaiting confirmation. Check On-chain history.')).toBeTruthy();
+  await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Refresh channels' })));
+  expect(panel.getByText('No open or pending channels.')).toBeTruthy();
   expect(panel.queryByText('ln-xbt-invoice')).toBeNull();
+  screen.unmount();
+});
+
+test('channel summary separates open, active, pending and closing and never offers to close pending channels', async () => {
+  bridge.manage.mockResolvedValueOnce([
+    {
+      point: 'active:0',
+      peer: 'peer-a',
+      state: 'active',
+      active: true,
+      localSats: '80000',
+    },
+    {
+      point: 'inactive:0',
+      peer: 'peer-b',
+      state: 'inactive',
+      active: false,
+      localSats: '70000',
+    },
+    {
+      point: 'pending:0',
+      peer: 'peer-c',
+      state: 'pending',
+      active: false,
+      localSats: '90000',
+      confirmationsRemaining: 2,
+    },
+    {
+      point: 'closing:0',
+      peer: 'peer-d',
+      state: 'closing',
+      active: false,
+      localSats: '60000',
+    },
+  ]);
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  const summary = within(screen.getByTestId('LightningChannelSummary'));
+  expect(summary.getByText('Channels · 2 open')).toBeTruthy();
+  expect(summary.getByText('1 active · 1 inactive\n1 pending · 1 closing')).toBeTruthy();
+  expect(screen.getByText('Pending · 2 confirmation(s) remaining')).toBeTruthy();
+  expect(screen.queryByText('Close channel · 90000 local sats')).toBeNull();
+  expect(screen.queryByText('Close channel · 60000 local sats')).toBeNull();
+  screen.unmount();
+});
+
+test('automatic channel refresh promotes pending to active without replacing the action result', async () => {
+  jest.useFakeTimers();
+  bridge.manage.mockResolvedValueOnce([
+    {
+      point: 'same:0',
+      peer: 'peer-a',
+      state: 'pending',
+      active: false,
+      localSats: '90000',
+    },
+  ]);
+  const screen = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    const summary = within(screen.getByTestId('LightningChannelSummary'));
+    expect(summary.getByText('Channels · 0 open')).toBeTruthy();
+    bridge.run.mockResolvedValueOnce('bc1q-funding-result');
+    await act(async () => fireEvent.press(screen.getByText('Get XBT funding address')));
+    bridge.manage.mockResolvedValueOnce([
+      {
+        point: 'same:0',
+        peer: 'peer-a',
+        state: 'active',
+        active: true,
+        localSats: '90000',
+      },
+    ]);
+    await act(async () => jest.advanceTimersByTime(15000));
+    expect(summary.getByText('Channels · 1 open')).toBeTruthy();
+    expect(summary.getByText('1 active · 0 inactive\n0 pending · 0 closing')).toBeTruthy();
+    expect(within(screen.getByTestId('LightningActivityPanel')).getByText('bc1q-funding-result')).toBeTruthy();
+  } finally {
+    screen.unmount();
+    jest.useRealTimers();
+  }
+});
+
+test('failed channel refresh preserves last known counts and distinguishes unavailable data from zero', async () => {
+  bridge.manage.mockRejectedValueOnce(new Error('Unavailable'));
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  const summary = within(screen.getByTestId('LightningChannelSummary'));
+  expect(summary.getByText('Channel count unavailable. Tap Refresh channels to retry.')).toBeTruthy();
+  expect(summary.queryByText('Channels · 0 open')).toBeNull();
+  bridge.manage.mockResolvedValueOnce([
+    {
+      point: 'active:0',
+      peer: 'peer-a',
+      state: 'active',
+      active: true,
+      localSats: '80000',
+    },
+  ]);
+  await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Refresh channels' })));
+  bridge.manage.mockRejectedValueOnce(new Error('Disconnected'));
+  await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Refresh channels' })));
+  expect(summary.getByText('Channels · 1 open')).toBeTruthy();
+  expect(summary.getByText('Last known counts · Refresh failed')).toBeTruthy();
+  screen.unmount();
+});
+
+test('returning to the foreground refreshes channels', async () => {
+  const subscribe = jest.mocked(AppState.addEventListener);
+  subscribe.mockClear();
+  const screen = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    const listener = subscribe.mock.calls.find(call => call[0] === 'change')![1];
+    bridge.manage.mockResolvedValueOnce([
+      {
+        point: 'ready:0',
+        peer: 'peer-a',
+        state: 'active',
+        active: true,
+        localSats: '80000',
+      },
+    ]);
+    await act(async () => listener('active'));
+    expect(within(screen.getByTestId('LightningChannelSummary')).getByText('Channels · 1 open')).toBeTruthy();
+  } finally {
+    screen.unmount();
+    subscribe.mockClear();
+  }
+});
+
+test('Tor-only Lightning peers get an explicit explanation before any connection attempt', async () => {
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  fireEvent.changeText(screen.getByLabelText('Lightning peer'), '02fixture@example.onion:9735');
+  bridge.invoice.mockClear();
+  await act(async () => fireEvent.press(screen.getByText('Connect Lightning peer')));
+  expect(
+    within(screen.getByTestId('LightningActivityPanel')).getByText(
+      'Tor-only Lightning peers are not supported by this build. Use a reachable IP or DNS address for the same XBT network.',
+    ),
+  ).toBeTruthy();
+  expect(bridge.invoice).not.toHaveBeenCalled();
   screen.unmount();
 });
