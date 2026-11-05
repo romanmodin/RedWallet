@@ -11,6 +11,11 @@ on:
       - '.github/scripts/xbt-lnd-regtest-peer.py'
       - '.github/scripts/test-xbt-lnd-regtest-peer.py'
   workflow_dispatch:
+    inputs:
+      store_update:
+        description: Build and verify an update for the existing RedWallet store package
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -18,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        network: [regtest, mainnet]
+        network: ${{ fromJSON(inputs.store_update && '["mainnet"]' || '["regtest","mainnet"]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 110
     steps:
@@ -75,12 +80,36 @@ jobs:
           key: android-lightning-${{ runner.os }}-${{ hashFiles('android/**/*.gradle', 'android/**/*.properties') }}
           restore-keys: |
             android-lightning-${{ runner.os }}-
-      - name: Compile the isolated Android test build
+      - name: Compile and verify the requested Android package
         working-directory: android
+        env:
+          STORE_UPDATE: ${{ inputs.store_update && 'true' || 'false' }}
         run: |
           property=xbtRegtestAar
-          if [ "${{ matrix.network }}" = mainnet ]; then property=xbtMainnetAar; fi
-          ./gradlew --no-daemon --max-workers=2 :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest "-P$property=$RUNNER_TEMP/Lndmobile.aar" -PreactNativeArchitectures=arm64-v8a,x86_64 -PredwalletVersionCode=${{ github.run_number }}
+          code=${{ github.run_number }}
+          extra=()
+          app=com.romanmodin.redwallet.regtest
+          if [ "${{ matrix.network }}" = mainnet ]; then
+            property=xbtMainnetAar
+            app=com.romanmodin.redwallet.lightning
+          fi
+          if [ "$STORE_UPDATE" = true ]; then
+            test "${{ matrix.network }}" = mainnet
+            code=$(date +%s)
+            extra=(-PxbtMainnetStoreUpdate=true)
+            app=com.romanmodin.redwallet
+            if ./gradlew --no-daemon :app:tasks -PxbtMainnetStoreUpdate=true > "$RUNNER_TEMP/store-update-guard.log" 2>&1; then
+              echo "Store update unexpectedly accepted a missing live engine" >&2
+              exit 1
+            fi
+            grep -q 'A Lightning store update requires xbtMainnetAar' "$RUNNER_TEMP/store-update-guard.log"
+          fi
+          echo "XBT_ANDROID_APP_ID=$app" >> "$GITHUB_ENV"
+          echo "XBT_ANDROID_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          ./gradlew --no-daemon --max-workers=2 :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest "-P$property=$RUNNER_TEMP/Lndmobile.aar" "${extra[@]}" -PreactNativeArchitectures=arm64-v8a,x86_64 -PredwalletVersionCode="$code"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk > "$RUNNER_TEMP/android-package.txt"
+          grep -F "name='$app'" "$RUNNER_TEMP/android-package.txt"
+          grep -F "versionCode='$code'" "$RUNNER_TEMP/android-package.txt"
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -112,5 +141,5 @@ jobs:
           retention-days: 7
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: redwallet-android-xbt-${{ matrix.network }}-unsigned
+          name: redwallet-android-xbt-${{ matrix.network }}${{ inputs.store_update && '-store' || '' }}-unsigned
           path: android/app/build/outputs/apk/release/app-release-unsigned.apk

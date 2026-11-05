@@ -76,6 +76,10 @@ def regtestAar = project.findProperty("xbtRegtestAar")
 def mainnetAar = project.findProperty("xbtMainnetAar")
 if (regtestAar && mainnetAar) throw new GradleException("Choose exactly one Lightning network")
 def lightningAar = mainnetAar ?: regtestAar
+// Store updates retain the original package; isolated Lightning betas stay side by side.
+def mainnetStoreUpdate = project.findProperty("xbtMainnetStoreUpdate") == "true"
+if (mainnetStoreUpdate && !mainnetAar) throw new GradleException("A Lightning store update requires xbtMainnetAar")
+if (mainnetStoreUpdate && !project.findProperty("redwalletVersionCode")) throw new GradleException("A Lightning store update requires an explicit redwalletVersionCode")
 
 android {
     androidResources {
@@ -91,9 +95,9 @@ android {
         applicationId "com.romanmodin.redwallet"
         minSdkVersion rootProject.ext.minSdkVersion
         if (regtestAar) applicationIdSuffix ".regtest"
-        if (mainnetAar) applicationIdSuffix ".lightning"
+        if (mainnetAar && !mainnetStoreUpdate) applicationIdSuffix ".lightning"
         buildConfigField "boolean", "XBT_LIGHTNING_MAINNET", mainnetAar ? "true" : "false"
-        manifestPlaceholders.redwalletAppLabel = mainnetAar ? "RedWallet Lightning" : (regtestAar ? "RedWallet Lightning Test" : "@string/app_name")
+        manifestPlaceholders.redwalletAppLabel = (mainnetAar && !mainnetStoreUpdate) ? "RedWallet Lightning" : (regtestAar ? "RedWallet Lightning Test" : "@string/app_name")
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = (project.findProperty("redwalletVersionCode") ?: "1").toInteger()
         versionName "8.0.1"
