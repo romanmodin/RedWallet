@@ -1,5 +1,6 @@
+import Clipboard from '@react-native-clipboard/clipboard';
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { Alert, NativeModules } from 'react-native';
 
 jest.mock('@react-native-documents/picker', () => ({ types: {} }));
@@ -198,4 +199,61 @@ test('unreadable peer settings do not silently start with public defaults', asyn
   } finally {
     bridge.run.mockResolvedValue('Running');
   }
+});
+
+test('activity stays in the sticky panel and reports a pending operation followed by its full copyable result', async () => {
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  const panel = within(screen.getByTestId('LightningActivityPanel'));
+  expect(screen.getByTestId('XBTLightningScreen').props.stickyHeaderIndices).toEqual([1]);
+  expect(screen.getByText('Fee rate (sat/vB)')).toBeTruthy();
+  expect(screen.getByPlaceholderText('Paste a Lightning invoice')).toBeTruthy();
+  let finish!: (value: string) => void;
+  bridge.run.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  fireEvent.press(screen.getByText('Get XBT funding address'));
+  expect(panel.getByText('Working…')).toBeTruthy();
+  expect(panel.getByText('XBT funding address')).toBeTruthy();
+  expect(panel.queryByLabelText('Copy activity result')).toBeNull();
+  const result = 'bc1q' + 'x'.repeat(60);
+  await act(async () => finish(result));
+  expect(panel.getByText(result)).toBeTruthy();
+  expect(screen.getAllByText(result)).toHaveLength(1);
+  fireEvent.press(panel.getByLabelText('Copy activity result'));
+  expect(Clipboard.setString).toHaveBeenLastCalledWith(result);
+  expect(panel.getByText('Copied')).toBeTruthy();
+  screen.unmount();
+});
+
+test('a failed operation replaces the previous result visibly in the activity panel', async () => {
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  bridge.run.mockResolvedValueOnce('Old payment history');
+  await act(async () => fireEvent.press(screen.getByText('Recent payments')));
+  bridge.run.mockRejectedValueOnce(new Error('Peer disconnected'));
+  await act(async () => fireEvent.press(screen.getByText('Get XBT funding address')));
+  const panel = within(screen.getByTestId('LightningActivityPanel'));
+  expect(panel.getByText('XBT funding address · Error')).toBeTruthy();
+  expect(panel.getByText('Peer disconnected')).toBeTruthy();
+  expect(screen.queryByText('Old payment history')).toBeNull();
+  screen.unmount();
+});
+
+test('created receive invoices and empty channel results are surfaced in the activity panel', async () => {
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  const panel = within(screen.getByTestId('LightningActivityPanel'));
+  fireEvent.changeText(screen.getByLabelText('Sats to receive'), '500');
+  bridge.invoice.mockResolvedValueOnce('ln-xbt-invoice' as never);
+  await act(async () => fireEvent.press(screen.getByText('Create invoice')));
+  expect(panel.getByText('ln-xbt-invoice')).toBeTruthy();
+  bridge.manage.mockResolvedValueOnce([]);
+  await act(async () => fireEvent.press(screen.getByText('Refresh channels')));
+  expect(panel.getByText('No open channels.')).toBeTruthy();
+  expect(panel.queryByText('ln-xbt-invoice')).toBeNull();
+  screen.unmount();
 });

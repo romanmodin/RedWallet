@@ -1,13 +1,37 @@
+import Clipboard from '@react-native-clipboard/clipboard';
 import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, NativeModules, Platform, Share, Text, TextInput } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  NativeModules,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
 
 const bridge = NativeModules.XBTLightningBridge;
-type Channel = { point: string; peer: string; active: boolean; localSats: string };
-type Withdrawal = { token: string; address: string; sats: string; feeRate: string };
+type Channel = {
+  point: string;
+  peer: string;
+  active: boolean;
+  localSats: string;
+};
+type Withdrawal = {
+  token: string;
+  address: string;
+  sats: string;
+  feeRate: string;
+};
 type Review = {
   invoice: string;
   hash: string;
@@ -17,7 +41,11 @@ type Review = {
 
 async function exportBackup(url: string) {
   if (Platform.OS === 'android') {
-    const [result] = await saveDocuments({ sourceUris: [url], copy: true, mimeType: 'application/octet-stream' });
+    const [result] = await saveDocuments({
+      sourceUris: [url],
+      copy: true,
+      mimeType: 'application/octet-stream',
+    });
     if (result.error) throw new Error(result.error);
   } else {
     await Share.share({ url });
@@ -25,16 +53,22 @@ async function exportBackup(url: string) {
 }
 
 export default function XBTLightning() {
-  const { colors } = useTheme();
+  const { colors, dark } = useTheme();
+  const panelBackground = dark ? colors.cardSectionBackground : colors.hdbackgroundColor;
   const [peer, setPeer] = useState('');
   const [peerLoaded, setPeerLoaded] = useState(false);
   const [status, setStatus] = useState('Checking');
   const [message, setMessage] = useState('');
+  const [activityTitle, setActivityTitle] = useState('Activity');
+  const [activityError, setActivityError] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const scrollView = useRef<ScrollView>(null);
+  const activityTop = useRef(0);
+  const viewport = useRef({ y: 0, height: 0 });
   const [progress, setProgress] = useState('');
   const [busy, setBusy] = useState(false);
   const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
-  const [incoming, setIncoming] = useState('');
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
@@ -48,25 +82,41 @@ export default function XBTLightning() {
   const pending = useRef(false);
   const mounted = useRef(false);
   const pendingPayment = useRef<string | undefined>(undefined);
-  const run = async (action: () => Promise<void>) => {
+  const run = async (title: string, action: () => Promise<void>) => {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
+    setActivityTitle(title);
+    setActivityError(false);
+    setCopied(false);
     setMessage('');
+    Keyboard.dismiss();
+    // Once reached, the activity panel stays pinned while the controls scroll.
+    // Reveal it when an action is triggered before it has entered the viewport.
+    if (viewport.current.y + viewport.current.height < activityTop.current + 120) {
+      scrollView.current?.scrollTo({ y: activityTop.current, animated: true });
+    }
     try {
       await action();
+      if (mounted.current) setMessage(current => current || 'Completed.');
     } catch (err) {
-      if (mounted.current) setMessage(err instanceof Error ? err.message : 'The Lightning node could not answer.');
+      if (mounted.current) {
+        setActivityError(true);
+        setMessage(err instanceof Error ? err.message : 'The Lightning node could not answer.');
+      }
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
     }
   };
   const node = (action: string) =>
-    run(async () => {
+    run(action === 'start' ? 'Starting node' : action === 'setup' ? 'Setting up wallet' : 'Node status', async () => {
       try {
         const next = await bridge.run(action, peer);
-        if (mounted.current) setStatus(next);
+        if (mounted.current) {
+          setStatus(next);
+          setMessage('Node status: ' + next);
+        }
       } catch (error) {
         if (action === 'start' && mounted.current) setStatus('Failed');
         throw error;
@@ -103,7 +153,7 @@ export default function XBTLightning() {
         const next = await bridge.run('status', '');
         if (active) setStatus(next);
       } catch {
-        if (active) setMessage('The node has not answered yet. Check the chain peer connection.');
+        if (active) setProgress('The node has not answered yet. Check the chain peer connection.');
       }
       if (active) timer = setTimeout(refresh, 3000);
     };
@@ -119,7 +169,7 @@ export default function XBTLightning() {
       {
         text: 'Pay',
         onPress: () =>
-          run(async () => {
+          run('Pay invoice', async () => {
             if (pendingPayment.current === payment.hash) return;
             pendingPayment.current = payment.hash;
             setReview(undefined);
@@ -139,7 +189,7 @@ export default function XBTLightning() {
       {
         text: 'Withdraw',
         onPress: () =>
-          run(async () => {
+          run('Withdraw XBT', async () => {
             if (submitted.current.has(item.token)) return;
             submitted.current.add(item.token);
             setWithdrawal(undefined);
@@ -166,7 +216,7 @@ export default function XBTLightning() {
         {
           text: 'Close channel',
           onPress: () =>
-            run(async () => {
+            run('Close channel', async () => {
               if (submitted.current.has(channel.point)) return;
               submitted.current.add(channel.point);
               try {
@@ -181,15 +231,28 @@ export default function XBTLightning() {
     );
   };
   return (
-    <SettingsScrollView testID="XBTLightningScreen">
+    <SettingsScrollView
+      ref={scrollView}
+      testID="XBTLightningScreen"
+      stickyHeaderIndices={[1]}
+      keyboardShouldPersistTaps="handled"
+      scrollEventThrottle={16}
+      onLayout={event => {
+        viewport.current.height = event.nativeEvent.layout.height;
+      }}
+      onScroll={event => {
+        viewport.current.y = event.nativeEvent.contentOffset.y;
+      }}
+    >
       <SettingsSection>
-        <SettingsFootnote>
+        <SettingsFootnote style={{ color: colors.foregroundColor }}>
           XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
           your own compact-filter chain peer as host:port. Your home node is optional.
         </SettingsFootnote>
         {status === 'Stopped' && (
           <TextInput
-            style={{ color: colors.foregroundColor }}
+            placeholderTextColor={colors.alternativeTextColor2}
+            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
             accessibilityLabel="Optional XBT chain peer"
             placeholder="Automatic XBT peers, or host:port"
             autoCapitalize="none"
@@ -201,17 +264,17 @@ export default function XBTLightning() {
           />
         )}
         {['Starting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status) && (
-          <SettingsFootnote>
+          <SettingsFootnote style={{ color: colors.foregroundColor }}>
             The node is starting or syncing. Status updates automatically. If this does not advance, the configured chain peer may be
             unreachable.
           </SettingsFootnote>
         )}
         {status === 'Failed' && (
-          <SettingsFootnote>
+          <SettingsFootnote style={{ color: colors.foregroundColor }}>
             The Lightning node could not finish starting. Close and reopen RedWallet to retry. Your saved wallet is retained.
           </SettingsFootnote>
         )}
-        {!!progress && <SettingsFootnote>{progress}</SettingsFootnote>}
+        {!!progress && <SettingsFootnote style={{ color: colors.foregroundColor }}>{progress}</SettingsFootnote>}
         <SettingsListItem title="Node status" subtitle={busy ? 'Working…' : status} />
         {status === 'Stopped' && <SettingsListItem title="Start XBT node" disabled={busy || !peerLoaded} onPress={() => node('start')} />}
         {(status === 'Needs setup' || status === 'Locked') && (
@@ -223,13 +286,64 @@ export default function XBTLightning() {
         )}
         <SettingsListItem title="Refresh status" disabled={busy} onPress={() => node('status')} />
       </SettingsSection>
+      <View
+        testID="LightningActivityPanel"
+        onLayout={event => {
+          activityTop.current = event.nativeEvent.layout.y;
+        }}
+        style={[styles.activityWrapper, { backgroundColor: colors.background }]}
+      >
+        <View
+          style={[
+            styles.activityPanel,
+            {
+              backgroundColor: panelBackground,
+              borderColor: colors.hdborderColor,
+            },
+          ]}
+        >
+          <View style={styles.activityHeader}>
+            <Text accessibilityRole="header" style={[styles.activityTitle, { color: colors.alternativeTextColor2 }]}>
+              {activityError ? activityTitle + ' · Error' : activityTitle}
+            </Text>
+            {busy && <ActivityIndicator accessibilityLabel="Lightning operation in progress" color={colors.foregroundColor} />}
+            {!!message && !busy && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Copy activity result"
+                style={[styles.copyButton, { backgroundColor: colors.buttonBackgroundColor }]}
+                onPress={() => {
+                  Clipboard.setString(message);
+                  setCopied(true);
+                }}
+              >
+                <Text style={{ color: colors.foregroundColor }}>{copied ? 'Copied' : 'Copy'}</Text>
+              </Pressable>
+            )}
+          </View>
+          <ScrollView key={activityTitle + message} nestedScrollEnabled style={styles.activityBody}>
+            <Text
+              selectable
+              accessibilityLiveRegion="polite"
+              style={[
+                styles.activityText,
+                {
+                  color: activityError ? colors.alternativeTextColor2 : colors.foregroundColor,
+                },
+              ]}
+            >
+              {busy ? 'Working…' : message || 'Results will appear here.'}
+            </Text>
+          </ScrollView>
+        </View>
+      </View>
       {status === 'Running' && (
         <SettingsSection>
           <SettingsListItem
             title="Node and channel balances"
             disabled={busy}
             onPress={() =>
-              run(async () => {
+              run('Node and channel balances', async () => {
                 const result = await bridge.run('details', '');
                 if (mounted.current) setMessage(result);
               })
@@ -239,15 +353,16 @@ export default function XBTLightning() {
             title="Get XBT funding address"
             disabled={busy}
             onPress={() =>
-              run(async () => {
+              run('XBT funding address', async () => {
                 const address = await bridge.run('fund', '');
                 if (mounted.current) setMessage(address);
               })
             }
           />
           <TextInput
+            placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="Lightning peer"
-            style={{ color: colors.foregroundColor }}
+            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
             placeholder="pubkey@host:port"
             value={lightningPeer}
             autoCapitalize="none"
@@ -259,7 +374,7 @@ export default function XBTLightning() {
             title="Connect Lightning peer"
             disabled={busy || !lightningPeer}
             onPress={() =>
-              run(async () => {
+              run('Connect Lightning peer', async () => {
                 const result = await bridge.invoice('connect', lightningPeer.trim(), '', '');
                 if (mounted.current) setMessage(result);
               })
@@ -275,7 +390,7 @@ export default function XBTLightning() {
                 {
                   text: 'Open channel',
                   onPress: () =>
-                    run(async () => {
+                    run('Open private channel', async () => {
                       const point = await bridge.invoice('open', key, '', '100000');
                       if (mounted.current) setMessage('Funding transaction: ' + point);
                     }),
@@ -284,7 +399,8 @@ export default function XBTLightning() {
             }}
           />
           <TextInput
-            style={{ color: colors.foregroundColor }}
+            placeholderTextColor={colors.alternativeTextColor2}
+            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
             accessibilityLabel="Sats to receive"
             placeholder="Sats to receive"
             keyboardType="number-pad"
@@ -295,21 +411,17 @@ export default function XBTLightning() {
             title="Create invoice"
             disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
             onPress={() =>
-              run(async () => {
+              run('Invoice to receive', async () => {
                 const invoice = await bridge.invoice('receive', '', '', amount);
-                if (mounted.current) setIncoming(invoice);
+                if (mounted.current) setMessage(invoice);
               })
             }
           />
-          {!!incoming && (
-            <Text selectable style={{ color: colors.foregroundColor }}>
-              {incoming}
-            </Text>
-          )}
           <TextInput
-            style={{ color: colors.foregroundColor }}
+            placeholderTextColor={colors.alternativeTextColor2}
+            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
             accessibilityLabel="Invoice to pay"
-            placeholder="Paste a reginvoice"
+            placeholder="Paste a Lightning invoice"
             autoCapitalize="none"
             autoCorrect={false}
             value={outgoing}
@@ -323,10 +435,13 @@ export default function XBTLightning() {
             title="Review invoice"
             disabled={busy || !outgoing.trim()}
             onPress={() =>
-              run(async () => {
+              run('Review invoice', async () => {
                 const invoice = outgoing.trim();
                 const decoded = await bridge.invoice('decode', invoice, '', '');
-                if (mounted.current) setReview({ ...decoded, invoice });
+                if (mounted.current) {
+                  setReview({ ...decoded, invoice });
+                  setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
+                }
               })
             }
           />
@@ -341,7 +456,7 @@ export default function XBTLightning() {
             title="Recent payments"
             disabled={busy}
             onPress={() =>
-              run(async () => {
+              run('Recent payments', async () => {
                 const history = await bridge.run('history', '');
                 if (mounted.current) setMessage(history);
               })
@@ -351,7 +466,7 @@ export default function XBTLightning() {
             title="Export static channel backup"
             disabled={busy}
             onPress={() =>
-              run(async () => {
+              run('Export channel backup', async () => {
                 const url = await bridge.run('backup', '');
                 if (mounted.current) await exportBackup(url);
               })
@@ -361,14 +476,16 @@ export default function XBTLightning() {
       )}
       {status === 'Running' && (
         <SettingsSection>
-          <SettingsFootnote>
+          <SettingsFootnote style={{ color: colors.foregroundColor }}>
             Manage channels and withdraw the Lightning node’s on-chain balance. Closing a channel requires its peer online and a
             confirmation before withdrawing the returned funds. Withdrawals currently support SegWit and Taproot addresses beginning with
             bc1.
           </SettingsFootnote>
+          <Text style={[styles.fieldLabel, { color: colors.foregroundColor }]}>Fee rate (sat/vB)</Text>
           <TextInput
+            placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="On-chain fee rate"
-            style={{ color: colors.foregroundColor }}
+            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
             value={feeRate}
             keyboardType="number-pad"
             editable={!busy}
@@ -381,9 +498,12 @@ export default function XBTLightning() {
             title="Refresh channels"
             disabled={busy}
             onPress={() =>
-              run(async () => {
+              run('Refresh channels', async () => {
                 const items = await bridge.manage('channels', '', '', '');
-                if (mounted.current) setChannels(items);
+                if (mounted.current) {
+                  setChannels(items);
+                  setMessage(items.length ? items.length + ' channel(s) loaded below.' : 'No open channels.');
+                }
               })
             }
           />
@@ -397,9 +517,10 @@ export default function XBTLightning() {
             />
           ))}
           <TextInput
+            placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="Withdrawal address"
             placeholder="XBT address (bc1…)"
-            style={{ color: colors.foregroundColor }}
+            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
             value={destination}
             autoCapitalize="none"
             autoCorrect={false}
@@ -410,9 +531,10 @@ export default function XBTLightning() {
             }}
           />
           <TextInput
+            placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="Withdrawal sats"
             placeholder="Amount in sats"
-            style={{ color: colors.foregroundColor }}
+            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
             value={withdrawSats}
             keyboardType="number-pad"
             editable={!busy}
@@ -425,9 +547,12 @@ export default function XBTLightning() {
             title="Review withdrawal"
             disabled={busy || !validFeeRate || !destination.trim() || !/^[1-9][0-9]{0,6}$/.test(withdrawSats)}
             onPress={() =>
-              run(async () => {
+              run('Review withdrawal', async () => {
                 const item = await bridge.manage('withdrawReview', destination.trim(), withdrawSats, feeRate);
-                if (mounted.current) setWithdrawal(item);
+                if (mounted.current) {
+                  setWithdrawal(item);
+                  setMessage(item.sats + ' sats to ' + item.address + ' at ' + item.feeRate + ' sat/vB. Use Withdraw below to confirm.');
+                }
               })
             }
           />
@@ -442,7 +567,7 @@ export default function XBTLightning() {
             title="On-chain history"
             disabled={busy}
             onPress={() =>
-              run(async () => {
+              run('On-chain history', async () => {
                 const history = await bridge.manage('history', '', '', '');
                 if (mounted.current) setMessage(history);
               })
@@ -452,12 +577,13 @@ export default function XBTLightning() {
       )}
       {['Needs setup', 'Running'].includes(status) && (
         <SettingsSection>
-          <SettingsFootnote>
+          <SettingsFootnote style={{ color: colors.foregroundColor }}>
             Portable Lightning recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export
             again after channel changes.
           </SettingsFootnote>
           <TextInput
-            style={{ color: colors.foregroundColor }}
+            placeholderTextColor={colors.alternativeTextColor2}
+            style={[styles.input, { color: colors.foregroundColor, backgroundColor: panelBackground, borderColor: colors.hdborderColor }]}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
@@ -480,7 +606,7 @@ export default function XBTLightning() {
                     {
                       text: 'Choose recovery file',
                       onPress: () =>
-                        run(async () => {
+                        run('Restore Lightning wallet', async () => {
                           const password = phrase;
                           setPhrase('');
                           const [file] = await pick({ type: [types.allFiles] });
@@ -512,7 +638,7 @@ export default function XBTLightning() {
               title="Export encrypted Lightning recovery file"
               disabled={busy || phrase.length < 12}
               onPress={() =>
-                run(async () => {
+                run('Export recovery file', async () => {
                   const password = phrase;
                   setPhrase('');
                   const url = await bridge.recovery('export', password, '');
@@ -527,11 +653,46 @@ export default function XBTLightning() {
           )}
         </SettingsSection>
       )}
-      {!!message && (
-        <Text selectable style={{ color: colors.foregroundColor }}>
-          {message}
-        </Text>
-      )}
     </SettingsScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  activityWrapper: { paddingHorizontal: 16, paddingVertical: 8 },
+  activityPanel: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  activityHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  activityTitle: { flex: 1, fontSize: 14, fontWeight: '600' },
+  copyButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activityBody: { maxHeight: 112 },
+  activityText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13,
+    lineHeight: 19,
+    paddingVertical: 4,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  input: {
+    marginHorizontal: 12,
+    marginVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+});
