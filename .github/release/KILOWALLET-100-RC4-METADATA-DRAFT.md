@@ -40,6 +40,6 @@ Original source, license and publisher issue reporting: https://github.com/roman
 
 ## Activation prerequisites
 
-Keep existing0.4.0 review in place until the replacement qualifies. At 07:10–07:13 Pacific Nov5 the live Apple interface showed0.4.0 Waiting for Review, old0.4.0build3 Testing in Kilowallet Internal/Public Beta, and upload history containing only completed0.4.0build3 and0.1.0build1. No1.0 eligibility was visible. No Apple fields were edited.
+Keep existing0.4.0 review in place until the replacement qualifies. Around 07:10 Pacific Nov5 the live Apple interface showed0.4.0 Waiting for Review, old0.4.0build3 Testing in Kilowallet Internal/Public Beta, and upload history containing only completed0.4.0build3 and0.1.0build1. No1.0 eligibility was visible. No Apple fields were edited.
 
 App native42036850517/attempt1/job127277123719 is still pending. Exact-source migration10 and checker42036958951 passed. Inspect actual native artifacts, runtime and visuals, including the restore-form capture, and unsigned arm64 Release before signing. Signing preparation must take source/gate pins from actual qualified receipts. Apple export compliance remains independently unresolved: do not invent classification, accept an agreement or change the encryption declaration to bypass rejection. Update accurate privacy/review metadata only for the qualified replacement, then verify exact TestFlight build/group access before pursuing public submission.
