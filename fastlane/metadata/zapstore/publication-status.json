@@ -1,5 +1,5 @@
 {
-  "state": "prepared-unpublished",
+  "state": "blocked-publisher-access",
   "applicationId": "com.romanmodin.redwallet",
   "publisher": "npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0",
   "version": "8.0.1",
@@ -22,5 +22,11 @@
   "signedFcmStartupSmokeVerified": true,
   "foregroundResumeSurvived": true,
   "physicalPhoneTested": false,
-  "liveFundedPaymentTested": false
+  "liveFundedPaymentTested": false,
+  "githubReleasePublished": true,
+  "metadataCommit": "20414aaf93953984cfb4146bd3efa0a493063f4c",
+  "zspVersion": "2.0.1",
+  "zspPublishExitCode": 1,
+  "attemptedAt": "2026-11-05T18:21:24Z",
+  "reason": "Zapstore rejected media upload: HTTP403 authenticated pubkey is not allowed."
 }
