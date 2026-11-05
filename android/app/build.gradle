@@ -1,3 +1,12 @@
+def regtestAar = project.findProperty("xbtRegtestAar")
+def mainnetAar = project.findProperty("xbtMainnetAar")
+if (regtestAar && mainnetAar) throw new GradleException("Choose exactly one Lightning network")
+def lightningAar = mainnetAar ?: regtestAar
+// Store updates retain the original package; isolated Lightning betas stay side by side.
+def mainnetStoreUpdate = project.findProperty("xbtMainnetStoreUpdate") == "true"
+if (mainnetStoreUpdate && !mainnetAar) throw new GradleException("A Lightning store update requires xbtMainnetAar")
+if (mainnetStoreUpdate && !project.findProperty("redwalletVersionCode")) throw new GradleException("A Lightning store update requires an explicit redwalletVersionCode")
+
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
@@ -71,15 +80,6 @@ def enableProguardInReleaseBuilds = false
  * this variant is about 6MiB larger per architecture than default.
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
-
-def regtestAar = project.findProperty("xbtRegtestAar")
-def mainnetAar = project.findProperty("xbtMainnetAar")
-if (regtestAar && mainnetAar) throw new GradleException("Choose exactly one Lightning network")
-def lightningAar = mainnetAar ?: regtestAar
-// Store updates retain the original package; isolated Lightning betas stay side by side.
-def mainnetStoreUpdate = project.findProperty("xbtMainnetStoreUpdate") == "true"
-if (mainnetStoreUpdate && !mainnetAar) throw new GradleException("A Lightning store update requires xbtMainnetAar")
-if (mainnetStoreUpdate && !project.findProperty("redwalletVersionCode")) throw new GradleException("A Lightning store update requires an explicit redwalletVersionCode")
 
 android {
     androidResources {

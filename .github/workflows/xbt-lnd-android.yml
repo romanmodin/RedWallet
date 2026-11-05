@@ -98,11 +98,14 @@ jobs:
             code=$(date +%s)
             extra=(-PxbtMainnetStoreUpdate=true)
             app=com.romanmodin.redwallet
-            if ./gradlew --no-daemon :app:tasks -PxbtMainnetStoreUpdate=true > "$RUNNER_TEMP/store-update-guard.log" 2>&1; then
+            if ./gradlew --no-daemon --max-workers=2 :app:tasks -PxbtMainnetStoreUpdate=true > "$RUNNER_TEMP/store-update-guard.log" 2>&1; then
               echo "Store update unexpectedly accepted a missing live engine" >&2
               exit 1
             fi
-            grep -q 'A Lightning store update requires xbtMainnetAar' "$RUNNER_TEMP/store-update-guard.log"
+            if ! grep -q 'A Lightning store update requires xbtMainnetAar' "$RUNNER_TEMP/store-update-guard.log"; then
+              cat "$RUNNER_TEMP/store-update-guard.log"
+              exit 1
+            fi
           fi
           echo "XBT_ANDROID_APP_ID=$app" >> "$GITHUB_ENV"
           echo "XBT_ANDROID_VERSION_CODE=$code" >> "$GITHUB_ENV"
@@ -136,7 +139,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: android-lightning-${{ matrix.network }}-failure-diagnostics
-          path: ${{ runner.temp }}/lnd-regtest/diagnostics/
+          path: |
+            ${{ runner.temp }}/lnd-regtest/diagnostics/
+            ${{ runner.temp }}/store-update-guard.log
           if-no-files-found: ignore
           retention-days: 7
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
