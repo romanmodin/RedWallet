@@ -94,10 +94,15 @@ final class RegtestTests: XCTestCase {
         try await RegtestNode.shared.connect(to: peerKey + "@127.0.0.1:19735")
         try await waitForFixtureSync("funding confirmed; opening channel")
         let point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)
+        let opening = try await RegtestNode.shared.channelStatus()
+        XCTAssertEqual(opening.first(where: { $0.point == point })?.state, "pending")
         _ = try await peer("confirm", point)
         try await waitForFixtureSync("channel funding confirmed")
         try await waitUntil { try ProtoFields(await XBTLightningNode.info()).integers[4] == 1 }
 
+        let opened = try await RegtestNode.shared.channelStatus()
+        XCTAssertEqual(opened.filter { $0.point == point }.count, 1)
+        XCTAssertEqual(opened.first(where: { $0.point == point })?.state, "active")
         let outgoing = try await peer("invoice")
         let review = try await RegtestNode.shared.decode(outgoing)
         XCTAssertEqual(review.sats, 20_000)

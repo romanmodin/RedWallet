@@ -54,6 +54,17 @@ final class XBTLightningBridge: NSObject {
                     let channels = try await RegtestNode.shared.listChannels()
                     resolve(channels.map { ["point": $0.point, "peer": $0.peer, "active": $0.active,
                                            "localSats": String($0.localSats)] as [String: Any] })
+                case "channelStatus":
+                    let channels = try await RegtestNode.shared.channelStatus()
+                    resolve(channels.map { channel -> [String: Any] in
+                        var item: [String: Any] = [
+                            "point": channel.point, "peer": channel.peer, "state": channel.state,
+                            "active": channel.state == "active", "localSats": String(channel.localSats)]
+                        if let remaining = channel.confirmationsRemaining {
+                            item["confirmationsRemaining"] = remaining
+                        }
+                        return item
+                    })
                 case "withdrawReview":
                     let review = try await RegtestNode.shared.reviewWithdrawal(address: value, sats: UInt64(sats) ?? 0,
                                                                               feeRate: UInt64(feeRate) ?? 0)
