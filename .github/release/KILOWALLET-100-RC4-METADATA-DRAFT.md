@@ -1,6 +1,6 @@
 # Kilowallet 1.0 RC4 — replacement metadata draft
 
-Prepared November 5, 2026 against publisher app source `556fe57656c9ccac193023466c104ef324b08770`. This is a draft for the qualified replacement build. It has not been submitted to Apple. The existing 0.4.0 review and its metadata remain in place. The currently checked-in app review notes still describe RC3/v1–v5 and must not be copied unchanged for RC4.
+Prepared November 5, 2026 against publisher app source `68461ec5b6d5bde5a92533a78b15a6594605cb2f`. This is a draft for the qualified replacement build. It has not been submitted to Apple. The existing 0.4.0 review and its metadata remain in place. The currently checked-in app review notes still describe RC3/v1–v5 and must not be copied unchanged for RC4.
 
 ## Proposed description
 
@@ -42,7 +42,9 @@ Original source, license and publisher issue reporting: https://github.com/roman
 
 Keep existing0.4.0 review in place until the replacement qualifies. Around 07:10 Pacific Nov5 the live Apple interface showed0.4.0 Waiting for Review, old0.4.0build3 Testing in Kilowallet Internal/Public Beta, and upload history containing only completed0.4.0build3 and0.1.0build1. No1.0 eligibility was visible. No Apple fields were edited.
 
-App native42069725060/attempt1/job127394003433 is IN_PROGRESS as of18:23Z November5. Exact-source migration10 and both macOS screenshot checkers passed. Native unit/execution/async-reservation gates and simulator compilation passed; screenshot capture, live runtime outcomes and unsigned arm64 Release remain pending. Earlier8238 native42036850517 failed and cannot qualify this source. Inspect all actual current artifacts, runtime and visuals, especially the restore form, before signing.
+Current native42112589802/attempt1/job127543720855 is IN_PROGRESS as of23:25Z November5. Unit, executed-iOS, required asynchronous/reservation, pinned-engine and simulator compilation gates passed. Capture/runtime/device qualification remain pending. Exact684 migration/isolation10 and automatic macOS checker42112589904 passed, with actual checkout tree equal to source. Previous556 native42069725060 FAILED qualification (Restore OCR false-negative and whole-job timeout); its results cannot qualify current684. Require current full runtime, all68visuals/actualRestore, unsignedarm64 Release, checkout tree and artifact digests/CRC before signing.
+
+Fresh GET-only Apple preflight42094161515/attempt1 observed19:28:57Z: existing0.4.0 review WAITING_FOR_REVIEW, original Internal/Public Beta groups intact, exactlyUSA and automatic new territories disabled. Historical0.4.0build3 remainsVALID and testing in both groups. That inspector is pinned to oldbuild3, not an exhaustive1.0upload listing. No1.0installability is established.
 
 The export-documentation questionnaire blocker is resolved: Roman excluded France; the live Apple standard-encryption-outside-OS/FranceNo questionnaire returned no documents required. The corrected candidate uses Boolean ITSAppUsesNonExemptEncryption=NO with no export-compliance code, supported by that observed result and US-only scope. No ECCN, CCATS or other legal determination has been supplied or inferred. The immediate pre-upload GET-only guard must reverify exactlyUSA and no automatic territory expansion. Do not reuse rejected build5 or widen territory scope without reassessment.
 
