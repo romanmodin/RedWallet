@@ -20,6 +20,7 @@ import {
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
 import XBTLightningNetwork from '../../components/XBTLightningNetwork';
+import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
 const bridge = NativeModules.XBTLightningBridge;
@@ -30,6 +31,7 @@ type Channel = {
   localSats: string;
   state: 'active' | 'inactive' | 'pending' | 'closing' | 'forceClosing';
   confirmationsRemaining?: number;
+  splice?: { status: string; progress: string; txid: string; confirmations: string; lockDepth: string };
 };
 type Withdrawal = {
   token: string;
@@ -687,6 +689,19 @@ export default function XBTLightning() {
                 title={channelState(channel)}
                 subtitle={'Local balance: ' + channel.localSats + ' sats\nPeer: ' + channel.peer + '\nFunding: ' + channel.point}
               />
+              {bridge.splice && ['active', 'inactive'].includes(channel.state) && (
+                <XBTLightningChannelFunds
+                  point={channel.point}
+                  active={channel.active}
+                  splice={channel.splice}
+                  busy={busy}
+                  run={run}
+                  report={setMessage}
+                  onUpdated={() => {
+                    refreshChannels().catch(() => {});
+                  }}
+                />
+              )}
               {['active', 'inactive'].includes(channel.state) && (
                 <SettingsListItem
                   title={'Close channel · ' + channel.localSats + ' local sats'}

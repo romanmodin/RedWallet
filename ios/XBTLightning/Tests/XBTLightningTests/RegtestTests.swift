@@ -104,7 +104,7 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(sameNextFunding, nextFunding)
         try await RegtestNode.shared.connect(to: peerKey + "@127.0.0.1:19735")
         try await waitForFixtureSync("funding confirmed; opening channel")
-        let point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)
+        var point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)
         let opening = try await RegtestNode.shared.channelStatus()
         XCTAssertEqual(opening.first(where: { $0.point == point })?.state, "pending")
         _ = try await peer("confirm", point)
@@ -133,6 +133,34 @@ final class RegtestTests: XCTestCase {
         try await waitUntil {
             let towers = try await RegtestNode.shared.watchtowers()
             return towers.contains { $0.acknowledged > 0 && $0.pending == 0 }
+        }
+        for direction in ["in", "out"] {
+            try await waitForFixtureSync("review splice " + direction)
+            let mempoolBefore = try await peer("mempool")
+            let resize = try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: direction == "in" ? 50_000 : 20_000, feeRate: 50)
+            let mempoolAfter = try await peer("mempool")
+            XCTAssertEqual(mempoolAfter, mempoolBefore, "Review must not broadcast or lease/spend funds")
+            _ = try await RegtestNode.shared.splice(token: resize.token)
+            do { _ = try await RegtestNode.shared.splice(token: resize.token); XCTFail("A splice token must be consumed once") } catch { }
+            try await waitUntil {
+                let rows = try await RegtestNode.shared.channelStatus()
+                return rows.contains { $0.point == point && !($0.splice?.txid ?? "").isEmpty }
+            }
+            let resizing = try await RegtestNode.shared.channelStatus()
+            let txid = try XCTUnwrap(resizing.first(where: { $0.point == point })?.splice?.txid)
+            _ = try await peer("confirm-splice", txid + ":" + String(resize.estimate.lockDepth + 2))
+            try await waitForFixtureSync("splice confirmed " + direction)
+            try await waitUntil {
+                let rows = try await RegtestNode.shared.channelStatus()
+                return rows.contains { $0.peer == peerKey && $0.state == "active" && $0.point != point && $0.splice?.progress == "locked" }
+            }
+            let resized = try await RegtestNode.shared.channelStatus()
+            point = try XCTUnwrap(resized.first(where: { $0.peer == peerKey && $0.state == "active" })?.point)
+            let raw = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
+            let channel = try XCTUnwrap(raw.bytes[11]?.first)
+            XCTAssertEqual(try ProtoFields(channel).integers[5], resize.estimate.capacity)
+            let syncedBackup = try await RegtestNode.shared.channelBackup()
+            XCTAssertFalse(syncedBackup.isEmpty)
         }
         let fundedBackup = try await RegtestNode.shared.channelBackup()
         XCTAssertGreaterThan(fundedBackup.count, backup.count)
