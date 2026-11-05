@@ -533,7 +533,9 @@ export async function setCustomFeeRate(feeRate) {
   await waitFor(element(by.id('feeCustom')))
     .toBeVisible()
     .whileElement(by.id('SelectFeeScroll'))
-    .scroll(120, 'down', 0.9, 0.5);
+    // The iOS keyboard clips the fee sheet below its full-height midpoint.
+    // Start in the upper visible area so the gesture reaches the scroll view.
+    .scroll(120, 'down', 0.9, device.getPlatform() === 'ios' ? 0.1 : 0.5);
   await element(by.id('feeCustom')).typeText(String(feeRate) + '\n');
   await waitForKeyboardToClose();
   await waitForId('chooseFee');
