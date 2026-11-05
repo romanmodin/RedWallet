@@ -84,6 +84,8 @@ final class RegtestTests: XCTestCase {
         XCTAssertTrue(summary.contains("Node: "))
         let funding = try await RegtestNode.shared.fundingAddress()
         XCTAssertTrue(funding.hasPrefix("bcrt1"))
+        let sameFunding = try await RegtestNode.shared.fundingAddress()
+        XCTAssertEqual(sameFunding, funding, "Repeated requests must retain the unused receiving address")
         #if XBT_LND_ROUTED_TEST
         let peerKey = try await peer("peer")
         _ = try await peer("fund", funding)
@@ -91,6 +93,10 @@ final class RegtestTests: XCTestCase {
             let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
             return (funds.integers[2] ?? 0) >= 100_000
         }
+        let nextFunding = try await RegtestNode.shared.fundingAddress()
+        XCTAssertNotEqual(nextFunding, funding, "A detected deposit must advance the receiving address")
+        let sameNextFunding = try await RegtestNode.shared.fundingAddress()
+        XCTAssertEqual(sameNextFunding, nextFunding)
         try await RegtestNode.shared.connect(to: peerKey + "@127.0.0.1:19735")
         try await waitForFixtureSync("funding confirmed; opening channel")
         let point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)

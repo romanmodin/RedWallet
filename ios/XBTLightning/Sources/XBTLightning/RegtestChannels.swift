@@ -25,7 +25,8 @@ extension RegtestNode {
     }
 
     public func fundingAddress() async throws -> String {
-        let fields = try ProtoFields(await rpc { LndmobileNewAddress(ProtoFields.field(1, integer: 4), $0) })
+        // UNUSED_TAPROOT_PUBKEY keeps the receiving address until LND observes a deposit.
+        let fields = try ProtoFields(await rpc { LndmobileNewAddress(ProtoFields.field(1, integer: 5), $0) })
         let address = try fields.string(1)
         guard address.hasPrefix(addressPrefix) else { throw NodeFailure.invalidReply }
         return address

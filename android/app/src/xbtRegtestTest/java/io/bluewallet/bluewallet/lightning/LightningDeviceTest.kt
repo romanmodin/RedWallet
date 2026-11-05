@@ -52,8 +52,12 @@ class LightningDeviceTest {
         File(ctx.cacheDir,"identity").writeText(identity)
         val addr = node("fund")
         assertTrue(addr.startsWith("bcrt1"))
+        assertEquals("Repeated requests must retain the unused receiving address",addr,node("fund"))
         fixture("fund",addr)
         waitFor { Regex("Confirmed funding balance: ([0-9]+)").find(node("details"))!!.groupValues[1].toLong() >= 100000 }
+        val nextAddr = node("fund")
+        assertNotEquals("A detected deposit must advance the receiving address",addr,nextAddr)
+        assertEquals(nextAddr,node("fund"))
         val remote = fixture("peer")
         RegtestNode.invoice("connect",remote + "@127.0.0.1:19735","","")
         waitForFixtureSync()

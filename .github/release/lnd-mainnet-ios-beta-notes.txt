@@ -5,6 +5,7 @@ New in this build
 • Open, active, inactive, pending and closing channel counts refresh automatically while the screen is in use.
 • Channel details show the peer, funding transaction, local balance and remaining confirmations when reported by LND.
 • Receive invoices appear as QR codes. Tap the QR to view the text; Copy and Share include the full invoice.
+• The funding address stays the same until LND detects a deposit, then advances on the next request. Older addresses remain valid.
 • Improved scrolling, keyboard dismissal and input contrast.
 • The previously unlabeled value is now clearly labeled Fee rate (sat/vB).
 • Channel-opening feedback explains that another confirmation creates another channel.
