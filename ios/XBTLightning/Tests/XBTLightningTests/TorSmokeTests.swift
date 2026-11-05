@@ -1,5 +1,6 @@
 #if XBT_LND_TOR_SMOKE
 import XCTest
+import Lndmobile
 @testable import XBTLightning
 
 final class TorSmokeTests: XCTestCase {
@@ -21,6 +22,9 @@ final class TorSmokeTests: XCTestCase {
         XCTAssertTrue(running, "Tor XBT sync did not complete; no funds were used")
         guard running else { return }
         try await RegtestNode.shared.connect(to: "0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60@eu2pntt4zzsvm2fkcn5uaqxac2mj5t2fk5ecwyhhejp3deu7env2h2ad.onion:9735")
+        let peers = try ProtoFields(await rpc { LndmobileListPeers(Data(), $0) })
+        let peerKeys = try (peers.bytes[1] ?? []).map { try ProtoFields($0).string(1) }
+        XCTAssertTrue(peerKeys.contains("0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60"), "The onion peer must appear in LND's connected-peer list")
         let connection = try await LightningTor.shared.start()
         let feeURL = try XCTUnwrap(URL(string: connection.feeURL))
         let (fees, response) = try await URLSession.shared.data(from: feeURL)
@@ -30,6 +34,11 @@ final class TorSmokeTests: XCTestCase {
         for _ in 0..<30 where ArtiRuntime.state() != 0 { try await Task.sleep(nanoseconds: 200_000_000) }
         let (_, unavailable) = try await URLSession.shared.data(from: feeURL)
         XCTAssertEqual((unavailable as? HTTPURLResponse)?.statusCode, 503, "Tor loss must not fall back to direct fee retrieval")
+        let restored = try await LightningTor.shared.start()
+        XCTAssertEqual(restored.port, connection.port, "LND must keep the same SOCKS endpoint after recovery")
+        XCTAssertEqual(restored.feeURL, connection.feeURL, "LND must keep the same local fee endpoint after recovery")
+        let (_, recovered) = try await URLSession.shared.data(from: feeURL)
+        XCTAssertEqual((recovered as? HTTPURLResponse)?.statusCode, 200)
     }
 }
 #endif

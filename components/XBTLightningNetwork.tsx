@@ -196,7 +196,7 @@ export default function XBTLightningNetwork({ status, busy, run, report, onTorCh
       />
       <SettingsFootnote>
         Use an XBT-compatible tower. Kilombino’s preset requires Tor. You can add your home tower or another tower as well. Watchtowers do
-        not replace wallet recovery backups.
+        not replace wallet recovery backups. Use the tower’s own address and key, which differ from its Lightning peer address.
       </SettingsFootnote>
       <SettingsListItem
         title="Refresh watchtower status"

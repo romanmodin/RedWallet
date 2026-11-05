@@ -10,18 +10,22 @@ final class TorFeeService: NSObject, URLSessionTaskDelegate, @unchecked Sendable
     private var port: UInt16?
     private var assignedPort: UInt16?
     private var clients = 0
-    private lazy var session: URLSession? = {
-        guard #available(iOS 17.0, *) else { return nil }
-        let configuration = URLSessionConfiguration.ephemeral
-        var proxy = ProxyConfiguration(socksv5Proxy: .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: proxyPort)!))
-        proxy.allowFailover = false
-        configuration.proxyConfigurations = [proxy]
-        configuration.timeoutIntervalForRequest = 25
-        configuration.timeoutIntervalForResource = 30
-        configuration.urlCache = nil
-        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-    }()
-    init(proxyPort: UInt16) { self.proxyPort = proxyPort; super.init() }
+    // Construct once before requests can arrive; Swift lazy properties are not thread-safe.
+    private var session: URLSession?
+    init(proxyPort: UInt16) {
+        self.proxyPort = proxyPort
+        super.init()
+        if #available(iOS 17.0, *) {
+            let configuration = URLSessionConfiguration.ephemeral
+            var proxy = ProxyConfiguration(socksv5Proxy: .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: proxyPort)!))
+            proxy.allowFailover = false
+            configuration.proxyConfigurations = [proxy]
+            configuration.timeoutIntervalForRequest = 25
+            configuration.timeoutIntervalForResource = 30
+            configuration.urlCache = nil
+            session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        }
+    }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {

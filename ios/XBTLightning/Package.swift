@@ -19,6 +19,7 @@ let package = Package(
         .target(
             name: "XBTLightning",
             dependencies: ["Lndmobile", "KilombinoTor"],
+            resources: [.copy("Resources/Lightning-Tor-Notices.txt")],
             linkerSettings: [.linkedLibrary("resolv"), .linkedFramework("Security"), .linkedFramework("SystemConfiguration")]
         ),
         .testTarget(name: "XBTLightningTests", dependencies: ["XBTLightning"])

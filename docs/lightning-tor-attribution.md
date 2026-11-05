@@ -11,3 +11,5 @@ ArtiRuntime.swift is adapted from Kilombino's iosApp/iosApp/ArtiEngine.swift. Th
 The upstream engine records Arti tag arti-v2.7.0, commit ce8bc6e0998bd5a4efdf06dd62dce53c98ea1087 in tor-engine/ENGINE. Arti is licensed under MIT OR Apache-2.0. Dependency and source notices remain available in the upstream tor-engine source tree.
 
 The selectable watchtower URI comes from Kilombino/kilowallet core Lightning.kt at d1fd03b2e06bd04fc19da35df2406f6b771a41cb. This is a user-selectable public preset, not automatic enrollment or a guarantee of availability.
+
+The Apache license and attribution are also bundled in the application as the XBTLightning package resource `Lightning-Tor-Notices.txt`.

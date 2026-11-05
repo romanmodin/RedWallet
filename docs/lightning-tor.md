@@ -43,3 +43,13 @@ Watchtower settings allow multiple custom towers and a selectable Kilombino onio
 Validation includes transport/input/parser tests, UI restart/registration/removal tests, a funded isolated channel/payment test that waits for real watchtower acknowledgments, and a no-funds public Tor sync/onion connection test. The public test also stops the Tor runtime and checks that fee retrieval fails. Native CI and physical-device foreground/lock testing must pass before release. The home Umbrel configuration could not be verified live because sudo requires a password; no home-node settings were changed.
 
 See `docs/lightning-tor-attribution.md` for dependency provenance.
+
+
+## Candidate test flow
+
+1. Open Tor and watchtower settings, choose Tor for Lightning, and start the node. If it is already running with a different transport, close and reopen RedWallet, then start it again. The saved preference does not change a running engine's connections.
+2. Wait for both Tor connectivity and the node's normal synchronization. An onion Lightning peer belongs in Connect Lightning peer; it is not a chain peer or a watchtower address.
+3. For a home tower, obtain its separate identity and published endpoint from the node's watchtower info (`lncli tower info` on an appropriately configured LND). The tower service must be enabled, reachable and compatible with this XBT chain. RedWallet does not enable the server remotely.
+4. Add that tower or select the Kilombino preset. Check session, acknowledgment and pending counts after channel updates. Registration or zero pending updates alone does not establish protection of every channel state.
+
+The automated funded watchtower test uses an isolated loopback regtest chain. The public Tor test uses no funds and checks synchronization, an onion handshake, fee failure when Tor stops, and restoration of the same local endpoints. A funded channel/payment over Tor and physical-device lock/foreground behavior remain separate device validation items. No claim of uninterrupted iOS background service is made.
