@@ -11,6 +11,13 @@ def verify(app):
     assert p['CFBundleShortVersionString']==os.environ['KILOWALLET_MARKETING_VERSION']
     sdk=re.fullmatch(r'iphoneos(\d+)(?:\.\d+)*',p.get('DTSDKName',''))
     assert sdk and int(sdk[1])>=26, 'iPhoneOS SDK 26 or newer required'
+    if p['CFBundleShortVersionString'].startswith('1.'):
+        assert p.get('ITSAppUsesNonExemptEncryption') is True, 'Incorrect encryption declaration'
+        assert {'fetch','processing'} <= set(p.get('UIBackgroundModes',())), 'Missing background modes'
+        assert {BUNDLE+'.ark-renew', BUNDLE+'.watch'} <= set(p.get('BGTaskSchedulerPermittedIdentifiers',())), 'Missing background tasks'
+        tor = app/'Frameworks'/'KilombinoTor.framework'/'KilombinoTor'
+        assert tor.is_file(), 'Missing embedded Tor engine'
+        assert subprocess.run(['lipo','-archs',str(tor)],check=True,capture_output=True).stdout.decode().split()==['arm64']
     assert p['CFBundleExecutable']=='Kilowallet'
     assert (app/'Kilowallet').is_file()
     arches=subprocess.run(['lipo','-archs',str(app/'Kilowallet')],check=True,capture_output=True).stdout.decode().split()
