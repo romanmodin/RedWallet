@@ -30,3 +30,12 @@ Potential maintainer questions if this repeats:
 3. Can recovery safely resume without deleting the wallet, changing its seed/birthday, or skipping old addresses? Please provide exact engine commit and reproducible test evidence.
 
 No engine upgrade or production workaround is proposed until that evidence exists. Existing internal build8 and public0.4review remain unchanged.
+
+
+## November5 11:32PM Pacific — corrected diagnostic resolved
+
+Run42170130823/a1 completed with a visual/OCR failure. All five actual native LND markers passed, including onion connection, tower registration and empty SCB RPC; the previous missing-predecessor error did not recur. All four captured app frames still have partial missing glyphs, so visual/public approval remains false. Artifact13482979158 SHA2562476750d3589ade7ae1f019ac9ddb9bd339f85f7a74c8f09e58dbaae73960235 verified API digest/CRC; full frames manually inspected. This is not an LND engine fix.
+
+A separate publisher candidate fix/ios-font-rendering-20261105 updates only Compose1.9.3 to1.10.1 (plus documentation) based on the latter's published iOS font/icon/text-cache fixes. Root-cause match and candidate success remain unproven. Current signed build8/source/IPA/gate pins must not be relabeled. Full regressions/native/visual qualification and new signing receipts are required if this product dependency change is adopted.
+
+Fresh Apple GET07:29:17.984Z: internal build8 IN_BETA_TESTING, PublicBeta WAITING_FOR_BETA_REVIEW/reviewWAITING_FOR_REVIEW; both original memberships verified both directions, writes[]. Existing public0.4review was not changed.

@@ -58,6 +58,20 @@
     "missingBlockHeight": 961638,
     "correctedDiagnosticRun": 42170130823,
     "correctedDiagnosticJob": 127735762884,
-    "publicAdvanceApproved": false
+    "publicAdvanceApproved": false,
+    "correctedResult": {
+      "run": 42170130823,
+      "attempt": 1,
+      "job": 127735762884,
+      "artifact": 13482979158,
+      "artifactSha256": "2476750d3589ade7ae1f019ac9ddb9bd339f85f7a74c8f09e58dbaae73960235",
+      "workflowConclusion": "failure",
+      "nativeQualificationPassed": true,
+      "visualReviewComplete": true,
+      "visualApproved": false,
+      "fourAppFrames": "Repeated partial glyph loss; no SpringBoard frames",
+      "priorMissingPredecessorErrorCount": 0,
+      "publicAdvanceApproved": false
+    }
   }
 }
