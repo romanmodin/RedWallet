@@ -1,0 +1,33 @@
+{
+  "purpose": "Prepared replacement metadata only; not submitted and not an executable Apple authorization",
+  "app": "6824331953",
+  "bundleId": "com.kilombino.kilowallet",
+  "marketingVersion": "1.0.0",
+  "build": "8",
+  "appleBuildId": "efc0adfd-12df-4c95-8fa5-479b1e516563",
+  "sourceCommit": "68461ec5b6d5bde5a92533a78b15a6594605cb2f",
+  "ipaSha256": "afb6ddb5f9685eacb0256c62cdeea76731739f823c43fa34a1c8eef596ae582d",
+  "proposedMetadata": {
+    "locale": "en-US",
+    "description": "Kilowallet is a self-custodial iPhone wallet for Bitcoin on the BLAKE2b chain (XBT). Create and restore wallets, receive payments with QR codes, and review amounts and network fees before sending.\n\nManage multiple wallets, watch-only wallets and individual coins. Use SegWit or Taproot, export transactions for external signing, and increase the fee of an eligible unconfirmed transaction. Recovery words are stored in the iOS Keychain. Back up your recovery words securely.\n\nKilojoin pools let compatible wallets build a shared transaction. Your wallet checks its outputs, change and fees before you approve signing. Asynchronous v6 pools retain their progress so you can return and continue later. You must reopen the app and respond before each deadline; iOS does not keep the round running continuously in the background. If you create a pool on the iPhone, keep the app open while it runs the pool. CoinJoin is experimental and does not guarantee anonymity.\n\nThe Lightning view runs a node on the iPhone. Open and manage channels, pay and receive Lightning invoices, and use a watchtower over Tor. An optional operator-run bridge pays a SHA-256 Lightning invoice using XBT; review the quote before approving. Channel funding, available liquidity and connectivity affect what can be paid or received.\n\nArk is an optional network service with its own operator, terms, recovery requirements and privacy practices. Password-protected backups can include wallet recovery material, Ark data and a static Lightning channel backup. Keep backup files and their passwords secure.\n\nConfigure your Electrum server and Tor preferences. Network transaction fees apply. This app operates on BLAKE2b XBT; its on-chain balance is separate from SHA-256 Bitcoin.\n\nCreated by Kilombino. This iOS distribution is maintained by romanmodin with the author’s permission.",
+    "reviewNotes": "This is an upgrade of the existing Kilowallet app, bundle `com.kilombino.kilowallet`, version1.0.0, build8 (Apple build efc0adfd-12df-4c95-8fa5-479b1e516563). Its exact publisher source is 68461ec5b6d5bde5a92533a78b15a6594605cb2f; signed IPA SHA256 afb6ddb5f9685eacb0256c62cdeea76731739f823c43fa34a1c8eef596ae582d. No account or app login is required. Create a new empty wallet to inspect the on-chain, Kilojoin, Lightning and Ark views. Reviewers should use synthetic/demo material and should not enter recovery words from a funded wallet. Watch-only import supports inspection without signing or access to the corresponding private keys.\n\nThis release supports Kilojoin v1–v6, including persisted asynchronous v6 attempts, acknowledgements and catch-up snapshots. Transaction signing requires the user's explicit approval and local authentication. A returning snapshot cannot cause automatic signing. Reopen the app to continue; there is no continuous iOS background round service or dedicated round push notifications. Signed input reservations remain until the round resolves. Completion and confirmed-conflict release use six confirmations; an elapsed timer alone does not unlock a signed input.\n\nLightning is an embedded LND node. The optional bridge exchanges XBT for settlement of a SHA-256 Lightning invoice through the operator. It does not merge the two on-chain networks. Ark uses an independent server. Network features require connectivity and, where applicable, funded channels or coins. Reviewers need not transact to inspect the app.\n\nThe app requests camera permission for QR scanning and supports local notifications and iOS background refresh/processing when permitted. Wallet recovery words use the device Keychain. A deliberate password-protected .kab export can contain recovery material, Ark data and a static Lightning channel backup. A separate Lightning move file can contain live channel state. These user-directed exports can leave the device.\n\nOriginal source, license and publisher issue reporting: https://github.com/romanmodin/kilowallet-ios . This draft asserts source behavior only. Native qualification, physical-device results, joint-regtest interoperability, signed packaging and Apple build eligibility must be reported from actual receipts. No physical-device or joint-regtest pass is claimed here."
+  },
+  "requiresFreshVerificationBeforeUse": [
+    "Current main native attempt2 succeeds, with exact same source tree and full runtime/visual/device evidence",
+    "Exact build8 both original tester groups IN_BETA_TESTING and beta review APPROVED",
+    "Current App Store version and review state, preserving existing review until replacement qualifies",
+    "Current privacy-label answers reconciled with service-specific retention and actual bridge HTTPS route",
+    "Current US-only availability with automatic expansion disabled"
+  ],
+  "privacyFactsForReview": {
+    "bridge": "This publisher source uses HTTPS through Cloudflare even with node Tor enabled; operator LND swap journal can persist indefinitely. No blanket no-data claim.",
+    "ark": "Independent Paperclip Holdings LLC; notice may cover IP logs, public keys, VTXOs, invoices, hashes, amounts and recovery data with purpose-dependent retention.",
+    "relay": "Actual Tor settings determine direct or Tor/onion route; operator reports seven-day message retention. Anonymity is not guaranteed.",
+    "backups": "User-directed exports can contain recovery material and channel state; keep protected."
+  },
+  "legalAttestations": null,
+  "agreementAcceptance": false,
+  "deletePublicVersion": false,
+  "withdrawOtherApps": false,
+  "submittedToApple": false
+}
