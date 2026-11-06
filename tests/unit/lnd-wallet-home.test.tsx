@@ -2,6 +2,7 @@ import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { Alert, NativeModules, View } from 'react-native';
 import { LndWallet, LndOverview } from '../../class/wallets/lnd-wallet';
+import { XbtPriceQuote, createNeoxexXbtPriceQuote } from '../../blue_modules/xbt-price';
 
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
@@ -17,6 +18,12 @@ jest.mock('../../components/themes', () => {
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
 jest.mock('../../components/XbtFiatEstimate', () => () => null);
+const mockSettings: { xbtPriceQuote: XbtPriceQuote | null } = {
+  xbtPriceQuote: null,
+};
+jest.mock('../../hooks/context/useSettings', () => ({
+  useSettings: () => mockSettings,
+}));
 const mockNavigation = { navigate: jest.fn(), setOptions: jest.fn() };
 const mockStorage = { saveToDisk: jest.fn(async () => {}) };
 jest.mock('../../hooks/useExtendedNavigation', () => ({
@@ -87,6 +94,7 @@ const LndWalletHome = require('../../screen/wallets/LndWalletHome').default;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSettings.xbtPriceQuote = null;
   bridge.run.mockResolvedValue('Running');
   bridge.wallet.mockImplementation(defaultWallet);
   bridge.invoice.mockReset();
@@ -122,7 +130,9 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   expect(screen.queryByLabelText('Receive (create invoice)')).toBeNull();
   expect(screen.getAllByLabelText('Receive on-chain')).toHaveLength(1);
   fireEvent.press(screen.getByLabelText('Send on-chain'));
-  expect(mockNavigation.navigate).toHaveBeenLastCalledWith('XBTLightning', { mode: 'send' });
+  expect(mockNavigation.navigate).toHaveBeenLastCalledWith('XBTLightning', {
+    mode: 'send',
+  });
   await act(async () => fireEvent.press(screen.getByRole('tab', { name: 'Transactions' })));
   expect(screen.getByLabelText('Pay (invoice)')).toBeTruthy();
   expect(screen.queryByLabelText('Receive on-chain')).toBeNull();
@@ -230,7 +240,17 @@ test('failed cancellation refreshes settlement without claiming it was canceled'
   bridge.wallet.mockImplementation(async (kind: string) =>
     kind === 'invoices'
       ? {
-          rows: [{ id: 'cd'.repeat(32), direction: 'received', sats: '500', feeSats: '0', timestamp: 1700000100, state, memo: '' }],
+          rows: [
+            {
+              id: 'cd'.repeat(32),
+              direction: 'received',
+              sats: '500',
+              feeSats: '0',
+              timestamp: 1700000100,
+              state,
+              memo: '',
+            },
+          ],
           next: '0',
           more: false,
         }
@@ -258,9 +278,33 @@ test('canceled invoices collapse to the newest gray stack and can expand without
     kind === 'invoices'
       ? {
           rows: [
-            { id: 'old', direction: 'received', sats: '100', feeSats: '0', timestamp: 100, state: 'canceled', memo: 'Old canceled' },
-            { id: 'paid', direction: 'received', sats: '200', feeSats: '0', timestamp: 200, state: 'settled', memo: 'Paid invoice' },
-            { id: 'new', direction: 'received', sats: '300', feeSats: '0', timestamp: 300, state: 'canceled', memo: 'New canceled' },
+            {
+              id: 'old',
+              direction: 'received',
+              sats: '100',
+              feeSats: '0',
+              timestamp: 100,
+              state: 'canceled',
+              memo: 'Old canceled',
+            },
+            {
+              id: 'paid',
+              direction: 'received',
+              sats: '200',
+              feeSats: '0',
+              timestamp: 200,
+              state: 'settled',
+              memo: 'Paid invoice',
+            },
+            {
+              id: 'new',
+              direction: 'received',
+              sats: '300',
+              feeSats: '0',
+              timestamp: 300,
+              state: 'canceled',
+              memo: 'New canceled',
+            },
           ],
           next: '0',
           more: false,
@@ -271,7 +315,7 @@ test('canceled invoices collapse to the newest gray stack and can expand without
   await act(async () => {});
   const stack = screen.getByLabelText('Canceled invoices · 2');
   expect(stack.props.accessibilityState.expanded).toBe(false);
-  expect(screen.getByText(/Latest: 300 sats/)).toBeTruthy();
+  expect(screen.getByText(/Latest: 0.000003 XBT/)).toBeTruthy();
   expect(screen.queryByText('Old canceled')).toBeNull();
   expect(screen.getByText('Paid invoice')).toBeTruthy();
   fireEvent.press(stack);
@@ -284,5 +328,78 @@ test('canceled invoices collapse to the newest gray stack and can expand without
   fireEvent.press(screen.getByLabelText('Canceled invoices · 2'));
   expect(screen.queryByText('Old canceled')).toBeNull();
   expect(screen.getByText('Paid invoice')).toBeTruthy();
+  screen.unmount();
+});
+
+test('balance tap cycles all wallet amounts through XBT, sats and the NeoxEX USDC quote and remembers the choice', async () => {
+  mockSettings.xbtPriceQuote = createNeoxexXbtPriceQuote('300', Date.now());
+  const wallet = new LndWallet();
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  const balance = () => screen.getByTestId('LndWalletBalance').props.children;
+  const toggle = () => fireEvent.press(screen.getByLabelText('Change wallet display unit'));
+  expect(balance()).toBe('0.00899056 XBT');
+  expect(screen.getByText('+0.000005 XBT')).toBeTruthy();
+  await act(async () => toggle());
+  expect(balance()).toBe('899,056 sats');
+  expect(screen.getByText('+500 sats')).toBeTruthy();
+  await act(async () => toggle());
+  expect(balance()).toBe('≈ 2.70 USDC');
+  expect(screen.getByText('+≈ <0.01 USDC')).toBeTruthy();
+  const alert = jest.spyOn(Alert, 'alert');
+  fireEvent.press(screen.getByLabelText('Received · settled'));
+  expect(alert.mock.calls.at(-1)![1]).toContain('≈ <0.01 USDC (500 sats)');
+  expect(mockStorage.saveToDisk).toHaveBeenCalled();
+  expect(LndWallet.fromJson(JSON.stringify(wallet)).getDisplayUnit()).toBe('quote');
+  await act(async () => fireEvent.press(screen.getByRole('tab', { name: 'Funding' })));
+  expect(screen.getByText('+≈ 3.00 USDC')).toBeTruthy();
+  expect(screen.getByText('≈ 2.37 USDC confirmed · ≈ 0.03 USDC unconfirmed')).toBeTruthy();
+  mockSettings.xbtPriceQuote = createNeoxexXbtPriceQuote('600', Date.now());
+  screen.rerender(<LndWalletHome wallet={wallet} />);
+  expect(balance()).toBe('≈ 5.39 USDC');
+  await act(async () => toggle());
+  expect(balance()).toBe('0.00899056 XBT');
+  expect(wallet.getBalance()).toBe(899056);
+  expect(bridge.invoice).not.toHaveBeenCalled();
+  expect(bridge.manage).not.toHaveBeenCalled();
+  screen.unmount();
+});
+
+test('restored quote mode labels NeoxEX USDC accurately and handles a missing rate without a false zero', async () => {
+  const wallet = LndWallet.fromJson(JSON.stringify({ displayUnit: 'quote' }));
+  mockSettings.xbtPriceQuote = createNeoxexXbtPriceQuote('300', Date.now());
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  expect(screen.getByTestId('LndWalletBalance').props.children).toBe('≈ 2.70 USDC');
+  mockSettings.xbtPriceQuote = null;
+  screen.rerender(<LndWalletHome wallet={wallet} />);
+  expect(screen.getByTestId('LndWalletBalance').props.children).toBe('Rate unavailable');
+  await act(async () => fireEvent.press(screen.getByLabelText('Change wallet display unit')));
+  expect(screen.getByTestId('LndWalletBalance').props.children).toBe('0.00899056 XBT');
+  screen.unmount();
+});
+
+test('hidden balances stay hidden and cannot change display units by tapping', async () => {
+  const wallet = new LndWallet();
+  wallet.hideBalance = true;
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Change wallet display unit'));
+  expect(screen.getByTestId('LndWalletBalance').props.children).toBe('••••');
+  expect(wallet.getDisplayUnit()).toBe('XBT');
+  expect(screen.queryByText('+0.000005 XBT')).toBeNull();
+  screen.unmount();
+});
+
+test('failed preference save restores the previous unit', async () => {
+  const wallet = new LndWallet();
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  const alert = jest.spyOn(Alert, 'alert');
+  mockStorage.saveToDisk.mockRejectedValueOnce(new Error('Storage unavailable'));
+  await act(async () => fireEvent.press(screen.getByLabelText('Change wallet display unit')));
+  expect(wallet.getDisplayUnit()).toBe('XBT');
+  expect(screen.getByTestId('LndWalletBalance').props.children).toBe('0.00899056 XBT');
+  expect(alert).toHaveBeenCalledWith('Unit not saved', expect.any(String));
   screen.unmount();
 });
