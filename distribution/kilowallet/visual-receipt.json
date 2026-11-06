@@ -1,0 +1,212 @@
+{
+  "observedAt": "2026-11-06T16:22:40.297793+00:00",
+  "run": 42234792388,
+  "attempt": 1,
+  "job": 127949512217,
+  "orchestration": "8314fe533d246b73f20c46f77a9a28b4ae2fa927",
+  "expectedAppSource": "5ac15b5eeb26296d69008a39e7ff1b4e23d4f8c5",
+  "expectedAppTree": "803460785f25cfc0770cfa8b70639b27ca4435d2",
+  "status": "completed",
+  "conclusion": "success",
+  "diagnosticOnly": true,
+  "visualApproved": false,
+  "artifact": {
+    "id": 13515939118,
+    "sha256": "005de209ee27a7c8847a192b71693623fadb533703f64b3f12393ac6a1114cbc",
+    "apiDigestVerified": true,
+    "zipCrcVerified": true,
+    "files": [
+      "screenshots/03-create.png",
+      "screenshots/55-background-settings.png",
+      "screenshots/55-ln-live.png",
+      "screenshots/55-lnd-followup-1.png",
+      "screenshots/55-lnd-followup-2.png",
+      "screenshots/55-lnd-followup-3.png",
+      "screenshots/55-lnd-reentry-1.png",
+      "screenshots/55-lnd-reentry-2.png",
+      "screenshots/55-lnd-reentry-3.png",
+      "screenshots/55-lnd-transition-1.png",
+      "screenshots/55-settings-transition-1.png",
+      "screenshots/55-settings-transition-2.png",
+      "screenshots-logs/background.launch",
+      "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/block_headers.bin",
+      "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/neutrino.db",
+      "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/reg_filter_headers.bin",
+      "screenshots-logs/create-focused-result.json",
+      "screenshots-logs/create.launch",
+      "screenshots-logs/create.log",
+      "screenshots-logs/create.stderr",
+      "screenshots-logs/ln-live.launch",
+      "screenshots-logs/ln-live.log",
+      "screenshots-logs/ln-live.stderr",
+      "screenshots-logs/lnd-focused-result.json",
+      "screenshots-logs/reentry-pids.txt",
+      "screenshots-logs/lnd-live.log",
+      "screenshots-logs/reentry-readiness.json",
+      "screenshots-logs/reentry.launch",
+      "screenshots-logs/settings-readiness.json",
+      "screenshots-logs/tor-ln-live.log",
+      "build/xcodebuild.log"
+    ]
+  },
+  "compilePassed": true,
+  "capturePassed": true,
+  "focusedRuntime": {
+    "checks": {
+      "lightningUsesTor": true,
+      "onionPeerConnected": true,
+      "watchtowerRegistered": true,
+      "emptyChannelBackupRpc": true,
+      "nativeQualificationCompleted": true
+    },
+    "passed": true,
+    "physicalPhoneTested": false,
+    "fundedChannelRestoreTested": false,
+    "visualApprovalRequiresManualReview": true,
+    "source": "5ac15b5eeb26296d69008a39e7ff1b4e23d4f8c5",
+    "screenshotSourceSha256": "168c35fafecefca744d2416fee8b07f8d1917d78a61eb7b0f1b31507b087d6c3",
+    "captureExit": 0,
+    "chainCaches": [
+      {
+        "path": "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/reg_filter_headers.bin",
+        "size": 31384800,
+        "sha256": "3993f2f7293f1fd8a80686ed3795e365515b4e43c471d3b59993ada633f3551f"
+      },
+      {
+        "path": "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/neutrino.db",
+        "size": 118312960,
+        "sha256": "db14b3fb35cdd38ef1a62c6ade85e9b2cb1f41634ce8e734050cfaf0455ec9d3"
+      },
+      {
+        "path": "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/block_headers.bin",
+        "size": 80069340,
+        "sha256": "4f95a23df219ed923a8d2d59d0d09dd318b6b51e67987f06f508af36deaf8465"
+      }
+    ],
+    "frameChecks": {
+      "55-ln-live.png": {
+        "exists": true,
+        "phrases": {
+          "Lightning": true,
+          "EXPORT SCB": true
+        },
+        "passed": true
+      },
+      "55-lnd-followup-1.png": {
+        "exists": true,
+        "phrases": {
+          "Lightning": true,
+          "EXPORT SCB": true
+        },
+        "passed": true
+      },
+      "55-lnd-followup-2.png": {
+        "exists": true,
+        "phrases": {
+          "Lightning": true,
+          "EXPORT SCB": true
+        },
+        "passed": true
+      },
+      "55-lnd-followup-3.png": {
+        "exists": true,
+        "phrases": {
+          "Lightning": true,
+          "EXPORT SCB": true
+        },
+        "passed": true
+      },
+      "55-lnd-reentry-1.png": {
+        "exists": true,
+        "phrases": {
+          "Lightning": true,
+          "EXPORT SCB": true
+        },
+        "passed": true
+      },
+      "55-lnd-reentry-2.png": {
+        "exists": true,
+        "phrases": {
+          "Lightning": true,
+          "EXPORT SCB": true
+        },
+        "passed": true
+      },
+      "55-lnd-reentry-3.png": {
+        "exists": true,
+        "phrases": {
+          "Lightning": true,
+          "EXPORT SCB": true
+        },
+        "passed": true
+      }
+    },
+    "settingsReadiness": {
+      "ready": true,
+      "limitSeconds": 60,
+      "analysisTimeoutPerPhraseSeconds": 60,
+      "elapsedSeconds": 49.416783247999774,
+      "attempts": [
+        {
+          "file": "55-settings-transition-1.png",
+          "elapsedSeconds": 31.281998578000184,
+          "captureElapsedSeconds": 19.56827384999997,
+          "captureExit": 0,
+          "check": {
+            "exists": true,
+            "phrases": {
+              "Settings": false
+            },
+            "passed": false
+          }
+        },
+        {
+          "file": "55-settings-transition-2.png",
+          "elapsedSeconds": 49.41669743700004,
+          "captureElapsedSeconds": 41.45151837000003,
+          "captureExit": 0,
+          "check": {
+            "exists": true,
+            "phrases": {
+              "Settings": true
+            },
+            "passed": true
+          }
+        }
+      ]
+    },
+    "reentryReadiness": {
+      "ready": true,
+      "limitSeconds": 30,
+      "analysisTimeoutPerPhraseSeconds": 60,
+      "elapsedSeconds": 129.67083044699984,
+      "attempts": [
+        {
+          "file": "55-lnd-transition-1.png",
+          "elapsedSeconds": 129.67066097999987,
+          "captureElapsedSeconds": 22.340843521999886,
+          "captureExit": 0,
+          "check": {
+            "exists": true,
+            "phrases": {
+              "Lightning": true,
+              "EXPORT SCB": true
+            },
+            "passed": true
+          }
+        }
+      ]
+    },
+    "createScreen": {
+      "exists": true,
+      "phrases": {
+        "Your recovery words": true,
+        "I wrote them down": true
+      },
+      "passed": true,
+      "captureExit": 0
+    },
+    "reentryPidReceipt": "original=35656\nresumed=35656\n"
+  },
+  "nativeQualificationPassed": true
+}

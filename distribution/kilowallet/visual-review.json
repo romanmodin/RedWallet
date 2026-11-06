@@ -1,0 +1,24 @@
+{
+  "sourceCommit": "5ac15b5eeb26296d69008a39e7ff1b4e23d4f8c5",
+  "run": 42234792388,
+  "attempt": 1,
+  "harnessCommit": "8314fe533d246b73f20c46f77a9a28b4ae2fa927",
+  "imageHashes": {
+    "03-create.png": "f22844496fb8f6f6ef6c5aa1997e2526af8da400000859a3e103c812ca7b95c8",
+    "55-background-settings.png": "6711b1f52b49227330d91dbf1f51e1835b631e3c044da1a351adc3791b2dd9c8",
+    "55-ln-live.png": "e80c7b8964bcb474b5fdc20777321d7f0a6a0e443a74ac0dcc49fe6ba89f5edb",
+    "55-lnd-followup-1.png": "dc1bdd27916012dff545d3a6d58ae73a45ada181dfb54229c52b0953a491d274",
+    "55-lnd-followup-2.png": "a0997d7ab0618c6b9ef52789f2bc20698dfec7a14482fb0fdc11a2eedba47d07",
+    "55-lnd-followup-3.png": "fc02fb4322b5f61a8cb9109b40772951febd1f640e520f7607d567369d78850d",
+    "55-lnd-reentry-1.png": "2ad2dd5e14d348d0b2a26ed460cb396e6418eb2a6ebd8193dbf8aaa79a48cb03",
+    "55-lnd-reentry-2.png": "d1673b748e960d021ffa803cc180ed46985e10da679e18991386aec1bf9af930",
+    "55-lnd-reentry-3.png": "41755a6ac76d080384600c26f35a52bd0992294c9958c770dcbf9b4ea78fb9e4"
+  },
+  "allImagesReviewed": true,
+  "glyphsComplete": true,
+  "sameProcessReentryReviewed": true,
+  "approvedForSigning": true,
+  "reviewedAt": "2026-11-06T16:28:17.978983+00:00",
+  "reviewer": "Codex visual inspection",
+  "notes": "All nine images inspected via three contact sheets. Create recovery text and confirmation control, Settings ready state and seven Lightning frames have complete readable glyphs. Same-process re-entry PID 35656. Onion peer connected before background; re-entry displayed zero peers, so persistent peer connectivity through background is not claimed. Synthetic simulator only; no physical phone or funded recovery qualification."
+}
