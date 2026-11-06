@@ -73,7 +73,7 @@ function fixture() {
       { betaReviewState: "APPROVED" },
       { build: rel("builds", "synthetic-build") },
     ),
-    [b + "/betaGroups?limit=200"]: many(
+    ["/v1/betaGroups?filter%5Bapp%5D=" + APP + "&filter%5Bbuilds%5D=synthetic-build&limit=200"]: many(
       "betaGroups",
       GROUPS.map((g) => g.id),
     ),
@@ -159,7 +159,7 @@ test("foreign relationship bindings and wrong train cannot become a complete sna
         "/v1/betaGroups/" + GROUPS[0].id + "?include=app"
       ].data.attributes.name = "foreign"),
     (p) =>
-      p["/v1/builds/synthetic-build/betaGroups?limit=200"].data.push({
+      p["/v1/betaGroups?filter%5Bapp%5D=" + APP + "&filter%5Bbuilds%5D=synthetic-build&limit=200"].data.push({
         type: "betaGroups",
         id: "foreign",
       }),

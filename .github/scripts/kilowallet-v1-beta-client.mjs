@@ -67,7 +67,7 @@ export function clients(
       ],
       [base + "/preReleaseVersion", {}],
       [base + "/buildBetaDetail", {}],
-      [base + "/betaGroups", { collection: true }],
+      ["/v1/betaGroups", { collection: true, filters: {"filter[app]": APP, "filter[builds]": upload.appleBuildId} }],
       [base + "/betaBuildLocalizations", { collection: true }],
       ...GROUPS.flatMap((g) => [
         ["/v1/betaGroups/" + g.id, { include: "app" }],
@@ -92,12 +92,16 @@ export function clients(
     for (const [key, value] of u.searchParams) {
       if (key === "include")
         assert.equal(value, rule.include, "Unexpected include");
+      else if (Object.hasOwn(rule.filters || {}, key))
+        assert.equal(value, rule.filters[key], "Foreign beta membership filter");
       else if (key === "limit" && rule.collection)
         assert.match(value, /^(?:[1-9][0-9]?|1[0-9]{2}|200)$/);
       else if (key === "cursor" && rule.collection)
         assert.ok(value.length > 0 && value.length <= 2048);
       else throw Error("Unexpected query");
     }
+    for (const [key,value] of Object.entries(rule.filters || {}))
+      assert.equal(u.searchParams.get(key),value,"Required exact membership filter missing");
     if (rule.include)
       assert.equal(
         u.searchParams.get("include"),
