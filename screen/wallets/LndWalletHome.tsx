@@ -22,7 +22,8 @@ import { useTheme } from '../../components/themes';
 import XbtFiatEstimate from '../../components/XbtFiatEstimate';
 import { useStorage } from '../../hooks/context/useStorage';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
-import { formatBalance } from '../../loc';
+import { useSettings } from '../../hooks/context/useSettings';
+import { formatLndAmount, nextLndDisplayUnit } from '../../blue_modules/lnd-display-amount';
 
 const bridge = NativeModules.XBTLightningBridge;
 type Pages = Partial<Record<'payments' | 'invoices' | 'funding', LndActivityPage>>;
@@ -34,6 +35,29 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const { colors } = useTheme();
   const navigation = useExtendedNavigation();
   const { saveToDisk } = useStorage();
+  const { xbtPriceQuote } = useSettings();
+  const [displayUnit, setDisplayUnit] = useState(wallet.getDisplayUnit());
+  const unitSaving = useRef(false);
+  const formatAmount = (sats: number | string) => formatLndAmount(sats, displayUnit, xbtPriceQuote);
+  const exactAmount = (sats: string) =>
+    displayUnit === 'sats' ? formatAmount(sats) : formatAmount(sats) + ' (' + formatLndAmount(sats, 'sats') + ')';
+  const changeDisplayUnit = async () => {
+    if (wallet.hideBalance || unitSaving.current) return;
+    unitSaving.current = true;
+    const previous = wallet.getDisplayUnit();
+    const next = nextLndDisplayUnit(previous);
+    wallet.setDisplayUnit(next);
+    setDisplayUnit(next);
+    try {
+      await saveToDisk();
+    } catch {
+      wallet.setDisplayUnit(previous);
+      setDisplayUnit(previous);
+      Alert.alert('Unit not saved', 'Could not save your display preference. Please try again.');
+    } finally {
+      unitSaving.current = false;
+    }
+  };
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<'transactions' | 'funding'>('transactions');
   const [pages, setPages] = useState<Pages>({});
@@ -183,12 +207,12 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   };
   const details = (row: LndActivity) => {
     const text =
-      row.sats +
-      ' sats · ' +
+      exactAmount(row.sats) +
+      ' · ' +
       row.state +
       '\nFee: ' +
-      row.feeSats +
-      ' sats\n' +
+      exactAmount(row.feeSats) +
+      '\n' +
       (row.confirmations !== undefined ? row.confirmations + ' confirmations\nTransaction: ' : 'Payment hash: ') +
       row.id +
       (row.direction === 'received' && row.confirmations === undefined ? '\nThe sender’s identity is not supplied by Lightning.' : '') +
@@ -201,16 +225,20 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
               text: 'Cancel invoice',
               style: 'destructive' as const,
               onPress: () =>
-                Alert.alert('Cancel invoice?', 'Cancel this unpaid request for ' + row.sats + ' sats? It cannot be paid afterward.', [
-                  { text: 'Keep invoice', style: 'cancel' },
-                  {
-                    text: 'Cancel invoice',
-                    style: 'destructive',
-                    onPress: () => {
-                      void cancelInvoice(row);
+                Alert.alert(
+                  'Cancel invoice?',
+                  'Cancel this unpaid request for ' + exactAmount(row.sats) + '? It cannot be paid afterward.',
+                  [
+                    { text: 'Keep invoice', style: 'cancel' },
+                    {
+                      text: 'Cancel invoice',
+                      style: 'destructive',
+                      onPress: () => {
+                        void cancelInvoice(row);
+                      },
                     },
-                  },
-                ]),
+                  ],
+                ),
             },
           ]
         : []),
@@ -276,7 +304,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           },
         ]}
       >
-        {wallet.hideBalance ? '••••' : (isCanceled(item) ? '' : item.direction === 'sent' ? '−' : '+') + item.sats + ' sats'}
+        {wallet.hideBalance ? '••••' : (isCanceled(item) ? '' : item.direction === 'sent' ? '−' : '+') + formatAmount(item.sats)}
       </Text>
     </Pressable>
   );
@@ -299,13 +327,24 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           </Text>
           <LndConnectionBadge wallet={wallet} />
         </View>
-        <Text style={styles.balance}>
-          {wallet.hideBalance ? '••••' : formatBalance(wallet.getBalance(), wallet.getPreferredBalanceUnit(), true)}
-        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Change wallet display unit"
+          accessibilityHint="Cycles XBT, sats and the exchange-rate estimate for this wallet."
+          accessibilityValue={{
+            text: displayUnit === 'quote' ? (xbtPriceQuote?.currency ?? 'Fiat') : displayUnit,
+          }}
+          disabled={wallet.hideBalance}
+          onPress={changeDisplayUnit}
+        >
+          <Text testID="LndWalletBalance" style={styles.balance} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+            {wallet.hideBalance ? '••••' : formatAmount(wallet.getBalance())}
+          </Text>
+        </Pressable>
         <Text style={styles.balanceLabel}>Total balance · funding and channels</Text>
         {!!overview && !wallet.hideBalance && (
           <Text style={styles.status}>
-            Lightning: {overview.lightningLocal} sats · Funding: {overview.fundingTotal} sats
+            Lightning: {formatAmount(overview.lightningLocal)} · Funding: {formatAmount(overview.fundingTotal)}
           </Text>
         )}
         {!wallet.hideBalance && <XbtFiatEstimate satoshis={wallet.getBalance()} style={styles.fiat} />}
@@ -363,7 +402,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                   <Text style={{ color: colors.foregroundColor }}>
                     {wallet.hideBalance
                       ? '••••'
-                      : overview.fundingConfirmed + ' confirmed · ' + overview.fundingPending + ' unconfirmed sats'}
+                      : formatAmount(overview.fundingConfirmed) + ' confirmed · ' + formatAmount(overview.fundingPending) + ' unconfirmed'}
                   </Text>
                 )}
               </View>
@@ -400,7 +439,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                 >
                   <Text style={[styles.rowTitle, { color: colors.alternativeTextColor }]}>Canceled invoices · {canceled.length}</Text>
                   <Text style={{ color: colors.alternativeTextColor }}>
-                    Latest: {wallet.hideBalance ? '••••' : item.sats + ' sats'} ·{' '}
+                    Latest: {wallet.hideBalance ? '••••' : formatAmount(item.sats)} ·{' '}
                     {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
                   </Text>
                   <Text style={[styles.stackHint, { color: colors.alternativeTextColor }]}>
