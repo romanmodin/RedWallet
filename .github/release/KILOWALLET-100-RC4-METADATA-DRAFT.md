@@ -51,3 +51,13 @@ Fresh GET-only Apple public preflight42144736741 observed01:35:07Z: existing0.4.
 The export-documentation questionnaire was resolved by the observed standard-encryption-outside-OS/FranceNo/no-documents-required result and Roman's France exclusion. No ECCN, CCATS or formal legal determination is asserted. Do not change that scope or accept new agreements. No encryption declaration was created, attached or modified by distribution.
 
 Next: preserve the pending beta review. Once exactbuild8 is approved and both groups are IN_BETA_TESTING, reverify live public review state and apply accurate replacement review/privacy metadata without deleting public versions or withdrawing other apps. These proposed store/review texts remain unsubmitted. An App Store release cannot be called available based on beta assignment.
+
+## November5,6:30PM Pacific — public-release recheck required
+
+Fresh GET-only exactbuild8 beta inspection42150216129/a1 observed02:26:16Z: both original memberships remain verified, Internal IN_BETA_TESTING, Public Beta WAITING_FOR_BETA_REVIEW/reviewWAITING_FOR_REVIEW. No writes or resubmission. Resultartifact13472580873 SHAe60b83b7ab8a78843b2ce604051a20e22c8856ca56e433fc8f2dfbb7832f9f57 APIhashCRC verified.
+
+The automatic post-merge native run42136946441/a1 failed Ark readiness after300s (sample main thread idle; Ark log empty) and device compilation failed downloading Maven dependencies (repo.maven.apache.org resolution). It tested mergee9aae6502f3a8a1aa7703424540d5a568214fa5e with the same qualifiedb85 source tree. Do not infer an Ark root cause or claim this run passed. Earlier qualified684 native/source/package receipts remain historical exactbuild8 evidence, but public advancement is held until this later readiness failure is resolved/rechecked.
+
+All firstattempt logs, reports13469293187 SHA14cf7fdb926f5fb0b0a930ec6c7480b3ba5d10dc957a8ce7f0a7329d65b8f593 and release-build-log13468629753 SHAe64e13827bfd3e547cafc2c5d3be21dc193c8576ecdf65aebf5c86047f7df658 retained and APIhashCRC verified. Screenshotartifact was not preserved; subsequent retrieval returned404 after rerun. No visual claim for the failed Ark frame.
+
+After verifying no healthy app duplicate and the exact same source tree, requested ONE existing-run rerun. Current42136946441/attempt2/job127672233917 IN_PROGRESS; no source edits, timeout changes, re-signing, re-upload or healthy cancellation. Collect currentattempt2 outcome and Ark/native evidence before public submission. Preserve existing0.4review and pendingbeta review. ETA2–4hours for verification conditional on runner/services; Apple beta/public review timing is separate. No new scheduled automation, legal agreement, financial transaction or production wallet access.
