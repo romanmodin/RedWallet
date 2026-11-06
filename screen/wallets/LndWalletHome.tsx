@@ -222,7 +222,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       onPress={() => open(mode)}
       style={[
         styles.action,
-        secondary ? styles.fundingAction : styles.lightningAction,
+        secondary ? styles.fundingAction : mode === 'invoice' ? styles.receiveAction : styles.lightningAction,
         !ready && styles.disabled,
         secondary && styles.secondary,
       ]}
@@ -444,6 +444,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   lightningAction: { backgroundColor: WalletGradient.xbtWallet[0] },
+  receiveAction: { backgroundColor: '#18794E' },
   fundingAction: { backgroundColor: '#3A3A3C' },
   secondary: { minHeight: 54 },
   secondaryTitle: { fontSize: 15 },
