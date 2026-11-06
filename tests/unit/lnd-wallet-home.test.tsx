@@ -118,7 +118,14 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   expect(mockNavigation.navigate).toHaveBeenLastCalledWith('XBTLightning', {
     mode: 'receive',
   });
+  expect(screen.queryByLabelText('Pay (invoice)')).toBeNull();
+  expect(screen.queryByLabelText('Receive (create invoice)')).toBeNull();
+  expect(screen.getAllByLabelText('Receive on-chain')).toHaveLength(1);
+  fireEvent.press(screen.getByLabelText('Send on-chain'));
+  expect(mockNavigation.navigate).toHaveBeenLastCalledWith('XBTLightning', { mode: 'send' });
+  await act(async () => fireEvent.press(screen.getByRole('tab', { name: 'Transactions' })));
   expect(screen.getByLabelText('Pay (invoice)')).toBeTruthy();
+  expect(screen.queryByLabelText('Receive on-chain')).toBeNull();
   expect(bridge.invoice).not.toHaveBeenCalled();
   expect(bridge.manage).not.toHaveBeenCalled();
   screen.unmount();

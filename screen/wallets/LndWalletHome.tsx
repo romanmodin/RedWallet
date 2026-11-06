@@ -222,15 +222,13 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       onPress={() => open(mode)}
       style={[
         styles.action,
-        {
-          backgroundColor: colors.buttonBackgroundColor,
-        },
+        secondary ? styles.fundingAction : styles.lightningAction,
         !ready && styles.disabled,
         secondary && styles.secondary,
       ]}
     >
-      <Text style={[styles.actionTitle, { color: colors.foregroundColor }]}>{mode === 'invoice' ? 'RECEIVE' : title}</Text>
-      {mode === 'invoice' && <Text style={[styles.actionSubtitle, { color: colors.foregroundColor }]}>Create invoice</Text>}
+      <Text style={[styles.actionTitle, secondary && styles.secondaryTitle]}>{mode === 'invoice' ? 'RECEIVE' : title}</Text>
+      {mode === 'invoice' && <Text style={styles.actionSubtitle}>Create invoice</Text>}
     </Pressable>
   );
   return (
@@ -319,10 +317,6 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                       : overview.fundingConfirmed + ' confirmed · ' + overview.fundingPending + ' unconfirmed sats'}
                   </Text>
                 )}
-                <View style={styles.actions}>
-                  {action('Receive on-chain', 'receive', true)}
-                  {action('Send on-chain', 'send', true)}
-                </View>
               </View>
             )}
           </>
@@ -402,8 +396,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           </Pressable>
         )}
         <View style={styles.actions}>
-          {action('Receive (create invoice)', 'invoice')}
-          {action('Pay (invoice)', 'pay')}
+          {tab === 'funding' ? action('Receive on-chain', 'receive', true) : action('Receive (create invoice)', 'invoice')}
+          {tab === 'funding' ? action('Send on-chain', 'send', true) : action('Pay (invoice)', 'pay')}
         </View>
         {refreshing && <ActivityIndicator color={colors.foregroundColor} />}
       </View>
@@ -443,15 +437,18 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 10, marginTop: 10 },
   action: {
     flex: 1,
-    minHeight: 54,
-    borderRadius: 28,
+    minHeight: 68,
+    borderRadius: 34,
     padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondary: { minHeight: 44 },
-  actionTitle: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
-  actionSubtitle: { fontSize: 11, textAlign: 'center', marginTop: 2 },
+  lightningAction: { backgroundColor: WalletGradient.xbtWallet[0] },
+  fundingAction: { backgroundColor: '#3A3A3C' },
+  secondary: { minHeight: 54 },
+  secondaryTitle: { fontSize: 15 },
+  actionTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center', color: '#FFFFFF' },
+  actionSubtitle: { fontSize: 12, textAlign: 'center', marginTop: 2, color: '#FFFFFF' },
   footer: {
     position: 'absolute',
     bottom: 0,
