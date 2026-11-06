@@ -4,7 +4,9 @@ import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { Alert, AppState, NativeModules } from 'react-native';
 
 const mockNavigation = { navigate: jest.fn() };
-jest.mock('../../hooks/useExtendedNavigation', () => ({ useExtendedNavigation: () => mockNavigation }));
+jest.mock('../../hooks/useExtendedNavigation', () => ({
+  useExtendedNavigation: () => mockNavigation,
+}));
 jest.mock('@react-native-documents/picker', () => ({ types: {} }));
 jest.mock('react-native-fs', () => ({}));
 jest.mock('../../components/QRCode', () => () => null);
@@ -158,6 +160,8 @@ test('cooperative close confirms the selected channel and fee rate and ignores a
     await act(async () => {});
     fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '2');
     await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Refresh channels' })));
+    expect(screen.queryByText('Close channel · 82000 local sats')).toBeNull();
+    fireEvent.press(screen.getByTestId('SelectChannel-fixture-point:0'));
     fireEvent.press(screen.getByText('Close channel · 82000 local sats'));
     expect(bridge.manage.mock.calls.map(c => c[0]).filter(action => action !== 'channelStatus')).toEqual([]);
     const [, detail, buttons] = prompt.mock.calls[0];
@@ -500,4 +504,76 @@ test('camera scan rejects unrelated QR data without replacing the invoice or pay
   expect(bridge.invoice).not.toHaveBeenCalled();
   screen.unmount();
   prompt.mockRestore();
+});
+
+test('channel selection exposes the correct peer and scopes actions even for two channels with one peer', async () => {
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  bridge.manage.mockResolvedValueOnce([
+    {
+      point: 'first:0',
+      peer: 'same-peer',
+      peerAlias: 'Example',
+      peerAddress: 'example.onion:9735',
+      state: 'active',
+      active: true,
+      localSats: '1000',
+    },
+    {
+      point: 'second:0',
+      peer: 'same-peer',
+      state: 'active',
+      active: true,
+      localSats: '2000',
+    },
+  ]);
+  const screen = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    expect(screen.queryByText('Close channel · 1000 local sats')).toBeNull();
+    fireEvent.press(screen.getByTestId('SelectChannel-first:0'));
+    expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/Current peer address: example.onion:9735/)).toBeTruthy();
+    fireEvent.press(screen.getByText('Close channel · 1000 local sats'));
+    const confirm = prompt.mock.calls[0][2]!.find(button => button.text === 'Close channel')!.onPress!;
+    expect(prompt.mock.calls[0][1]).toContain('Channel: first:0');
+    fireEvent.press(screen.getByTestId('SelectChannel-second:0'));
+    expect(screen.queryByText('Close channel · 1000 local sats')).toBeNull();
+    expect(screen.getByText('Close channel · 2000 local sats')).toBeTruthy();
+    expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/Channel funding reference: second:0/)).toBeTruthy();
+    bridge.manage.mockClear();
+    await act(async () => confirm());
+    expect(bridge.manage.mock.calls.some(call => call[0] === 'close')).toBe(false);
+    bridge.manage.mockResolvedValueOnce([]);
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Refresh channels' })));
+    expect(screen.queryByText('Close channel · 2000 local sats')).toBeNull();
+  } finally {
+    screen.unmount();
+    prompt.mockRestore();
+  }
+});
+
+test('switching channels clears resize inputs and reviews instead of retargeting them', async () => {
+  const splice = jest.fn();
+  NativeModules.XBTLightningBridge.splice = splice;
+  bridge.manage.mockResolvedValueOnce([
+    { point: 'resize-a:0', peer: 'peer', state: 'active', active: true, localSats: '1000', splice: { status: 'ok' } },
+    { point: 'resize-b:0', peer: 'peer', state: 'active', active: true, localSats: '2000', splice: { status: 'ok' } },
+  ]);
+  const screen = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    fireEvent.press(screen.getByTestId('SelectChannel-resize-a:0'));
+    fireEvent.press(screen.getByText('Add funds'));
+    fireEvent.changeText(screen.getByLabelText('Channel resize sats'), '1000');
+    fireEvent.press(screen.getByTestId('SelectChannel-resize-b:0'));
+    expect(screen.queryByTestId('ChannelFunds-resize-a:0')).toBeNull();
+    expect(screen.getByTestId('ChannelFunds-resize-b:0')).toBeTruthy();
+    expect(screen.queryByLabelText('Channel resize sats')).toBeNull();
+    fireEvent.press(screen.getByTestId('SelectChannel-resize-a:0'));
+    fireEvent.press(screen.getByText('Add funds'));
+    expect(screen.getByLabelText('Channel resize sats').props.value).toBe('');
+    expect(splice).not.toHaveBeenCalled();
+  } finally {
+    screen.unmount();
+    delete NativeModules.XBTLightningBridge.splice;
+  }
 });

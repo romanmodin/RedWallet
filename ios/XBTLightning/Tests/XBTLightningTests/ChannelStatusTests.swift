@@ -55,4 +55,18 @@ final class ChannelStatusTests: XCTestCase {
         XCTAssertThrowsError(try LightningChannelStatus.decode(open: Data(), pending: ProtoFields.field(2, data: Data())))
         XCTAssertTrue(try LightningChannelStatus.decode(open: Data(), pending: Data()).isEmpty)
     }
+
+    func testPeerMetadataIsMatchedByIdentityAndOfflineChannelsRemainVisible() throws {
+        let row = string(2, "peer") + string(3, "one:0") + string(34, "Example")
+        let peers = ProtoFields.field(1, data: string(1, "other") + string(3, "wrong:9735")) +
+            ProtoFields.field(1, data: string(1, "peer") + string(3, "example.onion:9735"))
+        let opened = ProtoFields.field(11, data: row) + open("two:0", active: true)
+        let result = try LightningChannelStatus.decode(open: opened, pending: Data(), peers: peers)
+        XCTAssertEqual(result.first?.peerAlias, "Example")
+        XCTAssertTrue(result.allSatisfy { $0.peerAddress == "example.onion:9735" })
+        let offline = try LightningChannelStatus.decode(open: opened, pending: Data())
+        XCTAssertEqual(offline.count, 2)
+        XCTAssertTrue(offline.allSatisfy { $0.peerAddress == nil })
+        XCTAssertEqual(offline.first?.peer, "peer")
+    }
 }

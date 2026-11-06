@@ -29,6 +29,8 @@ const bridge = NativeModules.XBTLightningBridge;
 type Channel = {
   point: string;
   peer: string;
+  peerAlias?: string;
+  peerAddress?: string;
   active: boolean;
   localSats: string;
   state: 'active' | 'inactive' | 'pending' | 'closing' | 'forceClosing';
@@ -84,6 +86,24 @@ function channelState(channel: Channel) {
   }
 }
 
+function selectedChannelDetails(channel: Channel) {
+  return (
+    'Status: ' +
+    channelState(channel) +
+    '\nPeer name: ' +
+    (channel.peerAlias || 'Not announced') +
+    '\nPeer public key: ' +
+    channel.peer +
+    '\nCurrent peer address: ' +
+    (channel.peerAddress || 'Unavailable — peer may be disconnected') +
+    '\nChannel funding reference: ' +
+    channel.point +
+    '\nLocal balance: ' +
+    channel.localSats +
+    ' sats'
+  );
+}
+
 async function exportBackup(url: string) {
   if (Platform.OS === 'android') {
     const [result] = await saveDocuments({
@@ -129,6 +149,16 @@ export default function XBTLightning({
   const [review, setReview] = useState<Review>();
   const [channels, setChannels] = useState<Channel[]>();
   const [channelError, setChannelError] = useState(false);
+  const [selectedPoint, setSelectedPoint] = useState<string>();
+  const selection = useRef<string | undefined>(undefined);
+  selection.current = selectedPoint;
+  useEffect(() => {
+    if (activityTitle !== 'Selected channel') return;
+    const channel = channels?.find(item => item.point === selectedPoint);
+    setMessage(channel ? selectedChannelDetails(channel) : 'The selected channel is no longer listed. Select another channel.');
+    setActivityError(channelError);
+    if (channelError) setMessage('Channel refresh failed. Refresh channels before using these details or actions.');
+  }, [channels, selectedPoint, activityTitle, channelError]);
   const channelRequest = useRef<Promise<Channel[]> | undefined>(undefined);
   const [destination, setDestination] = useState('');
   const [withdrawSats, setWithdrawSats] = useState('');
@@ -147,6 +177,7 @@ export default function XBTLightning({
         items => {
           if (mounted.current) {
             setChannels(items);
+            setSelectedPoint(current => (items.some(item => item.point === current) ? current : undefined));
             setChannelError(false);
           }
           return items;
@@ -311,7 +342,11 @@ export default function XBTLightning({
     const rate = feeRate;
     Alert.alert(
       'Close this channel?',
-      'Return this channel’s funds to the Lightning node’s on-chain wallet. Starting fee rate: ' +
+      'Channel: ' +
+        channel.point +
+        '\nPeer: ' +
+        channel.peer +
+        '\n\nReturn this channel’s funds to the Lightning node’s on-chain wallet. Starting fee rate: ' +
         rate +
         ' sat/vB. For channels funded by this node, the negotiated fee rate is capped at ' +
         Number(rate) * 3 +
@@ -322,7 +357,7 @@ export default function XBTLightning({
           text: 'Close channel',
           onPress: () =>
             run('Close channel', async () => {
-              if (submitted.current.has(channel.point)) return;
+              if (selection.current !== channel.point || submitted.current.has(channel.point)) return;
               submitted.current.add(channel.point);
               try {
                 const txid = await bridge.manage('close', channel.point, '', rate);
@@ -773,18 +808,37 @@ export default function XBTLightning({
                 }
               />
               <SettingsFootnote style={{ color: colors.foregroundColor }}>
-                Open includes active and inactive channels. Pending channels are still opening. Counts refresh while this screen is open.
+                Tap a channel to select it and show its peer identity above. Actions apply only to the selected channel. Inactive channels
+                remain listed; pending channels are still opening.
               </SettingsFootnote>
               {(channels ?? []).map(channel => (
                 <View key={channel.point}>
                   <SettingsListItem
-                    title={channelState(channel)}
+                    testID={'SelectChannel-' + channel.point}
+                    title={
+                      (selectedPoint === channel.point ? '✓ ' : '') +
+                      channelState(channel) +
+                      (channel.peerAlias ? ' · ' + channel.peerAlias : '')
+                    }
+                    disabled={busy}
+                    onPress={() => {
+                      setSelectedPoint(channel.point);
+                      setActivityTitle('Selected channel');
+                      setActivityError(false);
+                      setCopied(false);
+                      setMessage(selectedChannelDetails(channel));
+                      Keyboard.dismiss();
+                      scrollView.current?.scrollTo({
+                        y: activityTop.current,
+                        animated: true,
+                      });
+                    }}
                     subtitle={'Local balance: ' + channel.localSats + ' sats\nPeer: ' + channel.peer + '\nFunding: ' + channel.point}
                   />
-                  {bridge.splice && ['active', 'inactive'].includes(channel.state) && (
+                  {selectedPoint === channel.point && bridge.splice && ['active', 'inactive'].includes(channel.state) && (
                     <XBTLightningChannelFunds
                       point={channel.point}
-                      active={channel.active}
+                      active={channel.active && !channelError}
                       splice={channel.splice}
                       busy={busy}
                       run={run}
@@ -794,10 +848,10 @@ export default function XBTLightning({
                       }}
                     />
                   )}
-                  {['active', 'inactive'].includes(channel.state) && (
+                  {selectedPoint === channel.point && ['active', 'inactive'].includes(channel.state) && (
                     <SettingsListItem
                       title={'Close channel · ' + channel.localSats + ' local sats'}
-                      disabled={busy || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
+                      disabled={busy || channelError || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
                       onPress={() => confirmClose(channel)}
                     />
                   )}
