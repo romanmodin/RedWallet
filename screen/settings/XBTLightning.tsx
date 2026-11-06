@@ -1,4 +1,5 @@
 import QRCodeComponent from '../../components/QRCode';
+import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -101,6 +102,7 @@ export default function XBTLightning({
 }: {
   route?: { params?: { mode?: 'pay' | 'invoice' | 'send' | 'receive' } };
 } = {}) {
+  const navigation = useExtendedNavigation();
   const mode = route?.params?.mode;
   const tools = !mode;
   const { colors, dark } = useTheme();
@@ -633,6 +635,33 @@ export default function XBTLightning({
           )}
           {(tools || mode === 'pay') && (
             <>
+              <SettingsListItem
+                title="Scan invoice QR"
+                disabled={busy}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  navigation.navigate('ScanQRCode', {
+                    showFileImportButton: false,
+                    onBarScanned: (data: string) => {
+                      if (!mounted.current) return;
+                      const invoice = data.trim().replace(/^lightning:/i, '');
+                      if (
+                        invoice.length > 8192 ||
+                        !/^lnbc[0-9]*[munp]?1[02-9ac-hj-np-z]+$/i.test(invoice) ||
+                        (invoice !== invoice.toLowerCase() && invoice !== invoice.toUpperCase())
+                      ) {
+                        Alert.alert('Not a Lightning invoice', 'Scan a Lightning invoice QR code to pay.');
+                        return;
+                      }
+                      setReview(undefined);
+                      setOutgoing(invoice.toLowerCase());
+                      setActivityTitle('Invoice scanned');
+                      setActivityError(false);
+                      setMessage('Invoice scanned. Tap Review invoice to check the amount before paying.');
+                    },
+                  });
+                }}
+              />
               <TextInput
                 placeholderTextColor={colors.alternativeTextColor2}
                 style={[

@@ -29,6 +29,7 @@ export default function LndConnectionBadge({ wallet }: { wallet: LndWallet }) {
 }
 const styles = StyleSheet.create({
   badge: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,

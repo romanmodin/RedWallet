@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { NativeModules, View } from 'react-native';
+import { Alert, NativeModules, View } from 'react-native';
 import { LndWallet, LndOverview } from '../../class/wallets/lnd-wallet';
 
 jest.mock('@react-navigation/native', () => ({
@@ -81,12 +81,16 @@ const bridge = {
   invoice: jest.fn(),
   manage: jest.fn(),
 };
+const defaultWallet = bridge.wallet.getMockImplementation()!;
 NativeModules.XBTLightningBridge = bridge;
 const LndWalletHome = require('../../screen/wallets/LndWalletHome').default;
 
 beforeEach(() => {
   jest.clearAllMocks();
   bridge.run.mockResolvedValue('Running');
+  bridge.wallet.mockImplementation(defaultWallet);
+  bridge.invoice.mockReset();
+  jest.restoreAllMocks();
 });
 
 test('payment buttons lead; funding is secondary; tab histories use distinct native queries', async () => {
@@ -114,7 +118,14 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   expect(mockNavigation.navigate).toHaveBeenLastCalledWith('XBTLightning', {
     mode: 'receive',
   });
+  expect(screen.queryByLabelText('Pay (invoice)')).toBeNull();
+  expect(screen.queryByLabelText('Receive (create invoice)')).toBeNull();
+  expect(screen.getAllByLabelText('Receive on-chain')).toHaveLength(1);
+  fireEvent.press(screen.getByLabelText('Send on-chain'));
+  expect(mockNavigation.navigate).toHaveBeenLastCalledWith('XBTLightning', { mode: 'send' });
+  await act(async () => fireEvent.press(screen.getByRole('tab', { name: 'Transactions' })));
   expect(screen.getByLabelText('Pay (invoice)')).toBeTruthy();
+  expect(screen.queryByLabelText('Receive on-chain')).toBeNull();
   expect(bridge.invoice).not.toHaveBeenCalled();
   expect(bridge.manage).not.toHaveBeenCalled();
   screen.unmount();
@@ -145,5 +156,133 @@ test('stopped node shows setup path and disables financial actions', async () =>
   expect(mockNavigation.navigate).not.toHaveBeenCalled();
   expect(bridge.invoice).not.toHaveBeenCalled();
   expect(screen.queryByLabelText('LND · Connected')).toBeNull();
+  screen.unmount();
+});
+
+test('receive uses a large label and separate subtitle', async () => {
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  expect(screen.getByText('RECEIVE')).toBeTruthy();
+  expect(screen.getByText('Create invoice')).toBeTruthy();
+  screen.unmount();
+});
+
+test('unpaid invoice cancellation requires confirmation and uses its exact hash', async () => {
+  let state = 'unpaid';
+  bridge.wallet.mockImplementation(async (kind: string) =>
+    kind === 'invoices'
+      ? {
+          rows: [
+            {
+              id: 'ab'.repeat(32),
+              direction: 'received',
+              sats: '500',
+              feeSats: '0',
+              timestamp: 1700000100,
+              state,
+              memo: '',
+            },
+          ],
+          next: '0',
+          more: false,
+        }
+      : defaultWallet(kind),
+  );
+  const alert = jest.spyOn(Alert, 'alert');
+  let finish: (value: boolean) => void = () => {};
+  bridge.invoice.mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Received · unpaid'));
+  const cancel = alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Cancel invoice')!;
+  expect(bridge.invoice).not.toHaveBeenCalled();
+  act(() => cancel.onPress!());
+  const confirm = alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Cancel invoice')!;
+  await act(async () => {
+    confirm.onPress!();
+    confirm.onPress!();
+  });
+  expect(bridge.invoice).toHaveBeenCalledTimes(1);
+  expect(bridge.invoice).toHaveBeenCalledWith('cancel', '', 'ab'.repeat(32), '');
+  state = 'canceled';
+  await act(async () => finish(true));
+  expect(screen.getByLabelText('Canceled invoices · 1')).toBeTruthy();
+  expect(alert).toHaveBeenCalledWith('Invoice canceled', expect.any(String));
+  screen.unmount();
+});
+
+test('settled invoices do not offer cancellation', async () => {
+  const alert = jest.spyOn(Alert, 'alert');
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Received · settled'));
+  expect(alert.mock.calls.at(-1)![2]!.some(button => button.text === 'Cancel invoice')).toBe(false);
+  screen.unmount();
+});
+
+test('failed cancellation refreshes settlement without claiming it was canceled', async () => {
+  let state = 'unpaid';
+  bridge.wallet.mockImplementation(async (kind: string) =>
+    kind === 'invoices'
+      ? {
+          rows: [{ id: 'cd'.repeat(32), direction: 'received', sats: '500', feeSats: '0', timestamp: 1700000100, state, memo: '' }],
+          next: '0',
+          more: false,
+        }
+      : defaultWallet(kind),
+  );
+  bridge.invoice.mockImplementation(async () => {
+    state = 'settled';
+    throw new Error('Invoice already settled');
+  });
+  const alert = jest.spyOn(Alert, 'alert');
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Received · unpaid'));
+  act(() => alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Cancel invoice')!.onPress!());
+  const confirm = alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Cancel invoice')!;
+  await act(async () => confirm.onPress!());
+  expect(alert).toHaveBeenCalledWith('Cancellation not confirmed', expect.stringContaining('already settled'));
+  expect(alert).not.toHaveBeenCalledWith('Invoice canceled', expect.any(String));
+  expect(screen.getByLabelText('Received · settled')).toBeTruthy();
+  screen.unmount();
+});
+
+test('canceled invoices collapse to the newest gray stack and can expand without hiding settled payments', async () => {
+  bridge.wallet.mockImplementation(async (kind: string) =>
+    kind === 'invoices'
+      ? {
+          rows: [
+            { id: 'old', direction: 'received', sats: '100', feeSats: '0', timestamp: 100, state: 'canceled', memo: 'Old canceled' },
+            { id: 'paid', direction: 'received', sats: '200', feeSats: '0', timestamp: 200, state: 'settled', memo: 'Paid invoice' },
+            { id: 'new', direction: 'received', sats: '300', feeSats: '0', timestamp: 300, state: 'canceled', memo: 'New canceled' },
+          ],
+          next: '0',
+          more: false,
+        }
+      : defaultWallet(kind),
+  );
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  const stack = screen.getByLabelText('Canceled invoices · 2');
+  expect(stack.props.accessibilityState.expanded).toBe(false);
+  expect(screen.getByText(/Latest: 300 sats/)).toBeTruthy();
+  expect(screen.queryByText('Old canceled')).toBeNull();
+  expect(screen.getByText('Paid invoice')).toBeTruthy();
+  fireEvent.press(stack);
+  expect(screen.getByText('Old canceled')).toBeTruthy();
+  expect(screen.getByText('New canceled')).toBeTruthy();
+  expect(screen.queryByText('+100 sats')).toBeNull();
+  const alert = jest.spyOn(Alert, 'alert');
+  fireEvent.press(screen.getByText('Old canceled'));
+  expect(alert).toHaveBeenCalledWith('Lightning payment', expect.stringContaining('old'), expect.any(Array));
+  fireEvent.press(screen.getByLabelText('Canceled invoices · 2'));
+  expect(screen.queryByText('Old canceled')).toBeNull();
+  expect(screen.getByText('Paid invoice')).toBeTruthy();
   screen.unmount();
 });

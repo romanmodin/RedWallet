@@ -160,6 +160,9 @@ final class XBTLightningBridge: NSObject {
                 case "receive":
                     let invoice = try await RegtestNode.shared.receive(sats: UInt64(sats) ?? 0)
                     resolve(invoice)
+                case "cancel":
+                    try await RegtestNode.shared.cancelInvoice(hash: hash)
+                    resolve(true)
                 case "decode":
                     let info = try await RegtestNode.shared.decode(value)
                     resolve(["sats": String(info.sats), "destination": info.destination, "hash": info.hash])

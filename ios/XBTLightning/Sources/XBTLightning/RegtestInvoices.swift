@@ -14,6 +14,27 @@ extension ProtoFields {
 }
 
 extension RegtestNode {
+    static func cancelInvoiceRequest(hash: String) throws -> Data {
+        let bytes = Array(hash.utf8)
+        guard bytes.count == 64, bytes.allSatisfy({
+            (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0)
+        }) else { throw NodeFailure.invalidReply }
+        var decoded = Data()
+        for index in stride(from: 0, to: bytes.count, by: 2) {
+            guard let byte = UInt8(String(decoding: bytes[index...index + 1], as: UTF8.self), radix: 16) else {
+                throw NodeFailure.invalidReply
+            }
+            decoded.append(byte)
+        }
+        return ProtoFields.field(1, data: decoded)
+    }
+
+    public func cancelInvoice(hash: String) async throws {
+        let request = try Self.cancelInvoiceRequest(hash: hash)
+        // LND owns the settlement race: already-canceled succeeds; settled fails.
+        _ = try await rpc { LndmobileInvoicesCancelInvoice(request, $0) }
+    }
+
     public func receive(sats: UInt64) async throws -> String {
         try await requireSynced()
         guard (1...1_000_000).contains(sats) else { throw NodeFailure.invalidAmount }
