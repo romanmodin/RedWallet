@@ -549,7 +549,7 @@ const DetailViewStackScreensStack = () => {
                     ? 'Send on-chain'
                     : mode === 'receive'
                       ? 'Receive on-chain'
-                      : 'Lightning node settings',
+                      : 'LIGHTNING NODE settings',
             );
             const resolvedOptions = typeof options === 'function' ? options(deps) : options;
             if (mode) return resolvedOptions;
@@ -560,6 +560,7 @@ const DetailViewStackScreensStack = () => {
               headerLargeTitle: false,
               headerTransparent: false,
               headerBlurEffect: undefined,
+              headerTitleStyle: { ...resolvedOptions.headerTitleStyle, fontSize: 15 },
               headerStyle: { backgroundColor: theme.colors.background },
             };
           }}
