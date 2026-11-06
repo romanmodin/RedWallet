@@ -123,7 +123,12 @@ async function main() {
         readOnly: result.readOnly,
       }),
     );
-  } catch {
+  } catch (error) {
+    result.failure = {
+      kind:error?.code === "ERR_ASSERTION" ? "AssertionError" : "ReadOrRuntimeError",
+      httpStatus:/^Apple request failed: HTTP (\d{3})$/.exec(error?.message || "")?.[1] || null,
+      sourceFrames:String(error?.stack || "").split("\n").filter(line => /^\s+at .*kilowallet-v1-beta-(?:plan|snapshot|client|run)\.mjs:\d+:\d+/.test(line)).slice(0,4),
+    };
     // Never persist credential parser errors, raw responses, or request headers.
     result.error =
       "Qualification, protected runtime, or exact Apple beta verification failed; reconcile before retry.";
