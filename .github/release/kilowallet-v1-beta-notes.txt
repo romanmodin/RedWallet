@@ -9,3 +9,5 @@ Kilojoin supports v1–v6. V6 rounds persist across app closure and request a ve
 Lightning uses Tor by default. The optional cross-network bridge in this publisher candidate uses HTTPS through Cloudflare, including when Tor is running. With Tor running, CoinJoin tries the onion relay first and falls back to the public relay through Tor; with Tor off it connects directly. Ark uses a separate operator. Background alerts and Ark renewal depend on iOS scheduling.
 
 Native CI, migration checks, simulator visuals and live empty-wallet engine probes passed. Real-iPhone reliability, funded-channel recovery and live pool completion have not been established by those checks. Use synthetic wallets only during this qualification. Keep secure backups; .kab and node-move files may contain recovery material or live channel state and require protected storage and passwords.
+
+Build 10 fixes incomplete text rendering in wallet creation and Lightning screens, including screen re-entry.
