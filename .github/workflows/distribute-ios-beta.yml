@@ -11,10 +11,10 @@ name: Assign verified public XBT Lightning internal iOS beta
   workflow_dispatch:
     inputs:
       upload_run_id:
-        description: Verified embedded public XBT Lightning upload for build 1793820415
+        description: Verified embedded public XBT Lightning upload for build 1793953558
         required: true
         type: string
-        default: "41895465041"
+        default: "42186772101"
 permissions:
   contents: read
   actions: read
