@@ -10,11 +10,11 @@ name: Kilowallet 1.0 verified TestFlight distribution
   workflow_dispatch:
     inputs:
       action:
-        description: Inspect exact uploaded build or apply qualified TestFlight distribution
+        description: Inspect build, diagnose prior beta review, or apply qualified distribution
         required: true
         default: inspect
         type: choice
-        options: [inspect, apply]
+        options: [inspect, diagnose, apply]
 permissions:
   contents: read
   actions: read

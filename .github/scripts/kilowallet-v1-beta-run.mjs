@@ -17,6 +17,7 @@ import {
 } from "./kilowallet-v1-beta-plan.mjs";
 import { readSnapshot } from "./kilowallet-v1-beta-snapshot.mjs";
 import { clients } from "./kilowallet-v1-beta-client.mjs";
+import { readPriorReview } from "./kilowallet-v1-beta-prior-review.mjs";
 export function validateRuntime(env, upload) {
   validateUpload(upload);
   assert.equal(env.GITHUB_REPOSITORY, "romanmodin/RedWallet");
@@ -35,7 +36,7 @@ export function validateRuntime(env, upload) {
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.equal(env.TEAM_ID, "PPG9C98EY9");
   assert.ok(
-    ["inspect", "apply"].includes(env.KILOWALLET_V1_BETA_ACTION),
+    ["inspect", "diagnose", "apply"].includes(env.KILOWALLET_V1_BETA_ACTION),
     "Unexpected beta action",
   );
   return {
@@ -89,12 +90,15 @@ export async function execute(env, upload, notes, dependencies = {}) {
     context.action === "apply"
       ? await applyDistribution(read, client.write, upload, notes, journal, now)
       : planDistribution(await read(), upload, notes, now());
+  const priorReview = context.action === "diagnose"
+    ? await readPriorReview(client.get, now) : undefined;
   return {
     ...plan,
+    ...(priorReview ? { priorReview } : {}),
     ...context,
     observedAt: new Date(now()).toISOString(),
     complete: true,
-    readOnly: context.action === "inspect",
+    readOnly: context.action !== "apply",
     uploadRunId: upload.runId,
     uploadRunAttempt: upload.runAttempt,
   };
@@ -103,7 +107,7 @@ async function main() {
   let result = {
     app: APP,
     complete: false,
-    readOnly: process.env.KILOWALLET_V1_BETA_ACTION === "inspect",
+    readOnly: process.env.KILOWALLET_V1_BETA_ACTION !== "apply",
   };
   try {
     const upload = JSON.parse(
