@@ -97,7 +97,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         setPages(old => ({ ...old, ...updates }));
         if (updates.payments && updates.invoices) wallet.activity = [...updates.payments.rows, ...updates.invoices.rows];
         setMessage(
-          wallet.connection() === 'connected' ? 'Connected · Updates while this screen is open' : 'Waiting for sync or Lightning peers',
+          wallet.connection() === 'connected' ? 'Connected · Updates while this screen is open' : 'Waiting for sync or Lightning peers'
         );
         await saveToDisk();
       } catch (error) {
@@ -114,7 +114,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         }
       }
     },
-    [wallet, tab, pages, saveToDisk],
+    [wallet, tab, pages, saveToDisk]
   );
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -139,15 +139,43 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         clearInterval(timer);
         subscription.remove();
       };
-    }, [wallet]),
+    }, [wallet])
   );
 
   const overview = wallet.overview;
   const ready = wallet.status === 'Running' && !!overview?.synced && Date.now() - wallet.observedAt <= 30_000;
   const rows = (tab === 'funding' ? (pages.funding?.rows ?? []) : [...(pages.payments?.rows ?? []), ...(pages.invoices?.rows ?? [])]).sort(
-    (a, b) => b.timestamp - a.timestamp || a.id.localeCompare(b.id),
+    (a, b) => b.timestamp - a.timestamp || a.id.localeCompare(b.id)
   );
   const hasMore = tab === 'funding' ? pages.funding?.more : pages.payments?.more || pages.invoices?.more;
+  const cancelling = useRef(new Set<string>());
+  const cancelInvoice = async (row: LndActivity) => {
+    if (cancelling.current.has(row.id)) return;
+    cancelling.current.add(row.id);
+    try {
+      const cancelled = await bridge.invoice('cancel', '', row.id, '');
+      if (cancelled !== true) throw new Error('Cancellation was not confirmed.');
+      // Only mark canceled after LND acknowledges; never infer success from dismissal.
+      setPages(previous => {
+        const invoices = previous.invoices;
+        return invoices
+          ? {
+              ...previous,
+              invoices: {
+                ...invoices,
+                rows: invoices.rows.map(item => (item.id === row.id ? { ...item, state: 'canceled' } : item)),
+              },
+            }
+          : previous;
+      });
+      Alert.alert('Invoice canceled', 'This invoice can no longer be paid.');
+    } catch (error) {
+      Alert.alert('Cancellation not confirmed', String(error) + '\nRefresh to check whether the invoice was paid or canceled.');
+    } finally {
+      cancelling.current.delete(row.id);
+      await refresh();
+    }
+  };
   const details = (row: LndActivity) => {
     const text =
       row.sats +
@@ -160,7 +188,27 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       row.id +
       (row.direction === 'received' && row.confirmations === undefined ? '\nThe sender’s identity is not supplied by Lightning.' : '') +
       (row.memo ? '\n' + row.memo : '');
+    const canCancel = row.direction === 'received' && row.confirmations === undefined && row.state === 'unpaid';
     Alert.alert(tab === 'funding' ? 'On-chain funding' : 'Lightning payment', text, [
+      ...(canCancel
+        ? [
+            {
+              text: 'Cancel invoice',
+              style: 'destructive' as const,
+              onPress: () =>
+                Alert.alert('Cancel invoice?', 'Cancel this unpaid request for ' + row.sats + ' sats? It cannot be paid afterward.', [
+                  { text: 'Keep invoice', style: 'cancel' },
+                  {
+                    text: 'Cancel invoice',
+                    style: 'destructive',
+                    onPress: () => {
+                      void cancelInvoice(row);
+                    },
+                  },
+                ]),
+            },
+          ]
+        : []),
       { text: 'Copy details', onPress: () => Clipboard.setString(text) },
       { text: 'Done', style: 'cancel' },
     ]);
@@ -181,12 +229,78 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         secondary && styles.secondary,
       ]}
     >
-      <Text style={[styles.actionTitle, { color: colors.foregroundColor }]}>{title}</Text>
+      <Text style={[styles.actionTitle, { color: colors.foregroundColor }]}>{mode === 'invoice' ? 'RECEIVE' : title}</Text>
+      {mode === 'invoice' && <Text style={[styles.actionSubtitle, { color: colors.foregroundColor }]}>Create invoice</Text>}
     </Pressable>
   );
   return (
     <View testID="LndWalletHome" style={[styles.root, { backgroundColor: colors.background }]}>
+      <View
+        style={[
+          styles.hero,
+          {
+            backgroundColor: WalletGradient.xbtWallet[0],
+            paddingLeft: 16 + insets.left,
+            paddingRight: 16 + insets.right,
+          },
+        ]}
+      >
+        <LinearGradient colors={WalletGradient.xbtWallet} style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <View style={styles.headerLine}>
+          <Text numberOfLines={1} style={styles.label}>
+            {wallet.getLabel()}
+          </Text>
+          <LndConnectionBadge wallet={wallet} />
+        </View>
+        <Text style={styles.balance}>
+          {wallet.hideBalance ? '••••' : formatBalance(wallet.getBalance(), wallet.getPreferredBalanceUnit(), true)}
+        </Text>
+        <Text style={styles.balanceLabel}>Total balance · funding and channels</Text>
+        {!!overview && !wallet.hideBalance && (
+          <Text style={styles.status}>
+            Lightning: {overview.lightningLocal} sats · Funding: {overview.fundingTotal} sats
+          </Text>
+        )}
+        {!wallet.hideBalance && <XbtFiatEstimate satoshis={wallet.getBalance()} style={styles.fiat} />}
+        <Text accessibilityLiveRegion="polite" style={styles.status}>
+          {message}
+        </Text>
+        <Text style={styles.status}>{overview ? overview.activeChannels + ' active channel(s)' : 'Node balance not yet available'}</Text>
+        <View pointerEvents="none" style={[styles.sectionCurve, { backgroundColor: colors.background }]} />
+      </View>
+      <View style={[styles.tabs, { borderBottomColor: colors.lightBorder }]}>
+        {(['transactions', 'funding'] as const).map(value => (
+          <Pressable
+            key={value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === value }}
+            onPress={() => setTab(value)}
+            style={[
+              styles.tab,
+              tab === value && styles.selectedTab,
+              tab === value && {
+                borderBottomColor: colors.alternativeTextColor2,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.tabTitle,
+                {
+                  color: tab === value ? colors.foregroundColor : colors.alternativeTextColor,
+                },
+              ]}
+            >
+              {value === 'transactions' ? 'Transactions' : 'Funding'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {tab === 'funding' && (
+        <Text style={[styles.fundingHeading, { color: colors.foregroundColor }]}>On-chain deposits and withdrawals</Text>
+      )}
       <FlatList
+        style={styles.history}
         data={rows}
         contentInsetAdjustmentBehavior="never"
         keyExtractor={row => row.direction + row.id}
@@ -194,72 +308,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         contentContainerStyle={{ paddingBottom: 170 + insets.bottom }}
         ListHeaderComponent={
           <>
-            <View
-              style={[
-                styles.hero,
-                {
-                  backgroundColor: WalletGradient.xbtWallet[0],
-                  paddingLeft: 16 + insets.left,
-                  paddingRight: 16 + insets.right,
-                },
-              ]}
-            >
-              <LinearGradient colors={WalletGradient.xbtWallet} style={StyleSheet.absoluteFill} pointerEvents="none" />
-              <View style={styles.headerLine}>
-                <Text numberOfLines={1} style={styles.label}>
-                  {wallet.getLabel()}
-                </Text>
-                <LndConnectionBadge wallet={wallet} />
-              </View>
-              <Text style={styles.balance}>
-                {wallet.hideBalance ? '••••' : formatBalance(wallet.getBalance(), wallet.getPreferredBalanceUnit(), true)}
-              </Text>
-              <Text style={styles.balanceLabel}>Total balance · funding and channels</Text>
-              {!!overview && !wallet.hideBalance && (
-                <Text style={styles.status}>
-                  Lightning: {overview.lightningLocal} sats · Funding: {overview.fundingTotal} sats
-                </Text>
-              )}
-              {!wallet.hideBalance && <XbtFiatEstimate satoshis={wallet.getBalance()} style={styles.fiat} />}
-              <Text accessibilityLiveRegion="polite" style={styles.status}>
-                {message}
-              </Text>
-              <Text style={styles.status}>
-                {overview ? overview.activeChannels + ' active channel(s)' : 'Node balance not yet available'}
-              </Text>
-              <View pointerEvents="none" style={[styles.sectionCurve, { backgroundColor: colors.background }]} />
-            </View>
-            <View style={[styles.tabs, { borderBottomColor: colors.lightBorder }]}>
-              {(['transactions', 'funding'] as const).map(value => (
-                <Pressable
-                  key={value}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: tab === value }}
-                  onPress={() => setTab(value)}
-                  style={[
-                    styles.tab,
-                    tab === value && styles.selectedTab,
-                    tab === value && {
-                      borderBottomColor: colors.alternativeTextColor2,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.tabTitle,
-                      {
-                        color: tab === value ? colors.foregroundColor : colors.alternativeTextColor,
-                      },
-                    ]}
-                  >
-                    {value === 'transactions' ? 'Transactions' : 'Funding'}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
             {tab === 'funding' && (
               <View style={styles.funding}>
-                <Text style={{ color: colors.foregroundColor }}>On-chain deposits and withdrawals</Text>
                 {!!overview && (
                   <Text style={{ color: colors.foregroundColor }}>
                     {wallet.hideBalance
@@ -293,7 +343,13 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           >
             <View style={styles.rowBody}>
               <Text style={[styles.rowTitle, { color: colors.foregroundColor }]}>
-                {item.direction === 'sent' ? '↗ Payment' : item.state === 'unpaid' ? 'Invoice · Awaiting payment' : '↙ Received'}
+                {item.direction === 'sent'
+                  ? '↗ Payment'
+                  : item.state === 'unpaid'
+                    ? 'Invoice · Awaiting payment'
+                    : item.confirmations === undefined && item.state !== 'settled'
+                      ? 'Invoice · ' + item.state
+                      : '↙ Received'}
               </Text>
               <Text style={{ color: colors.alternativeTextColor }}>
                 {item.state}
@@ -354,10 +410,20 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
 }
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  history: { flex: 1, minHeight: 0 },
+  fundingHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   disabled: { opacity: 0.5 },
   selectedTab: { borderBottomWidth: 3 },
   hero: { alignSelf: 'stretch', paddingTop: 24, paddingBottom: 28 },
-  sectionCurve: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 13, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  sectionCurve: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -1,
+    height: 13,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
   headerLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   label: { flex: 1, minWidth: 0, color: '#FFE7EA', fontSize: 20 },
   balance: { color: '#FFFFFF', fontSize: 36, fontWeight: '700', marginTop: 12 },
@@ -381,6 +447,7 @@ const styles = StyleSheet.create({
   },
   secondary: { minHeight: 44 },
   actionTitle: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  actionSubtitle: { fontSize: 11, textAlign: 'center', marginTop: 2 },
   footer: {
     position: 'absolute',
     bottom: 0,
