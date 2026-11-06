@@ -22,6 +22,28 @@ class GatesTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     verify_native_steps({"steps":steps[:i]+sub+steps[i+1:]})
 
+    def test_rc4_async_and_engine_checks_cannot_be_skipped_before_signing(self):
+        from verify_gates import NATIVE_STEPS, verify_native_steps
+        critical = {
+            "Require asynchronous round and signed reservation regressions",
+            "Fetch the Lightning engine (Lndmobile.xcframework, checked against lnd-engine/ENGINE)",
+            "Fetch the Ark engine (KilombinoArk.xcframework, checked against ark-engine/ENGINE)",
+            "Fetch the Tor engine (KilombinoTor.xcframework, checked against tor-engine/ENGINE)",
+        }
+        self.assertTrue(critical.issubset(NATIVE_STEPS))
+        successful = [dict(name=n, number=i, status="completed", conclusion="success")
+                      for i,n in enumerate(NATIVE_STEPS, 1)]
+        for name in critical:
+            with self.subTest(step=name):
+                # Overall workflow success alone must not allow a skipped safety check.
+                skipped = [dict(step, conclusion="skipped") if step["name"] == name else step
+                           for step in successful]
+                with self.assertRaises(RuntimeError):
+                    verify_native_steps({"steps": skipped})
+                missing = [step for step in successful if step["name"] != name]
+                with self.assertRaises(RuntimeError):
+                    verify_native_steps({"steps": missing})
+
     def test_exact_current_success(self):
         self.assertEqual(2,self.check()["runAttempt"])
     def test_mismatched_repository_source_workflow_and_event(self):
