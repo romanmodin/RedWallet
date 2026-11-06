@@ -1,5 +1,5 @@
 {
-  "state": "blocked-publisher-access",
+  "state": "published-verified",
   "applicationId": "com.romanmodin.redwallet",
   "publisher": "npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0",
   "version": "8.0.1",
@@ -12,7 +12,7 @@
   "apkUrl": "https://github.com/romanmodin/RedWallet/releases/download/android-store-xbt-42076435315/RedWallet-8.0.1-android-beta-1793900454.apk",
   "existingPackageUpgradeTested": true,
   "qualifiedParentSource": "a9cdd1542a88d500d24f0cd35916bf570a3cbbbe",
-  "storePublicationVerified": false,
+  "storePublicationVerified": true,
   "priorPublicationReceipt": "publication-receipt.json",
   "publisherAccessIssue": "https://github.com/zapstore/relay/issues/13",
   "preparedAt": "2026-11-05T18:19:31Z",
@@ -26,7 +26,11 @@
   "githubReleasePublished": true,
   "metadataCommit": "20414aaf93953984cfb4146bd3efa0a493063f4c",
   "zspVersion": "2.0.1",
-  "zspPublishExitCode": 1,
-  "attemptedAt": "2026-11-05T18:21:24Z",
-  "reason": "Zapstore rejected media upload: HTTP403 authenticated pubkey is not allowed."
+  "zspPublishExitCode": 0,
+  "attemptedAt": "2026-11-06T18:40:04Z",
+  "verifiedAt": "2026-11-06T18:41:45Z",
+  "channel": "main",
+  "publisherAccessResolved": true,
+  "publisherAccessResolution": "Maintainer whitelisted original publisher on 2026-11-05; beta channel replaced with required main catalog channel, app remains labeled beta.",
+  "publicationReceipt": "publication-receipt-20261106.json"
 }

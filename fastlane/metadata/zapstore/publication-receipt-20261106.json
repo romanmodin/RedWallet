@@ -1,0 +1,20 @@
+{
+  "relay": "wss://relay.zapstore.dev",
+  "eose": true,
+  "signatureVerified": true,
+  "publisher": "3b9fa6a5102a753504245e3209b7d727a10d7b0dccf6e9f3e693361028208829",
+  "package": "com.romanmodin.redwallet",
+  "app": "14ff014c609baeac57c4734db7bc53ebc50791e7c858aad79e8187340bcb72bb",
+  "asset": "29b76314729e63420ef2fecda131b027c7a98de5ce3b10adcf589fb1f494e599",
+  "release": "5ec9571ed096bed08c635224dac7aaff6ed8cb91a8747875682496b919af2195",
+  "proof": "c2885c4f48d695d1c38698b8e0a766a455fa286ed17249ce80db3ddab1b14574",
+  "eventCount": 5,
+  "verifiedAt": "2026-11-06T18:41:45Z",
+  "channel": "main",
+  "versionCode": 1793900454,
+  "apkSha256": "b7d3b20108f5f0a285c8a868cdd32992fed6e83b9ba4f705d6b509b277140e5a",
+  "downloadUrl": "https://github.com/romanmodin/RedWallet/releases/download/android-store-xbt-42076435315/RedWallet-8.0.1-android-beta-1793900454.apk",
+  "downloadBytes": 107059082,
+  "downloadHashVerified": true,
+  "apkHostedBy": "GitHub release asset named by signed Zapstore record"
+}

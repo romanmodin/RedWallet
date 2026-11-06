@@ -64,6 +64,6 @@ images:
 - https://github.com/romanmodin/RedWallet/releases/download/android-store-xbt-42076435315/android-invoice-qr.png
 - https://github.com/romanmodin/RedWallet/releases/download/android-store-xbt-42076435315/android-invoice-text.png
 release_notes: ./fastlane/metadata/zapstore/RELEASE-NOTES.md
-channel: beta
-prerelease_channel: beta
+channel: main
+prerelease_channel: main
 metadata_sources: []

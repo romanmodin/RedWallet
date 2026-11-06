@@ -12,3 +12,5 @@ Publisher: npub18w06dfgs9f6n2ppytceqnd7hy7ss67cdenmwnulxjvmpq2pq3q5sqwx5l0
 APK source: b33416b427766a07e315ce937a6766c3fdac9e70
 Version code: 1793900454
 APK SHA-256: b7d3b20108f5f0a285c8a868cdd32992fed6e83b9ba4f705d6b509b277140e5a
+
+Verified on 2026-11-06T18:41:45Z: this exact APK is published through the required `main` catalog channel while remaining explicitly labeled as an early beta. Signed app/release/asset records and the complete listed APK download hash were verified. The original publisher access was restored by the maintainer. See `publication-receipt-20261106.json`.
