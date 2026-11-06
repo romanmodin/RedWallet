@@ -2,17 +2,29 @@
 import hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 REPO="romanmodin/RedWallet"
-RUN=40218593516
-HEAD="280025e5bbf595af50545a45c81ef0b27bf24aad"
-SOURCE="7c38da214682544e13ba81f472a0d1038a4d4426"
-IPA="022d7f55a7e24607ab4ff0e84af43b5d20f23ccc789d700e2acc6c6504b2b2fd"
-BUILD="19c6e86c-079e-4022-9a11-a9ab4f23c3ba"
-ARTIFACT=12608731782
-ZIP_SHA="afb6b3d3cf3ed4490e1940e15d357b105874c12d3c287ca476cfd6e65d52503e"
+RUN=42137139153
+HEAD='2688a5270838c6f6a73023974f0a2c9c6b290790'
+SOURCE='68461ec5b6d5bde5a92533a78b15a6594605cb2f'
+IPA='afb6ddb5f9685eacb0256c62cdeea76731739f823c43fa34a1c8eef596ae582d'
+BUILD='efc0adfd-12df-4c95-8fa5-479b1e516563'
+ARTIFACT=13466843473
+ZIP_SHA='b8eb96610d84e3d6f56f444c14b2458f1e51ad952745fb00038a577cc48e9572'
 MEMBERS={
- "kilowallet-package-verification.json":"c016cbed0acba12d49886dba8371567090903a4f121d3a918581a43fc05a980e",
- "kilowallet-apple-processing.json":"4fde854127fce8bc10fdf12a99d8d0800892366d1bdeb354ff2bdfd50b1d52b8"
+ "kilowallet-archive-verification.json": "1be36972daeed46e17e6ad4485f38a79a8f342da5370e56d5160b0d773c86d3c",
+ "kilowallet-apple-processing.json": "6941566b0374bbd41f7b63f02bc16a53236aedf16bd3f4c7f75c5b46ca6d6b6d",
+ "kilowallet-package-verification.json": "950144d9de8ac2650f3e0351db1048f592fd081e7d40e872a461143390b6d0be",
+ "kilowallet-source-gates.json": "9ccce8e726cbceaabce5c5eb341233fc0517b5ecde4bb6fc04d87bd4d983d843",
+ "kilowallet-territory-preflight.json": "c2bea217efbf5705853fe50c8317a8ac45b92bfb6ed81cffea0597a99ad25d28"
 }
+# Pins may change only after the corresponding signed package and Apple receipts exist.
+VERSION='1.0.0'
+BUILD_NUMBER='8'
+SDK='iphoneos26.2'
+IOS_RUN=42112589802
+SCREEN_RUN=42112589904
+def gate_environment():
+ return {**os.environ,"KILOWALLET_MARKETING_VERSION":VERSION,"KILOWALLET_SOURCE_COMMIT":SOURCE,
+         "KILOWALLET_IOS_RUN_ID":str(IOS_RUN),"KILOWALLET_SCREENSHOT_RUN_ID":str(SCREEN_RUN)}
 def require(ok,message):
  if not ok: raise RuntimeError(message)
 def validate_run(run,jobs):
@@ -38,21 +50,38 @@ def validate_artifact(meta,raw):
   require(hashlib.sha256(b).hexdigest()==expected,"Receipt member hash mismatch")
   result[name]=json.loads(b)
  return result
-def validate_receipts(package,processing,current_gates):
+def validate_receipts(package,processing,current_gates,archive,territory):
  for d in (package,processing):
-  require(d["sourceCommit"]==SOURCE and d["ipaSha256"]==IPA and str(d["runId"])==str(RUN) and str(d["runAttempt"])=="1" and d["build"]=="3","Wrong package/upload receipt")
- require(package["bundle"]=="com.kilombino.kilowallet" and package["team"]=="PPG9C98EY9" and package["version"]=="0.4.0","Wrong package identity")
- require(package["signature"]=="verified" and package["sdk"]=="iphoneos26.5" and package["orchestrationCommit"]==HEAD,"Package signature/SDK/source not verified")
- require(processing["app"]=="6824331953" and processing["appleBuildId"]==BUILD and processing["marketingVersion"]=="0.4.0" and processing["processing"]=="VALID","Wrong Apple processing receipt")
+  require(d["sourceCommit"]==SOURCE and d["ipaSha256"]==IPA and str(d["runId"])==str(RUN) and str(d["runAttempt"])=="1" and d["build"]==BUILD_NUMBER,"Wrong package/upload receipt")
+ require(package["bundle"]=="com.kilombino.kilowallet" and package["team"]=="PPG9C98EY9" and package["version"]==VERSION,"Wrong package identity")
+ require(package["signature"]=="verified" and package["sdk"]==SDK and package["orchestrationCommit"]==HEAD,"Package signature/SDK/source not verified")
+ require(processing["app"]=="6824331953" and processing["appleBuildId"]==BUILD and processing["marketingVersion"]==VERSION and processing["processing"]=="VALID","Wrong Apple processing receipt")
  require(current_gates["sourceCommit"]==SOURCE,"Wrong native source")
  prior={g["id"]:g for g in package["qualification"]["gates"]}
- require(set(prior)=={40211577658,40211577657},"Unexpected native gates")
+ require(len(package["qualification"]["gates"])==2 and set(prior)=={IOS_RUN,SCREEN_RUN},"Unexpected native gates")
+ require(len(current_gates["gates"])==2,"Duplicate or missing current native gate")
  for g in current_gates["gates"]:
-  require(g["id"] in prior and g["sourceCommit"]==SOURCE and g["runAttempt"]==1 and g["jobs"]==prior[g["id"]]["jobs"],"Stale/replaced native evidence")
+  require(g["id"] in prior and g["sourceCommit"]==SOURCE and prior[g["id"]]["sourceCommit"]==SOURCE and g["runAttempt"]==prior[g["id"]]["runAttempt"] and g["jobs"]==prior[g["id"]]["jobs"],"Stale/replaced native evidence")
+  if not VERSION.startswith("1."):
+   require(g["runAttempt"]==1,"Unexpected historical gate attempt")
+  if VERSION.startswith("1."):
+   recorded=prior[g["id"]]
+   require(bool(g["jobs"]) and set(g.get("checkouts",{}))==set(g["jobs"]) and g["checkouts"]==recorded.get("checkouts"),"Checkout evidence mismatch")
+   if g["id"]==IOS_RUN:
+    require(bool(g.get("requiredSteps")) and g["requiredSteps"]==recorded.get("requiredSteps"),"Native step evidence mismatch")
+ if VERSION.startswith("1."):
+  require(processing.get("platform")=="IOS" and package.get("usesNonExemptEncryption") is False,"Wrong iOS platform or signed encryption flag")
  require({g["id"] for g in current_gates["gates"]}==set(prior),"Missing current native gate")
- return {"uploadVerified":True,"currentNativeGatesVerified":True,"app":"6824331953","appleBuildId":BUILD,"sourceCommit":SOURCE,"ipaSha256":IPA,"runId":RUN,"runAttempt":1,"marketingVersion":"0.4.0","build":"3","signature":"verified","artifactId":ARTIFACT,"artifactSha256":ZIP_SHA}
+ for k in ("bundle","build","version","team","signature","sdk","sourceCommit","qualification","orchestrationCommit","runId","runAttempt","usesNonExemptEncryption"):
+  require(archive.get(k)==package.get(k),"Archive/package mismatch")
+ require(archive.get("usesNonExemptEncryption") is False and processing.get("usesNonExemptEncryption") is False,"Unsupported archive/Apple encryption flag")
+ require(territory.get("mode")=="GET-only" and territory.get("territories")==["USA"] and territory.get("availableInNewTerritories") is False,"USA-only upload scope not verified")
+ for k in ("sourceCommit","runId","runAttempt","ipaSha256"):
+  require(territory.get(k)==package.get(k),"Territory receipt package mismatch")
+ require(territory.get("app")=="6824331953" and territory.get("bundle")==package["bundle"],"Wrong territory app")
+ return {"uploadVerified":True,"currentNativeGatesVerified":True,"app":"6824331953","appleBuildId":BUILD,"sourceCommit":SOURCE,"ipaSha256":IPA,"runId":RUN,"runAttempt":1,"marketingVersion":VERSION,"build":BUILD_NUMBER,"signature":"verified","usesNonExemptEncryption":package.get("usesNonExemptEncryption"),"artifactId":ARTIFACT,"artifactSha256":ZIP_SHA}
 def api(path,raw=False):
- b=subprocess.check_output(["gh","api",path])
+ b=subprocess.check_output(["gh","api",path]+(["--allow-escape-sequences"] if raw else []))
  return b if raw else json.loads(b)
 def main():
  root=Path(__file__).resolve().parents[2]
@@ -61,10 +90,10 @@ def main():
  validate_run(run,jobs)
  meta=api(f"repos/{REPO}/actions/artifacts/{ARTIFACT}")
  receipts=validate_artifact(meta,api(f"repos/{REPO}/actions/artifacts/{ARTIFACT}/zip",True))
- env={**os.environ,"KILOWALLET_SOURCE_COMMIT":SOURCE,"KILOWALLET_IOS_RUN_ID":"40211577658","KILOWALLET_SCREENSHOT_RUN_ID":"40211577657"}
+ env=gate_environment()
  subprocess.run([sys.executable,"-I",str(root/"distribution/kilowallet/verify_gates.py")],env=env,check=True)
  gates=json.loads(Path("kilowallet-source-gates.json").read_text())
- result=validate_receipts(receipts["kilowallet-package-verification.json"],receipts["kilowallet-apple-processing.json"],gates)
+ result=validate_receipts(receipts["kilowallet-package-verification.json"],receipts["kilowallet-apple-processing.json"],gates,receipts["kilowallet-archive-verification.json"],receipts["kilowallet-territory-preflight.json"])
  Path("kilowallet-upload-qualification.json").write_text(json.dumps(result,indent=2)+"\n")
  print(json.dumps(result,indent=2))
 if __name__=="__main__":main()
