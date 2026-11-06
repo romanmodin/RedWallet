@@ -104,7 +104,15 @@ export function clients(
         rule.include,
         "Required relationships missing",
       );
+    await journal({stage:"beta-read-started", path:p});
     const result = await http("GET", u);
+    await journal({stage:"beta-read-returned", path:p,
+      resourceType:Array.isArray(result.data) ? "collection" : result.data?.type,
+      resourceId:Array.isArray(result.data) ? null : result.data?.id,
+      relationshipNames:Object.keys(result.data?.relationships || {}),
+      buildState:p === base + "/buildBetaDetail" ? result.data?.attributes : undefined,
+      buildFlags:p === base ? {processingState:result.data?.attributes?.processingState,
+        expired:result.data?.attributes?.expired,usesNonExemptEncryption:result.data?.attributes?.usesNonExemptEncryption} : undefined});
     if (p === base) {
       // Authorize related reads only from this exact build's own app-bound response.
       bound.declaration = null;
