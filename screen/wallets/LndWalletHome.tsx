@@ -97,7 +97,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         setPages(old => ({ ...old, ...updates }));
         if (updates.payments && updates.invoices) wallet.activity = [...updates.payments.rows, ...updates.invoices.rows];
         setMessage(
-          wallet.connection() === 'connected' ? 'Connected · Updates while this screen is open' : 'Waiting for sync or Lightning peers'
+          wallet.connection() === 'connected' ? 'Connected · Updates while this screen is open' : 'Waiting for sync or Lightning peers',
         );
         await saveToDisk();
       } catch (error) {
@@ -114,7 +114,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         }
       }
     },
-    [wallet, tab, pages, saveToDisk]
+    [wallet, tab, pages, saveToDisk],
   );
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -139,14 +139,19 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         clearInterval(timer);
         subscription.remove();
       };
-    }, [wallet])
+    }, [wallet]),
   );
 
+  const [canceledExpanded, setCanceledExpanded] = useState(false);
   const overview = wallet.overview;
   const ready = wallet.status === 'Running' && !!overview?.synced && Date.now() - wallet.observedAt <= 30_000;
   const rows = (tab === 'funding' ? (pages.funding?.rows ?? []) : [...(pages.payments?.rows ?? []), ...(pages.invoices?.rows ?? [])]).sort(
-    (a, b) => b.timestamp - a.timestamp || a.id.localeCompare(b.id)
+    (a, b) => b.timestamp - a.timestamp || a.id.localeCompare(b.id),
   );
+  const isCanceled = (row: LndActivity) => tab === 'transactions' && row.state === 'canceled' && row.confirmations === undefined;
+  const canceled = rows.filter(isCanceled);
+  const latestCanceled = canceled[0];
+  const visibleRows = rows.filter(row => !isCanceled(row) || canceledExpanded || row === latestCanceled);
   const hasMore = tab === 'funding' ? pages.funding?.more : pages.payments?.more || pages.invoices?.more;
   const cancelling = useRef(new Set<string>());
   const cancelInvoice = async (row: LndActivity) => {
@@ -231,6 +236,50 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       {mode === 'invoice' && <Text style={styles.actionSubtitle}>Create invoice</Text>}
     </Pressable>
   );
+  const renderActivity = (item: LndActivity) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={(item.direction === 'sent' ? 'Sent' : 'Received') + ' · ' + item.state}
+      onPress={() => details(item)}
+      style={[styles.row, { borderBottomColor: colors.lightBorder }]}
+    >
+      <View style={styles.rowBody}>
+        <Text style={[styles.rowTitle, { color: isCanceled(item) ? colors.alternativeTextColor : colors.foregroundColor }]}>
+          {item.direction === 'sent'
+            ? '↗ Payment'
+            : item.state === 'unpaid'
+              ? 'Invoice · Awaiting payment'
+              : item.confirmations === undefined && item.state !== 'settled'
+                ? 'Invoice · ' + item.state
+                : '↙ Received'}
+        </Text>
+        <Text style={{ color: colors.alternativeTextColor }}>
+          {item.state}
+          {item.confirmations !== undefined ? ' · ' + item.confirmations + ' confirmations' : ''} ·{' '}
+          {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
+        </Text>
+        {!!item.memo && (
+          <Text numberOfLines={1} style={{ color: colors.alternativeTextColor }}>
+            {item.memo}
+          </Text>
+        )}
+      </View>
+      <Text
+        style={[
+          styles.amount,
+          {
+            color: isCanceled(item)
+              ? colors.alternativeTextColor
+              : item.direction === 'received' && ['settled', 'confirmed'].includes(item.state)
+                ? colors.successColor
+                : colors.foregroundColor,
+          },
+        ]}
+      >
+        {wallet.hideBalance ? '••••' : (isCanceled(item) ? '' : item.direction === 'sent' ? '−' : '+') + item.sats + ' sats'}
+      </Text>
+    </Pressable>
+  );
   return (
     <View testID="LndWalletHome" style={[styles.root, { backgroundColor: colors.background }]}>
       <View
@@ -301,7 +350,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       )}
       <FlatList
         style={styles.history}
-        data={rows}
+        data={visibleRows}
         contentInsetAdjustmentBehavior="never"
         keyExtractor={row => row.direction + row.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refresh()} />}
@@ -330,49 +379,41 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                 : 'On-chain funding transactions will appear here.'}
           </Text>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={(item.direction === 'sent' ? 'Sent' : 'Received') + ' · ' + item.state}
-            onPress={() => details(item)}
-            style={[styles.row, { borderBottomColor: colors.lightBorder }]}
-          >
-            <View style={styles.rowBody}>
-              <Text style={[styles.rowTitle, { color: colors.foregroundColor }]}>
-                {item.direction === 'sent'
-                  ? '↗ Payment'
-                  : item.state === 'unpaid'
-                    ? 'Invoice · Awaiting payment'
-                    : item.confirmations === undefined && item.state !== 'settled'
-                      ? 'Invoice · ' + item.state
-                      : '↙ Received'}
-              </Text>
-              <Text style={{ color: colors.alternativeTextColor }}>
-                {item.state}
-                {item.confirmations !== undefined ? ' · ' + item.confirmations + ' confirmations' : ''} ·{' '}
-                {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
-              </Text>
-              {!!item.memo && (
-                <Text numberOfLines={1} style={{ color: colors.alternativeTextColor }}>
-                  {item.memo}
-                </Text>
-              )}
+        renderItem={({ item }) =>
+          item === latestCanceled ? (
+            <View>
+              <View style={styles.stack}>
+                <View
+                  pointerEvents="none"
+                  style={[styles.stackLayer, styles.stackBack, { backgroundColor: colors.background, borderColor: colors.lightBorder }]}
+                />
+                <View
+                  pointerEvents="none"
+                  style={[styles.stackLayer, styles.stackMiddle, { backgroundColor: colors.background, borderColor: colors.lightBorder }]}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={'Canceled invoices · ' + canceled.length}
+                  accessibilityState={{ expanded: canceledExpanded }}
+                  onPress={() => setCanceledExpanded(value => !value)}
+                  style={[styles.stackFront, { backgroundColor: colors.background, borderColor: colors.lightBorder }]}
+                >
+                  <Text style={[styles.rowTitle, { color: colors.alternativeTextColor }]}>Canceled invoices · {canceled.length}</Text>
+                  <Text style={{ color: colors.alternativeTextColor }}>
+                    Latest: {wallet.hideBalance ? '••••' : item.sats + ' sats'} ·{' '}
+                    {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
+                  </Text>
+                  <Text style={[styles.stackHint, { color: colors.alternativeTextColor }]}>
+                    {canceledExpanded ? 'COLLAPSE ▴' : 'EXPAND ▾'}
+                  </Text>
+                </Pressable>
+              </View>
+              {canceledExpanded && renderActivity(item)}
             </View>
-            <Text
-              style={[
-                styles.amount,
-                {
-                  color:
-                    item.direction === 'received' && ['settled', 'confirmed'].includes(item.state)
-                      ? colors.successColor
-                      : colors.foregroundColor,
-                },
-              ]}
-            >
-              {wallet.hideBalance ? '••••' : (item.direction === 'sent' ? '−' : '+') + item.sats + ' sats'}
-            </Text>
-          </Pressable>
-        )}
+          ) : (
+            renderActivity(item)
+          )
+        }
         ListFooterComponent={
           hasMore ? (
             <Pressable accessibilityRole="button" onPress={() => refresh(true)} disabled={refreshing} style={styles.load}>
@@ -406,6 +447,12 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
 }
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  stack: { marginHorizontal: 16, marginVertical: 12, paddingBottom: 8 },
+  stackLayer: { position: 'absolute', borderWidth: 1, borderRadius: 14, height: 40 },
+  stackBack: { bottom: 0, left: 12, right: 12 },
+  stackMiddle: { bottom: 4, left: 6, right: 6 },
+  stackFront: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 6 },
+  stackHint: { fontSize: 11, fontWeight: '600', marginTop: 4 },
   history: { flex: 1, minHeight: 0 },
   fundingHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   disabled: { opacity: 0.5 },

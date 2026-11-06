@@ -76,7 +76,7 @@ const bridge = {
                 : [],
           next: '0',
           more: false,
-        }
+        },
   ),
   invoice: jest.fn(),
   manage: jest.fn(),
@@ -186,7 +186,7 @@ test('unpaid invoice cancellation requires confirmation and uses its exact hash'
           next: '0',
           more: false,
         }
-      : defaultWallet(kind)
+      : defaultWallet(kind),
   );
   const alert = jest.spyOn(Alert, 'alert');
   let finish: (value: boolean) => void = () => {};
@@ -194,7 +194,7 @@ test('unpaid invoice cancellation requires confirmation and uses its exact hash'
     () =>
       new Promise(resolve => {
         finish = resolve;
-      })
+      }),
   );
   const screen = render(<LndWalletHome wallet={new LndWallet()} />);
   await act(async () => {});
@@ -211,7 +211,7 @@ test('unpaid invoice cancellation requires confirmation and uses its exact hash'
   expect(bridge.invoice).toHaveBeenCalledWith('cancel', '', 'ab'.repeat(32), '');
   state = 'canceled';
   await act(async () => finish(true));
-  expect(screen.getByText('Invoice · canceled')).toBeTruthy();
+  expect(screen.getByLabelText('Canceled invoices · 1')).toBeTruthy();
   expect(alert).toHaveBeenCalledWith('Invoice canceled', expect.any(String));
   screen.unmount();
 });
@@ -234,7 +234,7 @@ test('failed cancellation refreshes settlement without claiming it was canceled'
           next: '0',
           more: false,
         }
-      : defaultWallet(kind)
+      : defaultWallet(kind),
   );
   bridge.invoice.mockImplementation(async () => {
     state = 'settled';
@@ -250,5 +250,39 @@ test('failed cancellation refreshes settlement without claiming it was canceled'
   expect(alert).toHaveBeenCalledWith('Cancellation not confirmed', expect.stringContaining('already settled'));
   expect(alert).not.toHaveBeenCalledWith('Invoice canceled', expect.any(String));
   expect(screen.getByLabelText('Received · settled')).toBeTruthy();
+  screen.unmount();
+});
+
+test('canceled invoices collapse to the newest gray stack and can expand without hiding settled payments', async () => {
+  bridge.wallet.mockImplementation(async (kind: string) =>
+    kind === 'invoices'
+      ? {
+          rows: [
+            { id: 'old', direction: 'received', sats: '100', feeSats: '0', timestamp: 100, state: 'canceled', memo: 'Old canceled' },
+            { id: 'paid', direction: 'received', sats: '200', feeSats: '0', timestamp: 200, state: 'settled', memo: 'Paid invoice' },
+            { id: 'new', direction: 'received', sats: '300', feeSats: '0', timestamp: 300, state: 'canceled', memo: 'New canceled' },
+          ],
+          next: '0',
+          more: false,
+        }
+      : defaultWallet(kind),
+  );
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  const stack = screen.getByLabelText('Canceled invoices · 2');
+  expect(stack.props.accessibilityState.expanded).toBe(false);
+  expect(screen.getByText(/Latest: 300 sats/)).toBeTruthy();
+  expect(screen.queryByText('Old canceled')).toBeNull();
+  expect(screen.getByText('Paid invoice')).toBeTruthy();
+  fireEvent.press(stack);
+  expect(screen.getByText('Old canceled')).toBeTruthy();
+  expect(screen.getByText('New canceled')).toBeTruthy();
+  expect(screen.queryByText('+100 sats')).toBeNull();
+  const alert = jest.spyOn(Alert, 'alert');
+  fireEvent.press(screen.getByText('Old canceled'));
+  expect(alert).toHaveBeenCalledWith('Lightning payment', expect.stringContaining('old'), expect.any(Array));
+  fireEvent.press(screen.getByLabelText('Canceled invoices · 2'));
+  expect(screen.queryByText('Old canceled')).toBeNull();
+  expect(screen.getByText('Paid invoice')).toBeTruthy();
   screen.unmount();
 });
