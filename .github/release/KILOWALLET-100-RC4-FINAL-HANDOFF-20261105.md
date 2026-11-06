@@ -74,3 +74,5 @@ Run42170130823/a1 completed with a visual/OCR failure. All five actual native LN
 A separate publisher candidate fix/ios-font-rendering-20261105 updates only Compose1.9.3 to1.10.1 (plus documentation) based on the latter's published iOS font/icon/text-cache fixes. Root-cause match and candidate success remain unproven. Current signed build8/source/IPA/gate pins must not be relabeled. Full regressions/native/visual qualification and new signing receipts are required if this product dependency change is adopted.
 
 Fresh Apple GET07:29:17.984Z: internal build8 IN_BETA_TESTING, PublicBeta WAITING_FOR_BETA_REVIEW/reviewWAITING_FOR_REVIEW; both original memberships verified both directions, writes[]. Existing public0.4review was not changed.
+
+Diagnostic checker caveat: its second phrase was accidentally treated as a QR suffix by check-screen.swift. Thus the failed workflow is not independently evidence of glyph corruption; the four manually inspected images are the evidence. Corrected in diagnostic-only d70b4b0 with eight tests, no new run. Native five-marker PASS is unaffected.

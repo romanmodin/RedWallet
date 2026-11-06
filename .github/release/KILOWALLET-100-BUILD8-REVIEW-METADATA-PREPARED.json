@@ -71,7 +71,8 @@
       "visualApproved": false,
       "fourAppFrames": "Repeated partial glyph loss; no SpringBoard frames",
       "priorMissingPredecessorErrorCount": 0,
-      "publicAdvanceApproved": false
+      "publicAdvanceApproved": false,
+      "checkerCaveat": "The diagnostic also mistakenly enabled QR validation with its second text phrase. Manual full-resolution inspection, not the workflow failure, establishes missing glyphs. Diagnostic-only fix d70b4b0 has eight passing regressions; no rerun."
     }
   }
 }
