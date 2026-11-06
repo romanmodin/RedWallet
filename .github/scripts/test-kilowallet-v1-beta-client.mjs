@@ -116,8 +116,11 @@ function fixture() {
         { betaReviewState: "APPROVED" },
         { build: rel("builds", "synthetic-build") },
       );
-    else if (path === b + "/betaGroups")
+    else if (path === "/v1/betaGroups") {
+      assert.equal(url.searchParams.get("filter[app]"),APP);
+      assert.equal(url.searchParams.get("filter[builds]"),"synthetic-build");
       result = many("betaGroups", state.groups);
+    }
     else if (path === b + "/betaBuildLocalizations")
       result = {
         data: [
@@ -359,4 +362,14 @@ test("completed membership never authorizes duplicate group assignment", async (
     }),
   );
   assert.equal(f.requests.filter((r) => r.method !== "GET").length, 0);
+});
+
+test("membership reads require the documented exact app-and-build filter on every page", async () => {
+  const f=fixture();
+  for (const path of ["/v1/betaGroups?limit=200", "/v1/betaGroups?filter[app]="+APP,
+    "/v1/betaGroups?filter[app]="+APP+"&filter[builds]=foreign",
+    b+"/betaGroups?limit=200",
+    "/v1/betaGroups?filter[app]="+APP+"&filter[builds]=synthetic-build&filter[builds]=foreign"])
+    await assert.rejects(f.client.get(path));
+  assert.equal(f.requests.length,0);
 });

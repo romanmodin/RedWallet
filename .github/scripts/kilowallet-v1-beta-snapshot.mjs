@@ -121,7 +121,7 @@ export async function readSnapshot(get, upload, now = () => Date.now()) {
   }
   const assigned = await collection(
     get,
-    "/v1/builds/" + buildId + "/betaGroups?limit=200",
+    "/v1/betaGroups?filter%5Bapp%5D=" + APP + "&filter%5Bbuilds%5D=" + buildId + "&limit=200",
     "betaGroups",
   );
   assert.ok(
