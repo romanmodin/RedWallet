@@ -35,8 +35,9 @@ const environment = () => ({
   KILOWALLET_V1_BETA_ACTION: "inspect",
   APP_STORE_CONNECT_API_KEY_CONTENT: '{"synthetic":true}',
 });
-test("exact protected manual runtime permits only inspect or beta apply", () => {
+test("exact protected manual runtime permits inspect, read-only diagnosis or beta apply", () => {
   assert.equal(validateRuntime(environment(), upload).action, "inspect");
+  assert.equal(validateRuntime({ ...environment(), KILOWALLET_V1_BETA_ACTION: "diagnose" }, upload).action, "diagnose");
   assert.equal(
     validateRuntime(
       { ...environment(), KILOWALLET_V1_BETA_ACTION: "apply" },

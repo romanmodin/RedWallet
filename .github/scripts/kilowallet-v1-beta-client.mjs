@@ -7,6 +7,7 @@ import {
   planDistribution,
 } from "./kilowallet-v1-beta-plan.mjs";
 import { readSnapshot } from "./kilowallet-v1-beta-snapshot.mjs";
+import { PRIOR_BUILD } from "./kilowallet-v1-beta-prior-review.mjs";
 const ROOT = "https://api.appstoreconnect.apple.com";
 const validId = (x) => typeof x === "string" && /^[A-Za-z0-9-]+$/.test(x);
 // No entry point or credential loading: only a protected qualified caller can use this client.
@@ -57,6 +58,7 @@ export function clients(
     const u = url(path),
       p = u.pathname;
     const rules = new Map([
+      ["/v1/builds/" + PRIOR_BUILD, { include: "app,preReleaseVersion,buildBetaDetail,betaAppReviewSubmission" }],
       ["/v1/apps/" + APP, {}],
       [
         base,
