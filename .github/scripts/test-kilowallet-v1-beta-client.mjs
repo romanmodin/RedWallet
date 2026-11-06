@@ -64,7 +64,7 @@ function fixture() {
       // Like a JSON:API response, relationship data is provided only when requested.
       assert.equal(
         url.searchParams.get("include"),
-        "app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission",
+        "app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission,betaGroups",
       );
       result = one(
         "builds",
@@ -77,6 +77,7 @@ function fixture() {
         },
         {
           app: rel("apps", APP),
+          betaGroups: {data:state.groups.map(id=>({type:"betaGroups",id})),meta:{paging:{total:state.groups.length}}},
           preReleaseVersion: rel("preReleaseVersions", "train"),
           buildBetaDetail: rel("buildBetaDetails", "detail"),
           appEncryptionDeclaration: rel(

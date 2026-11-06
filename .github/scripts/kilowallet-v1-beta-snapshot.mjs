@@ -75,7 +75,7 @@ export async function readSnapshot(get, upload, now = () => Date.now()) {
     await get(
       "/v1/builds/" +
         buildId +
-        "?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission",
+        "?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission,betaGroups",
     ),
     "builds",
     buildId,
@@ -119,11 +119,15 @@ export async function readSnapshot(get, upload, now = () => Date.now()) {
     assert.equal(relation(r, "build", "builds"), buildId);
     review = { buildId, state: r.attributes?.betaReviewState };
   }
-  const assigned = await collection(
-    get,
-    "/v1/betaGroups?filter%5Bapp%5D=" + APP + "&filter%5Bbuilds%5D=" + buildId + "&limit=200",
-    "betaGroups",
-  );
+  // Apple returns complete build-side membership in the documented build include.
+  // Never infer an empty list from missing/truncated relationship data.
+  const membership = build.relationships?.betaGroups;
+  assert.ok(Array.isArray(membership?.data), "Missing build membership relationship");
+  const assigned = membership.data;
+  assert.ok(Number.isSafeInteger(membership.meta?.paging?.total) &&
+    membership.meta.paging.total === assigned.length &&
+    !membership.links?.next, "Incomplete build membership relationship");
+  for (const g of assigned) { assert.equal(g.type, "betaGroups"); id(g.id); }
   assert.ok(
     assigned.every((g) => GROUPS.some((e) => e.id === g.id)),
     "Foreign assigned group",

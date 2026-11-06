@@ -32,7 +32,7 @@ function fixture() {
       bundleId: "com.kilombino.kilowallet",
     }),
     [b +
-    "?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission"]:
+    "?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission,betaGroups"]:
       one(
         "builds",
         "synthetic-build",
@@ -44,6 +44,7 @@ function fixture() {
         },
         {
           app: rel("apps", APP),
+          betaGroups: {data:GROUPS.map(g=>({type:"betaGroups",id:g.id})),meta:{paging:{total:2}}},
           preReleaseVersion: rel("preReleaseVersions", "train"),
           buildBetaDetail: rel("buildBetaDetails", "detail"),
           appEncryptionDeclaration: rel(
@@ -72,10 +73,6 @@ function fixture() {
       "review",
       { betaReviewState: "APPROVED" },
       { build: rel("builds", "synthetic-build") },
-    ),
-    ["/v1/betaGroups?filter%5Bapp%5D=" + APP + "&filter%5Bbuilds%5D=synthetic-build&limit=200"]: many(
-      "betaGroups",
-      GROUPS.map((g) => g.id),
     ),
     [b + "/betaBuildLocalizations?limit=200"]: {
       data: [
@@ -132,7 +129,7 @@ test("foreign relationship bindings and wrong train cannot become a complete sna
     (p) => (p["/v1/apps/" + APP].data.attributes.bundleId = "foreign"),
     (p) =>
       (p[
-        "/v1/builds/synthetic-build?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission"
+        "/v1/builds/synthetic-build?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission,betaGroups"
       ].data.relationships.app.data.id = "foreign"),
     (p) =>
       (p["/v1/builds/synthetic-build/preReleaseVersion"].data.id = "foreign"),
@@ -159,7 +156,7 @@ test("foreign relationship bindings and wrong train cannot become a complete sna
         "/v1/betaGroups/" + GROUPS[0].id + "?include=app"
       ].data.attributes.name = "foreign"),
     (p) =>
-      p["/v1/betaGroups?filter%5Bapp%5D=" + APP + "&filter%5Bbuilds%5D=synthetic-build&limit=200"].data.push({
+      p["/v1/builds/synthetic-build?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission,betaGroups"].data.relationships.betaGroups.data.push({
         type: "betaGroups",
         id: "foreign",
       }),
@@ -276,7 +273,7 @@ test("failed read never returns a partial complete snapshot", async () => {
 });
 
 test("explicit null encryption relation is complete without a declaration read; missing relation fails closed", async () => {
-  const p=fixture(), key="/v1/builds/synthetic-build?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission";
+  const p=fixture(), key="/v1/builds/synthetic-build?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission,betaGroups";
   p[key].data.relationships.appEncryptionDeclaration={data:null};
   delete p["/v1/appEncryptionDeclarations/declaration?include=app"];
   const calls=[], s=await readSnapshot(reader(p,calls),upload,()=>NOW);
@@ -285,4 +282,20 @@ test("explicit null encryption relation is complete without a declaration read; 
   assert.ok(!calls.some(x=>x.startsWith("/v1/appEncryptionDeclarations/")));
   delete p[key].data.relationships.appEncryptionDeclaration;
   await assert.rejects(readSnapshot(reader(p),upload,()=>NOW));
+});
+
+test("build-side membership include must be explicit, unique, complete and typed", async () => {
+  const key="/v1/builds/synthetic-build?include=app,preReleaseVersion,appEncryptionDeclaration,buildBetaDetail,betaAppReviewSubmission,betaGroups";
+  for (const mutate of [
+    r=>delete r.betaGroups,
+    r=>delete r.betaGroups.data,
+    r=>delete r.betaGroups.meta,
+    r=>r.betaGroups.meta.paging.total=3,
+    r=>r.betaGroups.links={next:"/foreign"},
+    r=>r.betaGroups.data[0].type="apps",
+    r=>r.betaGroups.data[0].id="foreign",
+  ]) {
+    const p=fixture();mutate(p[key].data.relationships);
+    await assert.rejects(readSnapshot(reader(p),upload,()=>NOW));
+  }
 });
