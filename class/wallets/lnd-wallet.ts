@@ -1,6 +1,7 @@
 import { NativeModules } from 'react-native';
 import { LegacyWallet } from './legacy-wallet';
-import { Chain } from '../../models/bitcoinUnits';
+import { BitcoinUnit, Chain } from '../../models/bitcoinUnits';
+import { LndDisplayUnit } from '../../blue_modules/lnd-display-amount';
 import { LightningTransaction, Transaction } from './types';
 
 export type LndActivity = {
@@ -53,6 +54,7 @@ export class LndWallet extends LegacyWallet {
   observedAt = 0;
   status = 'Checking';
   activity: LndActivity[] = [];
+  displayUnit?: LndDisplayUnit;
 
   static fromJson(raw: string): LndWallet {
     const stored = JSON.parse(raw);
@@ -60,6 +62,7 @@ export class LndWallet extends LegacyWallet {
     if (typeof stored.label === 'string') wallet.label = stored.label;
     wallet.hideBalance = stored.hideBalance === true;
     wallet.setPreferredBalanceUnit(stored.preferredBalanceUnit);
+    if (['XBT', 'sats', 'quote'].includes(stored.displayUnit)) wallet.setDisplayUnit(stored.displayUnit);
     wallet.userHasSavedExport = stored.userHasSavedExport === true;
     wallet._hideTransactionsInWalletsList = stored._hideTransactionsInWalletsList === true;
     if (stored.overview) {
@@ -74,6 +77,17 @@ export class LndWallet extends LegacyWallet {
     super(LndWallet.typeReadable);
     this.chain = Chain.OFFCHAIN;
     this.label = 'XBT Lightning';
+  }
+
+  getDisplayUnit(): LndDisplayUnit {
+    return this.displayUnit ?? (this.getPreferredBalanceUnit() === BitcoinUnit.SATS ? 'sats' : 'XBT');
+  }
+
+  setDisplayUnit(unit: LndDisplayUnit): void {
+    if (!['XBT', 'sats', 'quote'].includes(unit)) return;
+    this.displayUnit = unit;
+    // Keep exact legacy displays in step without enabling the unrelated BTC fiat rate cache.
+    if (unit !== 'quote') this.setPreferredBalanceUnit(unit === 'sats' ? BitcoinUnit.SATS : BitcoinUnit.BTC);
   }
 
   // A fixed identity deduplicates cards without exposing the native seed to JS.

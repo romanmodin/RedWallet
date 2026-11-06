@@ -1,5 +1,7 @@
 import { LndWallet } from '../class/wallets/lnd-wallet';
 import LndConnectionBadge from './LndConnectionBadge';
+import { useSettings } from '../hooks/context/useSettings';
+import { formatLndAmount, LndDisplayUnit } from '../blue_modules/lnd-display-amount';
 import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useEffect } from 'react';
 import {
   FlatList,
@@ -160,6 +162,7 @@ const NewWalletPanel: React.FC<NewWalletPanelProps> = ({ onPress }) => {
 
 interface WalletCarouselItemProps {
   item: TWallet;
+  lndDisplayUnit?: LndDisplayUnit;
   hideBalance: boolean;
   onPress: (item: TWallet) => void;
   handleLongPress?: () => void;
@@ -285,6 +288,7 @@ const iStyles = StyleSheet.create({
 export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
   ({
     item,
+    lndDisplayUnit,
     hideBalance,
     onPress,
     handleLongPress,
@@ -340,7 +344,12 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
       [colors.inverseForegroundColor, direction],
     );
     const previousBalance = useRef<string | undefined>(undefined);
-    const balance = !hideBalance && formatBalance(Number(item.getBalance()), item.getPreferredBalanceUnit(), true);
+    const { xbtPriceQuote } = useSettings();
+    const balance =
+      !hideBalance &&
+      (item.type === LndWallet.type
+        ? formatLndAmount(item.getBalance(), lndDisplayUnit ?? (item as LndWallet).getDisplayUnit(), xbtPriceQuote)
+        : formatBalance(Number(item.getBalance()), item.getPreferredBalanceUnit(), true));
     const safeBalance = balance || undefined;
 
     const animatePressScale = useCallback(
@@ -824,6 +833,7 @@ const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((p
         <WalletCarouselItem
           isSelectedWallet={!horizontal && selectedWallet ? selectedWallet === item.getID() : undefined}
           item={item}
+          lndDisplayUnit={item.type === LndWallet.type ? (item as LndWallet).getDisplayUnit() : undefined}
           hideBalance={item.hideBalance}
           handleLongPress={handleLongPress}
           onPress={onPress}
@@ -892,6 +902,7 @@ const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((p
           <WalletCarouselItem
             isSelectedWallet={!horizontal && selectedWallet ? selectedWallet === item.getID() : undefined}
             item={item}
+            lndDisplayUnit={item.type === LndWallet.type ? (item as LndWallet).getDisplayUnit() : undefined}
             hideBalance={item.hideBalance}
             handleLongPress={handleLongPress}
             onPress={onPress}
