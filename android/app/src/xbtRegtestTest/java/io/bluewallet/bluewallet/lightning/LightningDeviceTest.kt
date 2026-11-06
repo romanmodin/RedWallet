@@ -52,15 +52,26 @@ class LightningDeviceTest {
         File(ctx.cacheDir,"identity").writeText(identity)
         val addr = node("fund")
         assertTrue(addr.startsWith("bcrt1"))
+        assertEquals("Repeated requests must retain the unused receiving address",addr,node("fund"))
         fixture("fund",addr)
         waitFor { Regex("Confirmed funding balance: ([0-9]+)").find(node("details"))!!.groupValues[1].toLong() >= 100000 }
+        val nextAddr = node("fund")
+        assertNotEquals("A detected deposit must advance the receiving address",addr,nextAddr)
+        assertEquals(nextAddr,node("fund"))
         val remote = fixture("peer")
         RegtestNode.invoice("connect",remote + "@127.0.0.1:19735","","")
         waitForFixtureSync()
         val point = RegtestNode.invoice("open",remote,"","100000") as String
+        val opening = NodeManagement.run("channelStatus","","","") as com.facebook.react.bridge.ReadableArray
+        assertEquals(1,opening.size())
+        assertEquals(point,opening.getMap(0)!!.getString("point"))
+        assertEquals("pending",opening.getMap(0)!!.getString("state"))
         fixture("confirm",point)
         waitForFixtureSync()
         waitFor { node("details").contains("Active channels: 1") }
+        val opened = NodeManagement.run("channelStatus","","","") as com.facebook.react.bridge.ReadableArray
+        assertEquals(1,opened.size())
+        assertEquals("active",opened.getMap(0)!!.getString("state"))
         val outgoing = fixture("invoice")
         val review = RegtestNode.invoice("decode",outgoing,"","") as com.facebook.react.bridge.ReadableMap
         val hash = requireNotNull(review.getString("hash"))

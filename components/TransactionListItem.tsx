@@ -1,3 +1,4 @@
+import { LndWallet } from '../class/wallets/lnd-wallet';
 import React, { memo, useCallback, useMemo, useRef, useContext } from 'react';
 import { ArtworkSurfaceContext } from './ArtworkSkinSurface';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -290,8 +291,14 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
     // not on-chain transfers — render them with the off-chain (Lightning) icon.
     if (arkRowKind === 'Lightning' && item.type === 'bitcoind_tx') {
       return item.value! < 0
-        ? { label: loc.transactions.offchain, icon: <TransactionOffchainIcon /> }
-        : { label: loc.transactions.incoming_transaction, icon: <TransactionOffchainIncomingIcon /> };
+        ? {
+            label: loc.transactions.offchain,
+            icon: <TransactionOffchainIcon />,
+          }
+        : {
+            label: loc.transactions.incoming_transaction,
+            icon: <TransactionOffchainIncomingIcon />,
+          };
     }
 
     if (item.type && item.type === 'bitcoind_tx') {
@@ -365,6 +372,10 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
       if (disableNavigation) return;
     }
 
+    if (wallets.some(wallet => wallet.getID() === walletID && wallet.type === LndWallet.type)) {
+      navigate('WalletTransactions', { walletID, walletType: LndWallet.type });
+      return;
+    }
     if (item.hash) {
       if (renderHighlightedText) {
         pop();
@@ -418,6 +429,10 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   }, [item, renderHighlightedText, navigate, walletID, wallets, customOnPress, disableNavigation]);
 
   const handleOnDetailsPress = useCallback(() => {
+    if (wallets.some(wallet => wallet.getID() === walletID && wallet.type === LndWallet.type)) {
+      navigate('WalletTransactions', { walletID, walletType: LndWallet.type });
+      return;
+    }
     if (walletID && item && item.hash) {
       navigate('TransactionStatus', { hash: item.hash, walletID, tx: item });
     } else if (item.type === 'user_invoice' || item.type === 'payment_request' || item.type === 'paid_invoice' || item.payment_request) {

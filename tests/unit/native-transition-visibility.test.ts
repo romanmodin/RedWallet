@@ -45,10 +45,10 @@ test('only a successful visibility check allows the next action', async () => {
   await result;
   expect(action).toHaveBeenCalledTimes(1);
   expect(observation).toHaveBeenCalledTimes(2);
-  expect(observation).toHaveBeenCalledWith(5000);
+  expect(observation).toHaveBeenCalledWith(20000);
 });
 
-test('a native request that never returns fails at the unchanged 10-second cap without overlap or follow-up action', async () => {
+test('a native request that never returns fails at the 25-second cap without overlap or follow-up action', async () => {
   let finish: (() => void) | undefined;
   const observation = jest.fn(
     () =>
@@ -58,7 +58,7 @@ test('a native request that never returns fails at the unchanged 10-second cap w
   );
   const action = jest.fn();
   const result = observeTransitionVisibility('Import wallet', observation).then(action);
-  await Promise.all([expect(result).rejects.toThrow('native observation did not respond'), jest.advanceTimersByTimeAsync(10000)]);
+  await Promise.all([expect(result).rejects.toThrow('native observation did not respond'), jest.advanceTimersByTimeAsync(25000)]);
   finish?.();
   await Promise.resolve();
   expect(observation).toHaveBeenCalledTimes(1);
@@ -66,15 +66,28 @@ test('a native request that never returns fails at the unchanged 10-second cap w
   expect(jest.getTimerCount()).toBe(0);
 });
 
-test('persistently hidden control fails within the original 15-second overall limit', async () => {
+test('persistently hidden control fails within the 30-second overall limit', async () => {
   const action = jest.fn();
   const observation = jest.fn(
     (budget: number) => new Promise((_resolve, reject) => setTimeout(() => reject(new Error('not visible')), budget)),
   );
   const result = observeTransitionVisibility('Import wallet', observation).then(action);
-  await Promise.all([expect(result).rejects.toThrow(), jest.advanceTimersByTimeAsync(15000)]);
+  await Promise.all([expect(result).rejects.toThrow(), jest.advanceTimersByTimeAsync(30000)]);
   expect(action).not.toHaveBeenCalled();
-  expect(observation).toHaveBeenCalledTimes(3);
-  await jest.advanceTimersByTimeAsync(1000);
+  expect(observation).toHaveBeenCalledTimes(2);
+  await jest.advanceTimersByTimeAsync(15000);
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+test('a slow iOS sheet must become visible before any follow-up action runs', async () => {
+  const action = jest.fn();
+  const observation = jest.fn(() => new Promise<void>(resolve => setTimeout(resolve, 12000)));
+  const result = observeTransitionVisibility('Import wallet', observation).then(action);
+  await jest.advanceTimersByTimeAsync(10000);
+  expect(action).not.toHaveBeenCalled();
+  await jest.advanceTimersByTimeAsync(2000);
+  await result;
+  expect(observation).toHaveBeenCalledTimes(1);
+  expect(action).toHaveBeenCalledTimes(1);
   expect(jest.getTimerCount()).toBe(0);
 });

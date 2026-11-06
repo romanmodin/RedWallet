@@ -1,0 +1,207 @@
+import React, { useRef, useState } from 'react';
+import { NativeModules, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SettingsFootnote, SettingsListItem } from './SettingsSection';
+import { useTheme } from './themes';
+
+type Splice = {
+  status: string;
+  progress: string;
+  txid: string;
+  confirmations: string;
+  lockDepth: string;
+};
+type Review = {
+  token: string;
+  point: string;
+  direction: string;
+  address: string;
+  sats: string;
+  fee: string;
+  feeRate: string;
+  capacity: string;
+  local: string;
+  lockDepth: string;
+};
+type Props = {
+  point: string;
+  active: boolean;
+  splice?: Splice;
+  busy: boolean;
+  run: (title: string, action: () => Promise<void>) => Promise<void>;
+  report: (message: string) => void;
+  onUpdated: () => void;
+};
+const reasons: Record<string, string> = {
+  disabled: 'Splicing is disabled on this node.',
+  peer_offline: 'The peer must be online.',
+  peer_unsupported: 'This peer does not support splicing.',
+  no_unified_sigs: 'This channel cannot be spliced.',
+  taproot: 'This channel type cannot be spliced.',
+  zero_conf: 'Wait for channel confirmation.',
+  pending: 'A resize is already in progress.',
+  closing: 'This channel is closing.',
+  peer_not_locked: 'Waiting for the peer to lock the previous resize.',
+};
+
+export default function XBTLightningChannelFunds({ point, active, splice, busy, run, report, onUpdated }: Props) {
+  const { colors } = useTheme();
+  const [direction, setDirection] = useState<'in' | 'out'>();
+  const [sats, setSats] = useState('');
+  const [feeRate, setFeeRate] = useState('1');
+  const [review, setReview] = useState<{ item: Review; key: string }>();
+  const submitted = useRef(new Set<string>());
+  const current = useRef('');
+  current.current = JSON.stringify([point, direction, sats, feeRate]);
+  const available = active && !!splice && ['ok', 'peer_not_announcing'].includes(splice.status);
+  const valid =
+    /^[1-9][0-9]{0,6}$/.test(sats) &&
+    Number(sats) >= 546 &&
+    Number(sats) <= 1000000 &&
+    /^[1-9][0-9]{0,2}$/.test(feeRate) &&
+    Number(feeRate) <= 100;
+  const select = (value: 'in' | 'out') => {
+    setDirection(value);
+    setReview(undefined);
+  };
+  const confirm = () => {
+    if (!review || review.key !== current.current || !available || busy || submitted.current.has(review.item.token)) return;
+    const item = review.item;
+    submitted.current.add(item.token);
+    setReview(undefined);
+    run(item.direction === 'in' ? 'Add channel funds' : 'Remove channel funds', async () => {
+      try {
+        const result = await NativeModules.XBTLightningBridge.splice('confirm', item.token);
+        report(result);
+      } catch (error) {
+        const failure = error as { code?: string; message?: string };
+        report(
+          failure.code === 'splice_failed' && failure.message
+            ? failure.message
+            : 'Resize outcome unknown or not completed. Refresh channels and check the node before creating another resize.',
+        );
+      } finally {
+        onUpdated();
+      }
+    });
+  };
+  const inputStyle = [styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }];
+  return (
+    <View testID={'ChannelFunds-' + point}>
+      {!!splice?.progress && (
+        <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          {'Channel resize: ' +
+            splice.progress +
+            (splice.lockDepth !== '0' ? ' · ' + splice.confirmations + '/' + splice.lockDepth + ' confirmations' : '') +
+            (splice.txid ? '\nTransaction: ' + splice.txid : '')}
+        </SettingsFootnote>
+      )}
+      {!available && (
+        <SettingsFootnote>{reasons[splice?.status ?? ''] || 'Resizing is unavailable for this channel right now.'}</SettingsFootnote>
+      )}
+      <SettingsListItem title="Add funds" disabled={busy || !available} onPress={() => select('in')} />
+      <SettingsListItem title="Remove funds" disabled={busy || !available} onPress={() => select('out')} />
+      {direction && (
+        <View>
+          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+            {direction === 'in'
+              ? 'Add funds from the Lightning node’s on-chain balance.'
+              : 'Return funds to the Lightning node’s on-chain wallet. The peer’s funds remain theirs.'}
+          </SettingsFootnote>
+          <TextInput
+            accessibilityLabel="Channel resize sats"
+            placeholder="Amount in sats (546–1,000,000)"
+            keyboardType="number-pad"
+            placeholderTextColor={colors.alternativeTextColor2}
+            style={inputStyle}
+            value={sats}
+            editable={!busy}
+            onChangeText={value => {
+              setSats(value);
+              setReview(undefined);
+            }}
+          />
+          <TextInput
+            accessibilityLabel="Channel resize fee rate"
+            placeholder="Fee rate (sat/vB)"
+            keyboardType="number-pad"
+            placeholderTextColor={colors.alternativeTextColor2}
+            style={inputStyle}
+            value={feeRate}
+            editable={!busy}
+            onChangeText={value => {
+              setFeeRate(value);
+              setReview(undefined);
+            }}
+          />
+          <SettingsListItem
+            title="Review channel resize"
+            disabled={busy || !available || !valid}
+            onPress={() => {
+              const key = current.current;
+              setReview(undefined);
+              run('Review channel resize', async () => {
+                const item: Review = await NativeModules.XBTLightningBridge.splice(
+                  'review',
+                  JSON.stringify({ point, direction, sats, feeRate }),
+                );
+                if (current.current !== key) return;
+                if (item.point !== point || item.direction !== direction || item.sats !== sats || item.feeRate !== feeRate || !item.token) {
+                  throw new Error('Channel resize review did not match the request.');
+                }
+                setReview({ item, key });
+                report('Review ready. No funds have moved.');
+              });
+            }}
+          />
+          {review && review.key === current.current && available && (
+            <View>
+              <Text selectable style={[styles.review, { color: colors.foregroundColor }]}>
+                {(direction === 'in' ? 'Add ' : 'Remove ') +
+                  review.item.sats +
+                  ' sats\nChannel: ' +
+                  review.item.point +
+                  '\nEstimated network fee: ' +
+                  review.item.fee +
+                  ' sats at ' +
+                  review.item.feeRate +
+                  ' sat/vB' +
+                  '\nNew capacity: ' +
+                  review.item.capacity +
+                  ' sats\nYour resulting balance: ' +
+                  review.item.local +
+                  ' sats' +
+                  (direction === 'out' ? '\nReturn address: ' + review.item.address : '') +
+                  '\nRequired confirmations: ' +
+                  review.item.lockDepth +
+                  '\nThe final fee may vary with transaction size. Wait for both peers to lock the resize.'}
+              </Text>
+              <SettingsListItem
+                title={direction === 'in' ? 'Confirm add funds' : 'Confirm remove funds'}
+                disabled={busy}
+                onPress={confirm}
+              />
+            </View>
+          )}
+          <SettingsListItem
+            title="Cancel resize review"
+            disabled={busy}
+            onPress={() => {
+              setDirection(undefined);
+              setReview(undefined);
+            }}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+const styles = StyleSheet.create({
+  input: {
+    margin: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    fontSize: 16,
+  },
+  review: { padding: 16, fontSize: 15 },
+});

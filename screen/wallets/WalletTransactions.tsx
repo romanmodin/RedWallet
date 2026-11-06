@@ -1,3 +1,5 @@
+import { LndWallet } from '../../class/wallets/lnd-wallet';
+import LndWalletHome from './LndWalletHome';
 import { RouteProp, useFocusEffect, useRoute, useLocale } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -942,7 +944,13 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
   );
 };
 
-export default WalletTransactions;
+const WalletTransactionsEntry: React.FC<WalletTransactionsProps> = props => {
+  const { wallets } = useStorage();
+  const wallet = wallets.find(item => item.getID() === props.route.params.walletID);
+  return wallet instanceof LndWallet ? <LndWalletHome wallet={wallet} /> : <WalletTransactions {...props} />;
+};
+
+export default WalletTransactionsEntry;
 
 const scrolledHeaderTitleStyles = StyleSheet.create({
   animatedTitleWrapper: {

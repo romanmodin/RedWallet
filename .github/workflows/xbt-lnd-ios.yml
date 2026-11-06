@@ -45,7 +45,7 @@ jobs:
           git -C "$dir/peer-src" fetch -q --depth=1 https://github.com/Kilombino/lnd.git cae303b36594a2c48c9ce0cbb238672e3a1b284e
           git -C "$dir/peer-src" checkout -q --detach FETCH_HEAD
           cd "$dir/peer-src"
-          go build -tags="routerrpc invoicesrpc" -o "$dir/ln-bin/" ./cmd/lnd ./cmd/lncli
+          go build -tags="routerrpc invoicesrpc watchtowerrpc wtclientrpc" -o "$dir/ln-bin/" ./cmd/lnd ./cmd/lncli
       - name: Start a private compact-filter chain peer
         run: |
           set -euo pipefail
@@ -68,7 +68,7 @@ jobs:
           set -euo pipefail
           dir="$RUNNER_TEMP/lnd-regtest"
           fixture_cookie=$(<"$dir/data/regtest/.cookie")
-          "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${fixture_cookie%%:*}" --bitcoind.rpcpass="${fixture_cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
+          "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${fixture_cookie%%:*}" --bitcoind.rpcpass="${fixture_cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --protocol.splice --watchtower.active --watchtower.listen=127.0.0.1:19911 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
           pid=$!
           ready=false
           for attempt in {1..90}; do
@@ -121,3 +121,22 @@ jobs:
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
           xcrun simctl bootstatus "$device" -b
           xcodebuild -project "$RUNNER_TEMP/xbt-public-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/MainnetSmokeTests test
+
+  tor-smoke:
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+      - name: Sync a disposable Tor XBT node without funding it
+        env:
+          XBT_TOR_SMOKE: "1"
+        run: |
+          set -eo pipefail
+          bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/xbt-tor-host"
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
+          xcrun simctl bootstatus "$device" -b
+          xcodebuild -project "$RUNNER_TEMP/xbt-tor-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/TorSmokeTests test

@@ -39,7 +39,12 @@ export type DetailViewStackParamList = {
   DrawerRoot: undefined;
   UnlockWithScreen: undefined;
   WalletsList: { onBarScanned?: string };
-  WalletTransactions: { isLoading?: boolean; walletID: string; walletType: string; onBarScanned?: string };
+  WalletTransactions: {
+    isLoading?: boolean;
+    walletID: string;
+    walletType: string;
+    onBarScanned?: string;
+  };
   WalletDetails: { walletID: string };
   // TODO: type tx properly once Transaction and ElectrumTransaction are unified
   TransactionStatus: { hash: string; walletID: string; tx?: any };
@@ -95,14 +100,18 @@ export type DetailViewStackParamList = {
   Settings: undefined;
   Currency: undefined;
   XbtPrice: undefined;
-  XBTLightning: undefined;
+  XBTLightning: { mode?: 'pay' | 'invoice' | 'send' | 'receive' } | undefined;
   CoinjoinExperimental: undefined;
   GeneralSettings: undefined;
   Licensing: undefined;
   NetworkSettings: undefined;
   About: undefined;
   // DefaultView: undefined; // Commented out - not accessible from UI
-  ElectrumSettings: { server?: ElectrumServerItem; onBarScanned?: string; headerRight?: HeaderRightRenderer | null };
+  ElectrumSettings: {
+    server?: ElectrumServerItem;
+    onBarScanned?: string;
+    headerRight?: HeaderRightRenderer | null;
+  };
   SettingsBlockExplorer: undefined;
   PlausibleDeniability: undefined;
   EncryptStorage: undefined;
@@ -124,7 +133,10 @@ export type DetailViewStackParamList = {
     sheetAskPassphrase?: boolean;
     sheetCurrentlyEditingCosignerNum?: number;
   };
-  ViewEditMultisigCosignerViewSheet: { walletID: string; vaultKeyData: VaultKeyData };
+  ViewEditMultisigCosignerViewSheet: {
+    walletID: string;
+    vaultKeyData: VaultKeyData;
+  };
   ViewEditMultisigProvideMnemonicsSheet: {
     walletID: string;
     currentlyEditingCosignerNum: number;

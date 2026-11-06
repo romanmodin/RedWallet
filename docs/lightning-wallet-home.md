@@ -1,0 +1,17 @@
+# Embedded LND wallet
+
+The LND wallet is a normal card in the wallet list, using the existing XBT red gradient and a small LND badge. Add Wallet > Add LND wallet registers a reference to the device’s existing embedded node; it never creates another seed or resets channels. Only one card is registered per active wallet storage bucket. Adding it is explicit, so an encrypted decoy bucket does not discover the shared native node automatically. Removing the card does not delete native funds, seed or channels. Re-add it to return to the same node.
+
+The wallet opens with its total balance and primary Receive (create invoice) / Pay (invoice) buttons. Transactions shows incoming invoices and outgoing payments, preserving unpaid, pending, settled, failed, canceled and expired states. Funding separately shows on-chain deposits and spends with native confirmation counts and secondary Receive on-chain / Send on-chain actions. Creating an invoice is never labeled as a settled receipt. Details can be copied; Lightning does not supply an originating payer identity, and the UI does not invent one.
+
+The three-dot menu opens the existing node tools: balances, peer/channel operations, Add/Remove funds, Tor/watchtowers, backup and recovery. The pinned foreground activity display retains the original full copyable results. Focused invoice and on-chain action routes share the existing financial review/confirmation/token code. Simply navigating, loading history or loading a balance cannot pay an invoice or spend coins.
+
+Connection badge: green only after a fresh successful native overview reports synced and at least one Lightning peer. Amber means the responding node is still syncing or lacks peers; gray means evidence is unavailable/stale. Background transitions and screen blur invalidate green; cached data restored from storage never counts as a live connection. No promise of continuous iOS background execution or phone-locked receiving is implied.
+
+Balance accounting uses native funding total + local channel balance + pending-open local balance + pending splice-in contributions. Remote liquidity and locked/reserved subsets of the funding balance are not added again; unsettled incoming HTLCs are not credited as received funds. The header names its components, and Funding distinguishes confirmed from unconfirmed funds. These RPCs are read sequentially; snapshots around a channel transition are eventually consistent, not an atomic ledger statement. Native LND remains the authority for spendability and channel reserves.
+
+Lightning history pages are 100 records per direction, with older-page controls and stable direction/hash keys; the main app feed exposes successful Lightning payments in its established row format. Funding uses the native complete transaction range including mempool and pages the ordered output. It does not expose preimages, HTLC route data, recovery words or credentials to the new list. Existing fixed node identity and native data directories are retained.
+
+This first-class card is gated on the new native read-only wallet API (iPhone). Platforms without that API retain the previous setup screen; their existing Lightning setup link remains available.
+
+Validation: focused JS model/screen/payment regression tests, TypeScript and ESLint; native protobuf parser tests and read-only history assertions added to the existing disposable funded engine test. Native checks and full iOS app CI must pass on the exact source before release. No live funds or home-node mutations are used by this work.

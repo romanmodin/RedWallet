@@ -71,7 +71,10 @@ type HeaderRightItem = ReturnType<NonNullable<NativeStackNavigationOptions['unst
 const PaymentCodesList = lazy(() => import('../screen/wallets/PaymentCodesList'));
 const PaymentCodesListComponent = withLazySuspense(PaymentCodesList);
 
-const UpdatingLabel: React.FC<{ containerStyle: object; textStyle: object }> = ({ containerStyle, textStyle }) => {
+const UpdatingLabel: React.FC<{
+  containerStyle: object;
+  textStyle: object;
+}> = ({ containerStyle, textStyle }) => {
   const opacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -246,7 +249,9 @@ const DetailViewStackScreensStack = () => {
     if (routeNames?.includes('ElectrumSettings')) {
       navigation.navigate('ElectrumSettings');
     } else {
-      navigation.navigate('DetailViewStackScreensStack', { screen: 'ElectrumSettings' });
+      navigation.navigate('DetailViewStackScreensStack', {
+        screen: 'ElectrumSettings',
+      });
     }
   }, [navigation]);
 
@@ -270,7 +275,10 @@ const DetailViewStackScreensStack = () => {
       if (!showOffline) return React.createElement(ChainFreshnessIndicator, chainFreshness);
       if (showOffline) {
         const offlineBg = theme.dark ? theme.colors.darkGray : '#000000';
-        return React.createElement(OfflineModePill, { onPress: navigateToElectrumSettings, backgroundColor: offlineBg });
+        return React.createElement(OfflineModePill, {
+          onPress: navigateToElectrumSettings,
+          backgroundColor: offlineBg,
+        });
       }
       if (showNotConnected) {
         return React.createElement(NotConnectedPill, {
@@ -374,7 +382,10 @@ const DetailViewStackScreensStack = () => {
     <ConnectionPollContext.Provider value={connectionPollContextValue}>
       <DetailViewStack.Navigator
         initialRouteName="WalletsList"
-        screenOptions={{ headerShadowVisible: false, animationTypeForReplace: 'push' }}
+        screenOptions={{
+          headerShadowVisible: false,
+          animationTypeForReplace: 'push',
+        }}
       >
         <DetailViewStack.Screen name="WalletsList" component={WalletsList} options={navigationStyle(walletListScreenOptions)(theme)} />
         <DetailViewStack.Screen name="WalletTransactions" component={WalletTransactions} options={getWalletTransactionsOptions} />
@@ -434,7 +445,9 @@ const DetailViewStackScreensStack = () => {
         <DetailViewStack.Screen
           name="LNDViewAdditionalInvoicePreImage"
           component={LNDViewAdditionalInvoicePreImage}
-          options={navigationStyle({ title: loc.lndViewInvoice.additional_info })(theme)}
+          options={navigationStyle({
+            title: loc.lndViewInvoice.additional_info,
+          })(theme)}
         />
 
         <DetailViewStack.Screen name="Broadcast" component={Broadcast} options={settingsScreenOptions(loc.send.create_broadcast)} />
@@ -522,7 +535,25 @@ const DetailViewStackScreensStack = () => {
           }
         />
         <DetailViewStack.Screen name="Currency" component={Currency} options={settingsScreenOptions(loc.settings.currency)} />
-        <DetailViewStack.Screen name="XBTLightning" component={XBTLightning} options={settingsScreenOptions('XBT Lightning')} />
+        <DetailViewStack.Screen
+          name="XBTLightning"
+          component={XBTLightning}
+          options={deps => {
+            const mode = deps.route.params?.mode;
+            const options = settingsScreenOptions(
+              mode === 'pay'
+                ? 'Pay invoice'
+                : mode === 'invoice'
+                  ? 'Receive · Create invoice'
+                  : mode === 'send'
+                    ? 'Send on-chain'
+                    : mode === 'receive'
+                      ? 'Receive on-chain'
+                      : 'Lightning node settings',
+            );
+            return typeof options === 'function' ? options(deps) : options;
+          }}
+        />
         <DetailViewStack.Screen name="CoinjoinExperimental" component={CoinjoinExperimental} options={settingsScreenOptions('CoinJoin')} />
         <DetailViewStack.Screen name="XbtPrice" component={XbtPrice} options={settingsScreenOptions('XBT price')} />
         <DetailViewStack.Screen name="GeneralSettings" component={GeneralSettings} options={settingsScreenOptions(loc.settings.general)} />
@@ -681,7 +712,10 @@ const createReceiveDetailsOptions = (theme: ReturnType<typeof useTheme>) =>
       };
 
       const actions: Action[] = [{ ...CommonToolTipActions.PaymentsCode, menuState: isBIP47Enabled }];
-      const headerMenuOptions = createEllipsisHeaderMenuOptions({ actions, onPressMenuItem });
+      const headerMenuOptions = createEllipsisHeaderMenuOptions({
+        actions,
+        onPressMenuItem,
+      });
       const emptyLeft = () => React.createElement(View, { style: styles.receiveHeaderEmptyLeftSlot });
 
       if (showBip47Menu) {

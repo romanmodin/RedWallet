@@ -250,9 +250,17 @@ describe('RedWallet UI Tests - no wallets', () => {
     await element(by.id('IsItMyAddress')).tap();
     await waitForId('AddressInput');
     await element(by.id('AddressInput')).replaceText('bc1q063ctu6jhe5k4v8ka99qac8rcm2tzjjnuktyrl');
-    await checkAddressOwnershipAlert({ device, element, by, expect });
-    await goBack();
-    await goBack();
+    await checkAddressOwnershipAlert({
+      device,
+      element,
+      by,
+      expect,
+      leaveAddressScreen: async () => {
+        await goBack();
+        await goBack();
+        await waitForId('SettingsRoot');
+      },
+    });
 
     // about
     await waitFor(element(by.id('AboutButton')))

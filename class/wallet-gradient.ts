@@ -1,3 +1,4 @@
+import { LndWallet } from './wallets/lnd-wallet';
 import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
 import { XbtTaprootWallet } from './wallets/xbt-taproot-wallet';
 import { HDAezeedWallet } from './wallets/hd-aezeed-wallet';
@@ -38,6 +39,7 @@ export default class WalletGradient {
   static gradientsFor(type: string): string[] {
     let gradient: string[];
     switch (type) {
+      case LndWallet.type:
       case XbtSegwitBech32Wallet.type:
       case XbtTaprootWallet.type:
         gradient = WalletGradient.xbtWallet;

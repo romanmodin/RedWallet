@@ -84,20 +84,36 @@ final class RegtestTests: XCTestCase {
         XCTAssertTrue(summary.contains("Node: "))
         let funding = try await RegtestNode.shared.fundingAddress()
         XCTAssertTrue(funding.hasPrefix("bcrt1"))
+        let sameFunding = try await RegtestNode.shared.fundingAddress()
+        XCTAssertEqual(sameFunding, funding, "Repeated requests must retain the unused receiving address")
         #if XBT_LND_ROUTED_TEST
         let peerKey = try await peer("peer")
+        let towerURI = try await peer("tower")
+        try await RegtestNode.shared.addWatchtower(towerURI)
+        let registeredTowers = try await RegtestNode.shared.watchtowers()
+        XCTAssertEqual(registeredTowers.count, 1)
+        XCTAssertEqual(registeredTowers[0].acknowledged, 0)
         _ = try await peer("fund", funding)
         try await waitUntil {
             let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
             return (funds.integers[2] ?? 0) >= 100_000
         }
+        let nextFunding = try await RegtestNode.shared.fundingAddress()
+        XCTAssertNotEqual(nextFunding, funding, "A detected deposit must advance the receiving address")
+        let sameNextFunding = try await RegtestNode.shared.fundingAddress()
+        XCTAssertEqual(sameNextFunding, nextFunding)
         try await RegtestNode.shared.connect(to: peerKey + "@127.0.0.1:19735")
         try await waitForFixtureSync("funding confirmed; opening channel")
-        let point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)
+        var point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)
+        let opening = try await RegtestNode.shared.channelStatus()
+        XCTAssertEqual(opening.first(where: { $0.point == point })?.state, "pending")
         _ = try await peer("confirm", point)
         try await waitForFixtureSync("channel funding confirmed")
         try await waitUntil { try ProtoFields(await XBTLightningNode.info()).integers[4] == 1 }
 
+        let opened = try await RegtestNode.shared.channelStatus()
+        XCTAssertEqual(opened.filter { $0.point == point }.count, 1)
+        XCTAssertEqual(opened.first(where: { $0.point == point })?.state, "active")
         let outgoing = try await peer("invoice")
         let review = try await RegtestNode.shared.decode(outgoing)
         XCTAssertEqual(review.sats, 20_000)
@@ -114,6 +130,56 @@ final class RegtestTests: XCTestCase {
         let incoming = try await RegtestNode.shared.receive(sats: 2_000)
         let receipt = try await peer("pay", incoming)
         XCTAssertEqual(receipt, "settled")
+        let overview = try await RegtestNode.shared.walletOverview()
+        XCTAssertEqual(overview["synced"] as? Bool, true)
+        XCTAssertEqual(overview["activeChannels"] as? String, "1")
+        let outgoingPage = try await RegtestNode.shared.walletActivity("payments", offset: 0)
+        let outgoingRows = outgoingPage["rows"] as? [[String: Any]] ?? []
+        XCTAssertTrue(outgoingRows.contains { $0["id"] as? String == review.hash && $0["state"] as? String == "settled" && $0["sats"] as? String == "20000" })
+        let receivedHash = try await RegtestNode.shared.decode(incoming).hash
+        let incomingPage = try await RegtestNode.shared.walletActivity("invoices", offset: 0)
+        let incomingRows = incomingPage["rows"] as? [[String: Any]] ?? []
+        XCTAssertTrue(incomingRows.contains { $0["id"] as? String == receivedHash && $0["state"] as? String == "settled" && $0["sats"] as? String == "2000" })
+        let fundingPage = try await RegtestNode.shared.walletActivity("funding", offset: 0)
+        let fundingRows = fundingPage["rows"] as? [[String: Any]] ?? []
+        XCTAssertTrue(fundingRows.contains { $0["direction"] as? String == "received" && ($0["confirmations"] as? Int64 ?? 0) > 0 })
+        try await waitUntil {
+            let towers = try await RegtestNode.shared.watchtowers()
+            return towers.contains { $0.acknowledged > 0 && $0.pending == 0 }
+        }
+        for direction in ["in", "out"] {
+            try await waitForFixtureSync("review splice " + direction)
+            let mempoolBefore = try await peer("mempool")
+            let resize = try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: direction == "in" ? 50_000 : 20_000, feeRate: 50)
+            let mempoolAfter = try await peer("mempool")
+            XCTAssertEqual(mempoolAfter, mempoolBefore, "Review must not broadcast or lease/spend funds")
+            _ = try await RegtestNode.shared.splice(token: resize.token)
+            do { _ = try await RegtestNode.shared.splice(token: resize.token); XCTFail("A splice token must be consumed once") } catch { }
+            try await waitUntil {
+                let rows = try await RegtestNode.shared.channelStatus()
+                return rows.contains {
+                    $0.point == point && !($0.splice?.txid ?? "").isEmpty &&
+                        $0.splice?.txid != point.split(separator: ":").first.map(String.init)
+                }
+            }
+            let resizing = try await RegtestNode.shared.channelStatus()
+            let txid = try XCTUnwrap(resizing.first(where: { $0.point == point })?.splice?.txid)
+            XCTAssertNotEqual(txid, point.split(separator: ":").first.map(String.init), "A new resize must not confirm the previous funding transaction")
+            print("Fixture stage: confirming new splice " + direction + " · " + txid)
+            _ = try await peer("confirm-splice", txid + ":" + String(resize.estimate.lockDepth + 2))
+            try await waitForFixtureSync("splice confirmed " + direction)
+            try await waitUntil {
+                let rows = try await RegtestNode.shared.channelStatus()
+                return rows.contains { $0.peer == peerKey && $0.state == "active" && $0.point != point && $0.splice?.progress == "locked" }
+            }
+            let resized = try await RegtestNode.shared.channelStatus()
+            point = try XCTUnwrap(resized.first(where: { $0.peer == peerKey && $0.state == "active" })?.point)
+            let raw = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
+            let channel = try XCTUnwrap(raw.bytes[11]?.first)
+            XCTAssertEqual(try ProtoFields(channel).integers[5], resize.estimate.capacity)
+            let syncedBackup = try await RegtestNode.shared.channelBackup()
+            XCTAssertFalse(syncedBackup.isEmpty)
+        }
         let fundedBackup = try await RegtestNode.shared.channelBackup()
         XCTAssertGreaterThan(fundedBackup.count, backup.count)
         #endif

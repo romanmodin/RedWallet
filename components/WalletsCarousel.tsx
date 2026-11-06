@@ -1,3 +1,5 @@
+import { LndWallet } from '../class/wallets/lnd-wallet';
+import LndConnectionBadge from './LndConnectionBadge';
 import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useEffect } from 'react';
 import {
   FlatList,
@@ -179,6 +181,8 @@ interface WalletCarouselItemProps {
 
 const iStyles = StyleSheet.create({
   root: { paddingRight: 20 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  labelFlex: { flex: 1 },
   rootLargeDevice: { marginVertical: 20 },
   grad: {
     borderRadius: 12,
@@ -317,7 +321,9 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
         grad: { minHeight: getWalletCardMinHeight(fontScale) },
         gradContent: { padding: scaleLayoutUp(15, fontScale) },
         balanceContainer: { minHeight: scaleLayoutUp(40, fontScale) },
-        textSpacer: { height: scaleLayoutUp(WALLET_CARD_SECTION_GAP, fontScale) },
+        textSpacer: {
+          height: scaleLayoutUp(WALLET_CARD_SECTION_GAP, fontScale),
+        },
         label: { lineHeight: scaleLayoutUp(24, fontScale) },
         balance: { lineHeight: scaleLayoutUp(38, fontScale) },
         balanceCompact: { lineHeight: scaleLayoutUp(30, fontScale) },
@@ -339,20 +345,31 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
 
     const animatePressScale = useCallback(
       (toValue: number) => {
-        pressScale.value = withSpring(toValue, { damping: 13, stiffness: 180, mass: 0.9 });
+        pressScale.value = withSpring(toValue, {
+          damping: 13,
+          stiffness: 180,
+          mass: 0.9,
+        });
       },
       [pressScale],
     );
 
     useEffect(() => {
-      dragScale.value = withSpring(isDraggingActive ? dragActiveScale : 1, { damping: 16, stiffness: 200, mass: 1 });
+      dragScale.value = withSpring(isDraggingActive ? dragActiveScale : 1, {
+        damping: 16,
+        stiffness: 200,
+        mass: 1,
+      });
     }, [isDraggingActive, dragActiveScale, dragScale]);
 
     useEffect(() => {
       if (!animationsEnabled) return;
 
       const targetOpacity = isSelectedWallet === false ? 0.5 : 1.0;
-      opacityValue.value = withSpring(targetOpacity, { damping: 18, stiffness: 240 });
+      opacityValue.value = withSpring(targetOpacity, {
+        damping: 18,
+        stiffness: 240,
+      });
     }, [isSelectedWallet, opacityValue, animationsEnabled]);
 
     const onPressedIn = useCallback(() => {
@@ -391,7 +408,10 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
         balanceOpacity.value = 0;
         balanceTranslateY.value = 6;
         balanceOpacity.value = withTiming(1, { duration: 180 });
-        balanceTranslateY.value = withSpring(0, { damping: 16, stiffness: 220 });
+        balanceTranslateY.value = withSpring(0, {
+          damping: 16,
+          stiffness: 220,
+        });
       }
 
       previousBalance.current = safeBalance;
@@ -436,7 +456,8 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
     // `ispaid === false` alone is not "pending": it is also true for terminal
     // failed/refunded swaps, which stay in history. Gate on `!tx.failed` so a
     // dead swap doesn't pin the card to "pending" forever.
-    const isLightningShaped = item.type === LightningCustodianWallet.type || item.type === LightningArkWallet.type;
+    const isLightningShaped =
+      item.type === LndWallet.type || item.type === LightningCustodianWallet.type || item.type === LightningArkWallet.type;
     const hasPendingTx = isLightningShaped
       ? item.getTransactions().some((tx: any) => tx.ispaid === false && !tx.failed)
       : item.getTransactions().some((tx: Transaction) => tx.confirmations === 0);
@@ -474,7 +495,10 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
             style={[
               iStyles.shadowContainer,
               isCompact && iStyles.shadowContainerCompact,
-              { backgroundColor: colors.background, shadowColor: colors.shadowColor },
+              {
+                backgroundColor: colors.background,
+                shadowColor: colors.shadowColor,
+              },
             ]}
           >
             <LinearGradient
@@ -485,12 +509,15 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
               <View style={[iStyles.gradContent, isCompact && iStyles.gradContentCompact, !isCompact && scaledCardStyles.gradContent]}>
                 {!isPlaceHolder && (
                   <>
-                    <Text
-                      numberOfLines={1}
-                      style={[iStyles.label, isCompact && iStyles.labelCompact, scaledCardStyles.label, cardTextStyle]}
-                    >
-                      {renderHighlightedText ? renderHighlightedText(walletLabel, searchQuery || '') : walletLabel}
-                    </Text>
+                    <View style={iStyles.labelRow}>
+                      <Text
+                        numberOfLines={1}
+                        style={[iStyles.label, isCompact && iStyles.labelCompact, scaledCardStyles.label, cardTextStyle, iStyles.labelFlex]}
+                      >
+                        {renderHighlightedText ? renderHighlightedText(walletLabel, searchQuery || '') : walletLabel}
+                      </Text>
+                      {item instanceof LndWallet && <LndConnectionBadge wallet={item} />}
+                    </View>
                     <View
                       style={[iStyles.balanceContainer, isCompact && iStyles.balanceContainerCompact, scaledCardStyles.balanceContainer]}
                     >
@@ -646,9 +673,19 @@ const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((p
         getWalletPosition: (walletId: string) => {
           const walletRef = walletRefs.current[walletId];
           if (walletRef?.current) {
-            return new Promise<{ x: number; y: number; width: number; height: number }>(resolve => {
+            return new Promise<{
+              x: number;
+              y: number;
+              width: number;
+              height: number;
+            }>(resolve => {
               walletRef.current?.measure((x: number, y: number, widthVal: number, heightVal: number, pageX: number, pageY: number) => {
-                resolve({ x: pageX, y: pageY, width: widthVal, height: heightVal });
+                resolve({
+                  x: pageX,
+                  y: pageY,
+                  width: widthVal,
+                  height: heightVal,
+                });
               });
             });
           }
@@ -766,10 +803,16 @@ const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((p
 
   const onScrollToIndexFailed = (error: { averageItemLength: number; index: number }): void => {
     console.debug('onScrollToIndexFailed', error);
-    flatListRef.current?.scrollToOffset({ offset: error.averageItemLength * error.index, animated: true });
+    flatListRef.current?.scrollToOffset({
+      offset: error.averageItemLength * error.index,
+      animated: true,
+    });
     setTimeout(() => {
       if (data.length !== 0 && flatListRef.current !== null) {
-        flatListRef.current.scrollToIndex({ index: error.index, animated: true });
+        flatListRef.current.scrollToIndex({
+          index: error.index,
+          animated: true,
+        });
       }
     }, 100);
   };

@@ -7,6 +7,66 @@ import XBTLightning
 final class XBTLightningBridge: NSObject {
     @objc static func requiresMainQueueSetup() -> Bool { false }
 
+    @objc(network:value:resolver:rejecter:)
+    func network(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                if action == "select" { try await RegtestNode.shared.selectTransport(value) }
+                else if action != "get" && action != "resume" { throw NSError(domain: "Network", code: 1) }
+                resolve(try await RegtestNode.shared.networkState(resume: action == "resume"))
+            } catch { reject("network_failed", error.localizedDescription, nil) }
+        }
+    }
+
+    @objc(watchtower:value:resolver:rejecter:)
+    func watchtower(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch action {
+                case "add": try await RegtestNode.shared.addWatchtower(value)
+                case "remove": try await RegtestNode.shared.removeWatchtower(value)
+                case "list": break
+                default: throw NSError(domain: "Watchtower", code: 1)
+                }
+                resolve(try await RegtestNode.shared.watchtowers().map {
+                    ["key": $0.key, "addresses": $0.addresses, "eligible": $0.eligible, "sessions": String($0.sessions),
+                     "acknowledged": String($0.acknowledged), "pending": String($0.pending)] as [String: Any]
+                })
+            } catch { reject("watchtower_failed", error.localizedDescription, nil) }
+        }
+    }
+
+    @objc(splice:value:resolver:rejecter:)
+    func splice(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                if action == "confirm" { resolve(try await RegtestNode.shared.splice(token: value)); return }
+                guard action == "review", let data = value.data(using: .utf8), data.count <= 1024,
+                      let fields = try JSONSerialization.jsonObject(with: data) as? [String: String],
+                      let point = fields["point"], let direction = fields["direction"],
+                      let sats = fields["sats"].flatMap(UInt64.init), let rate = fields["feeRate"].flatMap(UInt64.init) else {
+                    throw NSError(domain: "Splice", code: 1, userInfo: [NSLocalizedDescriptionKey: "Enter a valid channel resize amount and fee rate."])
+                }
+                resolve(try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: sats, feeRate: rate).dictionary)
+            } catch SpliceFailure.outcomeUnknown {
+                reject("splice_unknown", SpliceFailure.outcomeUnknown.localizedDescription, nil)
+            } catch { reject("splice_failed", error.localizedDescription, nil) }
+        }
+    }
+
+    @objc(wallet:value:resolver:rejecter:)
+    func wallet(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                if action == "overview" { resolve(try await RegtestNode.shared.walletOverview()); return }
+                guard let offset = UInt64(value) else { throw NSError(domain: "Wallet", code: 1) }
+                resolve(try await RegtestNode.shared.walletActivity(action, offset: offset))
+            } catch { reject("wallet_snapshot_failed", error.localizedDescription, nil) }
+        }
+    }
+
     @objc(peer:rejecter:)
     func peer(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task {
@@ -54,6 +114,21 @@ final class XBTLightningBridge: NSObject {
                     let channels = try await RegtestNode.shared.listChannels()
                     resolve(channels.map { ["point": $0.point, "peer": $0.peer, "active": $0.active,
                                            "localSats": String($0.localSats)] as [String: Any] })
+                case "channelStatus":
+                    let channels = try await RegtestNode.shared.channelStatus()
+                    resolve(channels.map { channel -> [String: Any] in
+                        var item: [String: Any] = [
+                            "point": channel.point, "peer": channel.peer, "state": channel.state,
+                            "active": channel.state == "active", "localSats": String(channel.localSats)]
+                        if let splice = channel.splice {
+                            item["splice"] = ["status": splice.status, "progress": splice.progress, "txid": splice.txid,
+                                              "confirmations": String(splice.confirmations), "lockDepth": String(splice.lockDepth)]
+                        }
+                        if let remaining = channel.confirmationsRemaining {
+                            item["confirmationsRemaining"] = remaining
+                        }
+                        return item
+                    })
                 case "withdrawReview":
                     let review = try await RegtestNode.shared.reviewWithdrawal(address: value, sats: UInt64(sats) ?? 0,
                                                                               feeRate: UInt64(feeRate) ?? 0)
