@@ -551,7 +551,17 @@ const DetailViewStackScreensStack = () => {
                       ? 'Receive on-chain'
                       : 'Lightning node settings',
             );
-            return typeof options === 'function' ? options(deps) : options;
+            const resolvedOptions = typeof options === 'function' ? options(deps) : options;
+            if (mode) return resolvedOptions;
+            // The settings LCD sticks to the scroll viewport. Keep that viewport
+            // below the native title instead of behind iOS's translucent large header.
+            return {
+              ...resolvedOptions,
+              headerLargeTitle: false,
+              headerTransparent: false,
+              headerBlurEffect: undefined,
+              headerStyle: { backgroundColor: theme.colors.background },
+            };
           }}
         />
         <DetailViewStack.Screen name="CoinjoinExperimental" component={CoinjoinExperimental} options={settingsScreenOptions('CoinJoin')} />
