@@ -29,5 +29,20 @@
   "agreementAcceptance": false,
   "deletePublicVersion": false,
   "withdrawOtherApps": false,
-  "submittedToApple": false
+  "submittedToApple": false,
+  "additionalNativeVerification": {
+    "run": 42136946441,
+    "attempt": 2,
+    "job": 127672233917,
+    "sourceCommit": "e9aae6502f3a8a1aa7703424540d5a568214fa5e",
+    "sameTreeAsSignedSource": true,
+    "runtimeAllEightPassed": true,
+    "arm64ReleasePassed": true,
+    "unitXmlRecords": 429,
+    "unsuccessful": 0,
+    "visualReviewComplete": true,
+    "visualApproved": false,
+    "visualIssue": "Missing text glyphs in live LND frame55; focused unchanged-source synthetic recapture pending",
+    "publicAdvanceApproved": false
+  }
 }
