@@ -188,14 +188,27 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
     <View testID="LndWalletHome" style={[styles.root, { backgroundColor: colors.background }]}>
       <FlatList
         data={rows}
+        contentInsetAdjustmentBehavior="never"
         keyExtractor={row => row.direction + row.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refresh()} />}
         contentContainerStyle={{ paddingBottom: 170 + insets.bottom }}
         ListHeaderComponent={
           <>
-            <LinearGradient colors={WalletGradient.xbtWallet} style={styles.hero}>
+            <View
+              style={[
+                styles.hero,
+                {
+                  backgroundColor: WalletGradient.xbtWallet[0],
+                  paddingLeft: 16 + insets.left,
+                  paddingRight: 16 + insets.right,
+                },
+              ]}
+            >
+              <LinearGradient colors={WalletGradient.xbtWallet} style={StyleSheet.absoluteFill} pointerEvents="none" />
               <View style={styles.headerLine}>
-                <Text style={styles.label}>{wallet.getLabel()}</Text>
+                <Text numberOfLines={1} style={styles.label}>
+                  {wallet.getLabel()}
+                </Text>
                 <LndConnectionBadge wallet={wallet} />
               </View>
               <Text style={styles.balance}>
@@ -214,7 +227,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
               <Text style={styles.status}>
                 {overview ? overview.activeChannels + ' active channel(s)' : 'Node balance not yet available'}
               </Text>
-            </LinearGradient>
+              <View pointerEvents="none" style={[styles.sectionCurve, { backgroundColor: colors.background }]} />
+            </View>
             <View style={[styles.tabs, { borderBottomColor: colors.lightBorder }]}>
               {(['transactions', 'funding'] as const).map(value => (
                 <Pressable
@@ -342,9 +356,10 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   disabled: { opacity: 0.5 },
   selectedTab: { borderBottomWidth: 3 },
-  hero: { padding: 20, paddingTop: 24, paddingBottom: 28 },
+  hero: { alignSelf: 'stretch', paddingTop: 24, paddingBottom: 28 },
+  sectionCurve: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 13, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   headerLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  label: { flex: 1, color: '#FFE7EA', fontSize: 20 },
+  label: { flex: 1, minWidth: 0, color: '#FFE7EA', fontSize: 20 },
   balance: { color: '#FFFFFF', fontSize: 36, fontWeight: '700', marginTop: 12 },
   balanceLabel: { color: '#FFE7EA', fontSize: 12, marginTop: 4 },
   fiat: { color: '#FFFFFF', marginTop: 10 },
