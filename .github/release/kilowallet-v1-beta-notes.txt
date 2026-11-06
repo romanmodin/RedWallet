@@ -1,4 +1,4 @@
-Kilowallet 1.0.0 (8) — RC4 publisher candidate
+Kilowallet 1.0.0 (10) — RC4 publisher candidate
 
 On-chain wallet with Taproot, PSBT signing, coin controls and fee bumping; Kilojoin pools; Ark; on-device Lightning; built-in Tor; encrypted .kab backups and node-move files.
 
