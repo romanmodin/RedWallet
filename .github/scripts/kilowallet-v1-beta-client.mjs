@@ -7,7 +7,7 @@ import {
   planDistribution,
 } from "./kilowallet-v1-beta-plan.mjs";
 import { readSnapshot } from "./kilowallet-v1-beta-snapshot.mjs";
-import { PRIOR_BUILD } from "./kilowallet-v1-beta-prior-review.mjs";
+import { PRIOR_BUILD, readPriorReview } from "./kilowallet-v1-beta-prior-review.mjs";
 const ROOT = "https://api.appstoreconnect.apple.com";
 const validId = (x) => typeof x === "string" && /^[A-Za-z0-9-]+$/.test(x);
 // No entry point or credential loading: only a protected qualified caller can use this client.
@@ -164,6 +164,11 @@ export function clients(
       !attempted.has(operation.action),
       "Write already attempted; reconcile instead of retrying",
     );
+    if (operation.action === "review") {
+      const previous = await readPriorReview(get, now);
+      assert.equal(previous.blocksAnotherBuildReview, false,
+        "Previous 1.0.0 build is still in beta review; reconcile before submitting");
+    }
     await journal({
       stage: "beta-http-started",
       app: APP,

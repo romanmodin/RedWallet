@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { APP, GROUPS, applyDistribution } from "./kilowallet-v1-beta-plan.mjs";
 import { readSnapshot } from "./kilowallet-v1-beta-snapshot.mjs";
 import { clients } from "./kilowallet-v1-beta-client.mjs";
+import { PRIOR_BUILD } from "./kilowallet-v1-beta-prior-review.mjs";
 const NOW = Date.parse("2026-11-04T09:00:00Z"),
   notes = "Synthetic release notes";
 const upload = {
@@ -28,6 +29,8 @@ function fixture() {
     review: false,
     processing: "VALID",
     failWrite: false,
+    priorPending: false,
+    priorReadFails: false,
   };
   const requests = [],
     journal = [];
@@ -58,7 +61,19 @@ function fixture() {
       return { ok: true, status: 204 };
     }
     let result;
-    if (path === "/v1/apps/" + APP)
+    if (path === "/v1/builds/" + PRIOR_BUILD) {
+      if (state.priorReadFails) throw Error("Prior review unavailable");
+      result = one("builds", PRIOR_BUILD, {version:"8"}, {
+        app:rel("apps",APP),preReleaseVersion:rel("preReleaseVersions","prior-train"),
+        buildBetaDetail:rel("buildBetaDetails","prior-detail"),
+        betaAppReviewSubmission:rel("betaAppReviewSubmissions","prior-review")});
+      result.included = [
+        one("apps",APP,{bundleId:"com.kilombino.kilowallet"}).data,
+        one("preReleaseVersions","prior-train",{version:"1.0.0",platform:"IOS"}).data,
+        one("buildBetaDetails","prior-detail",{externalBuildState:state.priorPending?"WAITING_FOR_BETA_REVIEW":"IN_BETA_TESTING"}).data,
+        one("betaAppReviewSubmissions","prior-review",{betaReviewState:state.priorPending?"WAITING_FOR_REVIEW":"APPROVED"}).data
+      ];
+    } else if (path === "/v1/apps/" + APP)
       result = one("apps", APP, { bundleId: "com.kilombino.kilowallet" });
     else if (path === b) {
       // Like a JSON:API response, relationship data is provided only when requested.
@@ -373,4 +388,14 @@ test("membership reads require the documented exact app-and-build filter on ever
     "/v1/betaGroups?filter[app]="+APP+"&filter[builds]=synthetic-build&filter[builds]=foreign"])
     await assert.rejects(f.client.get(path));
   assert.equal(f.requests.length,0);
+});
+
+test("active prior review or unavailable prior state prevents any submission attempt", async () => {
+  for (const flag of ["priorPending", "priorReadFails"]) {
+    const f=fixture();f.state[flag]=true;f.state.notes=notes;f.state.groups=GROUPS.map(g=>g.id);
+    await assert.rejects(applyDistribution(()=>readSnapshot(f.client.get,upload,()=>NOW),
+      f.client.write,upload,notes,f.log,()=>NOW));
+    assert.equal(f.requests.filter(r=>r.method!=="GET").length,0);
+    assert.equal(f.journal.filter(e=>e.stage==="beta-http-started").length,0);
+  }
 });
