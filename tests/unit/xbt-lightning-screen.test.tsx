@@ -3,6 +3,8 @@ import React from 'react';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { Alert, AppState, NativeModules } from 'react-native';
 
+const mockNavigation = { navigate: jest.fn() };
+jest.mock('../../hooks/useExtendedNavigation', () => ({ useExtendedNavigation: () => mockNavigation }));
 jest.mock('@react-native-documents/picker', () => ({ types: {} }));
 jest.mock('react-native-fs', () => ({}));
 jest.mock('../../components/QRCode', () => () => null);
@@ -464,4 +466,38 @@ test.each([
   expect(screen.queryByText('Export encrypted Lightning recovery file')).toBeNull();
   expect(screen.getByTestId('LightningActivityPanel')).toBeTruthy();
   screen.unmount();
+});
+
+test('camera invoice scan fills the field and clears old review without submitting payment', async () => {
+  const screen = render(<XBTLightning route={{ params: { mode: 'pay' } }} />);
+  await act(async () => {});
+  fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbc-old');
+  await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+  expect(screen.getByText('Pay 500 sats')).toBeTruthy();
+  bridge.invoice.mockClear();
+  fireEvent.press(screen.getByText('Scan invoice QR'));
+  expect(mockNavigation.navigate).toHaveBeenLastCalledWith('ScanQRCode', expect.objectContaining({ onBarScanned: expect.any(Function) }));
+  const scan = mockNavigation.navigate.mock.calls.at(-1)![1].onBarScanned;
+  act(() => scan('LIGHTNING:LNBC10U1QQQQ'));
+  expect(screen.getByLabelText('Invoice to pay').props.value).toBe('lnbc10u1qqqq');
+  expect(screen.queryByText('Pay 500 sats')).toBeNull();
+  expect(bridge.invoice).not.toHaveBeenCalled();
+  await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+  expect(bridge.invoice).toHaveBeenCalledWith('decode', 'lnbc10u1qqqq', '', '');
+  screen.unmount();
+});
+
+test('camera scan rejects unrelated QR data without replacing the invoice or paying', async () => {
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const screen = render(<XBTLightning route={{ params: { mode: 'pay' } }} />);
+  await act(async () => {});
+  bridge.invoice.mockClear();
+  fireEvent.press(screen.getByText('Scan invoice QR'));
+  const scan = mockNavigation.navigate.mock.calls.at(-1)![1].onBarScanned;
+  act(() => scan('https://example.com'));
+  expect(prompt).toHaveBeenCalledWith('Not a Lightning invoice', expect.any(String));
+  expect(screen.getByLabelText('Invoice to pay').props.value).toBe('');
+  expect(bridge.invoice).not.toHaveBeenCalled();
+  screen.unmount();
+  prompt.mockRestore();
 });
