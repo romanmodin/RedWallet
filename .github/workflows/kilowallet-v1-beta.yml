@@ -1,0 +1,110 @@
+name: Kilowallet 1.0 verified TestFlight distribution
+"on":
+  pull_request:
+    paths:
+      - .github/workflows/kilowallet-v1-beta.yml
+      - .github/scripts/*kilowallet-v1-beta-*
+      - .github/scripts/*verify-kilowallet-upload*
+      - .github/release/kilowallet-v1-beta-notes.txt
+      - distribution/kilowallet/**
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Inspect exact uploaded build or apply qualified TestFlight distribution
+        required: true
+        default: inspect
+        type: choice
+        options: [inspect, apply]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: kilowallet-apple-compliance
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Test exact-build beta planning, snapshots, transport and runtime
+        run: node --test .github/scripts/test-kilowallet-v1-beta-*.mjs
+      - name: Test immutable upload qualification
+        run: python3 -B .github/scripts/test-verify-kilowallet-upload.py -v
+  qualify:
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Require qualified 1.0 pins and first attempt before credentials
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          python3 -B - <<'PY'
+          import importlib.util
+          spec = importlib.util.spec_from_file_location("upload", ".github/scripts/verify-kilowallet-upload.py")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          assert module.VERSION == "1.0.0", "Actual 1.0 upload receipts must be pinned first"
+          PY
+      - name: Verify immutable signed upload and current native source gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B .github/scripts/verify-kilowallet-upload.py
+          node --input-type=module -e 'import {readFileSync} from "node:fs"; import {validateUpload} from "./.github/scripts/kilowallet-v1-beta-plan.mjs"; validateUpload(JSON.parse(readFileSync("kilowallet-upload-qualification.json")));'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilowallet-v1-upload-qualification
+          path: |
+            kilowallet-upload-qualification.json
+            kilowallet-source-gates.json
+          retention-days: 30
+  distribute:
+    needs: qualify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Recheck actual upload and gates immediately before Apple credential use
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B .github/scripts/verify-kilowallet-upload.py
+      - name: Read or distribute only the exact qualified Kilowallet beta
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          KILOWALLET_V1_BETA_ACTION: ${{ inputs.action }}
+        run: node .github/scripts/kilowallet-v1-beta-run.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: kilowallet-v1-beta-result
+          path: |
+            kilowallet-v1-beta-journal.jsonl
+            kilowallet-v1-beta-result.json
+            kilowallet-upload-qualification.json
+            kilowallet-source-gates.json
+          if-no-files-found: error
+          retention-days: 30
