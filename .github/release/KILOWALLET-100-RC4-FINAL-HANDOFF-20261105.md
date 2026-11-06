@@ -1,36 +1,76 @@
-# Kilowallet1.0 RC4 release handoff — November5,2026
+# Kilowallet 1.0.0 build 10 release handoff — November 6, 2026
 
-Current publisher candidate:68461ec5b6d5bde5a92533a78b15a6594605cb2f, treeb85a6cc32c31bdfcb6a3f60b1cf83dad5edba3ad, PR12 OPEN/DRAFT/unmerged. Original RC2 worktree is preserved. No existing wallet data or funds are used in qualification.
+## Superseding public submission checkpoint — November 6, 19:28 UTC
 
-The successor changes only CI relative to556: actual correctly rendered iOS Restore fixture, form-specific passphrase-option OCR assertion with wrongWelcome rejection, and a finite260minute native job budget based on measured setup/tests/capture/device compilation. Existing runtime assertions and per-screen deadlines are unchanged. Product code retains persisted identities, wallet-scoped engines/backups and pending/frozen/signed reservations.
+Roman explicitly approved replacing the pending0.4 review with build10 and all five privacy disclosures (App Functionality, linked to identity, no tracking), including the final two categories separately. The interactive submission completed for1.0.0(10), submission6bf59af8-3a6b-4f97-b51c-c3c48ade9b38. The prior privacy approval blocker is resolved by those later explicit approvals; do not repeat the questionnaire or resubmit.
 
-## Actual qualification and remaining gates
+Independent protected GET-only preflight42279796319/attempt1 observed2026-11-06T19:28:25.918Z confirms version1.0.0 WAITING_FOR_REVIEW, versionID1ca23695-4563-4a0e-b20e-d1a6457f4f8b, exactlyUSA/noautomaticexpansion/errors[]. Artifact13535246557 SHA-256f0250b52299522fc2c50afe22c6c877445894e92a95a20a7a83e4a730209b2d2 was API-digest and ZIP-CRC verified. This preflight proves current version state and territories; its historicalbuild3 section is not fresh build10 association or privacy-label evidence. Exact build10 selection and published labels are evidenced by the interactive submission confirmation, not this API read.
 
-- Exact-source synthetic migration/isolation:10PASS/0fail/error/skip, qualification-68461ec-migrations/migration-receipt.json SHA61b6a0d448fccfbda508fe0b5b110bf5811e7ebaf2e0b67511312330884358b5.
-- Actual-iOS fixture proof42103505481/attempt1/job127512179447 SUCCESS on a69a647; correctform accepted and wrongWelcome rejected. Existing unrelated OCR regressions retained.
-- Automatic684 checker42112589904/attempt1/job127543721138 SUCCESS. Actual PR checkout357cdc03c14c2ac6b909578e860d86153e525f33 tree equals684, retained logSHAe0b4bbf2239d23255a41c4f0d77588d70f9a8066b6c195ee97d94648fc115e41.
-- Full native42112589802/attempt1/job127543720855 IN_PROGRESS23:25Z. Units/executed-iOS/required async-reservation/engines/simulator passed; capture/runtime/arm64 remain pending. One-shot collect-68461ec-native.py preserves exact current-attempt APIhash/ZIPCRC provenance when artifacts arrive. All68visuals, actualRestore, actualruntime and arm64 build must pass before source qualification.
+Preserve the new1.0.0 review. The0.4 preservation and unsubmitted-draft instructions below are historical and superseded. No new app upload, review withdrawal, agreement or legal attestation is needed. The separate build8 TestFlight review is not withdrawn by the public App Store replacement; use fresh beta diagnosis before any guarded distribution action.
 
-Previous556 run42069725060 is FAILED qualification: Restore OCR false-negative and device build cancelled at200minute ceiling. Its429uniqueXML records and eight offline runtime checks do not qualify684. Electrum evidence there was rejected unapproved certificate/height0, not a successful scan. No physical-phone, funded-channel recovery, accepted justice-backup coverage or joint-regtest completion is claimed.
 
-## Protected signing and upload
+This replaces the stale November 5 candidate handoff. Build 10 is signed, uploaded and internally available. External availability is blocked by the earlier build 8 beta review. Keep the existing public App Store review in place.
 
-Coordinator workflow/verifier machine pins remain HISTORICAL59b13da/oldruns and INACTIVE. Do not dispatch them unchanged. Only after full current qualification, bind exact684/source/tree/run/attempt/job IDs, run hosted checks, perform guarded merges against current publishermain and approve the intended protected signing/upload job. No source advance or duplicate native run while healthy.
+## Exact release identity
 
-Package verification must require the supported Boolean ITSAppUsesNonExemptEncryption=false and no export compliance code, retaining every team/bundle/version/signature/architecture/native-framework/background/source check. Actual Apple questionnaire standard outside-OS encryption/FranceNo required no documents; no ECCN/CCATS/approvedcode is asserted. Reverify exactlyUSA/no automatic territory expansion using the immediate GET-only pre-upload guard. No agreements may be accepted by this handoff.
+| Item | Verified value |
+| --- | --- |
+| App / bundle | 6824331953 / com.kilombino.kilowallet |
+| Marketing version / build | 1.0.0 / 10 |
+| Apple build ID | bccd1b6c-e89b-45e9-909e-0936bd558994 |
+| Publisher source | 5ac15b5eeb26296d69008a39e7ff1b4e23d4f8c5 |
+| Source tree | 803460785f25cfc0770cfa8b70639b27ca4435d2 |
+| IPA SHA-256 | df8e64471039b6964e45347b16e41371ed99da69e312c3d544b95d2b5b147830 |
+| Protected upload | romanmodin/RedWallet run 42253151290, attempt 1 |
+| Upload coordinator | 3fe9280ee0a6dd06e623dc57d8fc1a1610fe4f3a |
+| Release verification artifact | 13524776804 |
+| Verification ZIP SHA-256 | bff4e54bb855d9ad08affb191d696e62ee194f4b9e0ad255f366204fabeb3fce |
 
-Actual release-tool verifier42074745245 passed32tests on6def (qualification/certificate/sign skipped); later preparation changes are documentation only. This does not qualify the app. Preserve all required package/archive/qualification/Apple/territory receipts and encryptedIPA evidence. Never reuse rejected build5.
+The publisher app PR13 merged as 14e5ce0a8211eac64a8fa1c025a508880ea918e2 with the same qualified tree. Preserve immutable source/artifact pins in verify-kilowallet-upload.py; no rebuild or new build number is needed for review metadata or the beta-review guard.
 
-## Current signed-release collector
+## Completed qualification
 
-After the fully qualified new protected upload succeeds, use /home/roman_modin/kilowallet-release-evidence/collect-rc4-684-signed-release.py with exact new release run ID and orchestration commit. It explicitly pins684/treeb85/currentnative42112589802 and checker42112589904 with their exact current jobs. The old collect-rc4-signed-release.py and prior toolZIP pin556 and are historical.
+- Full native run 42182220263/attempt1/job127774217736 passed. Actual PR checkout 5cde91d9cb594879fc4cdfd97ca1631474505352 has the qualified source tree. 425 nonoptional native tests, 10 synthetic migration/isolation tests, runtime and unsigned arm64 Release gates passed.
+- Exact-source checker 42188560912/attempt1/job127794665913 passed.
+- Focused visual/runtime run 42234792388/attempt1/job127949512217 passed. Its harness commit is 8314fe533d246b73f20c46f77a9a28b4ae2fa927; this is a test harness, not a replacement app source. All nine Create/Settings/LND captures were visually inspected for complete glyphs. Settings and re-entry met the existing deadlines; same-process re-entry was observed.
+- The focused simulator runtime observed Tor, an onion peer, watchtower registration, empty SCB RPC and completion. This does not prove funded-channel recovery, accepted justice backups, persistent peer connectivity after backgrounding, a physical-iPhone install or publisher joint-regtest interoperability.
+- Focused artifact 13515939118, SHA-256 005de209ee27a7c8847a192b71693623fadb533703f64b3f12393ac6a1114cbc, and release artifacts were checked against API digests and ZIP CRCs.
+- Protected upload verify/qualify/certificate/sign jobs all succeeded. Archive and IPA signatures, native frameworks, source receipts and Apple VALID processing were verified. Encrypted IPA artifact 13523723216 remains encrypted.
+- Postmerge app run 42252781067 was not acquired by a hosted runner and its native job had zero executed steps. That infrastructure cancellation is not a product regression and does not replace the successful immutable qualification above.
 
-All30synthetic scenarios pass; corrected raw artifact transport also matches the historical artifact's verified hash/CRC. This is preparation, not an actual signed release. The collector requires successful current gate/release jobs, source/tree/checkout ancestry, corrected package, exactlyUSA and AppleVALID, and saves accepted evidence only after all validation. It cannot sign, upload or grant tester access. Tester availability still requires separate actual Apple beta-review/group verification. Do not treat pending gates as successful or silently change pins to old runs.
+Source/product preservation: persisted seed/address identities, wallet-scoped Ark/LND storage/backups and pending/frozen/signed-input guards remain covered. Qualification uses synthetic wallets only; no user funds were moved.
 
-## Apple and review metadata
+## TestFlight checkpoint and next action
 
-Fresh GET-only preflight42094161515/attempt1 observed19:28:57Z:0.4.0WAITING_FOR_REVIEW, original Internal/PublicBeta groups and historical0.4build3 testing intact, USAonly/noautomaticexpansion. This old-build inspector is not an exhaustive1.0upload listing. No new1.0availability established; no Apple fields changed.
+Protected GET-only diagnostic 42267938803/attempt1 observed Apple at 2026-11-06T18:09:19.259Z:
 
-Use current KILOWALLET-100-RC4-METADATA-DRAFT.md only for the qualified replacement. Existing app-source review docs still describe RC3/v1-v5 and must not be copied unchanged. Current product includes explicit signing/persistedv6/six-confirmation rules; iOS is not a continuous background round service and an iPhone creator must stay open. Bridge source remains HTTPS/Cloudflare evenToron; Ark has a separate operator and privacy terms. No blanket no-data-collected claim.
+| Build | Internal state | External state | Beta review |
+| --- | --- | --- | --- |
+| 1.0.0 (10) | IN_BETA_TESTING | READY_FOR_BETA_SUBMISSION | None yet |
+| 1.0.0 (8) | Not requalified here | WAITING_FOR_BETA_REVIEW | WAITING_FOR_REVIEW |
 
-Preserve existing0.4review until replacement qualifies. First verify exact signed1.0buildVALID, beta review and original group installability, then pursue separately authorized publicrelease. Do not withdraw other apps, delete existing public versions, accept agreements or submit unsupported legal attestations.
+Build 10 membership is verified independently from both sides for the original Internal group 8f0948f4-86ef-4f7a-aa47-830a6e8f4eae and Public Beta group f4f2520c-3eaf-46f9-a31a-a36d38b74c53. Membership alone does not make the external build installable.
+
+The earlier beta-review POST returned HTTP422; its original response body was not retained. The later GET diagnostic independently confirmed the active same-version build8 review. Do not claim a recovered exact Apple error detail. Diagnostic artifact13528431369, SHA-256922dadb045887150078a2d6353c8b5038bff0c3caa0459de041e81ba6d9d730e, has no executed HTTP writes.
+
+Publisher PR187 added GET-only diagnose; PR188 added an immediate pre-POST prior-review check, merged at 0ac2b8be27399114fe7704b43aa10bf984853571. Hosted run42268294320 passed47Node+8upload tests. The guard blocks an active, unreadable or inconsistent prior review before mutation.
+
+Next: inspect existing jobs, then use the existing protected workflow with action=diagnose at an appropriate interval. After build8 review completes, reconcile fresh build10 state and invoke one guarded apply only if still needed. Re-read the exact build and both group relationships, and require actual external testing eligibility before announcing public beta access. Do not withdraw build8 or repeatedly retry the rejected POST.
+
+## Public App Store release gate
+
+Last verified public snapshot was 2026-11-06T17:28:16Z, GET-only run42261849456/attempt1: existing0.4.0 version1ca23695-4563-4a0e-b20e-d1a6457f4f8b WAITING_FOR_REVIEW, exactlyUSA and automatic territory expansion disabled. This is a timestamped observation, not a claim of current approval or availability.
+
+After intended TestFlight access qualifies, refresh public status and prepare the replacement using KILOWALLET-100-RC4-METADATA-DRAFT.md. Reconcile live privacy labels, review contact details, screenshots and any reviewer correspondence. Preserve0.4.0 review until the replacement is eligible. No deletion of an existing public version, withdrawal of another app, new agreements or unsupported legal attestations is authorized.
+
+Encryption: build10 Boolean ITSAppUsesNonExemptEncryption=false and no export-compliance code reflect the previously observed Apple questionnaire and USA-only scope. No ECCN, CCATS or general legal classification is claimed. Do not widen territories or reinterpret the questionnaire in this handoff.
+
+Privacy: the actual publisher source sets Bridge.torPort to null, so the bridge uses HTTPS/Cloudflare even with node Tor running. Ark has an independent operator and retention policy. CoinJoin v6 remains explicitly signed and is not a continuous background service. Do not reuse old RC3-only review text or a blanket no-data-collected assertion.
+
+## Durable evidence
+
+- /home/roman_modin/kilowallet-release-evidence/signed-rc4-42253151290-attempt1
+- /home/roman_modin/kilowallet-release-evidence/lnd-frame-42234792388-attempt1
+- /home/roman_modin/kilowallet-release-evidence/review-diagnostic-20261106
+
+Record every subsequent Apple result with exact observation time, build, run, attempt and receipt digest. Update project memory and Knowledge. Keep the existing continuation active until public availability is verified; create no new automation.
