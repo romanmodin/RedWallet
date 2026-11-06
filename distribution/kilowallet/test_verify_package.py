@@ -44,14 +44,25 @@ class PackageTest(unittest.TestCase):
         self.assertEqual(64,len(receipt["executableSha256"]))
     def test_v1_requires_real_tor_binary_and_encryption_declaration(self):
         os.environ['KILOWALLET_MARKETING_VERSION']='1.0.0'
-        self.info.update(CFBundleShortVersionString='1.0.0', ITSAppUsesNonExemptEncryption=True,
+        self.info.update(CFBundleShortVersionString='1.0.0', ITSAppUsesNonExemptEncryption=False,
             UIBackgroundModes=['fetch','processing'], BGTaskSchedulerPermittedIdentifiers=[BUNDLE+'.ark-renew', BUNDLE+'.watch'])
         with self.assertRaisesRegex(AssertionError, 'Missing embedded Tor'): self.call()
         tor=self.app/'Frameworks'/'KilombinoTor.framework'/'KilombinoTor'
         tor.parent.mkdir(parents=True); tor.write_bytes(b'synthetic-test-framework')
-        self.assertTrue(self.call()['usesNonExemptEncryption'])
+        self.assertIs(self.call()['usesNonExemptEncryption'], False)
+        for value in [True, None, 'NO', 'false']:
+            with self.subTest(declaration=value):
+                if value is None:
+                    self.info.pop('ITSAppUsesNonExemptEncryption', None)
+                else:
+                    self.info['ITSAppUsesNonExemptEncryption']=value
+                with self.assertRaisesRegex(AssertionError, 'Incorrect encryption'): self.call()
         self.info['ITSAppUsesNonExemptEncryption']=False
-        with self.assertRaisesRegex(AssertionError, 'Incorrect encryption'): self.call()
+        for code in ['', 'unapproved-code']:
+            self.info['ITSEncryptionExportComplianceCode']=code
+            with self.subTest(code=code), self.assertRaisesRegex(AssertionError, 'Unexpected encryption export compliance code'): self.call()
+        self.info.pop('ITSEncryptionExportComplianceCode')
+        self.assertIs(self.call()['usesNonExemptEncryption'], False)
     def test_wrong_version_bundle_build_or_sdk(self):
         for key,value in [("CFBundleIdentifier","other"),("CFBundleVersion","4"),
                           ("CFBundleShortVersionString","0.1.0"),("DTSDKName","iphoneos25.1"),

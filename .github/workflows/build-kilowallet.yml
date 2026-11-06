@@ -15,10 +15,10 @@ permissions:
   contents: read
   actions: read
 env:
-  KILOWALLET_SOURCE_COMMIT: 59b13da3d145f1ead205be2b8b2c8e326a65c5c5
+  KILOWALLET_SOURCE_COMMIT: 68461ec5b6d5bde5a92533a78b15a6594605cb2f
   KILOWALLET_MARKETING_VERSION: '1.0.0'
-  KILOWALLET_IOS_RUN_ID: '41948432455'
-  KILOWALLET_SCREENSHOT_RUN_ID: '41948432456'
+  KILOWALLET_IOS_RUN_ID: '42112589802'
+  KILOWALLET_SCREENSHOT_RUN_ID: '42112589904'
 
 concurrency:
   group: kilowallet-apple-upload
@@ -286,6 +286,9 @@ jobs:
           name: Kilowallet_Encrypted_IPA
           path: kilowallet-ipa.enc
           retention-days: 7
+      - name: Verify US-only availability immediately before 1.0 upload
+        if: ${{ inputs.upload_to_testflight && startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
+        run: python3 signing/distribution/kilowallet/verify_territories.py
       - name: Upload Kilowallet to TestFlight
         if: ${{ inputs.upload_to_testflight }}
         run: |
@@ -307,6 +310,7 @@ jobs:
             kilowallet-archive-verification.json
             kilowallet-package-verification.json
             kilowallet-apple-processing.json
+            kilowallet-territory-preflight.json
           if-no-files-found: ignore
           retention-days: 30
       - name: Clean up temporary credentials

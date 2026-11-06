@@ -12,7 +12,9 @@ def verify(app):
     sdk=re.fullmatch(r'iphoneos(\d+)(?:\.\d+)*',p.get('DTSDKName',''))
     assert sdk and int(sdk[1])>=26, 'iPhoneOS SDK 26 or newer required'
     if p['CFBundleShortVersionString'].startswith('1.'):
-        assert p.get('ITSAppUsesNonExemptEncryption') is True, 'Incorrect encryption declaration'
+        # US-only publisher questionnaire result: docs/EXPORT_COMPLIANCE.md.
+        assert p.get('ITSAppUsesNonExemptEncryption') is False, 'Incorrect encryption declaration'
+        assert 'ITSEncryptionExportComplianceCode' not in p, 'Unexpected encryption export compliance code'
         assert {'fetch','processing'} <= set(p.get('UIBackgroundModes',())), 'Missing background modes'
         assert {BUNDLE+'.ark-renew', BUNDLE+'.watch'} <= set(p.get('BGTaskSchedulerPermittedIdentifiers',())), 'Missing background tasks'
         tor = app/'Frameworks'/'KilombinoTor.framework'/'KilombinoTor'
