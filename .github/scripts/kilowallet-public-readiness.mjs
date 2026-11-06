@@ -51,7 +51,7 @@ export function publicReadiness({beta, listing, metadata, visual, privacy}, now 
   assert.equal(n.run, 42136946441); assert.equal(n.attempt, 2); assert.equal(n.job, 127672233917);
   assert.equal(n.sameTreeAsSignedSource, true); assert.equal(n.runtimeAllEightPassed, true);
   assert.equal(n.arm64ReleasePassed, true); assert.equal(n.unitXmlRecords, 429); assert.equal(n.unsuccessful, 0);
-  if (n.visualApproved !== true || n.publicAdvanceApproved !== true || visual?.run !== 42163150260 || visual?.attempt !== 1 || visual?.job !== 127713335608 || visual?.capturePassed !== true || visual?.framesReviewed !== 4 || visual?.allTextRendered !== true || !/^[0-9a-f]{64}$/.test(visual?.artifactSha256 || ""))
+  if (n.visualApproved !== true || n.publicAdvanceApproved !== true || visual?.run !== 42163150260 || visual?.attempt !== 1 || visual?.job !== 127713335608 || visual?.capturePassed !== true || visual?.nativeQualificationPassed !== true || visual?.framesReviewed !== 4 || visual?.allTextRendered !== true || !/^[0-9a-f]{64}$/.test(visual?.artifactSha256 || ""))
     blockers.push("Live Lightning visual hold is unresolved");
   if (privacy?.app !== APP || privacy?.sourceCommit !== SOURCE || privacy?.buildId !== BUILD || privacy?.labelsReconciled !== true || privacy?.actualHttpsBridgeDisclosed !== true || privacy?.arkRetentionDisclosed !== true || privacy?.legalAttestations !== null)
     blockers.push("Live privacy labels and service disclosures still require reconciliation");
