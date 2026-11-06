@@ -277,6 +277,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             onPress={() => setTab(value)}
             style={[
               styles.tab,
+              value === 'funding' && styles.fundingTab,
               tab === value && styles.selectedTab,
               tab === value && {
                 borderBottomColor: colors.alternativeTextColor2,
@@ -286,6 +287,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             <Text
               style={[
                 styles.tabTitle,
+                value === 'funding' && styles.fundingTabTitle,
                 {
                   color: tab === value ? colors.foregroundColor : colors.alternativeTextColor,
                 },
@@ -431,7 +433,9 @@ const styles = StyleSheet.create({
   fiat: { color: '#FFFFFF', marginTop: 10 },
   status: { color: '#FFE7EA', marginTop: 10, fontSize: 12 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 18 },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 18 },
+  fundingTab: { flex: 0, minWidth: 88, paddingHorizontal: 16 },
+  fundingTabTitle: { fontSize: 14, fontWeight: '600' },
   tabTitle: { fontSize: 20, fontWeight: '700' },
   menu: { padding: 10 },
   menuText: { color: '#FFFFFF', fontSize: 20, fontWeight: '700' },
