@@ -1,5 +1,14 @@
 # Kilowallet 1.0.0 build 10 release handoff — November 6, 2026
 
+## Superseding public submission checkpoint — November 6, 19:28 UTC
+
+Roman explicitly approved replacing the pending0.4 review with build10 and all five privacy disclosures (App Functionality, linked to identity, no tracking), including the final two categories separately. The interactive submission completed for1.0.0(10), submission6bf59af8-3a6b-4f97-b51c-c3c48ade9b38. The prior privacy approval blocker is resolved by those later explicit approvals; do not repeat the questionnaire or resubmit.
+
+Independent protected GET-only preflight42279796319/attempt1 observed2026-11-06T19:28:25.918Z confirms version1.0.0 WAITING_FOR_REVIEW, versionID1ca23695-4563-4a0e-b20e-d1a6457f4f8b, exactlyUSA/noautomaticexpansion/errors[]. Artifact13535246557 SHA-256f0250b52299522fc2c50afe22c6c877445894e92a95a20a7a83e4a730209b2d2 was API-digest and ZIP-CRC verified. This preflight proves current version state and territories; its historicalbuild3 section is not fresh build10 association or privacy-label evidence. Exact build10 selection and published labels are evidenced by the interactive submission confirmation, not this API read.
+
+Preserve the new1.0.0 review. The0.4 preservation and unsubmitted-draft instructions below are historical and superseded. No new app upload, review withdrawal, agreement or legal attestation is needed. The separate build8 TestFlight review is not withdrawn by the public App Store replacement; use fresh beta diagnosis before any guarded distribution action.
+
+
 This replaces the stale November 5 candidate handoff. Build 10 is signed, uploaded and internally available. External availability is blocked by the earlier build 8 beta review. Keep the existing public App Store review in place.
 
 ## Exact release identity
