@@ -16,8 +16,10 @@ public struct LightningChannelStatus: Sendable {
     public let localSats: UInt64
     public let confirmationsRemaining: UInt64?
     public let splice: SpliceChannelState?
+    public var peerAlias: String? = nil
+    public var peerAddress: String? = nil
 
-    static func decode(open: Data, pending: Data, awaitingSplices: Set<String> = []) throws -> [LightningChannelStatus] {
+    static func decode(open: Data, pending: Data, awaitingSplices: Set<String> = [], peers: Data? = nil) throws -> [LightningChannelStatus] {
         var items: [String: LightningChannelStatus] = [:]
         for bytes in try ProtoFields(open).bytes[11] ?? [] {
             let channel = try ProtoFields(bytes)
@@ -26,6 +28,10 @@ public struct LightningChannelStatus: Sendable {
                 point: point, peer: try channel.string(2),
                 state: channel.integers[1] == 1 ? "active" : "inactive",
                 localSats: channel.integers[6] ?? 0, confirmationsRemaining: nil, splice: try SpliceChannelState.decode(channel, awaitingNewAttempt: awaitingSplices.contains(point)))
+        }
+        for bytes in try ProtoFields(open).bytes[11] ?? [] {
+            let channel = try ProtoFields(bytes)
+            items[try channel.string(3)]?.peerAlias = try? channel.string(34)
         }
         let response = try ProtoFields(pending)
         let states: [(UInt64, String)] = [(2, "pending"), (3, "closing"), (5, "closing"), (4, "forceClosing")]
@@ -42,6 +48,16 @@ public struct LightningChannelStatus: Sendable {
                     point: point, peer: try channel.string(1), state: state,
                     localSats: channel.integers[4] ?? 0,
                     confirmationsRemaining: state == "pending" ? wrapper.integers[7] : nil, splice: nil)
+            }
+        }
+        // Peer metadata is optional: losing ListPeers must not hide channels.
+        if let peers, let response = try? ProtoFields(peers) {
+            for bytes in response.bytes[1] ?? [] {
+                guard let peer = try? ProtoFields(bytes), let key = try? peer.string(1),
+                      let address = try? peer.string(3) else { continue }
+                for point in Array(items.keys) where items[point]?.peer == key {
+                    items[point]?.peerAddress = address
+                }
             }
         }
         return items.values.sorted { $0.point < $1.point }
@@ -67,8 +83,9 @@ extension RegtestNode {
 
     public func channelStatus() async throws -> [LightningChannelStatus] {
         let pending = try await rpc { LndmobilePendingChannels(Data(), $0) }
-        let open = try await rpc { LndmobileListChannels(Data(), $0) }
-        return try LightningChannelStatus.decode(open: open, pending: pending, awaitingSplices: splicingPoints)
+        let open = try await rpc { LndmobileListChannels(ProtoFields.field(6, integer: 1), $0) }
+        let peers = try? await rpc { LndmobileListPeers(Data(), $0) }
+        return try LightningChannelStatus.decode(open: open, pending: pending, awaitingSplices: splicingPoints, peers: peers)
     }
 
     // Tokens bind confirmation to immutable arguments and can be used only once.

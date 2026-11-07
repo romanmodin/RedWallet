@@ -7,8 +7,8 @@ import {
   waitForId,
   waitForWalletsList,
   waitForText,
+  waitForSwitchValue,
 } from './helperz';
-const assert = require('assert').strict;
 
 describe('RedWallet XBT watch-only import', () => {
   it.each([
@@ -53,21 +53,23 @@ describe('RedWallet XBT watch-only import', () => {
       .toBeVisible()
       .whileElement(by.id('WalletDetailsScroll'))
       .scroll(150, 'down');
-    assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), false);
+    await waitForSwitchValue('XbtExternalSignerSwitch', false);
     if (format === 'BIP86') {
       if (isIOS) await device.disableSynchronization();
       try {
         await element(by.id('XbtExternalSignerSwitch')).tap();
         await waitForText('Enable XBT external signing');
         if (!(await dismissAlertByText('Cancel'))) throw new Error('Could not cancel signer enrollment');
-        assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), false);
+        await waitForSwitchValue('XbtExternalSignerSwitch', false);
         await element(by.id('XbtExternalSignerSwitch')).tap();
         await waitForText('Enable XBT external signing');
         if (!(await dismissAlertByText('Yes'))) throw new Error('Could not confirm test signer enrollment');
       } finally {
         if (isIOS) await device.enableSynchronization();
       }
-      assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), true);
+      // Enrollment updates the switch only after asynchronous wallet persistence.
+      // Observe the native state without another tap; still verify it after relaunch.
+      await waitForSwitchValue('XbtExternalSignerSwitch', true);
       await device.launchApp({ newInstance: true });
       await waitForWalletsList();
       await element(by.id('Imported Watch-only')).tap();
@@ -77,7 +79,7 @@ describe('RedWallet XBT watch-only import', () => {
         .toBeVisible()
         .whileElement(by.id('WalletDetailsScroll'))
         .scroll(150, 'down');
-      assert.equal(await getSwitchValue('XbtExternalSignerSwitch'), true);
+      await waitForSwitchValue('XbtExternalSignerSwitch', true);
     }
   });
 });
