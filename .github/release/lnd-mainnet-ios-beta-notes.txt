@@ -1,17 +1,8 @@
-RedWallet — Lightning display and invoice update
+Lightning wallet update:
+- Select a channel to view its peer name, public key, current address, funding reference, status, and balance. Add/remove/close controls target that selection.
+- Tap the balance unit to switch XBT, sats, and USDC across Lightning wallet balances and history.
+- Fixed balance header, visible LND indicator, smaller Funding tab, green Receive/red Pay buttons, and compact gray on-chain actions.
+- Camera QR invoice scanning, cancellation of unpaid receive invoices, and expandable gray canceled-invoice history.
+- Settings activity panel stays below navigation. Tor support covers the embedded Lightning networking paths and configured watchtowers.
 
-New in this build
-• A compact red activity panel keeps progress, results and errors visible while you scroll.
-• Open, active, inactive, pending and closing channel counts refresh automatically while the screen is in use.
-• Channel details show the peer, funding transaction, local balance and remaining confirmations when reported by LND.
-• Receive invoices appear as QR codes. Tap the QR to view the text; Copy and Share include the full invoice.
-• The funding address stays the same until LND detects a deposit, then advances on the next request. Older addresses remain valid.
-• Improved scrolling, keyboard dismissal and input contrast.
-• The previously unlabeled value is now clearly labeled Fee rate (sat/vB).
-• Channel-opening feedback explains that another confirmation creates another channel.
-
-Existing Lightning functionality
-Embedded LND for public XBT mainnet, optional custom chain peers, peer connections, private channels, invoices, payment review/history, funding addresses, cooperative closure, reviewed on-chain withdrawals and encrypted recovery exports.
-
-Current limitations
-Tor-only/.onion Lightning peers are not supported in this build. A clear explanation is shown for those attempts. Closing or locking the phone can suspend the node; background Lightning and CoinJoin completion are not guaranteed. The Lightning node has its own balance and recovery file. Full channel-fund recovery after losing a device has not yet been demonstrated. This is a TestFlight beta.
+Please check layout, channel selection, QR scanning, and persistence on your iPhone. A watchtower must be configured; Tor alone does not register one. The exchange quote request still uses a direct HTTPS connection. Keep your recovery backup current.
