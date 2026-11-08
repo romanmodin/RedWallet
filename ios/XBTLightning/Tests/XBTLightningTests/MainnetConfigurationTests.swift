@@ -30,6 +30,8 @@ final class MainnetConfigurationTests: XCTestCase {
         let config = try MainnetConfiguration.text()
         XCTAssertTrue(config.contains("bitcoin.mainnet=true"))
         XCTAssertTrue(config.contains("nobootstrap=true"))
+        XCTAssertTrue(config.contains("protocol.wumbo-channels=true"))
+        XCTAssertTrue(config.contains("maxchansize=2100000000000000"))
         XCTAssertFalse(config.contains("regtest"))
         XCTAssertFalse(config.contains("127.0.0.1"))
         XCTAssertFalse(config.contains("activation-height=150"))

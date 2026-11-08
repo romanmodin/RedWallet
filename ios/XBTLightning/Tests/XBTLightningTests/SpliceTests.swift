@@ -23,9 +23,27 @@ final class SpliceTests: XCTestCase {
             XCTAssertNil(fields.integers[4]); XCTAssertNil(fields.integers[8])
         }
         XCTAssertThrowsError(try RegtestNode.spliceRequest(point: "invalid", direction: "in", sats: 20_000, feeRate: 2, address: ""))
-        for amount in [UInt64(0), 545, 1_000_001, UInt64.max] {
+        for amount in [UInt64(0), LightningAmounts.maxSats + 1, UInt64.max] {
             XCTAssertThrowsError(try RegtestNode.spliceRequest(point: point, direction: "in", sats: amount, feeRate: 2, address: ""))
         }
+    }
+    func testLargeResizeKeepsExactAmountAndFeeAndNeverEnablesUseMax() throws {
+        for direction in ["in", "out"] {
+            let request = try RegtestNode.spliceRequest(point: point, direction: direction, sats: 44_000_000,
+                                                       feeRate: 250, address: direction == "out" ? "bcrt1-own" : "")
+            let fields = try ProtoFields(request)
+            XCTAssertEqual(fields.integers[3], 44_000_000)
+            XCTAssertEqual(fields.integers[5], 250)
+            XCTAssertNil(fields.integers[4])
+        }
+        for rate in [UInt64(0), LightningAmounts.maxFeeRate + 1, UInt64.max] {
+            XCTAssertThrowsError(try RegtestNode.spliceRequest(point: point, direction: "in", sats: 44_000_000, feeRate: rate, address: ""))
+        }
+        XCTAssertFalse(LightningAmounts.valid(UInt64.max))
+        XCTAssertFalse(LightningAmounts.valid(0))
+        XCTAssertTrue(LightningAmounts.valid(0, allowZero: true))
+        XCTAssertLessThanOrEqual(LightningAmounts.maxSats * 1000, UInt64(Int64.max))
+        XCTAssertLessThanOrEqual(LightningAmounts.maxFeeRate * 3000, UInt64(Int64.max))
     }
     func testEstimatesRejectRefusalsNegativeAmountsAndForeignDestinations() throws {
         let e = try SpliceEstimate.decode(estimate(), sats: 20_000, feeRate: 2, removing: false)

@@ -577,3 +577,72 @@ test('switching channels clears resize inputs and reviews instead of retargeting
     delete NativeModules.XBTLightningBridge.splice;
   }
 });
+
+test('large invoice and withdrawal amounts reach native validation without an app ceiling', async () => {
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  bridge.invoice.mockClear();
+  fireEvent.changeText(screen.getByLabelText('Sats to receive'), '44000000');
+  await act(async () => fireEvent.press(screen.getByText('Create invoice')));
+  expect(bridge.invoice).toHaveBeenCalledWith('receive', '', '', '44000000');
+  bridge.manage.mockClear();
+  fireEvent.changeText(screen.getByLabelText('Withdrawal address'), 'bc1q-fixture');
+  fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '44000000');
+  fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '250');
+  await act(async () => fireEvent.press(screen.getByText('Review withdrawal')));
+  expect(bridge.manage).toHaveBeenCalledWith('withdrawReview', 'bc1q-fixture', '44000000', '250');
+  expect(bridge.manage.mock.calls.some(call => call[0] === 'withdraw')).toBe(false);
+  screen.unmount();
+});
+test('channel creation binds the chosen large amount and fee to confirmation', async () => {
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    bridge.invoice.mockClear();
+    fireEvent.changeText(screen.getByLabelText('Lightning peer'), 'peer@host:9735');
+    fireEvent.changeText(screen.getByLabelText('New channel sats'), '44000000');
+    fireEvent.changeText(screen.getByLabelText('New channel fee rate'), '250');
+    fireEvent.press(screen.getByText('Open private channel'));
+    expect(bridge.invoice).not.toHaveBeenCalled();
+    const [, detail, buttons] = prompt.mock.calls[prompt.mock.calls.length - 1];
+    expect(detail).toContain('44000000 sats at 250 sat/vB');
+    fireEvent.changeText(screen.getByLabelText('New channel sats'), '50000000');
+    const confirm = buttons!.find(button => button.text === 'Open channel')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(bridge.invoice.mock.calls).toEqual([['open', 'peer', '250', '44000000']]);
+    screen.unmount();
+  } finally {
+    prompt.mockRestore();
+  }
+});
+test('editable routing fee is confirmed with the invoice and cannot change after review', async () => {
+  const payInvoice = jest.fn().mockResolvedValue(true);
+  Object.assign(bridge, { payInvoice });
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+    fireEvent.changeText(screen.getByLabelText('Maximum routing fee sats'), '250');
+    await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+    fireEvent.press(screen.getByText('Pay 500 sats'));
+    const [, detail, buttons] = prompt.mock.calls[prompt.mock.calls.length - 1];
+    expect(detail).toContain('Maximum routing fee: 250 sats');
+    fireEvent.changeText(screen.getByLabelText('Maximum routing fee sats'), '500');
+    expect(screen.queryByText('Pay 500 sats')).toBeNull();
+    const confirm = buttons!.find(button => button.text === 'Pay')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(payInvoice.mock.calls).toEqual([['lnbcrt-fixture', 'reviewed-hash', '500', '250']]);
+    screen.unmount();
+  } finally {
+    prompt.mockRestore();
+    delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+  }
+});

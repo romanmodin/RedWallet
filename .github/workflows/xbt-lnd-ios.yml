@@ -68,7 +68,7 @@ jobs:
           set -euo pipefail
           dir="$RUNNER_TEMP/lnd-regtest"
           fixture_cookie=$(<"$dir/data/regtest/.cookie")
-          "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${fixture_cookie%%:*}" --bitcoind.rpcpass="${fixture_cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --protocol.splice --watchtower.active --watchtower.listen=127.0.0.1:19911 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
+          "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${fixture_cookie%%:*}" --bitcoind.rpcpass="${fixture_cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --protocol.splice --protocol.wumbo-channels --maxchansize=2100000000000000 --watchtower.active --watchtower.listen=127.0.0.1:19911 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
           pid=$!
           ready=false
           for attempt in {1..90}; do

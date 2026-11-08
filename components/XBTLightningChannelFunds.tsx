@@ -1,3 +1,4 @@
+import { validLightningSats, validLightningFeeRate } from '../blue_modules/lightning-amounts';
 import React, { useRef, useState } from 'react';
 import { NativeModules, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
@@ -53,12 +54,7 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
   const current = useRef('');
   current.current = JSON.stringify([point, direction, sats, feeRate]);
   const available = active && !!splice && ['ok', 'peer_not_announcing'].includes(splice.status);
-  const valid =
-    /^[1-9][0-9]{0,6}$/.test(sats) &&
-    Number(sats) >= 546 &&
-    Number(sats) <= 1000000 &&
-    /^[1-9][0-9]{0,2}$/.test(feeRate) &&
-    Number(feeRate) <= 100;
+  const valid = validLightningSats(sats) && validLightningFeeRate(feeRate);
   const select = (value: 'in' | 'out') => {
     setDirection(value);
     setReview(undefined);
@@ -109,7 +105,7 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
           </SettingsFootnote>
           <TextInput
             accessibilityLabel="Channel resize sats"
-            placeholder="Amount in sats (546–1,000,000)"
+            placeholder="Amount in sats"
             keyboardType="number-pad"
             placeholderTextColor={colors.alternativeTextColor2}
             style={inputStyle}

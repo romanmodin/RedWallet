@@ -14,7 +14,7 @@ enum NodeFailure: LocalizedError {
         case .invalidPeer: return "Enter a valid chain or Lightning peer address."
         case .missingCredentials: return "The saved credentials for this Lightning node are unavailable."
         case .invalidRecovery: return "Check the recovery file for this network and its passphrase (at least 12 characters). Restore only to a new Lightning node."
-        case .invalidAmount: return "Enter a whole amount between 1 and 1,000,000 sats."
+        case .invalidAmount: return "Enter a positive whole-sat amount and a valid fee rate. Available funds, channel reserves and peer requirements still apply."
         }
     }
 }

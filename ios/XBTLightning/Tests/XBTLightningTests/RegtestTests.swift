@@ -71,6 +71,10 @@ final class RegtestTests: XCTestCase {
         let decoded = try await RegtestNode.shared.decode(invoice)
         XCTAssertEqual(decoded.sats, 1234)
         XCTAssertEqual(decoded.hash.count, 64)
+        let largeInvoice = try await RegtestNode.shared.receive(sats: 44_000_000)
+        let largeDecoded = try await RegtestNode.shared.decode(largeInvoice)
+        XCTAssertEqual(largeDecoded.sats, 44_000_000)
+        try await RegtestNode.shared.cancelInvoice(hash: largeDecoded.hash)
         let history = try await RegtestNode.shared.recentPayments()
         XCTAssertEqual(history, "No outgoing test payments.")
         let backup = try await RegtestNode.shared.channelBackup()
@@ -93,7 +97,7 @@ final class RegtestTests: XCTestCase {
         let registeredTowers = try await RegtestNode.shared.watchtowers()
         XCTAssertEqual(registeredTowers.count, 1)
         XCTAssertEqual(registeredTowers[0].acknowledged, 0)
-        _ = try await peer("fund", funding)
+        _ = try await peer("fund-large", funding)
         try await waitUntil {
             let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
             return (funds.integers[2] ?? 0) >= 100_000
@@ -104,7 +108,7 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(sameNextFunding, nextFunding)
         try await RegtestNode.shared.connect(to: peerKey + "@127.0.0.1:19735")
         try await waitForFixtureSync("funding confirmed; opening channel")
-        var point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 100_000)
+        var point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 20_000_000, feeRate: 125)
         let opening = try await RegtestNode.shared.channelStatus()
         XCTAssertEqual(opening.first(where: { $0.point == point })?.state, "pending")
         _ = try await peer("confirm", point)
@@ -114,20 +118,20 @@ final class RegtestTests: XCTestCase {
         let opened = try await RegtestNode.shared.channelStatus()
         XCTAssertEqual(opened.filter { $0.point == point }.count, 1)
         XCTAssertEqual(opened.first(where: { $0.point == point })?.state, "active")
-        let outgoing = try await peer("invoice")
+        let outgoing = try await peer("invoice-large")
         let review = try await RegtestNode.shared.decode(outgoing)
-        XCTAssertEqual(review.sats, 20_000)
+        XCTAssertEqual(review.sats, 2_000_000)
         try await waitUntil {
             do {
                 let request = ProtoFields.field(1, data: Data(peerKey.utf8)) +
-                    ProtoFields.field(2, integer: 20_000)
+                    ProtoFields.field(2, integer: 2_000_000)
                 let routes = try ProtoFields(await rpc { LndmobileQueryRoutes(request, $0) })
                 return !(routes.bytes[1] ?? []).isEmpty
             } catch { return false }
         }
-        let settled = try await RegtestNode.shared.pay(invoice: outgoing, expectedHash: review.hash, expectedSats: review.sats)
+        let settled = try await RegtestNode.shared.pay(invoice: outgoing, expectedHash: review.hash, expectedSats: review.sats, feeLimit: 250)
         XCTAssertTrue(settled)
-        let incoming = try await RegtestNode.shared.receive(sats: 2_000)
+        let incoming = try await RegtestNode.shared.receive(sats: 1_500_000)
         let receipt = try await peer("pay", incoming)
         XCTAssertEqual(receipt, "settled")
         let overview = try await RegtestNode.shared.walletOverview()
@@ -135,11 +139,11 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(overview["activeChannels"] as? String, "1")
         let outgoingPage = try await RegtestNode.shared.walletActivity("payments", offset: 0)
         let outgoingRows = outgoingPage["rows"] as? [[String: Any]] ?? []
-        XCTAssertTrue(outgoingRows.contains { $0["id"] as? String == review.hash && $0["state"] as? String == "settled" && $0["sats"] as? String == "20000" })
+        XCTAssertTrue(outgoingRows.contains { $0["id"] as? String == review.hash && $0["state"] as? String == "settled" && $0["sats"] as? String == "2000000" })
         let receivedHash = try await RegtestNode.shared.decode(incoming).hash
         let incomingPage = try await RegtestNode.shared.walletActivity("invoices", offset: 0)
         let incomingRows = incomingPage["rows"] as? [[String: Any]] ?? []
-        XCTAssertTrue(incomingRows.contains { $0["id"] as? String == receivedHash && $0["state"] as? String == "settled" && $0["sats"] as? String == "2000" })
+        XCTAssertTrue(incomingRows.contains { $0["id"] as? String == receivedHash && $0["state"] as? String == "settled" && $0["sats"] as? String == "1500000" })
         let fundingPage = try await RegtestNode.shared.walletActivity("funding", offset: 0)
         let fundingRows = fundingPage["rows"] as? [[String: Any]] ?? []
         XCTAssertTrue(fundingRows.contains { $0["direction"] as? String == "received" && ($0["confirmations"] as? Int64 ?? 0) > 0 })
@@ -150,7 +154,7 @@ final class RegtestTests: XCTestCase {
         for direction in ["in", "out"] {
             try await waitForFixtureSync("review splice " + direction)
             let mempoolBefore = try await peer("mempool")
-            let resize = try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: direction == "in" ? 50_000 : 20_000, feeRate: 50)
+            let resize = try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: direction == "in" ? 44_000_000 : 2_000_000, feeRate: 125)
             let mempoolAfter = try await peer("mempool")
             XCTAssertEqual(mempoolAfter, mempoolBefore, "Review must not broadcast or lease/spend funds")
             _ = try await RegtestNode.shared.splice(token: resize.token)
@@ -203,15 +207,15 @@ final class RegtestTests: XCTestCase {
             return (funds.integers[2] ?? 0) > beforeClose
         }
         let target = try await peer("withdraw-address")
-        let withdrawal = try await RegtestNode.shared.reviewWithdrawal(address: target, sats: 1000, feeRate: 1)
+        let withdrawal = try await RegtestNode.shared.reviewWithdrawal(address: target, sats: 2_000_000, feeRate: 125)
         let txid = try await RegtestNode.shared.withdraw(token: withdrawal.token)
         XCTAssertEqual(txid.count, 64)
         do {
             _ = try await RegtestNode.shared.withdraw(token: withdrawal.token)
             XCTFail("A consumed withdrawal review must not submit again")
         } catch { }
-        let delivered = try await peer("verify-withdraw", txid)
-        XCTAssertEqual(delivered, "received-1000")
+        let delivered = try await peer("verify-withdraw-large", txid)
+        XCTAssertEqual(delivered, "received-2000000")
         try await waitForFixtureSync("withdrawal confirmed")
         try await waitUntil {
             let transactions = try ProtoFields(await rpc { LndmobileGetTransactions(Data(), $0) })
@@ -253,10 +257,10 @@ final class RegtestTests: XCTestCase {
             return (balance.integers[2] ?? 0) == expectedBalance
         }
         let target = try await peer("withdraw-address")
-        let review = try await RegtestNode.shared.reviewWithdrawal(address: target, sats: 1000, feeRate: 1)
+        let review = try await RegtestNode.shared.reviewWithdrawal(address: target, sats: 2_000_000, feeRate: 125)
         let txid = try await RegtestNode.shared.withdraw(token: review.token)
-        let received = try await peer("verify-withdraw", txid)
-        XCTAssertEqual(received, "received-1000")
+        let received = try await peer("verify-withdraw-large", txid)
+        XCTAssertEqual(received, "received-2000000")
         #endif
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }

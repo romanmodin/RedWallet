@@ -59,6 +59,8 @@ public enum MainnetConfiguration {
         nobootstrap=true
         maxpendingchannels=3
         protocol.splice=true
+        protocol.wumbo-channels=true
+        maxchansize=2100000000000000
         [Bitcoin]
         bitcoin.mainnet=true
         bitcoin.node=neutrino

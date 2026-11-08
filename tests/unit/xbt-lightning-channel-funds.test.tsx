@@ -105,3 +105,27 @@ test('a failed confirmation is not retried automatically', async () => {
   expect(bridge.splice.mock.calls.filter(c => c[0] === 'confirm')).toHaveLength(1);
   expect(s.queryByText('Confirm remove funds')).toBeNull();
 });
+
+test.each(['in', 'out'])('large %s resize reviews the exact amount and fee without broadcasting', async direction => {
+  bridge.splice.mockResolvedValue({ ...review(direction), sats: '44000000', feeRate: '250', capacity: '45000000', local: '44000000' });
+  const s = screen();
+  fireEvent.press(s.getByText(direction === 'in' ? 'Add funds' : 'Remove funds'));
+  fireEvent.changeText(s.getByLabelText('Channel resize sats'), '44000000');
+  fireEvent.changeText(s.getByLabelText('Channel resize fee rate'), '250');
+  await act(async () => fireEvent.press(s.getByText('Review channel resize')));
+  expect(bridge.splice).toHaveBeenCalledWith('review', JSON.stringify({ point, direction, sats: '44000000', feeRate: '250' }));
+  expect(bridge.splice).toHaveBeenCalledTimes(1);
+  expect(s.getByText(direction === 'in' ? 'Confirm add funds' : 'Confirm remove funds')).toBeTruthy();
+  s.unmount();
+});
+test.each(['0', '-1', '1.5', '1e8', '2100000000000001', '9007199254740993'])(
+  'rejects invalid resize %s before native review',
+  async amount => {
+    const s = screen();
+    fireEvent.press(s.getByText('Add funds'));
+    fireEvent.changeText(s.getByLabelText('Channel resize sats'), amount);
+    await act(async () => fireEvent.press(s.getByText('Review channel resize')));
+    expect(bridge.splice).not.toHaveBeenCalled();
+    s.unmount();
+  },
+);

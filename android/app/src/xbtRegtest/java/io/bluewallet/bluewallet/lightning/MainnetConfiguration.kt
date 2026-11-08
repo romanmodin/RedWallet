@@ -27,7 +27,7 @@ internal object MainnetConfiguration {
     fun text(selected: List<String> = peers): String {
         require(selected.size in 1..16)
         val endpoints = selected.map(::endpoint)
-        return listOf("[Application Options]", "debuglevel=info", "nolisten=true", "norest=true", "tlsdisableautofill=true", "alias=RedWallet", "nobootstrap=true", "maxpendingchannels=3", "[Bitcoin]", "bitcoin.mainnet=true", "bitcoin.node=neutrino", "[neutrino]")
+        return listOf("[Application Options]", "debuglevel=info", "nolisten=true", "norest=true", "tlsdisableautofill=true", "alias=RedWallet", "nobootstrap=true", "maxpendingchannels=3", "protocol.wumbo-channels=true", "maxchansize=2100000000000000", "[Bitcoin]", "bitcoin.mainnet=true", "bitcoin.node=neutrino", "[neutrino]")
             .plus(endpoints.map { "neutrino.connect=$it" })
             .plus(listOf("neutrino.maxpeers=${maxOf(4, selected.size + 2)}", "[fee]", "fee.url=https://nodex.kilombino.com/data/lnd-fees.json", "[wtclient]", "wtclient.active=true")).joinToString("\n")
     }

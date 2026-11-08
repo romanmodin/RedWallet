@@ -37,7 +37,7 @@ def wait_for_payment_route(invoice):
     decoded = json.loads(call(lightning, "decodepayreq", invoice))
     destination = decoded["destination"]
     amount = int(decoded["num_satoshis"])
-    if not re.fullmatch(r"0[23][a-f0-9]{64}", destination) or not 1 <= amount <= 1_000_000:
+    if not re.fullmatch(r"0[23][a-f0-9]{64}", destination) or not 1 <= amount <= 2_100_000_000_000_000:
         raise ValueError("invalid fixture invoice")
     for _ in range(60):
         try:
@@ -64,8 +64,8 @@ class Fixture(BaseHTTPRequestHandler):
                 result = json.loads(call(lightning, "getinfo"))["identity_pubkey"]
             elif self.path == "/tower":
                 result = json.loads(call(lightning, "tower", "info"))["pubkey"] + "@127.0.0.1:19911"
-            elif self.path == "/fund" and re.fullmatch(r"bcrt1[a-z0-9]{20,90}", value):
-                result = call(chain, "sendtoaddress", value, "0.005")
+            elif self.path in ("/fund", "/fund-large") and re.fullmatch(r"bcrt1[a-z0-9]{20,90}", value):
+                result = call(chain, "sendtoaddress", value, "2" if self.path == "/fund-large" else "0.005")
                 call(chain, "generatetoaddress", "6", miner)
                 wait_for_peer_sync()
             elif self.path == "/confirm" and re.fullmatch(r"[a-f0-9]{64}:[0-9]+", value):
@@ -92,7 +92,7 @@ class Fixture(BaseHTTPRequestHandler):
                 result = "mined-splice"
             elif self.path == "/withdraw-address":
                 result = withdrawal_target
-            elif self.path == "/verify-withdraw" and re.fullmatch(r"[a-f0-9]{64}", value):
+            elif self.path in ("/verify-withdraw", "/verify-withdraw-large") and re.fullmatch(r"[a-f0-9]{64}", value):
                 for _ in range(30):
                     if value in json.loads(call(chain, "getrawmempool")):
                         break
@@ -102,10 +102,10 @@ class Fixture(BaseHTTPRequestHandler):
                 call(chain, "generatetoaddress", "6", miner)
                 tx = json.loads(call(chain, "gettransaction", value))
                 assert any(d.get("category") == "receive" and d.get("address") == withdrawal_target and
-                           abs(d.get("amount", 0) - 0.00001) < 0.000000001 for d in tx["details"])
-                result = "received-1000"
-            elif self.path == "/invoice":
-                result = json.loads(call(lightning, "addinvoice", "--amt=20000"))["payment_request"]
+                           abs(d.get("amount", 0) - (0.02 if self.path == "/verify-withdraw-large" else 0.00001)) < 0.000000001 for d in tx["details"])
+                result = "received-2000000" if self.path == "/verify-withdraw-large" else "received-1000"
+            elif self.path in ("/invoice", "/invoice-large"):
+                result = json.loads(call(lightning, "addinvoice", "--amt=2000000" if self.path == "/invoice-large" else "--amt=20000"))["payment_request"]
             elif self.path == "/pay" and re.fullmatch(r"lnbcrt[a-z0-9]{60,4096}", value):
                 wait_for_payment_route(value)
                 response = call(lightning, "payinvoice", "--force", "--json", "--fee_limit=10", value)

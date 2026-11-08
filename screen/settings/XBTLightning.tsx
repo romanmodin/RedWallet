@@ -25,6 +25,8 @@ import XBTLightningNetwork from '../../components/XBTLightningNetwork';
 import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
+import { validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
+
 const bridge = NativeModules.XBTLightningBridge;
 type Channel = {
   point: string;
@@ -54,6 +56,7 @@ type Review = {
   hash: string;
   sats: string;
   destination: string;
+  feeLimit: string;
 };
 
 function summarizeChannels(items: Channel[]) {
@@ -142,6 +145,9 @@ export default function XBTLightning({
   const [busy, setBusy] = useState(false);
   const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
+  const [channelSats, setChannelSats] = useState('100000');
+  const [channelFeeRate, setChannelFeeRate] = useState('1');
+  const [routingFee, setRoutingFee] = useState('10');
   const [fundingAddress, setFundingAddress] = useState('');
   const [incoming, setIncoming] = useState<LightningReceiveInvoice>();
   const [lightningPeer, setLightningPeer] = useState('');
@@ -165,7 +171,7 @@ export default function XBTLightning({
   const [feeRate, setFeeRate] = useState('1');
   const [withdrawal, setWithdrawal] = useState<Withdrawal>();
   const submitted = useRef(new Set<string>());
-  const validFeeRate = /^[1-9][0-9]{0,2}$/.test(feeRate) && Number(feeRate) <= 100;
+  const validFeeRate = validLightningFeeRate(feeRate);
   const pending = useRef(false);
   const mounted = useRef(false);
   const pendingPayment = useRef<string | undefined>(undefined);
@@ -300,25 +306,31 @@ export default function XBTLightning({
     };
   }, [status, refreshChannels]);
   const confirm = (payment: Review) =>
-    Alert.alert('Pay invoice?', payment.sats + ' sats to ' + payment.destination + '. Maximum routing fee: 10 sats.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Pay',
-        onPress: () =>
-          run('Pay invoice', async () => {
-            if (pendingPayment.current === payment.hash) return;
-            pendingPayment.current = payment.hash;
-            setReview(undefined);
-            try {
-              const settled = await bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
-              if (!settled) pendingPayment.current = undefined;
-              if (mounted.current) setMessage(settled ? 'Payment settled.' : 'Payment failed. Check channel balance and routing.');
-            } catch {
-              if (mounted.current) setMessage('Payment outcome unknown. Check the node payment history before trying again.');
-            }
-          }),
-      },
-    ]);
+    Alert.alert(
+      'Pay invoice?',
+      payment.sats + ' sats to ' + payment.destination + '. Maximum routing fee: ' + payment.feeLimit + ' sats.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pay',
+          onPress: () =>
+            run('Pay invoice', async () => {
+              if (pendingPayment.current === payment.hash) return;
+              pendingPayment.current = payment.hash;
+              setReview(undefined);
+              try {
+                const settled = bridge.payInvoice
+                  ? await bridge.payInvoice(payment.invoice, payment.hash, payment.sats, payment.feeLimit)
+                  : await bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
+                if (!settled) pendingPayment.current = undefined;
+                if (mounted.current) setMessage(settled ? 'Payment settled.' : 'Payment failed. Check channel balance and routing.');
+              } catch {
+                if (mounted.current) setMessage('Payment outcome unknown. Check the node payment history before trying again.');
+              }
+            }),
+        },
+      ],
+    );
   const confirmWithdrawal = (item: Withdrawal) =>
     Alert.alert('Withdraw XBT?', item.sats + ' sats to ' + item.address + '. Network fee added at ' + item.feeRate + ' sat/vB.', [
       { text: 'Cancel', style: 'cancel' },
@@ -601,14 +613,39 @@ export default function XBTLightning({
                   })
                 }
               />
+              <SettingsFootnote>CHANNEL AMOUNT (SATS)</SettingsFootnote>
+              <TextInput
+                accessibilityLabel="New channel sats"
+                style={[styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }]}
+                keyboardType="number-pad"
+                value={channelSats}
+                editable={!busy}
+                onChangeText={setChannelSats}
+              />
+              <SettingsFootnote>FUNDING FEE RATE (SAT/VB)</SettingsFootnote>
+              <TextInput
+                accessibilityLabel="New channel fee rate"
+                style={[styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }]}
+                keyboardType="number-pad"
+                value={channelFeeRate}
+                editable={!busy}
+                onChangeText={setChannelFeeRate}
+              />
               <SettingsListItem
                 title="Open private channel"
-                disabled={busy || !lightningPeer}
+                disabled={busy || !lightningPeer || !validLightningSats(channelSats) || !validLightningFeeRate(channelFeeRate)}
                 onPress={() => {
                   const key = lightningPeer.trim().split('@')[0];
+                  const sats = channelSats,
+                    rate = channelFeeRate;
+                  let submittedOpen = false;
                   Alert.alert(
                     'Open a private channel?',
-                    'Commit 100,000 sats at 1 sat/vB to ' +
+                    'Commit ' +
+                      sats +
+                      ' sats at ' +
+                      rate +
+                      ' sat/vB to ' +
                       key +
                       '. Tapping Open channel creates a new channel. After opening, wait for the funding transaction to confirm.',
                     [
@@ -617,7 +654,9 @@ export default function XBTLightning({
                         text: 'Open channel',
                         onPress: () =>
                           run('Open private channel', async () => {
-                            const point = await bridge.invoice('open', key, '', '100000');
+                            if (submittedOpen) return;
+                            submittedOpen = true;
+                            const point = await bridge.invoice('open', key, rate, sats);
                             refreshChannels().catch(() => {});
                             if (mounted.current)
                               setMessage(
@@ -653,7 +692,7 @@ export default function XBTLightning({
               />
               <SettingsListItem
                 title="Create invoice"
-                disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
+                disabled={busy || !validLightningSats(amount)}
                 onPress={() =>
                   run('Invoice to receive', async () => {
                     const requestedSats = amount;
@@ -718,15 +757,31 @@ export default function XBTLightning({
                 }}
                 editable={!busy}
               />
+              {bridge.payInvoice && (
+                <>
+                  <SettingsFootnote>MAXIMUM ROUTING FEE (SATS)</SettingsFootnote>
+                  <TextInput
+                    accessibilityLabel="Maximum routing fee sats"
+                    style={[styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }]}
+                    keyboardType="number-pad"
+                    value={routingFee}
+                    editable={!busy}
+                    onChangeText={value => {
+                      setRoutingFee(value);
+                      setReview(undefined);
+                    }}
+                  />
+                </>
+              )}
               <SettingsListItem
                 title="Review invoice"
-                disabled={busy || !outgoing.trim()}
+                disabled={busy || !outgoing.trim() || !validLightningSats(routingFee, true)}
                 onPress={() =>
                   run('Review invoice', async () => {
                     const invoice = outgoing.trim();
                     const decoded = await bridge.invoice('decode', invoice, '', '');
                     if (mounted.current) {
-                      setReview({ ...decoded, invoice });
+                      setReview({ ...decoded, invoice, feeLimit: routingFee });
                       setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
                     }
                   })
@@ -902,7 +957,7 @@ export default function XBTLightning({
           />
           <SettingsListItem
             title="Review withdrawal"
-            disabled={busy || !validFeeRate || !destination.trim() || !/^[1-9][0-9]{0,6}$/.test(withdrawSats)}
+            disabled={busy || !validFeeRate || !destination.trim() || !validLightningSats(withdrawSats)}
             onPress={() =>
               run('Review withdrawal', async () => {
                 const item = await bridge.manage('withdrawReview', destination.trim(), withdrawSats, feeRate);

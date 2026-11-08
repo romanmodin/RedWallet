@@ -160,7 +160,7 @@ internal object RegtestNode {
         require(validInvoice(invoice) && invoice.length <= 8192)
         val fields = rpc { Lndmobile.decodePayReq(message { writeString(1,invoice) },it) }
         require(fields.blobs[13].orEmpty().any { Fields(it).number(1) in 512L..513L })
-        require(fields.number(3) in 1L..1_000_000L && fields.number(12) == fields.number(3)*1000)
+        require(LightningAmounts.valid(fields.number(3)) && fields.number(12) == fields.number(3)*1000)
         return fields
     }
     fun invoice(operation: String, value: String, hash: String, sats: String): Any = when (operation) {
@@ -175,37 +175,42 @@ internal object RegtestNode {
         "open" -> {
             requireSynced()
             val amount = sats.toLong()
-            require(publicKey.matches(value) && amount in 20_000L..1_000_000L)
-            val point = rpc { Lndmobile.openChannelSync(message { writeString(3,value); writeUInt64(4,amount); writeUInt64(1,1); writeUInt64(8,1) },it) }
+            val fee = if (hash.isEmpty()) 1L else hash.toLong()
+            require(LightningAmounts.validFeeRate(fee))
+            require(publicKey.matches(value) && LightningAmounts.valid(amount))
+            val point = rpc { Lndmobile.openChannelSync(message { writeString(3,value); writeUInt64(4,amount); writeUInt64(1,fee); writeUInt64(8,1) },it) }
             val id = point.blobs[1]?.firstOrNull()?.also { require(it.size == 32) }?.reversedArray()?.joinToString("") { "%02x".format(it) } ?: point.string(2)
             id + ":" + point.number(3)
         }
         "receive" -> {
             requireSynced()
             val amount = sats.toLong()
-            require(amount in 1L..1_000_000L)
+            require(LightningAmounts.valid(amount))
             rpc { Lndmobile.addInvoice(message { writeUInt64(5,amount); writeUInt64(11,3600); writeUInt64(15,1) },it) }
                 .string(2).also { require(validInvoice(it)) }
         }
         "decode" -> decode(value).let { fields -> Arguments.createMap().apply {
             putString("sats",fields.number(3).toString()); putString("hash",fields.string(2)); putString("destination",fields.string(1))
         } }
-        "pay" -> {
-            requireSynced()
-            val decoded = decode(value)
-            require(decoded.string(2) == hash && decoded.number(3) == sats.toLong())
-            val result = rpc { callback ->
-                Lndmobile.routerSendPaymentV2(message { writeString(5,value); writeUInt64(6,30); writeUInt64(7,10) },object : RecvStream {
-                    override fun onError(error: Exception) { callback.onError(error) }
-                    override fun onResponse(data: ByteArray?) {
-                        try { if (Fields(requireNotNull(data)).number(10) in 2L..3L) callback.onResponse(data) }
-                        catch (e: Exception) { callback.onError(e) }
-                    }
-                })
-            }
-            require(result.string(1) == hash)
-            result.number(10) == 2L
-        }
+        "pay" -> payInvoice(value,hash,sats,"10")
         else -> error("Unknown invoice operation")
+    }
+    fun payInvoice(value: String, hash: String, sats: String, feeLimit: String): Boolean {
+        val fee = feeLimit.toLong()
+        require(LightningAmounts.valid(fee, allowZero = true))
+        requireSynced()
+        val decoded = decode(value)
+        require(decoded.string(2) == hash && decoded.number(3) == sats.toLong())
+        val result = rpc { callback ->
+            Lndmobile.routerSendPaymentV2(message { writeString(5,value); writeUInt64(6,30); writeUInt64(7,fee) },object : RecvStream {
+                override fun onError(error: Exception) { callback.onError(error) }
+                override fun onResponse(data: ByteArray?) {
+                    try { if (Fields(requireNotNull(data)).number(10) in 2L..3L) callback.onResponse(data) }
+                    catch (e: Exception) { callback.onError(e) }
+                }
+            })
+        }
+        require(result.string(1) == hash)
+        return result.number(10) == 2L
     }
 }

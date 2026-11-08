@@ -25,6 +25,8 @@ class LightningBridge(private val context: ReactApplicationContext) : ReactConte
     @ReactMethod fun run(action: String, peer: String, promise: Promise) = submit(promise) { RegtestNode.run(context,action,peer) }
     @ReactMethod fun invoice(operation: String, value: String, hash: String, sats: String, promise: Promise) =
         submit(promise) { RegtestNode.invoice(operation,value,hash,sats) }
+    @ReactMethod fun payInvoice(invoice: String, hash: String, sats: String, feeLimit: String, promise: Promise) =
+        submit(promise) { RegtestNode.payInvoice(invoice,hash,sats,feeLimit) }
     @ReactMethod fun recovery(operation: String, phrase: String, source: String, promise: Promise) =
         submit(promise) { RegtestNode.recovery(context,operation,phrase,source) }
 }

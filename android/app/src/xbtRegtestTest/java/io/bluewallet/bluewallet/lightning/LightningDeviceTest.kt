@@ -48,6 +48,12 @@ class LightningDeviceTest {
         start()
         node("setup")
         waitFor { node("status") == "Running" }
+        val largeInvoice = RegtestNode.invoice("receive","","","44000000") as String
+        val largeDecoded = RegtestNode.invoice("decode",largeInvoice,"","") as com.facebook.react.bridge.ReadableMap
+        assertEquals("44000000",largeDecoded.getString("sats"))
+        assertFalse(LightningAmounts.valid(Long.MAX_VALUE))
+        assertFalse(LightningAmounts.valid(0L))
+        assertTrue(LightningAmounts.validFeeRate(250L))
         val identity = node("details").lineSequence().first()
         File(ctx.cacheDir,"identity").writeText(identity)
         val addr = node("fund")
@@ -85,7 +91,7 @@ class LightningDeviceTest {
             runCatching { !Fields(result.get(10, TimeUnit.SECONDS)).blobs[1].isNullOrEmpty() }.getOrDefault(false)
         }
         assertTrue(runCatching { RegtestNode.invoice("pay",outgoing,hash,"19999") }.isFailure)
-        assertEquals(true,RegtestNode.invoice("pay",outgoing,hash,"20000"))
+        assertEquals(true,RegtestNode.payInvoice(outgoing,hash,"20000","250"))
         assertEquals("settled",fixture("pay",RegtestNode.invoice("receive","","","2000") as String))
         assertTrue(node("history").contains("Settled"))
         val exported = Uri.parse(RegtestNode.recovery(ctx,"export",phrase,""))

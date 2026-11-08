@@ -69,12 +69,12 @@ public struct SpliceEstimate: Equatable, Sendable {
             }
             throw SpliceFailure.unavailable(message)
         }
-        func unsigned(_ key: UInt64) throws -> UInt64 {
+        func unsigned(_ key: UInt64, maximum: UInt64 = LightningAmounts.maxSats) throws -> UInt64 {
             let v = f.integers[key] ?? 0
-            guard Int64(bitPattern: v) >= 0, v <= 2_100_000_000_000_000 else { throw NodeFailure.invalidReply }
+            guard Int64(bitPattern: v) >= 0, v <= maximum else { throw NodeFailure.invalidReply }
             return v
         }
-        let fee = try unsigned(1), rate = try unsigned(3), amount = try unsigned(4)
+        let fee = try unsigned(1), rate = try unsigned(3, maximum: LightningAmounts.maxFeeRate), amount = try unsigned(4)
         let capacity = try unsigned(11), local = try unsigned(12), depth = try unsigned(13)
         guard fee > 0, rate == feeRate, amount == sats, capacity > 0, local <= capacity,
               depth > 0, !removing || f.integers[14] == 1 else { throw NodeFailure.invalidReply }
@@ -112,8 +112,8 @@ extension RegtestNode {
         let parts = point.split(separator: ":", omittingEmptySubsequences: false)
         guard parts.count == 2, parts[0].count == 64, let index = UInt32(parts[1]),
               parts[0].utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
-              direction == "in" || direction == "out", (546...1_000_000).contains(sats),
-              (1...100).contains(feeRate), direction == "out" || address.isEmpty else { throw NodeFailure.invalidAmount }
+              direction == "in" || direction == "out", LightningAmounts.valid(sats),
+              LightningAmounts.validFeeRate(feeRate), direction == "out" || address.isEmpty else { throw NodeFailure.invalidAmount }
         let channel = ProtoFields.field(2, data: Data(parts[0].utf8)) + ProtoFields.field(3, integer: UInt64(index))
         var request = ProtoFields.field(1, data: channel) + ProtoFields.field(2, integer: direction == "out" ? 1 : 0) +
             ProtoFields.field(3, integer: sats) + ProtoFields.field(5, integer: feeRate)

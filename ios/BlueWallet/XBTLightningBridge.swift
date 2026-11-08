@@ -148,6 +148,17 @@ final class XBTLightningBridge: NSObject {
         }
     }
 
+    @objc(payInvoice:hash:sats:feeLimit:resolver:rejecter:)
+    func payInvoice(_ invoice: String, hash: String, sats: String, feeLimit: String,
+                    resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                guard let amount = UInt64(sats), let fee = UInt64(feeLimit) else { throw NSError(domain: "Payment", code: 1) }
+                resolve(try await RegtestNode.shared.pay(invoice: invoice, expectedHash: hash, expectedSats: amount, feeLimit: fee))
+            } catch { reject("invoice_error", error.localizedDescription, nil) }
+        }
+    }
+
     @objc(invoice:value:hash:sats:resolver:rejecter:)
     func invoice(_ operation: String, value: String, hash: String, sats: String,
                  resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
@@ -158,7 +169,7 @@ final class XBTLightningBridge: NSObject {
                     try await RegtestNode.shared.connect(to: value)
                     resolve("Peer connected.")
                 case "open":
-                    resolve(try await RegtestNode.shared.openChannel(to: value, sats: UInt64(sats) ?? 0))
+                    resolve(try await RegtestNode.shared.openChannel(to: value, sats: UInt64(sats) ?? 0, feeRate: hash.isEmpty ? 1 : (UInt64(hash) ?? 0)))
                 case "receive":
                     let invoice = try await RegtestNode.shared.receive(sats: UInt64(sats) ?? 0)
                     resolve(invoice)
