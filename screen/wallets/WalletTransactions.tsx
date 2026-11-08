@@ -1,3 +1,4 @@
+import { walletElectrum, isBtcWallet, formatWalletBalance } from '../../blue_modules/wallet-network';
 import { LndWallet } from '../../class/wallets/lnd-wallet';
 import LndWalletHome from './LndWalletHome';
 import { RouteProp, useFocusEffect, useRoute, useLocale } from '@react-navigation/native';
@@ -23,7 +24,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
-import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { isDesktop, isIOS26OrHigher } from '../../blue_modules/environment';
 import * as fs from '../../blue_modules/fs';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
@@ -39,7 +39,7 @@ import { TX_ROW_BASE_HEIGHT } from '../../components/ListItem';
 import TransactionsNavigationHeader, { actionKeys } from '../../components/TransactionsNavigationHeader';
 import { unlockWithBiometrics, useBiometrics } from '../../hooks/useBiometrics';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
-import loc, { formatBalance } from '../../loc';
+import loc from '../../loc';
 import { Chain } from '../../models/bitcoinUnits';
 import ActionSheet from '../ActionSheet';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -295,7 +295,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
   const refreshTransactions = useCallback(
     async (isManualRefresh = false) => {
       console.debug('refreshTransactions, ', wallet.getLabel());
-      if (isElectrumDisabled || isLoading) return;
+      if ((!isBtcWallet(wallet) && isElectrumDisabled) || isLoading) return;
 
       const MIN_REFRESH_INTERVAL = 5000; // 5 seconds
       if (!isManualRefresh && lastFetchTimestamp !== 0 && Date.now() - lastFetchTimestamp < MIN_REFRESH_INTERVAL) {
@@ -314,11 +314,11 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
       let smthChanged = false;
       try {
         if (!isManualRefresh) {
-          const server = await BlueElectrum.getPreferredServer();
+          const server = await walletElectrum(wallet).getPreferredServer();
           // Missing configuration is normal on first launch; keep offline receive usable.
           if (!server?.host || (!server.tcp && !server.ssl)) return;
         }
-        if (!(await BlueElectrum.ensureConnected())) {
+        if (!(await walletElectrum(wallet).ensureConnected())) {
           throw new Error(loc.errors.network);
         }
         if (wallet.allowBIP47() && wallet.isBIP47Enabled() && 'fetchBIP47SenderPaymentCodes' in wallet) {
@@ -365,7 +365,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
   );
 
   useEffect(() => {
-    if (lastFetchTimestamp === 0 && !isLoading && !isElectrumDisabled) {
+    if (lastFetchTimestamp === 0 && !isLoading && (isBtcWallet(wallet) || !isElectrumDisabled)) {
       refreshTransactions(false).catch(console.error);
     }
   }, [wallet, isElectrumDisabled, isLoading, refreshTransactions, lastFetchTimestamp]);
@@ -601,7 +601,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
   const walletBalance = useMemo(() => {
     if (wallet.hideBalance) return '';
     if (!Number.isFinite(balance)) return '';
-    const formatted = formatBalance(balance, displayUnit, true);
+    const formatted = formatWalletBalance(wallet, balance, displayUnit, true);
     return formatted || '0';
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, wallet.hideBalance, displayUnit, balance]);
@@ -864,7 +864,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
           </ScrollView>
         }
         refreshControl={
-          !isDesktop && !isElectrumDisabled ? (
+          !isDesktop && (isBtcWallet(wallet) || !isElectrumDisabled) ? (
             <RefreshControl
               refreshing={isLoading}
               onRefresh={() => refreshTransactions(true)}

@@ -35,7 +35,7 @@ const ImportWalletDiscovery: React.FC = () => {
   const navigation = useExtendedNavigation<NavigationProp>();
   const { colors } = useTheme();
   const route = useRoute<RouteProps>();
-  const { importText, askPassphrase, searchAccounts, xbtFormat = 'segwit', recoveryGapLimit, recoveryAccountLimit } = route.params;
+  const { network, importText, askPassphrase, searchAccounts, xbtFormat = 'segwit', recoveryGapLimit, recoveryAccountLimit } = route.params;
   const { isElectrumDisabled, isPrivacyBlurEnabled } = useSettings();
   const { enableScreenProtect, disableScreenProtect } = useScreenProtect();
   const task = useRef<TImport | null>(null);
@@ -119,6 +119,7 @@ const ImportWalletDiscovery: React.FC = () => {
       true,
       xbtFormat,
       { gapLimit: recoveryGapLimit, accountLimit: recoveryAccountLimit },
+      network === 'btc' ? 'btc' : undefined,
     );
 
     task.current.promise
@@ -146,6 +147,7 @@ const ImportWalletDiscovery: React.FC = () => {
       task.current?.stop();
     };
   }, [
+    network,
     askPassphrase,
     importText,
     isElectrumDisabled,

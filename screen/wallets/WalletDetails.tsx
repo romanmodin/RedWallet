@@ -6,6 +6,7 @@ import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
 import BlueCard from '../../components/BlueCard';
 import BlueText from '../../components/BlueText';
 import { XBT_REPLAY_NOTICE } from '../../class/xbt/replay-notice';
+import { walletTicker } from '../../blue_modules/wallet-network';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { XbtTaprootWallet } from '../../class/wallets/xbt-taproot-wallet';
 import { HDAezeedWallet } from '../../class/wallets/hd-aezeed-wallet';
@@ -238,7 +239,12 @@ const WalletDetails: React.FC = () => {
   }, [isBiometricUseCapableAndEnabled, navigateToOverviewAndDeleteWallet, presentWalletHasBalanceAlert, wallet]);
 
   const exportHistoryContent = useCallback(() => {
-    const headers = [loc.transactions.date, loc.transactions.txid, `${loc.send.create_amount} (${loc.units.BTC})`, loc.send.create_memo];
+    const headers = [
+      loc.transactions.date,
+      loc.transactions.txid,
+      `${loc.send.create_amount} (${walletTicker(wallet)})`,
+      loc.send.create_memo,
+    ];
     if (wallet.chain === Chain.OFFCHAIN) {
       headers.push(loc.lnd.payment);
     }

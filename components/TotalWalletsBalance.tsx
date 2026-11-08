@@ -1,3 +1,4 @@
+import { isBtcWallet, formatWalletBalance } from '../blue_modules/wallet-network';
 import React, { useMemo, useCallback } from 'react';
 import { TouchableOpacity, Text, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useStorage } from '../hooks/context/useStorage';
@@ -29,9 +30,11 @@ const TotalWalletsBalance: React.FC = React.memo(() => {
   const { fontScale } = useWindowDimensions();
 
   const totalBalance = useMemo(
-    () => wallets.reduce((prev, curr) => (curr.hideBalance ? prev : prev + (curr.getBalance() || 0)), 0),
+    () => wallets.reduce((prev, curr) => (curr.hideBalance || isBtcWallet(curr) ? prev : prev + (curr.getBalance() || 0)), 0),
     [wallets],
   );
+  const btcWallets = wallets.filter(isBtcWallet);
+  const btcTotal = btcWallets.reduce((sum, wallet) => sum + (wallet.hideBalance ? 0 : wallet.getBalance()), 0);
   const totalBalanceFormatted = useMemo(() => {
     return formatBalanceWithoutSuffix(totalBalance, totalBalancePreferredUnit, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,6 +131,11 @@ const TotalWalletsBalance: React.FC = React.memo(() => {
             )}
           </Text>
         </TouchableOpacity>
+        {btcWallets.some(wallet => !wallet.hideBalance) && (
+          <Text testID="TotalBtcBalance" style={{ color: colors.alternativeTextColor }}>
+            {formatWalletBalance(btcWallets[0], btcTotal, BitcoinUnit.BTC, true)}
+          </Text>
+        )}
         <XbtFiatEstimate satoshis={totalBalance} style={[styles.estimate, { color: colors.alternativeTextColor }]} />
       </View>
     </ToolTipMenu>

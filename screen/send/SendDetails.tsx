@@ -1,3 +1,5 @@
+import { isBtcWallet, walletElectrum, walletTicker, formatWalletBalance, selectWalletNetwork } from '../../blue_modules/wallet-network';
+import confirm from '../../helpers/confirm';
 import { updatePaymentRecipient } from '../../helpers/update-payment-recipient';
 import { isXbtTaprootWallet } from '../../class/xbt-taproot-transaction';
 import { confirmXbtPayment } from '../../class/xbt/payment-warning';
@@ -57,7 +59,7 @@ import { Action } from '../../components/types';
 import { useStorage } from '../../hooks/context/useStorage';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import { useKeyboard } from '../../hooks/useKeyboard';
-import loc, { formatBalance, formatBalanceWithoutSuffix } from '../../loc';
+import loc, { formatBalanceWithoutSuffix } from '../../loc';
 import { BitcoinUnit, Chain } from '../../models/bitcoinUnits';
 import NetworkTransactionFees, { NetworkTransactionFee, NetworkTransactionFeeType } from '../../models/networkTransactionFees';
 import { SendDetailsStackParamList } from '../../navigation/SendDetailsStackParamList';
@@ -273,38 +275,41 @@ const SendDetails = () => {
     }
     const newWallet = (routeParams.walletID && wallets.find(w => w.getID() === routeParams.walletID)) || suitable[0];
     setWallet(newWallet);
+    selectWalletNetwork(newWallet);
     setParams({
+      walletID: newWallet.getID(),
       feeUnit: newWallet.getPreferredBalanceUnit(),
       amountUnit: newWallet.getPreferredBalanceUnit(),
     });
 
     // we are ready!
     setIsLoading(false);
-
-    // load cached fees
-    AsyncStorage.getItem(NetworkTransactionFee.StorageKey)
-      .then(res => {
-        if (!res) return;
-        const fees = JSON.parse(res);
-        if (!fees?.fastestFee) return;
-        setNetworkTransactionFees(fees);
-      })
-      .catch(e => console.log('loading cached recommendedFees error', e));
-
-    // load fresh fees from servers
-
-    setNetworkTransactionFeesIsLoading(true);
-    NetworkTransactionFees.recommendedFees()
-      .then(async fees => {
-        if (!fees?.fastestFee) return;
-        setNetworkTransactionFees(fees);
-        await AsyncStorage.setItem(NetworkTransactionFee.StorageKey, JSON.stringify(fees));
-      })
-      .catch(e => console.log('loading recommendedFees error', e))
-      .finally(() => {
-        setNetworkTransactionFeesIsLoading(false);
-      });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!wallet) return;
+    let active = true;
+    const key = NetworkTransactionFee.StorageKey + (isBtcWallet(wallet) ? ':BTC' : '');
+    setNetworkTransactionFees(new NetworkTransactionFee());
+    setNetworkTransactionFeesIsLoading(true);
+    (async () => {
+      try {
+        const cached = await AsyncStorage.getItem(key);
+        if (active && cached) setNetworkTransactionFees(JSON.parse(cached));
+        const fees = await NetworkTransactionFees.recommendedFees(walletElectrum(wallet));
+        if (!active) return;
+        setNetworkTransactionFees(fees);
+        await AsyncStorage.setItem(key, JSON.stringify(fees));
+      } catch (error) {
+        console.warn('Could not refresh network fees', error);
+      } finally {
+        if (active) setNetworkTransactionFeesIsLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [wallet]);
 
   // change header and reset state on wallet change
   useEffect(() => {
@@ -654,7 +659,11 @@ const SendDetails = () => {
     }
 
     try {
-      if (!(await confirmXbtPayment())) {
+      if (
+        !(await (isBtcWallet(wallet)
+          ? confirm('Confirm BTC payment', 'BTC and XBT addresses look the same. Confirm that every recipient expects Bitcoin (BTC).')
+          : confirmXbtPayment()))
+      ) {
         setIsLoading(false);
         return;
       }
@@ -780,6 +789,7 @@ const SendDetails = () => {
     const newWallet = wallets.find(w => w.getID() === routeParams.walletID);
     if (newWallet) {
       setWallet(newWallet);
+      selectWalletNetwork(newWallet);
     }
   }, [routeParams.walletID, wallets]);
 
@@ -1399,7 +1409,7 @@ const SendDetails = () => {
     scrollIndex.current = index;
   };
 
-  const formatFee = (fee: number) => formatBalance(fee, feeUnit!, true);
+  const formatFee = (fee: number) => formatWalletBalance(wallet, fee, feeUnit!, true);
 
   const stylesHook = StyleSheet.create({
     root: {
@@ -1512,6 +1522,7 @@ const SendDetails = () => {
       <View style={[styles.transactionItemContainer, { width: dimensions.width }]} testID={'Transaction' + index} collapsable={false}>
         <View style={styles.amountInputContainer}>
           <AmountInput.AmountInput
+            assetTicker={walletTicker(wallet)}
             isLoading={isLoading}
             amount={item.amount ? item.amount.toString() : undefined}
             onAmountUnitChange={(unit: BitcoinUnit) => {
@@ -1737,9 +1748,21 @@ const SendDetails = () => {
       </ScrollView>
       <DismissKeyboardInputAccessory />
       {Platform.select({
-        ios: <InputAccessoryAllFunds canUseAll={balance > 0} onUseAllPressed={onUseAllPressed} balance={String(allBalance)} />,
+        ios: (
+          <InputAccessoryAllFunds
+            assetTicker={walletTicker(wallet)}
+            canUseAll={balance > 0}
+            onUseAllPressed={onUseAllPressed}
+            balance={String(allBalance)}
+          />
+        ),
         android: isVisible && (
-          <InputAccessoryAllFunds canUseAll={balance > 0} onUseAllPressed={onUseAllPressed} balance={String(allBalance)} />
+          <InputAccessoryAllFunds
+            assetTicker={walletTicker(wallet)}
+            canUseAll={balance > 0}
+            onUseAllPressed={onUseAllPressed}
+            balance={String(allBalance)}
+          />
         ),
       })}
       {renderWalletSelectionOrCoinsSelected()}

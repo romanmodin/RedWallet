@@ -537,13 +537,13 @@ it('rejects a mixed bucket before loading any wallet and preserves the stored da
   await storage.saveToDisk();
   const before = await AsyncStorage.getItem('data');
   const reopened = new BlueApp();
-  await expect(reopened.loadFromDisk()).rejects.toThrow('cannot load non-XBT signing wallets');
+  await expect(reopened.loadFromDisk()).rejects.toThrow('cannot load this unsupported wallet type');
   expect(reopened.wallets).toHaveLength(0);
   await expect(reopened.saveToDisk()).rejects.toThrow('Original wallet data has been preserved');
   expect(await AsyncStorage.getItem('data')).toBe(before);
 });
 
-it('rejects a BTC signer in encrypted storage without rewriting the ciphertext', async () => {
+it('rejects an unsupported legacy BTC signer in encrypted storage without rewriting the ciphertext', async () => {
   const btc = new SegwitP2SHWallet();
   await btc.generate();
   const storage = new BlueApp();
@@ -551,7 +551,7 @@ it('rejects a BTC signer in encrypted storage without rewriting the ciphertext',
   await storage.encryptStorage('test-password');
   const before = await AsyncStorage.getItem('data');
   const reopened = new BlueApp();
-  await expect(reopened.loadFromDisk('test-password')).rejects.toThrow('cannot load non-XBT signing wallets');
+  await expect(reopened.loadFromDisk('test-password')).rejects.toThrow('cannot load this unsupported wallet type');
   await expect(reopened.saveToDisk()).rejects.toThrow('Original wallet data has been preserved');
   expect(await AsyncStorage.getItem('data')).toBe(before);
 });

@@ -1,5 +1,6 @@
+import WalletNetworkIndicator from '../components/WalletNetworkIndicator';
 import React, { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ChainFreshnessIndicator, { useChainFreshness } from '../components/ChainFreshnessIndicator';
+import { useChainFreshness } from '../components/ChainFreshnessIndicator';
 import { Animated, AppState, View, Platform, Text, StyleSheet, Pressable, Image } from 'react-native';
 import type { NativeStackHeaderItem, NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { createEllipsisHeaderMenuOptions } from '../components/headerMenuOptions';
@@ -272,7 +273,7 @@ const DetailViewStackScreensStack = () => {
     const showUpdating = !isElectrumDisabled && isUpdating;
 
     const renderHeaderLeft = () => {
-      if (!showOffline) return React.createElement(ChainFreshnessIndicator, chainFreshness);
+      if (!showOffline) return React.createElement(WalletNetworkIndicator, chainFreshness);
       if (showOffline) {
         const offlineBg = theme.dark ? theme.colors.darkGray : '#000000';
         return React.createElement(OfflineModePill, {

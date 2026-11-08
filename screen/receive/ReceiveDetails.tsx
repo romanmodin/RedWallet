@@ -1,10 +1,10 @@
+import { walletElectrum, isBtcWallet, walletTicker, formatWalletBalance } from '../../blue_modules/wallet-network';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BackHandler, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import Animated, { Easing, Layout, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import Share from 'react-native-share';
-import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { fiatToBTC, satoshiToBTC } from '../../blue_modules/currency';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import { majorTomToGroundControl, tryToObtainPermissions } from '../../blue_modules/notifications';
@@ -24,7 +24,7 @@ import { HandOffActivityType } from '../../components/types';
 import { useSettings } from '../../hooks/context/useSettings';
 import { useStorage } from '../../hooks/context/useStorage';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
-import loc, { formatBalance } from '../../loc';
+import loc from '../../loc';
 import { BitcoinUnit, Chain } from '../../models/bitcoinUnits';
 import { ReceiveDetailsStackParamList } from '../../navigation/ReceiveDetailsStackParamList';
 import { SuccessView } from '../send/success';
@@ -250,7 +250,7 @@ const ReceiveDetails = () => {
     let newAddress;
     if (wallet.chain === Chain.ONCHAIN) {
       try {
-        if (!isElectrumDisabled) newAddress = await Promise.race([wallet.getAddressAsync(), sleep(1000)]);
+        if (!isElectrumDisabled || isBtcWallet(wallet)) newAddress = await Promise.race([wallet.getAddressAsync(), sleep(1000)]);
       } catch (error) {
         console.warn('Error fetching wallet address (ONCHAIN):', error);
       }
@@ -344,7 +344,7 @@ const ReceiveDetails = () => {
         if (!addressToUse) return;
 
         console.debug('checking address', addressToUse, 'for balance...');
-        const balance = await BlueElectrum.getBalanceByAddress(addressToUse);
+        const balance = await walletElectrum(wallet).getBalanceByAddress(addressToUse);
         console.debug('...got', balance);
 
         if (balance.unconfirmed > 0) {
@@ -355,13 +355,13 @@ const ReceiveDetails = () => {
             triggerHapticFeedback(HapticFeedbackTypes.ImpactHeavy);
           }
 
-          const txs = await BlueElectrum.getMempoolTransactionsByAddress(addressToUse);
+          const txs = await walletElectrum(wallet).getMempoolTransactionsByAddress(addressToUse);
           const tx = txs.pop();
           if (tx) {
-            const rez = await BlueElectrum.multiGetTransactionByTxid([tx.tx_hash], true, 10);
+            const rez = await walletElectrum(wallet).multiGetTransactionByTxid([tx.tx_hash], true, 10);
             if (rez[tx.tx_hash] && rez[tx.tx_hash].vsize) {
               const satPerVbyte = Math.round(tx.fee / rez[tx.tx_hash].vsize);
-              const fees = await BlueElectrum.estimateFees();
+              const fees = await walletElectrum(wallet).estimateFees();
               if (satPerVbyte >= fees.fast) {
                 setEta(loc.formatString(loc.transactions.eta_10m));
               } else if (satPerVbyte >= fees.medium) {
@@ -374,12 +374,13 @@ const ReceiveDetails = () => {
 
           setDisplayBalance(
             loc.formatString(loc.transactions.pending_with_amount, {
-              amt1: formatBalance(
+              amt1: formatWalletBalance(
+                wallet,
                 balance.unconfirmed,
                 XBT_PROFILE.fiatEnabled ? BitcoinUnit.LOCAL_CURRENCY : BitcoinUnit.SATS,
                 true,
               ).toString(),
-              amt2: formatBalance(balance.unconfirmed, BitcoinUnit.BTC, true).toString(),
+              amt2: formatWalletBalance(wallet, balance.unconfirmed, BitcoinUnit.BTC, true).toString(),
             }),
           );
           setShowPendingBalance(true);
@@ -396,12 +397,13 @@ const ReceiveDetails = () => {
             setShowAddress(false);
             setDisplayBalance(
               loc.formatString(loc.transactions.received_with_amount, {
-                amt1: formatBalance(
+                amt1: formatWalletBalance(
+                  wallet,
                   balanceToShow,
                   XBT_PROFILE.fiatEnabled ? BitcoinUnit.LOCAL_CURRENCY : BitcoinUnit.SATS,
                   true,
                 ).toString(),
-                amt2: formatBalance(balanceToShow, BitcoinUnit.BTC, true).toString(),
+                amt2: formatWalletBalance(wallet, balanceToShow, BitcoinUnit.BTC, true).toString(),
               }),
             );
             if (walletID) {
@@ -420,7 +422,7 @@ const ReceiveDetails = () => {
     }, intervalMs);
 
     return () => clearInterval(intervalId);
-  }, [bip21encoded, address, initialConfirmed, initialUnconfirmed, intervalMs, fetchAndSaveWalletTransactions, walletID]);
+  }, [bip21encoded, address, initialConfirmed, initialUnconfirmed, intervalMs, fetchAndSaveWalletTransactions, walletID, wallet]);
 
   useEffect(() => {
     const handleBackButton = () => {
@@ -440,7 +442,7 @@ const ReceiveDetails = () => {
             {customLabel}
           </BlueText>
         )}
-        <SuccessView />
+        <SuccessView assetTicker={walletTicker(wallet)} />
         <BlueText style={[styles.label, stylesHook.label]} numberOfLines={1}>
           {displayBalance}
         </BlueText>
@@ -649,6 +651,8 @@ const ReceiveDetails = () => {
   const showCustomAmountModal = useCallback(() => {
     if (!address) return;
     navigate('ReceiveCustomAmount', {
+      walletID: wallet?.getID(),
+      assetTicker: walletTicker(wallet),
       address,
       currentLabel: customLabel,
       currentAmount: customAmount,
@@ -722,12 +726,12 @@ const ReceiveDetails = () => {
     if (number > 0) {
       switch (customUnit) {
         case BitcoinUnit.BTC:
-          return customAmount + ' ' + loc.units.BTC;
+          return customAmount + ' ' + walletTicker(wallet);
         case BitcoinUnit.SATS:
-          return satoshiToBTC(number) + ' ' + loc.units.BTC;
+          return satoshiToBTC(number) + ' ' + walletTicker(wallet);
         case BitcoinUnit.LOCAL_CURRENCY:
           if (!XBT_PROFILE.fiatEnabled) return null;
-          return fiatToBTC(number) + ' ' + loc.units.BTC;
+          return fiatToBTC(number) + ' ' + walletTicker(wallet);
       }
       return customAmount + ' ' + customUnit;
     } else {

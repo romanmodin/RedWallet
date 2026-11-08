@@ -64,6 +64,7 @@ const charEntering = FadeIn.duration(CHAR_FADE_IN_DURATION_MS);
 const charExiting = FadeOut.duration(CHAR_FADE_OUT_DURATION_MS);
 
 type AmountInputProps = Omit<TextInputProps, 'onChangeText' | 'value'> & {
+  assetTicker?: 'BTC' | 'XBT';
   /**
    * Whether the input is in a loading state
    */
@@ -108,6 +109,7 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
   const staleFiatAmount = !XBT_PROFILE.fiatEnabled && props.unit === BitcoinUnit.LOCAL_CURRENCY;
   const amount = staleFiatAmount ? '' : props.amount || '0'; // internally amount is aways a string with a correct number
   const {
+    assetTicker = loc.units.BTC,
     onChangeText,
     unit: requestedUnit,
     onAmountUnitChange,
@@ -179,10 +181,10 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
           res = fiatToBTC(Number(amount));
         }
         res = removeTrailingZeros(res);
-        return `${res} ${loc.units[BitcoinUnit.BTC]}`;
+        return `${res} ${assetTicker}`;
       }
     }
-  }, [amount, unit]);
+  }, [amount, unit, assetTicker]);
 
   useEffect(() => {
     if (!XBT_PROFILE.fiatEnabled) return;
@@ -431,13 +433,15 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
                     {(isMaxAmountEstimate ? '≈ ' : '') +
                       removeTrailingZeros(new BigNumber(maxSendableAmount).dividedBy(100000000).toFixed(8)) +
                       ' ' +
-                      loc.units[BitcoinUnit.BTC]}
+                      assetTicker}
                   </Text>
                 )}
               </Pressable>
             )}
             {unit !== BitcoinUnit.LOCAL_CURRENCY && amount !== BitcoinUnit.MAX && (
-              <Text style={[styles.cryptoCurrency, stylesHook.cryptoCurrency]}>{loc.units[unit]}</Text>
+              <Text style={[styles.cryptoCurrency, stylesHook.cryptoCurrency]}>
+                {unit === BitcoinUnit.BTC ? assetTicker : loc.units[unit]}
+              </Text>
             )}
           </View>
           {XBT_PROFILE.fiatEnabled && (
