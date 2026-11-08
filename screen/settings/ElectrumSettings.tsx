@@ -9,6 +9,7 @@ import { hardcodedPeers, presentResetToDefaultsAlert, suggestedServers } from '.
 import { GROUP_IO_BLUEWALLET } from '../../blue_modules/currency';
 import triggerHapticFeedback, { HapticFeedbackTypes, triggerSelectionHapticFeedback } from '../../blue_modules/hapticFeedback';
 import { normalizeCertificatePem } from '../../blue_modules/tls-certificate';
+import { electrumConnectionFailureMessage } from '../../blue_modules/electrum-connection-error';
 import DeeplinkSchemaMatch from '../../class/deeplink-schema-match';
 import AddressInput from '../../components/AddressInput';
 import presentAlert from '../../components/Alert';
@@ -136,7 +137,9 @@ const ElectrumSettings: React.FC = () => {
         v =>
           v.host &&
           (v.tcp || v.ssl) &&
-          !suggestedServers.some(s => s.host === v.host && s.tcp === v.tcp && s.ssl === v.ssl) &&
+          !suggestedServers.some(
+            s => s.host === v.host && (s.tcp || 0) === (v.tcp || 0) && s.ssl === v.ssl && (s.tlsCa || '') === (v.tlsCa || ''),
+          ) &&
           !hardcodedPeers.some(peer => peer.host === v.host && peer.tcp === v.tcp && peer.ssl === v.ssl),
       ),
     );
@@ -225,12 +228,10 @@ const ElectrumSettings: React.FC = () => {
         }
 
         if (serverHost && (serverPort || serverSslPort)) {
-          const testConnect = await BlueElectrum.testConnection(serverHost, Number(serverPort), Number(serverSslPort), serverTlsCa);
-          if (!testConnect) {
+          const testConnect = await BlueElectrum.testConnectionDetailed(serverHost, Number(serverPort), Number(serverSslPort), serverTlsCa);
+          if (!testConnect.ok) {
             return presentAlert({
-              message: serverHost.endsWith('.onion')
-                ? loc.settings.electrum_error_connect_tor
-                : `${loc.settings.electrum_error_connect}. TLS requires a trusted certificate matching the server name. XBT servers must also match the mainnet checkpoint.`,
+              message: `${electrumConnectionFailureMessage(testConnect.reason, !!serverSslPort, serverHost.endsWith('.onion'))} Your saved server has not been changed.`,
             });
           }
           await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
@@ -288,7 +289,8 @@ const ElectrumSettings: React.FC = () => {
       const peer = { host, ssl: sslPort, ...(tlsCa.trim() ? { tlsCa: normalizeCertificatePem(tlsCa.trim()) } : {}) };
       // Validate before initiating any outbound connection.
       const next = BlueElectrum.validateBackupConfiguration([...backupServers, peer]);
-      if (!(await BlueElectrum.testConnection(peer.host, 0, peer.ssl, peer.tlsCa))) throw new Error(loc.settings.electrum_error_connect);
+      const result = await BlueElectrum.testConnectionDetailed(peer.host, 0, peer.ssl, peer.tlsCa);
+      if (!result.ok) throw new Error(electrumConnectionFailureMessage(result.reason, true, peer.host.endsWith('.onion')));
       await BlueElectrum.setBackupServers(next);
       setBackupServers(next);
       presentAlert({ message: loc.settings.electrum_saved });
@@ -380,9 +382,13 @@ const ElectrumSettings: React.FC = () => {
 
   const isPreferred = useCallback(
     (value: ElectrumServerItem) => {
-      return value.host === host && ((sslPort !== undefined && value.ssl === sslPort) || (sslPort === undefined && value.tcp === port));
+      return (
+        value.host === host &&
+        (value.tlsCa || '') === tlsCa.trim() &&
+        ((sslPort !== undefined && value.ssl === sslPort) || (sslPort === undefined && value.tcp === port))
+      );
     },
-    [host, port, sslPort],
+    [host, port, sslPort, tlsCa],
   );
 
   type TCreateServerActionParameters = {
@@ -451,7 +457,7 @@ const ElectrumSettings: React.FC = () => {
       id: 'suggested_servers',
       text: loc._.suggested,
       displayInline: true,
-      subtitle: loc.settings.electrum_suggested_description,
+      subtitle: 'Select a preset to verify it before use. Presets are not automatic fallbacks.',
       subactions: mapServers(suggestedServers, true),
       hidden: suggestedServers.length === 0,
     };
@@ -594,6 +600,26 @@ const ElectrumSettings: React.FC = () => {
           ))}
         </SettingsSection>
         <ChainReferenceSettings />
+        <SettingsSection title="XBT server preset">
+          {suggestedServers.map(peer => (
+            <SettingsListItem
+              key={`${peer.host}:${peer.ssl}`}
+              title="Use Kilombino Electrum"
+              subtitle={`${peer.host}:${peer.ssl} · SSL`}
+              disabled={isLoading}
+              onPress={() => {
+                setHost(peer.host);
+                setPort(undefined);
+                setSslPort(peer.ssl);
+                setTlsCa(peer.tlsCa || '');
+              }}
+            />
+          ))}
+          <SettingsFootnote>
+            Fills the fields below. Tap Save to verify the certificate and XBT checkpoint before changing your connection. This public
+            server is operated by Kilombino; it is not an automatic fallback.
+          </SettingsFootnote>
+        </SettingsSection>
         <SettingsSection title={loc.settings.electrum_preferred_server}>
           <View style={settingsCardContent}>
             <SettingsFootnote>
