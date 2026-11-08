@@ -42,17 +42,23 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const exactAmount = (sats: string) =>
     displayUnit === 'sats' ? formatAmount(sats) : formatAmount(sats) + ' (' + formatLndAmount(sats, 'sats') + ')';
   const changeDisplayUnit = async () => {
-    if (wallet.hideBalance || unitSaving.current) return;
+    if (unitSaving.current) return;
     unitSaving.current = true;
     const previous = wallet.getDisplayUnit();
-    const next = nextLndDisplayUnit(previous);
+    const previouslyHidden = wallet.hideBalance;
+    const nextHidden = !previouslyHidden && previous === 'quote';
+    const next = previouslyHidden ? 'XBT' : nextHidden ? previous : nextLndDisplayUnit(previous);
+    wallet.hideBalance = nextHidden;
     wallet.setDisplayUnit(next);
     setDisplayUnit(next);
+    redraw(value => value + 1);
     try {
       await saveToDisk();
     } catch {
+      wallet.hideBalance = previouslyHidden;
       wallet.setDisplayUnit(previous);
       setDisplayUnit(previous);
+      redraw(value => value + 1);
       Alert.alert('Unit not saved', 'Could not save your display preference. Please try again.');
     } finally {
       unitSaving.current = false;
@@ -330,11 +336,10 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Change wallet display unit"
-          accessibilityHint="Cycles XBT, sats and the exchange-rate estimate for this wallet."
+          accessibilityHint="Cycles XBT, sats, the exchange-rate estimate, and hidden amounts. Tap hidden amounts to show XBT again."
           accessibilityValue={{
-            text: displayUnit === 'quote' ? (xbtPriceQuote?.currency ?? 'Fiat') : displayUnit,
+            text: wallet.hideBalance ? 'Amounts hidden' : displayUnit === 'quote' ? (xbtPriceQuote?.currency ?? 'Fiat') : displayUnit,
           }}
-          disabled={wallet.hideBalance}
           onPress={changeDisplayUnit}
         >
           <Text testID="LndWalletBalance" style={styles.balance} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>

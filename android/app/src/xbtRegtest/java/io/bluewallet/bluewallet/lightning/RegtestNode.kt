@@ -173,8 +173,9 @@ internal object RegtestNode {
             "Peer connected."
         }
         "open" -> {
-            requireSynced()
             val amount = sats.toLong()
+            require(amount <= LightningAmounts.MAX_CHANNEL_OPEN_SATS) { "New channels can be opened with up to 10,000,000 sats. Resize an existing channel separately." }
+            requireSynced()
             val fee = if (hash.isEmpty()) 1L else hash.toLong()
             require(LightningAmounts.validFeeRate(fee))
             require(publicKey.matches(value) && LightningAmounts.valid(amount))

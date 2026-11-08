@@ -35,10 +35,17 @@ rejection, confirmation/lock progress, capacity changes, backup and the existing
 payment/withdrawal/recovery flow. They must pass before release; writing these
 tests does not establish physical-device or uninterrupted background operation.
 
-Channel opening also accepts an explicit amount and funding fee rate; both are
-shown in the confirmation. Invoice creation, decoding/payment and withdrawals
+New channel openings accept an explicit amount up to **10,000,000 sats** and a
+funding fee rate; both are shown in the confirmation. The opening cap is enforced
+in the UI and both native bridges, and does not cap subsequent channel resizing. Invoice creation, decoding/payment and withdrawals
 share the same monetary-domain validation without the former 1,000,000-sat cap.
 Routing fees remain an explicit reviewed budget, editable without the former
 fixed 10-sat ceiling (including zero for a fee-free route). A running node needs
 an app restart to load the updated large-channel configuration. The other peer
 must also support the requested channel size.
+
+Tapping the Lightning wallet balance cycles XBT → sats → quote currency (NeoxEX
+USDC) → hidden amounts → XBT. Hidden mode persists with the wallet's existing
+hide-balance preference and masks balances, the funding/channel breakdown,
+fiat estimate and activity amounts on the wallet home and its main-menu card.
+Payment entry and confirmation still use explicit amounts in sats.

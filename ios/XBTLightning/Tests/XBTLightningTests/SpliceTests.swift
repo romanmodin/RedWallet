@@ -3,6 +3,14 @@ import XCTest
 
 final class SpliceTests: XCTestCase {
     private let point = String(repeating: "a", count: 64) + ":0"
+    func testOpeningAboveTenMillionIsRejectedBeforeAnyNodeCall() async {
+        do {
+            _ = try await RegtestNode.shared.openChannel(to: "02" + String(repeating: "a", count: 64), sats: 10_000_001)
+            XCTFail("Opening above the requested cap must not reach LND")
+        } catch NodeFailure.channelOpeningLimit {
+            // The cap is enforced natively even when called without the React form.
+        } catch { XCTFail("Expected the opening cap error, got \(error)") }
+    }
     private func estimate(removing: Bool = false) -> Data {
         var data = Data()
         let pairs: [(UInt64, UInt64)] = [(1, 500), (3, 2), (4, 20_000), (11, 120_000), (12, 100_000), (13, 6)]

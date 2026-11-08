@@ -25,7 +25,7 @@ import XBTLightningNetwork from '../../components/XBTLightningNetwork';
 import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
-import { validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
+import { validLightningChannelOpenSats, validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
 
 const bridge = NativeModules.XBTLightningBridge;
 type Channel = {
@@ -613,7 +613,7 @@ export default function XBTLightning({
                   })
                 }
               />
-              <SettingsFootnote>CHANNEL AMOUNT (SATS)</SettingsFootnote>
+              <SettingsFootnote>CHANNEL AMOUNT (SATS) · MAX 10,000,000</SettingsFootnote>
               <TextInput
                 accessibilityLabel="New channel sats"
                 style={[styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }]}
@@ -633,7 +633,7 @@ export default function XBTLightning({
               />
               <SettingsListItem
                 title="Open private channel"
-                disabled={busy || !lightningPeer || !validLightningSats(channelSats) || !validLightningFeeRate(channelFeeRate)}
+                disabled={busy || !lightningPeer || !validLightningChannelOpenSats(channelSats) || !validLightningFeeRate(channelFeeRate)}
                 onPress={() => {
                   const key = lightningPeer.trim().split('@')[0];
                   const sats = channelSats,

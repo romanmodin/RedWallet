@@ -43,6 +43,11 @@ class LightningDeviceTest {
         node("start","127.0.0.1")
         waitFor { node("status") == "Needs setup" }
     }
+    @Test fun openingCapIsEnforcedBeforeNodeCalls() {
+        val rejected = runCatching { RegtestNode.invoice("open", "02" + "a".repeat(64), "1", "10000001") }
+        assertTrue(rejected.isFailure)
+        assertTrue(rejected.exceptionOrNull()?.message.orEmpty().contains("10,000,000 sats"))
+    }
     @Test fun payments() {
         assertFalse(MainnetConfiguration.live)
         start()

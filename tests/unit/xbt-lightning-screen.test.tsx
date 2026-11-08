@@ -601,19 +601,25 @@ test('channel creation binds the chosen large amount and fee to confirmation', a
     await act(async () => {});
     bridge.invoice.mockClear();
     fireEvent.changeText(screen.getByLabelText('Lightning peer'), 'peer@host:9735');
-    fireEvent.changeText(screen.getByLabelText('New channel sats'), '44000000');
+    for (const amount of ['10000001', '44000000']) {
+      fireEvent.changeText(screen.getByLabelText('New channel sats'), amount);
+      fireEvent.press(screen.getByText('Open private channel'));
+    }
+    expect(prompt).not.toHaveBeenCalled();
+    expect(bridge.invoice).not.toHaveBeenCalled();
+    fireEvent.changeText(screen.getByLabelText('New channel sats'), '10000000');
     fireEvent.changeText(screen.getByLabelText('New channel fee rate'), '250');
     fireEvent.press(screen.getByText('Open private channel'));
     expect(bridge.invoice).not.toHaveBeenCalled();
     const [, detail, buttons] = prompt.mock.calls[prompt.mock.calls.length - 1];
-    expect(detail).toContain('44000000 sats at 250 sat/vB');
+    expect(detail).toContain('10000000 sats at 250 sat/vB');
     fireEvent.changeText(screen.getByLabelText('New channel sats'), '50000000');
     const confirm = buttons!.find(button => button.text === 'Open channel')!.onPress!;
     await act(async () => {
       confirm();
       confirm();
     });
-    expect(bridge.invoice.mock.calls).toEqual([['open', 'peer', '250', '44000000']]);
+    expect(bridge.invoice.mock.calls).toEqual([['open', 'peer', '250', '10000000']]);
     screen.unmount();
   } finally {
     prompt.mockRestore();

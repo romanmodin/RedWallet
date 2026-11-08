@@ -108,7 +108,7 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(sameNextFunding, nextFunding)
         try await RegtestNode.shared.connect(to: peerKey + "@127.0.0.1:19735")
         try await waitForFixtureSync("funding confirmed; opening channel")
-        var point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 20_000_000, feeRate: 125)
+        var point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 10_000_000, feeRate: 125)
         let opening = try await RegtestNode.shared.channelStatus()
         XCTAssertEqual(opening.first(where: { $0.point == point })?.state, "pending")
         _ = try await peer("confirm", point)
