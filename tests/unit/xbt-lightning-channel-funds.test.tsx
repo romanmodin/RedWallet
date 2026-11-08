@@ -32,6 +32,7 @@ function screen(status = 'ok') {
       splice={{ ...ready, status }}
       busy={false}
       run={run}
+      runAuthorized={run}
       report={report}
       onUpdated={onUpdated}
     />,
@@ -107,7 +108,13 @@ test('a failed confirmation is not retried automatically', async () => {
 });
 
 test.each(['in', 'out'])('large %s resize reviews the exact amount and fee without broadcasting', async direction => {
-  bridge.splice.mockResolvedValue({ ...review(direction), sats: '44000000', feeRate: '250', capacity: '45000000', local: '44000000' });
+  bridge.splice.mockResolvedValue({
+    ...review(direction),
+    sats: '44000000',
+    feeRate: '250',
+    capacity: '45000000',
+    local: '44000000',
+  });
   const s = screen();
   fireEvent.press(s.getByText(direction === 'in' ? 'Add funds' : 'Remove funds'));
   fireEvent.changeText(s.getByLabelText('Channel resize sats'), '44000000');

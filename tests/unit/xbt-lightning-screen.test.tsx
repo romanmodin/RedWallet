@@ -3,6 +3,18 @@ import React from 'react';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { Alert, AppState, NativeModules } from 'react-native';
 
+const mockAuthorize = jest.fn(async () => true);
+const mockAuthorizeExport = jest.fn(async () => true);
+jest.mock('../../hooks/usePaymentAuthorization', () => ({
+  usePaymentAuthorization: () => mockAuthorize,
+}));
+jest.mock('../../hooks/useSecretExport', () => ({
+  useSecretExport: () => mockAuthorizeExport,
+}));
+beforeEach(() => {
+  mockAuthorize.mockReset().mockResolvedValue(true);
+  mockAuthorizeExport.mockReset().mockResolvedValue(true);
+});
 const mockNavigation = { navigate: jest.fn() };
 jest.mock('../../hooks/useExtendedNavigation', () => ({
   useExtendedNavigation: () => mockNavigation,
@@ -555,8 +567,22 @@ test('switching channels clears resize inputs and reviews instead of retargeting
   const splice = jest.fn();
   NativeModules.XBTLightningBridge.splice = splice;
   bridge.manage.mockResolvedValueOnce([
-    { point: 'resize-a:0', peer: 'peer', state: 'active', active: true, localSats: '1000', splice: { status: 'ok' } },
-    { point: 'resize-b:0', peer: 'peer', state: 'active', active: true, localSats: '2000', splice: { status: 'ok' } },
+    {
+      point: 'resize-a:0',
+      peer: 'peer',
+      state: 'active',
+      active: true,
+      localSats: '1000',
+      splice: { status: 'ok' },
+    },
+    {
+      point: 'resize-b:0',
+      peer: 'peer',
+      state: 'active',
+      active: true,
+      localSats: '2000',
+      splice: { status: 'ok' },
+    },
   ]);
   const screen = render(<XBTLightning />);
   try {
@@ -650,5 +676,122 @@ test('editable routing fee is confirmed with the invoice and cannot change after
   } finally {
     prompt.mockRestore();
     delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+  }
+});
+
+test.each(['pay', 'withdraw', 'open', 'close'])('declined authentication prevents %s submission', async operation => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const previousManage = bridge.manage.getMockImplementation();
+  const previousInvoice = bridge.invoice.getMockImplementation();
+  bridge.run.mockResolvedValue('Running');
+  bridge.manage.mockImplementation(async action =>
+    action === 'channelStatus'
+      ? [
+          {
+            point: 'auth-channel:0',
+            peer: 'auth-peer',
+            state: 'active',
+            active: true,
+            localSats: '100000',
+          },
+        ]
+      : action === 'withdrawReview'
+        ? {
+            token: 'auth-token',
+            address: 'bc1q-fixture',
+            sats: '1000',
+            feeRate: '1',
+          }
+        : 'txid',
+  );
+  bridge.invoice.mockImplementation(async action => (action === 'decode' ? { sats: '500', destination: 'peer', hash: 'auth-hash' } : true));
+  const s = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    mockAuthorize.mockResolvedValue(false);
+    if (operation === 'pay') {
+      fireEvent.changeText(s.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+      await act(async () => fireEvent.press(s.getByText('Review invoice')));
+      fireEvent.press(s.getByText('Pay 500 sats'));
+    } else if (operation === 'withdraw') {
+      fireEvent.changeText(s.getByLabelText('Withdrawal address'), 'bc1q-fixture');
+      fireEvent.changeText(s.getByLabelText('Withdrawal sats'), '1000');
+      await act(async () => fireEvent.press(s.getByText('Review withdrawal')));
+      fireEvent.press(s.getByText('Withdraw 1000 sats'));
+    } else if (operation === 'open') {
+      fireEvent.changeText(s.getByLabelText('Lightning peer'), 'peer@host:9735');
+      fireEvent.press(s.getByText('Open private channel'));
+    } else {
+      fireEvent.press(s.getByTestId('SelectChannel-auth-channel:0'));
+      fireEvent.press(s.getByText('Close channel · 100000 local sats'));
+    }
+    bridge.invoice.mockClear();
+    bridge.manage.mockClear();
+    const buttons = alert.mock.calls.at(-1)![2]!;
+    const approve = buttons.find(
+      button =>
+        button.text ===
+        {
+          pay: 'Pay',
+          withdraw: 'Withdraw',
+          open: 'Open channel',
+          close: 'Close channel',
+        }[operation],
+    )!.onPress!;
+    await act(async () => {
+      approve();
+      approve();
+    });
+    expect(mockAuthorize).toHaveBeenCalledTimes(1);
+    expect(bridge.invoice).not.toHaveBeenCalled();
+    expect(bridge.manage.mock.calls.some(call => call[0] === 'withdraw' || call[0] === 'close')).toBe(false);
+    expect(s.getByText('Action canceled. Nothing was submitted.')).toBeTruthy();
+  } finally {
+    s.unmount();
+    alert.mockRestore();
+    bridge.manage.mockImplementation(previousManage!);
+    bridge.invoice.mockImplementation(previousInvoice!);
+  }
+});
+
+test('backup export uses secret reauthentication and a declined prompt never reaches native export', async () => {
+  const s = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    bridge.run.mockClear();
+    mockAuthorizeExport.mockResolvedValue(false);
+    await act(async () => fireEvent.press(s.getByText('Export static channel backup')));
+    expect(mockAuthorizeExport).toHaveBeenCalledTimes(1);
+    expect(mockAuthorize).not.toHaveBeenCalled();
+    expect(bridge.run).not.toHaveBeenCalled();
+  } finally {
+    s.unmount();
+  }
+});
+
+test('authentication resolving after the screen is dismissed cannot submit a payment', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  let finish!: (value: boolean) => void;
+  mockAuthorize.mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  const s = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    fireEvent.changeText(s.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+    await act(async () => fireEvent.press(s.getByText('Review invoice')));
+    fireEvent.press(s.getByText('Pay 500 sats'));
+    bridge.invoice.mockClear();
+    await act(async () => {
+      alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Pay')!.onPress!();
+    });
+    s.unmount();
+    await act(async () => finish(true));
+    expect(bridge.invoice).not.toHaveBeenCalled();
+  } finally {
+    alert.mockRestore();
   }
 });

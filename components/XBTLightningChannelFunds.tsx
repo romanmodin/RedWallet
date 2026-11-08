@@ -29,6 +29,7 @@ type Props = {
   splice?: Splice;
   busy: boolean;
   run: (title: string, action: () => Promise<void>) => Promise<void>;
+  runAuthorized: (title: string, action: () => Promise<void>) => Promise<void>;
   report: (message: string) => void;
   onUpdated: () => void;
 };
@@ -44,7 +45,7 @@ const reasons: Record<string, string> = {
   peer_not_locked: 'Waiting for the peer to lock the previous resize.',
 };
 
-export default function XBTLightningChannelFunds({ point, active, splice, busy, run, report, onUpdated }: Props) {
+export default function XBTLightningChannelFunds({ point, active, splice, busy, run, runAuthorized, report, onUpdated }: Props) {
   const { colors } = useTheme();
   const [direction, setDirection] = useState<'in' | 'out'>();
   const [sats, setSats] = useState('');
@@ -62,9 +63,10 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
   const confirm = () => {
     if (!review || review.key !== current.current || !available || busy || submitted.current.has(review.item.token)) return;
     const item = review.item;
-    submitted.current.add(item.token);
-    setReview(undefined);
-    run(item.direction === 'in' ? 'Add channel funds' : 'Remove channel funds', async () => {
+    runAuthorized(item.direction === 'in' ? 'Add channel funds' : 'Remove channel funds', async () => {
+      if (review.key !== current.current || submitted.current.has(item.token)) return;
+      submitted.current.add(item.token);
+      setReview(undefined);
       try {
         const result = await NativeModules.XBTLightningBridge.splice('confirm', item.token);
         report(result);

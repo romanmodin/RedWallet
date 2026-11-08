@@ -40,7 +40,11 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const unitSaving = useRef(false);
   const formatAmount = (sats: number | string) => formatLndAmount(sats, displayUnit, xbtPriceQuote);
   const exactAmount = (sats: string) =>
-    displayUnit === 'sats' ? formatAmount(sats) : formatAmount(sats) + ' (' + formatLndAmount(sats, 'sats') + ')';
+    wallet.hideBalance
+      ? '••••'
+      : displayUnit === 'sats'
+        ? formatAmount(sats)
+        : formatAmount(sats) + ' (' + formatLndAmount(sats, 'sats') + ')';
   const changeDisplayUnit = async () => {
     if (unitSaving.current) return;
     unitSaving.current = true;
@@ -53,7 +57,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
     setDisplayUnit(next);
     redraw(value => value + 1);
     try {
-      await saveToDisk();
+      // Privacy changes need the strict storage path so failures reach this rollback.
+      await saveToDisk(false, true);
     } catch {
       wallet.hideBalance = previouslyHidden;
       wallet.setDisplayUnit(previous);
@@ -222,7 +227,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       (row.confirmations !== undefined ? row.confirmations + ' confirmations\nTransaction: ' : 'Payment hash: ') +
       row.id +
       (row.direction === 'received' && row.confirmations === undefined ? '\nThe sender’s identity is not supplied by Lightning.' : '') +
-      (row.memo ? '\n' + row.memo : '');
+      (!wallet.hideBalance && row.memo ? '\n' + row.memo : '');
     const canCancel = row.direction === 'received' && row.confirmations === undefined && row.state === 'unpaid';
     Alert.alert(tab === 'funding' ? 'On-chain funding' : 'Lightning payment', text, [
       ...(canCancel
@@ -292,7 +297,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           {item.confirmations !== undefined ? ' · ' + item.confirmations + ' confirmations' : ''} ·{' '}
           {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
         </Text>
-        {!!item.memo && (
+        {!wallet.hideBalance && !!item.memo && (
           <Text numberOfLines={1} style={{ color: colors.alternativeTextColor }}>
             {item.memo}
           </Text>

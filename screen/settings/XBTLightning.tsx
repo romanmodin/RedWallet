@@ -21,6 +21,8 @@ import {
 } from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
+import { usePaymentAuthorization } from '../../hooks/usePaymentAuthorization';
+import { useSecretExport } from '../../hooks/useSecretExport';
 import XBTLightningNetwork from '../../components/XBTLightningNetwork';
 import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
@@ -126,6 +128,8 @@ export default function XBTLightning({
   route?: { params?: { mode?: 'pay' | 'invoice' | 'send' | 'receive' } };
 } = {}) {
   const navigation = useExtendedNavigation();
+  const authorizePayment = usePaymentAuthorization();
+  const authorizeExport = useSecretExport();
   const mode = route?.params?.mode;
   const tools = !mode;
   const { colors, dark } = useTheme();
@@ -226,6 +230,18 @@ export default function XBTLightning({
       if (mounted.current) setBusy(false);
     }
   };
+  const runAuthorized = (title: string, action: () => Promise<void>, exporting = false) =>
+    run(title, async () => {
+      // A dismissed screen or a backgrounded app cannot submit from a stale alert.
+      if (!mounted.current || ['background', 'inactive'].includes(AppState.currentState)) return;
+      const authorized = await (exporting ? authorizeExport() : authorizePayment());
+      if (!authorized || !mounted.current || ['background', 'inactive'].includes(AppState.currentState)) {
+        if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
+        return;
+      }
+      await action();
+    });
+  const runExport = (title: string, action: () => Promise<void>) => runAuthorized(title, action, true);
   const node = (action: string) =>
     run(action === 'start' ? 'Starting node' : action === 'setup' ? 'Setting up wallet' : 'Node status', async () => {
       try {
@@ -314,7 +330,7 @@ export default function XBTLightning({
         {
           text: 'Pay',
           onPress: () =>
-            run('Pay invoice', async () => {
+            runAuthorized('Pay invoice', async () => {
               if (pendingPayment.current === payment.hash) return;
               pendingPayment.current = payment.hash;
               setReview(undefined);
@@ -337,7 +353,7 @@ export default function XBTLightning({
       {
         text: 'Withdraw',
         onPress: () =>
-          run('Withdraw XBT', async () => {
+          runAuthorized('Withdraw XBT', async () => {
             if (submitted.current.has(item.token)) return;
             submitted.current.add(item.token);
             setWithdrawal(undefined);
@@ -368,7 +384,7 @@ export default function XBTLightning({
         {
           text: 'Close channel',
           onPress: () =>
-            run('Close channel', async () => {
+            runAuthorized('Close channel', async () => {
               if (selection.current !== channel.point || submitted.current.has(channel.point)) return;
               submitted.current.add(channel.point);
               try {
@@ -616,7 +632,13 @@ export default function XBTLightning({
               <SettingsFootnote>CHANNEL AMOUNT (SATS) · MAX 10,000,000</SettingsFootnote>
               <TextInput
                 accessibilityLabel="New channel sats"
-                style={[styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }]}
+                style={[
+                  styles.input,
+                  {
+                    color: colors.foregroundColor,
+                    borderColor: colors.hdborderColor,
+                  },
+                ]}
                 keyboardType="number-pad"
                 value={channelSats}
                 editable={!busy}
@@ -625,7 +647,13 @@ export default function XBTLightning({
               <SettingsFootnote>FUNDING FEE RATE (SAT/VB)</SettingsFootnote>
               <TextInput
                 accessibilityLabel="New channel fee rate"
-                style={[styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }]}
+                style={[
+                  styles.input,
+                  {
+                    color: colors.foregroundColor,
+                    borderColor: colors.hdborderColor,
+                  },
+                ]}
                 keyboardType="number-pad"
                 value={channelFeeRate}
                 editable={!busy}
@@ -653,7 +681,7 @@ export default function XBTLightning({
                       {
                         text: 'Open channel',
                         onPress: () =>
-                          run('Open private channel', async () => {
+                          runAuthorized('Open private channel', async () => {
                             if (submittedOpen) return;
                             submittedOpen = true;
                             const point = await bridge.invoice('open', key, rate, sats);
@@ -762,7 +790,13 @@ export default function XBTLightning({
                   <SettingsFootnote>MAXIMUM ROUTING FEE (SATS)</SettingsFootnote>
                   <TextInput
                     accessibilityLabel="Maximum routing fee sats"
-                    style={[styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }]}
+                    style={[
+                      styles.input,
+                      {
+                        color: colors.foregroundColor,
+                        borderColor: colors.hdborderColor,
+                      },
+                    ]}
                     keyboardType="number-pad"
                     value={routingFee}
                     editable={!busy}
@@ -812,7 +846,7 @@ export default function XBTLightning({
                 title="Export static channel backup"
                 disabled={busy}
                 onPress={() =>
-                  run('Export channel backup', async () => {
+                  runExport('Export channel backup', async () => {
                     const url = await bridge.run('backup', '');
                     if (mounted.current) await exportBackup(url);
                   })
@@ -897,6 +931,7 @@ export default function XBTLightning({
                       splice={channel.splice}
                       busy={busy}
                       run={run}
+                      runAuthorized={runAuthorized}
                       report={setMessage}
                       onUpdated={() => {
                         refreshChannels().catch(() => {});
@@ -1061,7 +1096,7 @@ export default function XBTLightning({
               title="Export encrypted Lightning recovery file"
               disabled={busy || phrase.length < 12}
               onPress={() =>
-                run('Export recovery file', async () => {
+                runExport('Export recovery file', async () => {
                   const password = phrase;
                   setPhrase('');
                   const url = await bridge.recovery('export', password, '');
