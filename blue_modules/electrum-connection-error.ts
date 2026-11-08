@@ -1,3 +1,5 @@
+import loc from '../loc';
+
 export type ElectrumConnectionFailure = 'certificate' | 'timeout' | 'checkpoint' | 'connection';
 export type ElectrumConnectionResult = { ok: true } | { ok: false; reason: ElectrumConnectionFailure };
 
@@ -30,7 +32,7 @@ export function electrumConnectionFailureMessage(reason: ElectrumConnectionFailu
         : 'The connection timed out. Check the server hostname, port, and network connection.';
     default:
       return onion
-        ? 'Could not connect to the onion server. Check Tor, the hostname, and the port.'
+        ? loc.settings.electrum_error_connect_tor
         : useTls
           ? 'Could not establish a verified SSL connection to this Electrum server. Check the hostname and TLS port. The operator must provide a trusted, valid certificate matching the hostname.'
           : 'Could not connect to this Electrum server. Check the hostname, TCP port, and network connection.';

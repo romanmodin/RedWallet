@@ -105,7 +105,10 @@ test.each(['certificate', 'checkpoint', 'timeout', 'connection'])(
     await act(async () => fireEvent.press(screen.getByTestId('Save')));
     expect(BlueElectrum.testConnectionDetailed).toHaveBeenCalledWith('fulcrum.kilombino.com', 0, 17717, '');
     expect(screen.getByTestId('SSLPortInput').props.value).toBe(true);
-    expect(presentAlert).toHaveBeenCalledWith({ message: expect.stringContaining('Your saved server has not been changed.') });
+    expect(presentAlert).toHaveBeenCalledWith({
+      title: 'Connection not saved',
+      message: expect.stringContaining('Your saved server has not been changed.'),
+    });
     expect(BlueElectrum.forceDisconnect).not.toHaveBeenCalled();
     expect(DefaultPreference.set).not.toHaveBeenCalled();
     expect(DefaultPreference.clear).not.toHaveBeenCalled();

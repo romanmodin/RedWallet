@@ -231,6 +231,7 @@ const ElectrumSettings: React.FC = () => {
           const testConnect = await BlueElectrum.testConnectionDetailed(serverHost, Number(serverPort), Number(serverSslPort), serverTlsCa);
           if (!testConnect.ok) {
             return presentAlert({
+              title: 'Connection not saved',
               message: `${electrumConnectionFailureMessage(testConnect.reason, !!serverSslPort, serverHost.endsWith('.onion'))} Your saved server has not been changed.`,
             });
           }

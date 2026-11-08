@@ -299,7 +299,6 @@
     "network": "Network",
     "network_broadcast": "Broadcast Transaction",
     "network_electrum": "Electrum Server",
-    "electrum_suggested_description": "When a preferred server is not set, a suggested server will be selected for use at random.",
     "notifications": "Notifications",
     "open_link_in_explorer": "Open link in explorer",
     "password": "Password",
