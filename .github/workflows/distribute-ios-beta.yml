@@ -1,4 +1,4 @@
-name: Assign verified public XBT Lightning internal iOS beta
+name: Assign verified BTC and XBT Lightning internal iOS beta
 "on":
   pull_request:
     paths:
@@ -11,10 +11,10 @@ name: Assign verified public XBT Lightning internal iOS beta
   workflow_dispatch:
     inputs:
       upload_run_id:
-        description: Verified embedded public XBT Lightning upload for build 1794074378
+        description: Verified BTC and XBT Lightning upload for build 1794240335
         required: true
         type: string
-        default: "42398614127"
+        default: "42650009322"
 permissions:
   contents: read
   actions: read
