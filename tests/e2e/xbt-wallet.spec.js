@@ -217,7 +217,7 @@ describe('RedWallet XBT-only release UI', () => {
       .scroll(250, 'down');
     await element(by.id('SaveXbtPrice')).tap();
     await waitForId('XbtPriceStatus');
-    await expect(element(by.id('XbtPriceStatus'))).toHaveText('Saved');
+    await expect(element(by.id('XbtPriceStatus'))).toHaveText('SAVED');
 
     await device.launchApp({ newInstance: true });
     await waitForWalletsList();
