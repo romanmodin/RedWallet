@@ -65,3 +65,38 @@ creation, restart, receive QR and BTC-denomination assertions have now been adde
 to the shared iOS/Android wallet suite; their native execution is pending.
 No real payment or TestFlight upload was performed for this change. Existing security/native release blockers from the base branch
 remain applicable.
+
+## Isolated Bitcoin consensus check
+
+The unit CI job also runs tests/integration/btc-sha256-send.test.ts against a
+checksum-pinned Bitcoin Core 29.0 binary and a new, loopback-only regtest node.
+It mines disposable test coins, signs with the production BTC wallet, checks the
+recipient and fee against real node acceptance, rejects an altered signed amount,
+broadcasts the exact reviewed bytes once, and checks two confirmations. The
+node is stopped and its temporary wallet directory removed afterward.
+
+To run locally, set REDWALLET_BTC_REGTEST_BITCOIND to a Bitcoin Core executable
+and run Jest on that file. Without the explicit executable the test is skipped;
+CI supplies the verified executable. The generated receipt includes binary and
+test hashes, amount, fee, transaction ID, confirmations and cleanup status.
+
+This is a real consensus/signing test. Its transport is local node RPC and its
+wallet parent-cache fixture is supplied from the actual funding transaction;
+it does not qualify the native Electrum connection or a mainnet funded send.
+
+## Native Android smoke evidence
+
+The APK built from 1ca56d5441c7ce5d74f20482706a118ad5c84478 in Actions
+run 42540303970 was installed in a new API 36 x86_64 emulator. APK SHA-256:
+91d25149c0cc6ff68bbc05c3f6caf8127838cdb0c828533e8b52d1e40949a747.
+
+The actual native app created a blue BTC wallet, reached BTC CONNECTED through
+the normal public TLS/checkpoint path, displayed a receive QR, retained the same
+address after a process restart, and displayed BTC in the send form. The actual
+TCP connection to port 50002 closed both on app backgrounding and on leaving
+wallet routes for global settings. The fresh test wallet data was cleared and
+the emulator stopped afterward. No real funds were moved.
+
+This positive smoke is separate from the still-running full native CI suites;
+it does not replace negative-certificate tests, physical-device qualification,
+iOS verification, or a funded payment through the native UI.
