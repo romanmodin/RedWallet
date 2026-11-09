@@ -19,3 +19,6 @@ The pinned dashboard now clears the native toolbar and status bar.
 
 - Confirmed Lightning payments show a green PAYMENT SUCCEEDED receipt with amount and payment reference. Already-paid invoices are identified without sending again. Receipt details and copying respect hidden balances.
 - Definite failures and validation refusals have clear headings and available safe reasons. Pending, unknown, and unavailable status reads remain distinct; uncertain replies never trigger an automatic resend.
+
+- Tap the main Wallets total to cycle XBT, sats, your price estimate and hidden stars. Hiding keeps a tappable mask so the amount can be shown again; General > Total Balance still controls the whole section. Hidden totals also hide the separate BTC subtotal and price estimate.
+- Sent transaction amounts use red with a minus sign; settled incoming amounts remain green.
