@@ -30,11 +30,17 @@ import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds'
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
 import { validLightningChannelOpenSats, validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
+import { LndPaymentTracker, LndPaymentOutcome, lndPaymentMessage } from '../../blue_modules/lnd-payment-status';
 
 const bridge = NativeModules.XBTLightningBridge;
 // These fixed outcomes contain no wallet amounts. Keep them visible after a
 // submission; opaque native results and errors require revealing the balance.
 const publicActivityOutcomes = new Set([
+  ...(['pending', 'not_found', 'unknown', 'not_submitted'] as const).map(state => lndPaymentMessage({ state })),
+  ...['not_synced', 'invalid_invoice', 'invalid_review', 'canceled', 'history_unavailable'].map(reason =>
+    lndPaymentMessage({ state: 'not_submitted', reason }),
+  ),
+  lndPaymentMessage({ state: 'settled', alreadyPaid: true }),
   'Payment settled.',
   'Payment failed. Check channel balance and routing.',
   'Action canceled. Nothing was submitted.',
@@ -205,7 +211,16 @@ export default function XBTLightning({
   const validFeeRate = validLightningFeeRate(feeRate);
   const pending = useRef(false);
   const mounted = useRef(false);
-  const pendingPayment = useRef<string | undefined>(undefined);
+  const [paymentTracker] = useState(
+    () =>
+      new LndPaymentTracker(cursor => {
+        // iPhone exposes wallet pages; Android exposes the same read-only page
+        // through its existing invoice bridge.
+        return bridge.wallet ? bridge.wallet('payments', cursor) : bridge.invoice('paymentHistory', cursor, '', '');
+      }),
+  );
+  const [paymentAttempt, setPaymentAttempt] = useState<{ hash: string; outcome: LndPaymentOutcome }>();
+  const paymentStatusVisible = useRef(false);
   const refreshChannels = useCallback((): Promise<Channel[]> => {
     if (channelRequest.current) return channelRequest.current;
     const request = Promise.resolve()
@@ -235,6 +250,7 @@ export default function XBTLightning({
     pending.current = true;
     setBusy(true);
     setActivityTitle(title);
+    paymentStatusVisible.current = title === 'Pay invoice' || title === 'Payment status';
     setActivityError(false);
     setCopied(false);
     setMessage('');
@@ -348,6 +364,43 @@ export default function XBTLightning({
       subscription.remove();
     };
   }, [status, refreshChannels]);
+  const trackedPaymentHash = paymentAttempt?.hash;
+  const trackedPaymentState = paymentAttempt?.outcome.state;
+  useEffect(() => {
+    if (!trackedPaymentHash || !trackedPaymentState || !['pending', 'unknown'].includes(trackedPaymentState)) return;
+    let active = true;
+    let checking = false;
+    const hash = trackedPaymentHash;
+    const refresh = async () => {
+      if (
+        !active ||
+        checking ||
+        pending.current ||
+        !paymentStatusVisible.current ||
+        ['background', 'inactive'].includes(AppState.currentState)
+      )
+        return;
+      checking = true;
+      try {
+        const state = await paymentTracker.status(hash);
+        if (active && mounted.current && paymentStatusVisible.current && !pending.current) {
+          const outcome = { state };
+          setPaymentAttempt({ hash, outcome });
+          setMessage(lndPaymentMessage(outcome));
+          setActivityError(state === 'unknown');
+        }
+      } catch {
+        // An unavailable read cannot release an unresolved payment's guard.
+      } finally {
+        checking = false;
+      }
+    };
+    const timer = setInterval(refresh, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [trackedPaymentHash, trackedPaymentState, paymentTracker]);
   const confirm = (payment: Review) =>
     Alert.alert(
       'Pay invoice?',
@@ -358,17 +411,22 @@ export default function XBTLightning({
           text: 'Pay',
           onPress: () =>
             runAuthorized('Pay invoice', async () => {
-              if (pendingPayment.current === payment.hash) return;
-              pendingPayment.current = payment.hash;
               setReview(undefined);
-              try {
-                const settled = bridge.payInvoice
-                  ? await bridge.payInvoice(payment.invoice, payment.hash, payment.sats, payment.feeLimit)
-                  : await bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
-                if (!settled) pendingPayment.current = undefined;
-                if (mounted.current) setMessage(settled ? 'Payment settled.' : 'Payment failed. Check channel balance and routing.');
-              } catch {
-                if (mounted.current) setMessage('Payment outcome unknown. Check the node payment history before trying again.');
+              setPaymentAttempt({ hash: payment.hash, outcome: { state: 'pending' } });
+              const outcome = await paymentTracker.submit(payment.hash, async () => {
+                // Status lookup can finish after authentication or navigation changes.
+                if (!mounted.current || ['background', 'inactive'].includes(AppState.currentState)) {
+                  throw Object.assign(new Error('Payment canceled before submission.'), { code: 'payment_not_submitted_canceled' });
+                }
+                return bridge.payInvoice
+                  ? bridge.payInvoice(payment.invoice, payment.hash, payment.sats, payment.feeLimit)
+                  : bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
+              });
+              if (mounted.current) {
+                setPaymentAttempt({ hash: payment.hash, outcome });
+                setMessage(lndPaymentMessage(outcome));
+                setActivityError(['unknown', 'not_submitted', 'failed'].includes(outcome.state));
+                if (outcome.state === 'settled') setOutgoing('');
               }
             }),
         },
@@ -784,6 +842,8 @@ export default function XBTLightning({
                         return;
                       }
                       setReview(undefined);
+                      setPaymentAttempt(undefined);
+                      paymentStatusVisible.current = false;
                       setOutgoing(invoice.toLowerCase());
                       setActivityTitle('Invoice scanned');
                       setActivityError(false);
@@ -809,6 +869,8 @@ export default function XBTLightning({
                 value={outgoing}
                 onChangeText={value => {
                   setReview(undefined);
+                  setPaymentAttempt(undefined);
+                  paymentStatusVisible.current = false;
                   setOutgoing(value);
                 }}
                 editable={!busy}
@@ -842,20 +904,50 @@ export default function XBTLightning({
                   run('Review invoice', async () => {
                     const invoice = outgoing.trim();
                     const decoded = await bridge.invoice('decode', invoice, '', '');
-                    if (mounted.current) {
-                      setReview({ ...decoded, invoice, feeLimit: routingFee });
-                      setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
+                    if (!mounted.current) return;
+                    try {
+                      const state = await paymentTracker.status(decoded.hash);
+                      if (!mounted.current) return;
+                      if (state === 'settled' || state === 'pending' || state === 'unknown') {
+                        const outcome: LndPaymentOutcome = { state, alreadyPaid: state === 'settled' };
+                        setReview(undefined);
+                        setPaymentAttempt({ hash: decoded.hash, outcome });
+                        paymentStatusVisible.current = true;
+                        setMessage(lndPaymentMessage(outcome));
+                      } else {
+                        setReview({ ...decoded, invoice, feeLimit: routingFee });
+                        setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
+                      }
+                    } catch {
+                      if (mounted.current) {
+                        setReview(undefined);
+                        setPaymentAttempt({ hash: decoded.hash, outcome: { state: 'unknown' } });
+                        paymentStatusVisible.current = true;
+                        setMessage(lndPaymentMessage({ state: 'not_submitted', reason: 'history_unavailable' }));
+                        setActivityError(true);
+                      }
                     }
                   })
                 }
               />
-              {review && (
+              {paymentAttempt && (
                 <SettingsListItem
-                  title={'Pay ' + review.sats + ' sats'}
-                  disabled={busy || pendingPayment.current === review.hash}
-                  onPress={() => confirm(review)}
+                  title="Check payment status"
+                  disabled={busy}
+                  onPress={() =>
+                    run('Payment status', async () => {
+                      const state = await paymentTracker.status(paymentAttempt.hash);
+                      if (mounted.current) {
+                        const outcome = { state };
+                        setPaymentAttempt({ hash: paymentAttempt.hash, outcome });
+                        setMessage(lndPaymentMessage(outcome));
+                        setActivityError(state === 'unknown');
+                      }
+                    })
+                  }
                 />
               )}
+              {review && <SettingsListItem title={'Pay ' + review.sats + ' sats'} disabled={busy} onPress={() => confirm(review)} />}
             </>
           )}
           {tools && (

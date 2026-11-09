@@ -90,12 +90,33 @@ private final class PaymentResult: NSObject, LndmobileRecvStreamProtocol {
     }
 }
 
+public enum PaymentSubmissionFailure: String, LocalizedError {
+    case notSynced = "not_synced", invalidInvoice = "invalid_invoice", invalidReview = "invalid_review", unavailable
+    public var code: String { "payment_not_submitted_" + rawValue }
+    public var errorDescription: String? {
+        switch self {
+        case .notSynced: return "Payment not submitted. Wait for the XBT chain to finish syncing."
+        case .invalidInvoice: return "Payment not submitted. The node could not validate the XBT Lightning invoice."
+        case .invalidReview: return "Payment not submitted. The invoice, amount or fee does not match the review."
+        case .unavailable: return "Payment not submitted. The node could not verify its readiness."
+        }
+    }
+}
+
 extension RegtestNode {
     // Bind the confirmation to the invoice the user actually reviewed.
     public func pay(invoice: String, expectedHash: String, expectedSats: UInt64, feeLimit: UInt64 = 10) async throws -> Bool {
-        try await requireSynced()
-        let decoded = try await decode(invoice)
-        guard decoded.hash == expectedHash, decoded.sats == expectedSats, LightningAmounts.valid(feeLimit, allowZero: true) else { throw NodeFailure.invalidReply }
+        do { try await requireSynced() }
+        catch NodeFailure.notSynced { throw PaymentSubmissionFailure.notSynced }
+        catch { throw PaymentSubmissionFailure.unavailable }
+        let decoded: (sats: UInt64, destination: String, hash: String)
+        do { decoded = try await decode(invoice) }
+        catch { throw PaymentSubmissionFailure.invalidInvoice }
+        guard decoded.hash == expectedHash, decoded.sats == expectedSats, LightningAmounts.valid(feeLimit, allowZero: true) else {
+            throw PaymentSubmissionFailure.invalidReview
+        }
+        // Only failures above this boundary establish that nothing was submitted.
+        // A send/stream error below must be reconciled with the payment database.
         let request = ProtoFields.field(5, data: Data(invoice.utf8)) + ProtoFields.field(6, integer: 30) + ProtoFields.field(7, integer: feeLimit)
         let result = try ProtoFields(await rpc { LndmobileRouterSendPaymentV2(request, PaymentResult($0)) })
         guard try result.string(1) == expectedHash else { throw NodeFailure.invalidReply }

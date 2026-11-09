@@ -118,6 +118,15 @@ class LightningDeviceTest {
         }
         assertTrue(runCatching { RegtestNode.invoice("pay",outgoing,hash,"19999") }.isFailure)
         assertEquals(true,RegtestNode.payInvoice(outgoing,hash,"20000","250"))
+        runCatching { RegtestNode.payInvoice(outgoing,hash,"20000","250") }
+        val paymentHistory = RegtestNode.invoice("paymentHistory","0","","") as com.facebook.react.bridge.ReadableMap
+        val paymentRows = requireNotNull(paymentHistory.getArray("rows"))
+        assertEquals(1,paymentRows.size())
+        assertEquals(hash,paymentRows.getMap(0)!!.getString("id"))
+        assertEquals("sent",paymentRows.getMap(0)!!.getString("direction"))
+        assertEquals("settled",paymentRows.getMap(0)!!.getString("state"))
+        assertFalse(paymentRows.getMap(0)!!.hasKey("payment_preimage"))
+
         assertEquals("settled",fixture("pay",RegtestNode.invoice("receive","","","2000") as String))
         assertTrue(node("history").contains("Settled"))
         val exported = Uri.parse(RegtestNode.recovery(ctx,"export",phrase,""))

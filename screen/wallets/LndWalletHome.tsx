@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   fundingAction: { backgroundColor: '#3A3A3C' },
   secondary: { minHeight: 54 },
   secondaryTitle: { textTransform: 'uppercase', fontSize: 15 },
-  actionTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center', color: '#FFFFFF' },
+  actionTitle: { textTransform: 'uppercase', fontSize: 20, fontWeight: '700', textAlign: 'center', color: '#FFFFFF' },
   actionSubtitle: { textTransform: 'uppercase', fontSize: 12, textAlign: 'center', marginTop: 2, color: '#FFFFFF' },
   footer: {
     position: 'absolute',

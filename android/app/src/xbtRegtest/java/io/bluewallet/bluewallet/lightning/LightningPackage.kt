@@ -16,6 +16,7 @@ class LightningBridge(private val context: ReactApplicationContext) : ReactConte
     private fun submit(promise: Promise, action: () -> Any) {
         nodeThread.execute {
             try { promise.resolve(action()) }
+            catch (e: PaymentSubmissionException) { promise.reject(e.code, e.message) }
             catch (e: Exception) { promise.reject("xbt_node_failed", if (e is IllegalStateException) e.message ?: "Node operation failed." else "Node operation failed. Check the supplied values, connection and node state.") }
         }
     }
