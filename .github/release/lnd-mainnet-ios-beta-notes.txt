@@ -5,6 +5,7 @@ BTC and XBT wallet update:
 - Settings and its submenus use centered regular-weight uppercase headings, smaller labels, and adjacent sections. Donate and Support sit together.
 - Added Dark Angel and Templar to the saved logo-tap skin cycle.
 - Wallet refresh errors that complete after leaving the wallet screen no longer cover Receive.
+- Automatic connection failures update connection status without interrupting menus or Add Wallet.
 - Lightning hidden balances and sensitive-action checks are tightened. New channels retain the 10,000,000-sat opening cap, and resize progress distinguishes local confirmations from peer lock status.
 
 Please check BTC/XBT labels, receive QR amounts, Settings menus, and the saved skins on your iPhone. Bitcoin connections use direct TLS. Tor covers the embedded Lightning paths and configured watchtowers; it does not register a watchtower, and exchange quotes still use direct HTTPS.

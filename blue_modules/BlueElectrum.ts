@@ -545,9 +545,9 @@ async function pingWithTimeout(timeoutMs: number = PING_TIMEOUT_MS): Promise<boo
 export type EnsureConnectedOptions = {
   /**
    * Show the legacy "couldn't connect" alert (Try again / Reset / Cancel) on failure.
-   * Used by initial bootstrap (`SettingsProvider` re-enabling Electrum) and the manual
-   * help alert. Off-hot-path callers (refresh, broadcast, etc.) should leave this false
-   * and surface their own UI.
+   * Used only for explicit disconnected help/retry. Startup and background callers
+   * leave this false and report connection state without a blocking modal. Other
+   * user actions surface their own screen-specific errors.
    */
   showAlertOnFailure?: boolean;
 };
