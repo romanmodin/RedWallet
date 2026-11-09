@@ -153,9 +153,10 @@ final class XBTLightningBridge: NSObject {
                     resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task {
             do {
-                guard let amount = UInt64(sats), let fee = UInt64(feeLimit) else { throw NSError(domain: "Payment", code: 1) }
+                guard let amount = UInt64(sats), let fee = UInt64(feeLimit) else { throw PaymentSubmissionFailure.invalidReview }
                 resolve(try await RegtestNode.shared.pay(invoice: invoice, expectedHash: hash, expectedSats: amount, feeLimit: fee))
-            } catch { reject("invoice_error", error.localizedDescription, nil) }
+            } catch let error as PaymentSubmissionFailure { reject(error.code, error.localizedDescription, nil) }
+            catch { reject("invoice_error", error.localizedDescription, nil) }
         }
     }
 
@@ -184,7 +185,8 @@ final class XBTLightningBridge: NSObject {
                     resolve(settled)
                 default: reject("unknown_action", "Unknown invoice operation.", nil)
                 }
-            } catch { reject("invoice_error", error.localizedDescription, nil) }
+            } catch let error as PaymentSubmissionFailure { reject(error.code, error.localizedDescription, nil) }
+            catch { reject("invoice_error", error.localizedDescription, nil) }
         }
     }
 

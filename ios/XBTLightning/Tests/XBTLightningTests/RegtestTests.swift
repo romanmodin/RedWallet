@@ -129,8 +129,24 @@ final class RegtestTests: XCTestCase {
                 return !(routes.bytes[1] ?? []).isEmpty
             } catch { return false }
         }
+        do {
+            _ = try await RegtestNode.shared.pay(invoice: outgoing, expectedHash: review.hash,
+                                                expectedSats: review.sats + 1, feeLimit: 250)
+            XCTFail("A changed review must fail before submission")
+        } catch let failure as PaymentSubmissionFailure {
+            XCTAssertEqual(failure, .invalidReview)
+        }
         let settled = try await RegtestNode.shared.pay(invoice: outgoing, expectedHash: review.hash, expectedSats: review.sats, feeLimit: 250)
         XCTAssertTrue(settled)
+        // Re-entering the same settled invoice must not create another payment.
+        // LND can reject it or return its existing outcome; its persistent payment
+        // database must still contain exactly one record for this invoice hash.
+        _ = try? await RegtestNode.shared.pay(invoice: outgoing, expectedHash: review.hash,
+                                             expectedSats: review.sats, feeLimit: 250)
+        let repeatedPage = try await RegtestNode.shared.walletActivity("payments", offset: 0)
+        let repeatedRows = repeatedPage["rows"] as? [[String: Any]] ?? []
+        XCTAssertEqual(repeatedRows.filter { $0["id"] as? String == review.hash }.count, 1)
+        XCTAssertEqual(repeatedRows.first { $0["id"] as? String == review.hash }?["state"] as? String, "settled")
         let incoming = try await RegtestNode.shared.receive(sats: 1_500_000)
         let receipt = try await peer("pay", incoming)
         XCTAssertEqual(receipt, "settled")

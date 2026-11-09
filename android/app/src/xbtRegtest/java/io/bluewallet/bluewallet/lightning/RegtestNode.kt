@@ -11,6 +11,11 @@ import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
+internal class PaymentSubmissionException(reason: String) :
+    IllegalStateException("Payment was not submitted. Check the node state and invoice before reviewing again.") {
+    val code = "payment_not_submitted_" + reason
+}
+
 internal object RegtestNode {
     private var started = false
     @Volatile private var failed = false
@@ -193,15 +198,45 @@ internal object RegtestNode {
         "decode" -> decode(value).let { fields -> Arguments.createMap().apply {
             putString("sats",fields.number(3).toString()); putString("hash",fields.string(2)); putString("destination",fields.string(1))
         } }
+        "paymentHistory" -> paymentHistory(value)
         "pay" -> payInvoice(value,hash,sats,"10")
         else -> error("Unknown invoice operation")
     }
+    private fun paymentHistory(cursor: String): com.facebook.react.bridge.WritableMap {
+        val offset = cursor.toLong()
+        require(offset >= 0)
+        val reply = rpc { Lndmobile.listPayments(message {
+            writeUInt64(1,1); writeUInt64(2,offset); writeUInt64(3,100); writeUInt64(4,1); writeUInt64(8,1)
+        },it) }
+        val records = reply.blobs[1].orEmpty()
+        val rows = Arguments.createArray()
+        records.forEach { data ->
+            val payment = Fields(data)
+            rows.pushMap(Arguments.createMap().apply {
+                putString("id",payment.string(1))
+                putString("direction","sent")
+                putString("state",when(payment.number(10)) { 1L,4L -> "pending"; 2L -> "settled"; 3L -> "failed"; else -> "unknown" })
+            })
+        }
+        return Arguments.createMap().apply {
+            putArray("rows",rows); putString("next",reply.number(2).toString()); putBoolean("more",records.size == 100)
+        }
+    }
     fun payInvoice(value: String, hash: String, sats: String, feeLimit: String): Boolean {
-        val fee = feeLimit.toLong()
-        require(LightningAmounts.valid(fee, allowZero = true))
-        requireSynced()
-        val decoded = decode(value)
-        require(decoded.string(2) == hash && decoded.number(3) == sats.toLong())
+        val fee = feeLimit.toLongOrNull() ?: throw PaymentSubmissionException("invalid_review")
+        val amount = sats.toLongOrNull() ?: throw PaymentSubmissionException("invalid_review")
+        if (!LightningAmounts.valid(fee, allowZero = true)) throw PaymentSubmissionException("invalid_review")
+        try { requireSynced() }
+        catch (error: Exception) {
+            val reason = if (error is IllegalStateException &&
+                error.message == "Wait for the XBT chain to finish syncing before using channels or payments.") "not_synced" else "unavailable"
+            throw PaymentSubmissionException(reason)
+        }
+        val decoded = try { decode(value) } catch (error: Exception) { throw PaymentSubmissionException("invalid_invoice") }
+        val matchesReview = try { decoded.string(2) == hash && decoded.number(3) == amount }
+            catch (error: Exception) { throw PaymentSubmissionException("invalid_review") }
+        if (!matchesReview) throw PaymentSubmissionException("invalid_review")
+        // Once SendPaymentV2 is invoked, an error does not prove payment failure.
         val result = rpc { callback ->
             Lndmobile.routerSendPaymentV2(message { writeString(5,value); writeUInt64(6,30); writeUInt64(7,fee) },object : RecvStream {
                 override fun onError(error: Exception) { callback.onError(error) }
