@@ -16,3 +16,6 @@ BTC, Lightning and interface update:
 Please check BTC/XBT labels, receive QR amounts, Settings menus, and the saved skins on your iPhone. Bitcoin connections use direct TLS. Tor covers the embedded Lightning paths and configured watchtowers; it does not register a watchtower, and exchange quotes still use direct HTTPS.
 
 The pinned dashboard now clears the native toolbar and status bar.
+
+- Confirmed Lightning payments show a green PAYMENT SUCCEEDED receipt with amount and payment reference. Already-paid invoices are identified without sending again. Receipt details and copying respect hidden balances.
+- Definite failures and validation refusals have clear headings and available safe reasons. Pending, unknown, and unavailable status reads remain distinct; uncertain replies never trigger an automatic resend.
