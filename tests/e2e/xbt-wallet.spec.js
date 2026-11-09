@@ -208,6 +208,10 @@ describe('RedWallet XBT-only release UI', () => {
       .whileElement(by.id('XbtPriceScreen'))
       .scroll(250, 'down');
     await element(by.id('XbtPriceInput')).replaceText('123.45');
+    await waitFor(element(by.id('XbtQuoteCurrencyInput')))
+      .toBeVisible(100)
+      .whileElement(by.id('XbtPriceScreen'))
+      .scroll(250, 'down');
     await element(by.id('XbtQuoteCurrencyInput')).replaceText('USDC');
     await element(by.id('XbtQuoteCurrencyInput')).tapReturnKey();
     await waitForKeyboardToClose();
