@@ -31,6 +31,7 @@ import {
 import { launchNativeClean } from './launch-native-clean';
 import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
+import { XBT_ELECTRUM_PRESETS } from '../../class/xbt/electrum-presets';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { lifecycleFormats } from '../native/lifecycle-formats';
 import { observeNativeCondition } from '../native/observe-native-condition';
@@ -61,7 +62,8 @@ const connectionSaved = 'Your changes have been saved successfully. Restarting R
 const connectionFailed =
   'Cannot connect to the provided Electrum server. TLS requires a trusted certificate matching the server name. XBT servers must also match the mainnet checkpoint.';
 
-const field = (id: string, hostValue = 'E.g., 10.20.30.40') =>
+// A fresh installation now starts with the trusted default host in this input.
+const field = (id: string, hostValue = XBT_ELECTRUM_PRESETS[0].host) =>
   device.getPlatform() === 'ios' && id === 'HostInput'
     ? element(
         by.type('RCTUITextField').and(
