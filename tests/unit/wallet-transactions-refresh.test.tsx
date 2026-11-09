@@ -7,7 +7,8 @@ import WalletTransactions from '../../screen/wallets/WalletTransactions';
 import { Chain, BitcoinUnit } from '../../models/bitcoinUnits';
 
 const mockNavigate = jest.fn();
-const mockNavigation = { navigate: mockNavigate, setOptions: jest.fn(), setParams: jest.fn() };
+const mockFocus = { current: true };
+const mockNavigation = { navigate: mockNavigate, setOptions: jest.fn(), setParams: jest.fn(), isFocused: () => mockFocus.current };
 const mockRoute = { name: 'WalletTransactions', key: 'wallet-transactions', params: { walletID: 'xbt-wallet' } };
 const mockWallet = {
   type: 'HDsegwitBech32XBT',
@@ -43,6 +44,7 @@ jest.mock('../../hooks/useMenuElements', () => ({
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useRoute: () => mockRoute,
+  useIsFocused: () => mockFocus.current,
   useLocale: () => ({ direction: 'ltr' }),
   useFocusEffect: () => {},
 }));
@@ -79,6 +81,7 @@ function renderScreen() {
 describe('WalletTransactions first-run refresh', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFocus.current = true;
     (BlueElectrum.getPreferredServer as jest.Mock).mockResolvedValue(undefined);
     (BlueElectrum.ensureConnected as jest.Mock).mockResolvedValue(false);
   });
@@ -114,6 +117,71 @@ describe('WalletTransactions first-run refresh', () => {
     const view = renderScreen();
     await waitFor(() => expect(presentAlert).toHaveBeenCalled());
     expect(BlueElectrum.ensureConnected).toHaveBeenCalledTimes(3);
+    expect(mockWallet.fetchTransactions).not.toHaveBeenCalled();
+    view.unmount();
+  });
+  it('keeps an unfocused wallet idle and resumes the first sync on return', async () => {
+    mockFocus.current = false;
+    (BlueElectrum.getPreferredServer as jest.Mock).mockResolvedValue({ host: 'xbt.example', ssl: 50002 });
+    (BlueElectrum.ensureConnected as jest.Mock).mockResolvedValue(true);
+    const view = renderScreen();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+    await act(async () => {
+      await view.UNSAFE_getByType(RefreshControl).props.onRefresh();
+    });
+    expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+
+    mockFocus.current = true;
+    view.rerender(<WalletTransactions route={mockRoute as any} navigation={mockNavigation as any} />);
+    await waitFor(() => expect(mockWallet.fetchTransactions).toHaveBeenCalledTimes(1));
+    expect(presentAlert).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('does not put a late manual connection failure over the Receive screen', async () => {
+    let finishConnection!: (connected: boolean) => void;
+    const connection = new Promise<boolean>(resolve => {
+      finishConnection = resolve;
+    });
+    (BlueElectrum.ensureConnected as jest.Mock).mockReturnValue(connection);
+    const view = renderScreen();
+    await waitFor(() => expect(BlueElectrum.getPreferredServer).toHaveBeenCalled());
+    let refresh: Promise<void> | undefined;
+    await act(async () => {
+      refresh = view.UNSAFE_getByType(RefreshControl).props.onRefresh();
+      await Promise.resolve();
+    });
+    expect(BlueElectrum.ensureConnected).toHaveBeenCalledTimes(1);
+    mockFocus.current = false;
+    view.rerender(<WalletTransactions route={mockRoute as any} navigation={mockNavigation as any} />);
+    await act(async () => {
+      finishConnection(false);
+      await refresh;
+    });
+    expect(presentAlert).not.toHaveBeenCalled();
+    expect(mockWallet.fetchTransactions).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('does not put the final automatic failure over another screen', async () => {
+    let finishConnection!: (connected: boolean) => void;
+    const connection = new Promise<boolean>(resolve => {
+      finishConnection = resolve;
+    });
+    (BlueElectrum.getPreferredServer as jest.Mock).mockResolvedValue({ host: 'xbt.example', ssl: 50002 });
+    (BlueElectrum.ensureConnected as jest.Mock).mockResolvedValueOnce(false).mockResolvedValueOnce(false).mockReturnValueOnce(connection);
+    const view = renderScreen();
+    await waitFor(() => expect(BlueElectrum.ensureConnected).toHaveBeenCalledTimes(3));
+    mockFocus.current = false;
+    view.rerender(<WalletTransactions route={mockRoute as any} navigation={mockNavigation as any} />);
+    await act(async () => {
+      finishConnection(false);
+      await connection;
+    });
+    expect(presentAlert).not.toHaveBeenCalled();
     expect(mockWallet.fetchTransactions).not.toHaveBeenCalled();
     view.unmount();
   });

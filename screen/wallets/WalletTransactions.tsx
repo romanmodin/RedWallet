@@ -1,7 +1,7 @@
 import { walletElectrum, isBtcWallet, formatWalletBalance } from '../../blue_modules/wallet-network';
 import { LndWallet } from '../../class/wallets/lnd-wallet';
 import LndWalletHome from './LndWalletHome';
-import { RouteProp, useFocusEffect, useRoute, useLocale } from '@react-navigation/native';
+import { RouteProp, useFocusEffect, useIsFocused, useRoute, useLocale } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -188,6 +188,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
   const [limit, setLimit] = useState(15);
   const [pageSize] = useState(20);
   const navigation = useExtendedNavigation();
+  const isFocused = useIsFocused();
   const { setOptions, navigate } = navigation;
   const { colors, dark } = useTheme();
   const { isElectrumDisabled } = useSettings();
@@ -295,7 +296,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
   const refreshTransactions = useCallback(
     async (isManualRefresh = false) => {
       console.debug('refreshTransactions, ', wallet.getLabel());
-      if ((!isBtcWallet(wallet) && isElectrumDisabled) || isLoading) return;
+      if (!navigation.isFocused() || (!isBtcWallet(wallet) && isElectrumDisabled) || isLoading) return;
 
       const MIN_REFRESH_INTERVAL = 5000; // 5 seconds
       if (!isManualRefresh && lastFetchTimestamp !== 0 && Date.now() - lastFetchTimestamp < MIN_REFRESH_INTERVAL) {
@@ -318,9 +319,11 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
           // Missing configuration is normal on first launch; keep offline receive usable.
           if (!server?.host || (!server.tcp && !server.ssl)) return;
         }
+        if (!navigation.isFocused()) return;
         if (!(await walletElectrum(wallet).ensureConnected())) {
           throw new Error(loc.errors.network);
         }
+        if (!navigation.isFocused()) return;
         if (wallet.allowBIP47() && wallet.isBIP47Enabled() && 'fetchBIP47SenderPaymentCodes' in wallet) {
           await wallet.fetchBIP47SenderPaymentCodes();
         }
@@ -345,8 +348,9 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
         const errorMessage: string = err.message;
         setFetchFailures(prev => {
           const newFailures = prev + 1;
-          // Only show error on final attempt for automatic refresh
-          if (isManualRefresh || newFailures === MAX_FAILURES) {
+          // iOS displays these toasts as modal alerts. A completed background
+          // refresh must not cover Receive or another screen after navigation.
+          if (navigation.isFocused() && (isManualRefresh || newFailures === MAX_FAILURES)) {
             if (errorMessage) {
               presentAlert({ message: errorMessage, type: AlertType.Toast });
             }
@@ -361,14 +365,14 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
         setIsLoading(false);
       }
     },
-    [wallet, isElectrumDisabled, isLoading, saveToDisk, pageSize, lastFetchTimestamp, fetchFailures],
+    [wallet, isElectrumDisabled, isLoading, saveToDisk, pageSize, lastFetchTimestamp, fetchFailures, navigation],
   );
 
   useEffect(() => {
-    if (lastFetchTimestamp === 0 && !isLoading && (isBtcWallet(wallet) || !isElectrumDisabled)) {
+    if (isFocused && lastFetchTimestamp === 0 && !isLoading && (isBtcWallet(wallet) || !isElectrumDisabled)) {
       refreshTransactions(false).catch(console.error);
     }
-  }, [wallet, isElectrumDisabled, isLoading, refreshTransactions, lastFetchTimestamp]);
+  }, [wallet, isElectrumDisabled, isLoading, refreshTransactions, lastFetchTimestamp, isFocused]);
 
   const isLightning = useCallback((): boolean => wallet.chain === Chain.OFFCHAIN || false, [wallet]);
   const renderListFooterComponent = () => {
