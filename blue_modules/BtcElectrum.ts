@@ -1,4 +1,6 @@
 import * as bitcoin from 'bitcoinjs-lib';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { normalizeCertificatePem } from './tls-certificate';
 import type * as XbtElectrum from './BlueElectrum';
 
 const ElectrumClient = require('electrum-client');
@@ -11,7 +13,7 @@ const tls = require('tls');
  */
 export const BTC_CHECKPOINT_HEIGHT = 961640;
 export const BTC_CHECKPOINT_HASH = '00000000000000000001d82da6ecccf08e07afa383f9212b0e1b95cc72430c00';
-const peers: { host: string; ssl: number; tcp?: number }[] = [{ host: 'electrum.blockstream.info', ssl: 50002 }];
+
 const REQUEST_TIMEOUT = 15_000;
 let selectedWallet: string | undefined;
 let foreground = true;
@@ -91,6 +93,131 @@ async function bounded<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
+export interface BtcElectrumServer {
+  host: string;
+  ssl?: number;
+  tcp?: number;
+  tlsCa?: string;
+}
+
+export const BTC_SERVER_SETTINGS_KEY = 'redwallet.btcElectrumServer.v1';
+export const DEFAULT_BTC_SERVER: Readonly<BtcElectrumServer> = Object.freeze({
+  host: 'electrum.blockstream.info',
+  ssl: 50002,
+});
+let configurationQueue: Promise<void> = Promise.resolve();
+
+class BtcServerCheckError extends Error {}
+
+export function validateServerConfiguration(value: unknown): BtcElectrumServer {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid BTC server configuration.');
+  const input = value as BtcElectrumServer;
+  if (typeof input.host !== 'string') throw new Error('Enter the BTC server hostname or IP address.');
+  let host = input.host.trim().toLowerCase();
+  if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
+  const groups = host.split('::');
+  const hexGroups = host.split(':').filter(Boolean);
+  const ipv6 =
+    host.includes(':') &&
+    groups.length <= 2 &&
+    groups.every(side => !side || side.split(':').every(group => /^[a-f0-9]{1,4}$/.test(group))) &&
+    /^[a-f0-9:]+$/.test(host) &&
+    hexGroups.every(group => /^[a-f0-9]{1,4}$/.test(group)) &&
+    (groups.length === 2 ? hexGroups.length < 8 : hexGroups.length === 8 && !host.startsWith(':') && !host.endsWith(':'));
+  const dns = host.length <= 253 && host.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
+  const ipv4 = !/^[0-9.]+$/.test(host) || (host.split('.').length === 4 && host.split('.').every(part => Number(part) <= 255));
+  if (!host || (!ipv6 && (!dns || !ipv4))) throw new Error('Enter a hostname or IP address without a URL scheme, path or port.');
+  if (host.endsWith('.onion'))
+    throw new Error('BTC server connections currently use the direct network. Onion hosts are not supported here.');
+  if ((input.ssl === undefined) === (input.tcp === undefined)) throw new Error('Choose exactly one BTC server port: SSL or TCP.');
+  const port = input.ssl ?? input.tcp;
+  if (!Number.isSafeInteger(port) || port! < 1 || port! > 65535) throw new Error('Enter a BTC server port from 1 to 65535.');
+  if (input.tlsCa !== undefined && typeof input.tlsCa !== 'string') throw new Error('Invalid trusted BTC server certificate.');
+  const certificate = normalizeCertificatePem((input.tlsCa || '').trim());
+  if (certificate && !input.ssl) throw new Error('A trusted certificate requires SSL.');
+  if (
+    certificate &&
+    (certificate.length > 16384 || !/^-----BEGIN CERTIFICATE-----\s+[A-Za-z0-9+/=\s]+-----END CERTIFICATE-----$/.test(certificate))
+  ) {
+    throw new Error('Enter one PEM certificate obtained from your trusted server operator.');
+  }
+  return {
+    host,
+    ...(input.ssl ? { ssl: port } : { tcp: port }),
+    ...(certificate ? { tlsCa: certificate } : {}),
+  };
+}
+
+/** Missing configuration uses the default; unreadable or malformed custom settings never do. */
+export async function getPreferredServer(): Promise<BtcElectrumServer> {
+  try {
+    const saved = await AsyncStorage.getItem(BTC_SERVER_SETTINGS_KEY);
+    return saved === null ? { ...DEFAULT_BTC_SERVER } : validateServerConfiguration(JSON.parse(saved));
+  } catch {
+    throw new Error('BTC server settings could not be read. Open Network > BTC SHA-256 Server to save a server or restore the default.');
+  }
+}
+
+function makeClient(server: BtcElectrumServer) {
+  return new ElectrumClient(
+    net,
+    tls,
+    server.ssl ?? server.tcp,
+    server.host,
+    server.ssl ? 'tls' : 'tcp',
+    server.ssl
+      ? {
+          rejectUnauthorized: true,
+          ...(server.tlsCa ? { ca: server.tlsCa } : {}),
+        }
+      : undefined,
+  );
+}
+
+function queueConfigurationChange(change: () => Promise<void>): Promise<void> {
+  const next = configurationQueue.then(change, change);
+  configurationQueue = next.catch(() => {});
+  return next;
+}
+
+/** An explicit save probes protocol/chain only; no wallet address or transaction is requested. */
+export function setPreferredServer(value: BtcElectrumServer): Promise<void> {
+  const server = validateServerConfiguration(value);
+  return queueConfigurationChange(async () => {
+    const probe = makeClient(server);
+    probe.onError = () => {};
+    try {
+      await bounded(probe.initElectrum({ client: 'RedWallet BTC server check', version: '1.4' }, { maxRetry: 0 }));
+      const header = await bounded(probe.blockchainBlock_header(BTC_CHECKPOINT_HEIGHT));
+      if (!isBitcoinCheckpoint(header))
+        throw new BtcServerCheckError('This server is not on the Bitcoin SHA-256 chain. BTC settings were not saved.');
+      const latest: any = await bounded(probe.blockchainHeaders_subscribe());
+      if (!Number.isSafeInteger(latest?.height) || latest.height < BTC_CHECKPOINT_HEIGHT) {
+        throw new BtcServerCheckError('The BTC server returned an invalid chain height. Settings were not saved.');
+      }
+    } catch (error) {
+      if (error instanceof BtcServerCheckError) throw error;
+      throw new Error(
+        'Could not verify the BTC server. Check the host, port, SSL selection and trusted certificate. Settings were not saved.',
+      );
+    } finally {
+      try {
+        probe.close();
+      } catch {}
+    }
+    // One atomic preference write; never touch XBT's separate configuration.
+    await AsyncStorage.setItem(BTC_SERVER_SETTINGS_KEY, JSON.stringify(server));
+    forceDisconnect();
+  });
+}
+
+export function resetPreferredServer(): Promise<void> {
+  return queueConfigurationChange(async () => {
+    await AsyncStorage.removeItem(BTC_SERVER_SETTINGS_KEY);
+    forceDisconnect();
+  });
+}
+
 async function ensureConnected(walletID: string, refreshTip = false): Promise<boolean> {
   if (!isSelected(walletID)) return false;
   if (connected && client && !refreshTip) return true;
@@ -111,9 +238,9 @@ async function ensureConnected(walletID: string, refreshTip = false): Promise<bo
   if (connecting) return connecting;
   const epoch = generation;
   const attempt = (async () => {
-    for (const peer of peers) {
+    for (const peer of [await getPreferredServer()]) {
       if (!isSelected(walletID) || epoch !== generation) return false;
-      const candidate = new ElectrumClient(net, tls, peer.ssl, peer.host, 'tls', { rejectUnauthorized: true });
+      const candidate = makeClient(peer);
       client = candidate;
       candidate.onError = () => {
         if (client === candidate) forceDisconnect();
@@ -206,7 +333,10 @@ export function forWallet(walletID: string) {
   };
   const getBalanceByAddress = async (address: string) => {
     const balance = await request<{ confirmed: number; unconfirmed: number }>('blockchain.scripthash.get_balance', [scriptHash(address)]);
-    return { confirmed: sats(balance.confirmed), unconfirmed: sats(balance.unconfirmed, true) };
+    return {
+      confirmed: sats(balance.confirmed),
+      unconfirmed: sats(balance.unconfirmed, true),
+    };
   };
   const getBlockTimestamps = async (requested: number[]) => {
     const result: Record<number, number> = {};
@@ -254,7 +384,10 @@ export function forWallet(walletID: string) {
         vin: tx.ins.map(input => ({
           txid: Buffer.from(input.hash).reverse().toString('hex'),
           vout: input.index,
-          scriptSig: { hex: Buffer.from(input.script).toString('hex'), asm: '' },
+          scriptSig: {
+            hex: Buffer.from(input.script).toString('hex'),
+            asm: '',
+          },
           txinwitness: input.witness.map(w => Buffer.from(w).toString('hex')),
           sequence: input.sequence,
         })),
@@ -294,7 +427,7 @@ export function forWallet(walletID: string) {
   return {
     ensureConnected: () => ensureConnected(walletID, true),
     isDisabled: async () => !isSelected(walletID),
-    getPreferredServer: async () => peers[0],
+    getPreferredServer,
     getBalanceByAddress,
     getTransactionsByAddress,
     getBlockTimestamps,
@@ -309,7 +442,11 @@ export function forWallet(walletID: string) {
       return result;
     },
     multiGetBalanceByAddress: async (addresses: string[]) => {
-      const result = { balance: 0, unconfirmed_balance: 0, addresses: {} as Record<string, { confirmed: number; unconfirmed: number }> };
+      const result = {
+        balance: 0,
+        unconfirmed_balance: 0,
+        addresses: {} as Record<string, { confirmed: number; unconfirmed: number }>,
+      };
       for (const address of addresses) {
         const balance = await getBalanceByAddress(address);
         result.addresses[address] = balance;
@@ -321,7 +458,14 @@ export function forWallet(walletID: string) {
     multiGetUtxoByAddress: async (addresses: string[]) => {
       const result: Record<
         string,
-        { height: number; value: number; address: string; txid: string; vout: number; confirmations: number }[]
+        {
+          height: number;
+          value: number;
+          address: string;
+          txid: string;
+          vout: number;
+          confirmations: number;
+        }[]
       > = {};
       for (const address of addresses) {
         const entries = await request<{ tx_hash: string; tx_pos: number; height: number; value: number }[]>(

@@ -48,6 +48,7 @@ import SettingsBlockExplorer from '../screen/settings/SettingsBlockExplorer';
 import About from '../screen/settings/About';
 // import DefaultView from '../screen/settings/DefaultView'; // Commented out - not accessible from UI
 import ElectrumSettings from '../screen/settings/ElectrumSettings';
+import BtcElectrumSettings from '../screen/settings/BtcElectrumSettings';
 import EncryptStorage from '../screen/settings/EncryptStorage';
 import Language from '../screen/settings/Language';
 import LightningSettings from '../screen/settings/LightningSettings';
@@ -541,6 +542,11 @@ const DetailViewStackScreensStack = () => {
         />
         <DetailViewStack.Screen name="Licensing" component={Licensing} options={settingsScreenOptions(loc.settings.license)} />
         <DetailViewStack.Screen name="NetworkSettings" component={NetworkSettings} options={settingsScreenOptions(loc.settings.network)} />
+        <DetailViewStack.Screen
+          name="BtcElectrumSettings"
+          component={BtcElectrumSettings}
+          options={settingsScreenOptions('BTC SHA-256 SERVER')}
+        />
         <DetailViewStack.Screen
           name="SettingsBlockExplorer"
           component={SettingsBlockExplorer}

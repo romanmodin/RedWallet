@@ -18,10 +18,20 @@ const NetworkSettings: React.FC = () => {
     <SettingsScrollView>
       <SettingsSection>
         <SettingsListItem
-          title={loc.settings.network_electrum}
+          title={`XBT · ${loc.settings.network_electrum}`}
           iconName="electrum"
           onPress={navigateToElectrumSettings}
           testID="ElectrumSettings"
+          chevron
+          bottomDivider
+        />
+
+        <SettingsListItem
+          title="BTC SHA-256 SERVER"
+          subtitle="Bitcoin Electrum / Fulcrum"
+          iconName="network"
+          onPress={() => navigation.navigate('BtcElectrumSettings')}
+          testID="BtcElectrumSettings"
           chevron
           bottomDivider={isNotificationsCapable}
         />

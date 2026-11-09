@@ -22,3 +22,6 @@ The pinned dashboard now clears the native toolbar and status bar.
 
 - Tap the main Wallets total to cycle XBT, sats, your price estimate and hidden stars. Hiding keeps a tappable mask so the amount can be shown again; General > Total Balance still controls the whole section. Hidden totals also hide the separate BTC subtotal and price estimate.
 - Sent transaction amounts use red with a minus sign; settled incoming amounts remain green.
+
+- Network settings now separate XBT Fulcrum from BTC SHA-256 servers. Set your own Bitcoin Electrum/Fulcrum host, port and SSL settings, with optional trusted certificate support. The Bitcoin chain is checked before saving.
+- Custom BTC settings persist separately and never silently fall back to a public endpoint. Restore BTC Default explicitly returns to Blockstream. TCP is available only as an explicit unencrypted transport choice; BTC onion connections are not supported here.

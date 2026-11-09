@@ -105,6 +105,7 @@ export type DetailViewStackParamList = {
   GeneralSettings: undefined;
   Licensing: undefined;
   NetworkSettings: undefined;
+  BtcElectrumSettings: undefined;
   About: undefined;
   // DefaultView: undefined; // Commented out - not accessible from UI
   ElectrumSettings: {
