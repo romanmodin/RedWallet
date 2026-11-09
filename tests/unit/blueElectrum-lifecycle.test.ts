@@ -396,9 +396,59 @@ describe('BlueElectrum lifecycle', () => {
     });
   });
 
+  it('does not automatically connect to the public preset when no primary is configured', async () => {
+    const get = DefaultPreference.get as jest.Mock;
+    const original = get.getMockImplementation();
+    get.mockResolvedValue(undefined);
+    try {
+      expect(await BlueElectrum.ensureConnected()).toBe(false);
+      expect(created).toHaveLength(0);
+    } finally {
+      get.mockImplementation(original!);
+    }
+  });
+
   describe('settings connection authentication deadline', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
+
+    it('reports certificate failure without sending RPCs or falling back to TCP', async () => {
+      const ElectrumClient = require('electrum-client');
+      ElectrumClient.mockClear();
+      const pending = BlueElectrum.testConnectionDetailed('fulcrum.kilombino.com', 0, 17717);
+      const client = created[0];
+      client.connectDeferred.reject(new Error('self-signed certificate'));
+      await expect(pending).resolves.toEqual({ ok: false, reason: 'certificate' });
+      expect(client.server_version).not.toHaveBeenCalled();
+      expect(ElectrumClient).toHaveBeenCalledTimes(1);
+      expect(ElectrumClient.mock.calls[0].slice(2)).toEqual([17717, 'fulcrum.kilombino.com', 'tls', undefined]);
+      expect(client.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('distinguishes an authenticated wrong-chain endpoint from a TLS error', async () => {
+      const pending = BlueElectrum.testConnectionDetailed('wrong-chain.test', 0, 17717);
+      created[0].blockchainBlock_header.mockResolvedValue('00'.repeat(80));
+      created[0].connectDeferred.resolve();
+      await expect(pending).resolves.toEqual({ ok: false, reason: 'checkpoint' });
+    });
+
+    it.each(['server_version', 'server_ping', 'blockchainBlock_header'] as const)(
+      'bounds a stalled %s and does not continue RPCs after the deadline',
+      async method => {
+        const pending = BlueElectrum.testConnectionDetailed('stalled.test', 0, 17717);
+        const client = created[0];
+        const stalled = deferred<unknown>();
+        client[method].mockReturnValue(stalled.promise);
+        client.connectDeferred.resolve();
+        await jest.advanceTimersByTimeAsync(15000);
+        await expect(pending).resolves.toEqual({ ok: false, reason: 'timeout' });
+        expect(client.close).toHaveBeenCalledTimes(1);
+        const counts = [client.server_version, client.server_ping, client.blockchainBlock_header].map(fn => fn.mock.calls.length);
+        stalled.resolve(XBT_MAINNET_CHECKPOINT_HEADER);
+        await jest.advanceTimersByTimeAsync(0);
+        expect([client.server_version, client.server_ping, client.blockchainBlock_header].map(fn => fn.mock.calls.length)).toEqual(counts);
+      },
+    );
 
     it('waits for authenticated TLS beyond five seconds before making RPCs', async () => {
       const pending = BlueElectrum.testConnection('private.example', undefined, 50002, 'configured certificate');

@@ -1,0 +1,110 @@
+name: Export released RedWallet IPA
+'on':
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: export-released-redwallet-ipa
+  cancel-in-progress: false
+jobs:
+  export:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'romanmodin/RedWallet' }}
+    environment: ios-signing
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Download and authenticate exact released artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess, zipfile, pathlib
+          repo = 'romanmodin/RedWallet'
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', 'repos/' + repo + '/' + path]))
+          run = api('actions/runs/42398614127')
+          assert run['repository']['full_name'] == repo == run['head_repository']['full_name']
+          assert run['head_sha'] == '038cac8b71be67eed459ba6fb299d8957e09286e'
+          assert run['event'] == 'workflow_dispatch' and run['head_branch'] == 'main'
+          assert run['path'] == '.github/workflows/build-ios-approved-source.yml'
+          assert run['status'] == 'completed' and run['conclusion'] == 'success'
+          assert run['run_attempt'] == 1
+          artifact = api('actions/artifacts/13584742023')
+          digest = 'ad4252fb284830e080d0a280216dc0c504f5aa59c79a4c758a6c5d5dc1ff3d72'
+          assert artifact['workflow_run']['id'] == run['id']
+          assert artifact['name'] == 'RedWallet_Encrypted_IPA' and not artifact['expired']
+          assert artifact['digest'] == 'sha256:' + digest
+          data = subprocess.check_output(['gh', 'api', 'repos/' + repo + '/actions/artifacts/13584742023/zip'])
+          assert hashlib.sha256(data).hexdigest() == digest
+          pathlib.Path('artifact.zip').write_bytes(data)
+          with zipfile.ZipFile('artifact.zip') as z:
+              assert z.testzip() is None
+              assert z.namelist() == ['redwallet.ipa.enc']
+              pathlib.Path('redwallet.ipa.enc').write_bytes(z.read('redwallet.ipa.enc'))
+          print('Original released artifact authenticated.')
+          PY
+      - name: Decrypt only the released application package
+        env:
+          IPA_ARTIFACT_KEY: ${{ secrets.IPA_ARTIFACT_KEY }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs'), crypto = require('node:crypto');
+          const data = fs.readFileSync('redwallet.ipa.enc');
+          const key = Buffer.from(process.env.IPA_ARTIFACT_KEY, 'base64');
+          if (key.length !== 32 || data.length < 34 || data.subarray(0, 6).toString() !== 'RWIPA1') throw Error('Invalid package');
+          const decipher = crypto.createDecipheriv('aes-256-gcm', key, data.subarray(6, 18));
+          decipher.setAAD(Buffer.from('RedWallet:33a34a88cf2ef024a9fb06ba63c44958405f3833:038cac8b71be67eed459ba6fb299d8957e09286e:42398614127'));
+          decipher.setAuthTag(data.subarray(18, 34));
+          const ipa = Buffer.concat([decipher.update(data.subarray(34)), decipher.final()]);
+          if (crypto.createHash('sha256').update(ipa).digest('hex') !== 'de70f60796ce20ce9b23f39bc10762f1cec2fadc0a1d38d7e4871e0e8c380fbe') throw Error('Released IPA hash mismatch');
+          fs.mkdirSync('export', { recursive: true });
+          fs.writeFileSync('export/RedWallet-8.0.1-1794074378.ipa', ipa, { mode: 0o600 });
+          JS
+      - name: Verify signatures and record device requirements
+        run: |
+          ditto -x -k export/RedWallet-8.0.1-1794074378.ipa unpacked
+          python3 - <<'PY'
+          import hashlib, json, pathlib, plistlib, subprocess, struct
+          apps = list(pathlib.Path('unpacked/Payload').glob('*.app'))
+          assert len(apps) == 1
+          app = apps[0]
+          info = plistlib.loads((app / 'Info.plist').read_bytes())
+          assert info['CFBundleIdentifier'] == 'com.romanmodin.redwallet'
+          assert info['CFBundleVersion'] == '1794074378'
+          assert info['CFBundleShortVersionString'] == '8.0.1'
+          assert info['CFBundleSupportedPlatforms'] == ['iPhoneOS']
+          subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
+          binary = (app / info['CFBundleExecutable']).read_bytes()
+          assert struct.unpack_from('<I', binary)[0] == 0xfeedfacf, 'Expected thin arm64 executable'
+          assert struct.unpack_from('<I', binary, 4)[0] == 0x100000c, 'Expected arm64'
+          count = struct.unpack_from('<I', binary, 16)[0]
+          pos = 32
+          for _ in range(count):
+              cmd, size = struct.unpack_from('<II', binary, pos)
+              assert size >= 8 and pos + size <= len(binary)
+              if cmd in (0x21, 0x2c):
+                  assert struct.unpack_from('<I', binary, pos + 16)[0] == 0, 'Encrypted executable'
+              pos += size
+          ipa = pathlib.Path('export/RedWallet-8.0.1-1794074378.ipa')
+          digest = hashlib.sha256(ipa.read_bytes()).hexdigest()
+          receipt = dict(version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'],
+                         bundleId=info['CFBundleIdentifier'], minimumIOS=info['MinimumOSVersion'],
+                         architecture='arm64', supportedDevices=info.get('UIDeviceFamily'),
+                         sha256=digest, sourceCommit='33a34a88cf2ef024a9fb06ba63c44958405f3833',
+                         sourceRunId=42398614127, unchangedReleasedIPA=True,
+                         signatureVerification='passed', deviceInstallationTested=False)
+          pathlib.Path('export/verification.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          pathlib.Path('export/SHA256SUMS.txt').write_text(digest + '  ' + ipa.name + '\n')
+          print(json.dumps(receipt, indent=2))
+          PY
+      - name: Save verified sideload package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: RedWallet-8.0.1-1794074378-IPA
+          path: export/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove temporary plaintext and encrypted package
+        if: always()
+        run: rm -rf export unpacked redwallet.ipa.enc artifact.zip
