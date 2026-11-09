@@ -33,10 +33,10 @@ internal object NodeManagement {
             }
         }
         "withdrawReview" -> {
-            RegtestNode.requireSynced()
             val amount = sats.toLong(); val fee = feeRate.toLong()
             require(value.startsWith(MainnetConfiguration.addressPrefix) && value.length <= 90 && value.all { it in 'a'..'z' || it in '0'..'9' })
             require(LightningAmounts.valid(amount) && LightningAmounts.validFeeRate(fee))
+            RegtestNode.requireSynced()
             val item = Review(UUID.randomUUID().toString(),value,amount,fee,SystemClock.elapsedRealtime())
             review = item
             Arguments.createMap().apply {

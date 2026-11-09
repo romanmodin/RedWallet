@@ -3,8 +3,11 @@
 export const MAX_LIGHTNING_SATS = 2_100_000_000_000_000;
 // User-selected cap for opening new channels; existing channels can still be resized.
 export const MAX_LIGHTNING_CHANNEL_OPEN_SATS = 10_000_000;
-// Keep the displayed 3x close ceiling exact in JS and LND sat/kvB arithmetic in Int64.
-export const MAX_LIGHTNING_FEE_RATE = 3_002_399_751_580_330;
+// LND multiplies sat/kvB by vsize before dividing by 1000. Allow the 3x
+// close ceiling and any consensus-valid transaction (1,000,000 vB), including
+// its rounding increment, without overflowing signed Int64 intermediates.
+// floor((Int64.max - 999) / (3 * 1000 * 1_000_000)); no beta fee allowance.
+export const MAX_LIGHTNING_FEE_RATE = 3_074_457_345;
 
 export function validLightningSats(value: string, allowZero = false): boolean {
   return (

@@ -50,12 +50,13 @@ const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurfac
   } while (Date.now() < deadline);
   throw new Error(`Native ${orientation} surface never settled: ${JSON.stringify(evidence)}`);
 };
-// Pool discovery already controls synchronization itself. Scope this change
-// strictly to the two actual orientation transitions; every native/pixel/hash
-// assertion and the original 15-second budget remain in captureObserved.
+// Simulator attachment can keep UIKit non-idle before the first portrait
+// capture too. Observe every artwork frame directly within the same 15-second
+// budget, retaining all native/pixel/hash checks. Pool discovery already owns
+// its synchronization scope, so leave its capture policy unchanged.
 const capture = (name, orientation, surfaceId = 'ArtworkSkinSurface', rotate = false) => {
   const observation = () => captureObserved(name, orientation, surfaceId, rotate);
-  return rotate ? observeNativeRotation(device, observation) : observation();
+  return surfaceId === 'ArtworkSkinSurface' ? observeNativeRotation(device, observation) : observation();
 };
 smoke('Native artwork framing and read-only CoinJoin discovery', () => {
   it('centers artwork on an empty wallet and completes a real pool search without joining', async () => {
@@ -113,8 +114,10 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     const attachment = attachSimulatorForRotation(execFileSync, device.id);
     fs.mkdirSync('artifacts/appearance-discovery', { recursive: true });
     fs.writeFileSync('artifacts/appearance-discovery/simulator-attachment.json', JSON.stringify(attachment, null, 2) + '\n');
-    await scrollUpOnHomeScreen();
-    await capture('01-helmet-portrait', 'portrait');
+    // Attachment can leave UIKit busy before the scroll as well as before
+    // capture. Bound and trace each step so a failed native command is located.
+    await setup('prepare-first-portrait', () => observeNativeRotation(device, scrollUpOnHomeScreen), 20000);
+    await setup('capture-first-portrait', () => capture('01-helmet-portrait', 'portrait'), 20000);
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
     await capture('02b-helmet-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
     await element(by.id('SettingsButton')).tap();

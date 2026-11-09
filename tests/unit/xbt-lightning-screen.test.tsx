@@ -3,6 +3,12 @@ import React from 'react';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { Alert, AppState, NativeModules } from 'react-native';
 
+const mockStorage: { wallets: { type: string; hideBalance: boolean }[] } = {
+  wallets: [],
+};
+jest.mock('../../hooks/context/useStorage', () => ({
+  useStorage: () => mockStorage,
+}));
 const mockAuthorize = jest.fn(async () => true);
 const mockAuthorizeExport = jest.fn(async () => true);
 jest.mock('../../hooks/usePaymentAuthorization', () => ({
@@ -12,6 +18,9 @@ jest.mock('../../hooks/useSecretExport', () => ({
   useSecretExport: () => mockAuthorizeExport,
 }));
 beforeEach(() => {
+  bridge.run.mockReset().mockResolvedValue('Running');
+  bridge.invoice.mockClear();
+  mockStorage.wallets = [];
   mockAuthorize.mockReset().mockResolvedValue(true);
   mockAuthorizeExport.mockReset().mockResolvedValue(true);
 });
@@ -53,7 +62,8 @@ const bridge = {
 NativeModules.XBTLightningBridge = bridge;
 const XBTLightning = require('../../screen/settings/XBTLightning').default;
 
-test('review decodes an invoice without paying; confirmation binds the amount and hash and ignores a repeated tap', async () => {
+test.each([false, true])('review binds the amount, hash and one submission even with hidden balances: %s', async hidden => {
+  mockStorage.wallets = [{ type: 'lndWallet', hideBalance: hidden }];
   const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   try {
     const screen = render(<XBTLightning />);
@@ -793,5 +803,109 @@ test('authentication resolving after the screen is dismissed cannot submit a pay
     expect(bridge.invoice).not.toHaveBeenCalled();
   } finally {
     alert.mockRestore();
+  }
+});
+
+test('hidden node tools redact native balances, history and error amounts from text, accessibility and clipboard', async () => {
+  const wallet = { type: 'lndWallet', hideBalance: true };
+  mockStorage.wallets = [wallet];
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  jest.mocked(Clipboard.setString).mockClear();
+  try {
+    for (const [button, result] of [
+      ['Node and channel balances', 'Confirmed balance: 7654321 sats; local: 123457 sats'],
+      ['Recent payments', 'Received 123457 sats; fee: 239 sats'],
+    ]) {
+      bridge.run.mockResolvedValueOnce(result);
+      await act(async () => fireEvent.press(screen.getByRole('button', { name: button })));
+      expect(screen.queryByText(/7654321|123457|239/)).toBeNull();
+      expect(screen.queryByLabelText(/7654321|123457|239/)).toBeNull();
+      expect(screen.queryByLabelText('Copy activity result')).toBeNull();
+      expect(JSON.stringify(screen.toJSON())).not.toMatch(/7654321|123457|239/);
+    }
+    bridge.run.mockRejectedValueOnce(new Error('Insufficient balance: 7654321 sats; fee: 239 sats'));
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Recent payments' })));
+    expect(JSON.stringify(screen.toJSON())).not.toMatch(/7654321|239/);
+    expect(Clipboard.setString).not.toHaveBeenCalled();
+  } finally {
+    screen.unmount();
+  }
+});
+
+test.each(['mutated', 'replaced'])(
+  'a %s hidden wallet immediately removes visible results and blocks a retained copy callback',
+  async kind => {
+    const wallet = { type: 'lndWallet', hideBalance: false };
+    mockStorage.wallets = [wallet];
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    try {
+      bridge.run.mockResolvedValueOnce('Channel balance: 123457 sats, fee: 239 sats');
+      await act(async () => fireEvent.press(screen.getByText('Node and channel balances')));
+      let copyButton = screen.getByLabelText('Copy activity result');
+      while (typeof copyButton.props.onPress !== 'function' && copyButton.parent) copyButton = copyButton.parent;
+      const copy = copyButton.props.onPress;
+      expect(typeof copy).toBe('function');
+      expect(screen.getByText(/123457 sats/)).toBeTruthy();
+      jest.mocked(Clipboard.setString).mockClear();
+      if (kind === 'mutated') wallet.hideBalance = true;
+      else mockStorage.wallets = [{ type: 'lndWallet', hideBalance: true }];
+      screen.rerender(<XBTLightning />);
+      expect(screen.queryByText(/123457|239/)).toBeNull();
+      expect(screen.queryByLabelText('Copy activity result')).toBeNull();
+      copy();
+      expect(Clipboard.setString).not.toHaveBeenCalled();
+      wallet.hideBalance = false;
+      mockStorage.wallets = [wallet];
+      screen.rerender(<XBTLightning />);
+      expect(screen.getByText(/123457 sats/)).toBeTruthy();
+    } finally {
+      screen.unmount();
+    }
+  },
+);
+
+test('hidden selected channels retain their identity without disclosing local balances or close-button amounts', async () => {
+  mockStorage.wallets = [{ type: 'lndWallet', hideBalance: true }];
+  bridge.manage.mockResolvedValueOnce([
+    {
+      point: 'hidden-channel:0',
+      peer: 'public-peer-key',
+      peerAlias: 'My peer',
+      peerAddress: 'peer.example:9735',
+      state: 'active',
+      active: true,
+      localSats: '123457',
+    },
+  ]);
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  try {
+    fireEvent.press(screen.getByTestId('SelectChannel-hidden-channel:0'));
+    expect(screen.getByText('Close channel')).toBeTruthy();
+    expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/Peer name: My peer/)).toBeTruthy();
+    expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/peer.example:9735/)).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain('123457');
+    expect(screen.queryByLabelText('Copy activity result')).toBeNull();
+  } finally {
+    screen.unmount();
+  }
+});
+
+test('hiding an unrelated wallet does not hide the Lightning node tools', async () => {
+  mockStorage.wallets = [
+    { type: 'HDsegwitBech32', hideBalance: true },
+    { type: 'lndWallet', hideBalance: false },
+  ];
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  try {
+    bridge.run.mockResolvedValueOnce('Channel balance: 123457 sats');
+    await act(async () => fireEvent.press(screen.getByText('Node and channel balances')));
+    expect(screen.getByText(/123457 sats/)).toBeTruthy();
+    expect(screen.getByLabelText('Copy activity result')).toBeTruthy();
+  } finally {
+    screen.unmount();
   }
 });
