@@ -58,6 +58,10 @@ Custom BTC servers and BTC Tor routing are outside this patch.
 
 Native iOS/Android TLS certificate verification, foreground/background behavior,
 camera/receive flows, and a controlled end-to-end send still require device
-qualification. No native build, real payment, or TestFlight upload was performed
-for this change. Existing security/native release blockers from the base branch
+qualification. The initial revision passed native iOS and Android builds and the existing
+general UI suites, plus the complete unit and lint CI jobs. Those general UI
+suites did not specifically exercise the new BTC type. Dedicated BTC selection,
+creation, restart, receive QR and BTC-denomination assertions have now been added
+to the shared iOS/Android wallet suite; their native execution is pending.
+No real payment or TestFlight upload was performed for this change. Existing security/native release blockers from the base branch
 remain applicable.

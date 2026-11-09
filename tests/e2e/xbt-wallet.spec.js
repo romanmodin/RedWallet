@@ -78,6 +78,38 @@ describe('RedWallet XBT-only release UI', () => {
     await expect(element(by.id('ActivateLightningButton'))).not.toExist();
   });
 
+  it('selects BTC explicitly and restores the XBT choices when deselected', async () => {
+    await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'WalletNameInput');
+    await element(by.id('ActivateBtcButton')).tap();
+    await expect(element(by.id('XbtWalletFormat'))).toHaveText('BTC · SHA-256 · Native SegWit (BIP84)');
+    await expect(element(by.id('ToggleXbtWalletFormat'))).not.toExist();
+    await expect(element(by.id('AddXBTLightningRegtest'))).not.toExist();
+    await element(by.id('ActivateBitcoinButton')).tap();
+    await waitForId('ToggleXbtWalletFormat');
+    await expect(element(by.id('XbtWalletFormat'))).toHaveText('Native SegWit (BIP84)');
+  });
+
+  it('creates a BTC wallet, restores it after restart, and labels receive amounts BTC', async () => {
+    // A new disposable wallet; no funds are requested or broadcast.
+    // BTC may perform selected-wallet reads. This is UI coverage, not an offline-network proof.
+    await helperCreateWallet('btc-created', 'btc');
+    await device.launchApp({ newInstance: true });
+    await waitForWalletsList();
+    await openReceive('btc-created', true);
+    await waitForId('CopyTextToClipboard');
+    await element(by.id('SetCustomAmountButton')).tap();
+    await element(by.id('BitcoinAmountInput')).replaceText('1');
+    await element(by.id('changeAmountUnitButton')).tap();
+    await expect(element(by.id('BitcoinAmountInput'))).toHaveText('100000000');
+    await element(by.id('changeAmountUnitButton')).tap();
+    await expect(element(by.id('BitcoinAmountInput'))).toHaveText('1');
+    await element(by.id('CustomAmountDescription')).replaceText('BTC smoke test');
+    await element(by.id('CustomAmountDescription')).tapReturnKey();
+    await waitForKeyboardToClose();
+    await tapAndTapAgainIfElementIsNotVisible('CustomAmountSaveButton', 'CustomAmountDescriptionText');
+    await expect(element(by.id('BitcoinAmountText'))).toHaveText('1 BTC');
+  });
+
   it('creates an XBT wallet and displays an XBT receive amount', async () => {
     await helperCreateWallet('xbt-created');
     await device.launchApp({ newInstance: true });
