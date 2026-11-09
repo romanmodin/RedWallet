@@ -4,6 +4,10 @@ on:
     paths:
       - 'ios/XBTLightning/**'
       - 'ios/BlueWallet/XBTLightningBridge.*'
+      - 'screen/settings/XBTLightning.tsx'
+      - 'blue_modules/lnd-payment-status.ts'
+      - 'tests/unit/xbt-lightning-screen.test.tsx'
+      - 'tests/unit/lnd-payment-status.test.ts'
       - '.github/workflows/xbt-lnd-ios.yml'
       - '.github/scripts/xbt-lnd-regtest-*'
 permissions:
