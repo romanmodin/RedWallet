@@ -161,3 +161,36 @@ test('hidden resize review keeps the confirmed spend and fee visible while maski
   expect(s.getByText('Confirm add funds')).toBeTruthy();
   expect(JSON.stringify(s.toJSON())).not.toMatch(/120000|110000/);
 });
+
+test.each(['0', '12'])('confirmed resize separates local depth from peer completion (%s confirmations)', confirmations => {
+  const s = render(
+    <XBTLightningChannelFunds
+      point={point}
+      active
+      splice={{
+        ...ready,
+        status: 'pending',
+        progress: 'confirmed',
+        txid: 'confirmed-resize',
+        confirmations,
+        lockDepth: '6',
+      }}
+      busy={false}
+      run={run}
+      runAuthorized={run}
+      report={report}
+      onUpdated={onUpdated}
+    />,
+  );
+  expect(s.getByText(/confirmed on chain; waiting for both peers to lock/)).toBeTruthy();
+  expect(s.getByText(/The peer may require more confirmations/)).toBeTruthy();
+  if (confirmations === '0') {
+    expect(s.getByText(/Local confirmation count unavailable; local requirement: 6/)).toBeTruthy();
+    expect(s.queryByText(/0\/6 confirmations/)).toBeNull();
+  } else {
+    expect(s.getByText(/Local confirmations: 12\/6/)).toBeTruthy();
+  }
+  fireEvent.press(s.getByText('Add funds'));
+  expect(bridge.splice).not.toHaveBeenCalled();
+  expect(s.queryByLabelText('Channel resize sats')).toBeNull();
+});
