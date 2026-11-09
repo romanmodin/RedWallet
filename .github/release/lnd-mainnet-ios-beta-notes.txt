@@ -1,8 +1,18 @@
-Lightning wallet update:
-- Select a channel to view its peer name, public key, current address, funding reference, status, and balance. Add/remove/close controls target that selection.
-- Tap the balance unit to switch XBT, sats, and USDC across Lightning wallet balances and history.
-- Fixed balance header, visible LND indicator, smaller Funding tab, green Receive/red Pay buttons, and compact gray on-chain actions.
-- Camera QR invoice scanning, cancellation of unpaid receive invoices, and expandable gray canceled-invoice history.
-- Settings activity panel stays below navigation. Tor support covers the embedded Lightning networking paths and configured watchtowers.
+BTC, Lightning and interface update:
+- Blue BTC wallets now use Bitcoin SHA-256 with Native SegWit receive addresses. BTC and XBT keep their own chain connections and labels.
+- New XBT installations use Kilombino's SSL Fulcrum preset with normal certificate verification.
+- Wallet balance and cards stay fixed while transaction history scrolls. Verified-chain status has a green LED.
+- Settings and its submenus use centered regular-weight uppercase headings, smaller labels, and adjacent sections. Donate and Support sit together.
+- Added Dark Angel and Templar to the saved logo-tap skin cycle.
+- Wallet refresh errors that complete after leaving the wallet screen no longer cover Receive.
+- Automatic connection failures update connection status without interrupting menus or Add Wallet.
+- Lightning hidden balances and sensitive-action checks are tightened. New channels retain the 10,000,000-sat opening cap, and resize progress distinguishes local confirmations from peer lock status.
 
-Please check layout, channel selection, QR scanning, and persistence on your iPhone. A watchtower must be configured; Tor alone does not register one. The exchange quote request still uses a direct HTTPS connection. Keep your recovery backup current.
+
+- Lightning payments check the node's recorded status before offering another send. Interrupted replies are reconciled without automatic resending; already-paid and pending invoices are held.
+- Known pre-submission validation or sync errors are distinguished from unresolved payment results. Check Payment Status reads history without sending money.
+- PAY (INVOICE) now uses all capital letters.
+
+Please check BTC/XBT labels, receive QR amounts, Settings menus, and the saved skins on your iPhone. Bitcoin connections use direct TLS. Tor covers the embedded Lightning paths and configured watchtowers; it does not register a watchtower, and exchange quotes still use direct HTTPS.
+
+The pinned dashboard now clears the native toolbar and status bar.
