@@ -30,3 +30,22 @@ test('the 10 million sat cap applies only to opening new channels', () => {
   for (const amount of ['10000001', '44000000', '0', '-1', '1.1', '1e7']) expect(validLightningChannelOpenSats(amount)).toBe(false);
   expect(validLightningSats('44000000')).toBe(true);
 });
+
+test('fee rates keep LND signed products safe through maximum transaction size and close negotiation', () => {
+  const maxSigned = 9223372036854775807n;
+  const rate = BigInt(MAX_LIGHTNING_FEE_RATE);
+  for (const multiplier of [1n, 3n]) {
+    const perKVByte = rate * multiplier * 1000n;
+    const perKWeight = perKVByte / 4n;
+    expect(perKVByte * 1000000n + 999n).toBeLessThanOrEqual(maxSigned);
+    for (const weight of [224n, 724n, 4000000n]) {
+      expect(perKWeight * weight + 999n).toBeLessThanOrEqual(maxSigned);
+    }
+  }
+  // The former bridge-only bound overflowed even a small 724-WU transaction.
+  const priorRate = 3002399751580330n;
+  expect(priorRate * 250n * 724n).toBeGreaterThan(maxSigned);
+  expect(validLightningFeeRate(String(priorRate))).toBe(false);
+  expect(validLightningFeeRate('1000000')).toBe(true);
+  expect((rate + 1n) * 3000n * 1000000n + 999n).toBeGreaterThan(maxSigned);
+});

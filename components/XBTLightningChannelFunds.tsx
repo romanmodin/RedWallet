@@ -26,6 +26,7 @@ type Review = {
 type Props = {
   point: string;
   active: boolean;
+  hideBalances?: boolean;
   splice?: Splice;
   busy: boolean;
   run: (title: string, action: () => Promise<void>) => Promise<void>;
@@ -45,7 +46,17 @@ const reasons: Record<string, string> = {
   peer_not_locked: 'Waiting for the peer to lock the previous resize.',
 };
 
-export default function XBTLightningChannelFunds({ point, active, splice, busy, run, runAuthorized, report, onUpdated }: Props) {
+export default function XBTLightningChannelFunds({
+  point,
+  active,
+  hideBalances = false,
+  splice,
+  busy,
+  run,
+  runAuthorized,
+  report,
+  onUpdated,
+}: Props) {
   const { colors } = useTheme();
   const [direction, setDirection] = useState<'in' | 'out'>();
   const [sats, setSats] = useState('');
@@ -164,10 +175,9 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
                   review.item.feeRate +
                   ' sat/vB' +
                   '\nNew capacity: ' +
-                  review.item.capacity +
-                  ' sats\nYour resulting balance: ' +
-                  review.item.local +
-                  ' sats' +
+                  (hideBalances ? '••••' : review.item.capacity + ' sats') +
+                  '\nYour resulting balance: ' +
+                  (hideBalances ? '••••' : review.item.local + ' sats') +
                   (direction === 'out' ? '\nReturn address: ' + review.item.address : '') +
                   '\nRequired confirmations: ' +
                   review.item.lockDepth +

@@ -1,5 +1,7 @@
 import QRCodeComponent from '../../components/QRCode';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
+import { useStorage } from '../../hooks/context/useStorage';
+import { LndWallet } from '../../class/wallets/lnd-wallet';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -30,6 +32,17 @@ import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/X
 import { validLightningChannelOpenSats, validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
 
 const bridge = NativeModules.XBTLightningBridge;
+// These fixed outcomes contain no wallet amounts. Keep them visible after a
+// submission; opaque native results and errors require revealing the balance.
+const publicActivityOutcomes = new Set([
+  'Payment settled.',
+  'Payment failed. Check channel balance and routing.',
+  'Action canceled. Nothing was submitted.',
+  'Withdrawal outcome unknown. Check on-chain history before creating another withdrawal.',
+  'Channel close was not confirmed. Check channels and on-chain history before retrying.',
+  'Resize outcome unknown or not completed. Refresh channels and check the node before creating another resize.',
+  'Review ready. No funds have moved.',
+]);
 type Channel = {
   point: string;
   peer: string;
@@ -91,7 +104,7 @@ function channelState(channel: Channel) {
   }
 }
 
-function selectedChannelDetails(channel: Channel) {
+function selectedChannelDetails(channel: Channel, hideBalances = false) {
   return (
     'Status: ' +
     channelState(channel) +
@@ -104,8 +117,7 @@ function selectedChannelDetails(channel: Channel) {
     '\nChannel funding reference: ' +
     channel.point +
     '\nLocal balance: ' +
-    channel.localSats +
-    ' sats'
+    (hideBalances ? '••••' : channel.localSats + ' sats')
   );
 }
 
@@ -128,6 +140,11 @@ export default function XBTLightning({
   route?: { params?: { mode?: 'pay' | 'invoice' | 'send' | 'receive' } };
 } = {}) {
   const navigation = useExtendedNavigation();
+  const { wallets } = useStorage();
+  const lightningWallet = wallets.find(wallet => wallet.type === LndWallet.type);
+  const hideBalances = lightningWallet?.hideBalance === true;
+  const privacy = useRef(hideBalances);
+  privacy.current = hideBalances;
   const authorizePayment = usePaymentAuthorization();
   const authorizeExport = useSecretExport();
   const mode = route?.params?.mode;
@@ -169,6 +186,16 @@ export default function XBTLightning({
     setActivityError(channelError);
     if (channelError) setMessage('Channel refresh failed. Refresh channels before using these details or actions.');
   }, [channels, selectedPoint, activityTitle, channelError]);
+  const selectedChannel = channels?.find(channel => channel.point === selectedPoint);
+  // Native results and errors are opaque strings that can include balances,
+  // amounts and fees. Never render or copy them while the wallet is hidden.
+  // Peer identity remains useful and can be reconstructed without its balance.
+  const activityMessage =
+    hideBalances && message && !publicActivityOutcomes.has(message)
+      ? activityTitle === 'Selected channel' && selectedChannel && !channelError
+        ? selectedChannelDetails(selectedChannel, true)
+        : 'Activity details are hidden. Reveal your Lightning balance to view them.'
+      : message;
   const channelRequest = useRef<Promise<Channel[]> | undefined>(undefined);
   const [destination, setDestination] = useState('');
   const [withdrawSats, setWithdrawSats] = useState('');
@@ -509,12 +536,13 @@ export default function XBTLightning({
               {activityError ? activityTitle + ' · Error' : activityTitle}
             </Text>
             {busy && <ActivityIndicator accessibilityLabel="Lightning operation in progress" color={colors.foregroundColor} />}
-            {!!message && !busy && (
+            {!!message && !busy && !hideBalances && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Copy activity result"
                 style={[styles.copyButton, { backgroundColor: colors.buttonBackgroundColor }]}
                 onPress={() => {
+                  if (privacy.current || lightningWallet?.hideBalance) return;
                   Clipboard.setString(message);
                   setCopied(true);
                 }}
@@ -523,7 +551,7 @@ export default function XBTLightning({
               </Pressable>
             )}
           </View>
-          <ScrollView key={activityTitle + message} nestedScrollEnabled style={styles.activityBody}>
+          <ScrollView key={activityTitle + activityMessage} nestedScrollEnabled style={styles.activityBody}>
             <Text
               selectable
               accessibilityLiveRegion="polite"
@@ -534,7 +562,7 @@ export default function XBTLightning({
                 },
               ]}
             >
-              {busy ? 'Working…' : message || 'Results will appear here.'}
+              {busy ? 'Working…' : activityMessage || 'Results will appear here.'}
             </Text>
           </ScrollView>
         </View>
@@ -922,12 +950,20 @@ export default function XBTLightning({
                         animated: true,
                       });
                     }}
-                    subtitle={'Local balance: ' + channel.localSats + ' sats\nPeer: ' + channel.peer + '\nFunding: ' + channel.point}
+                    subtitle={
+                      'Local balance: ' +
+                      (hideBalances ? '••••' : channel.localSats + ' sats') +
+                      '\nPeer: ' +
+                      channel.peer +
+                      '\nFunding: ' +
+                      channel.point
+                    }
                   />
                   {selectedPoint === channel.point && bridge.splice && ['active', 'inactive'].includes(channel.state) && (
                     <XBTLightningChannelFunds
                       point={channel.point}
                       active={channel.active && !channelError}
+                      hideBalances={hideBalances}
                       splice={channel.splice}
                       busy={busy}
                       run={run}
@@ -940,7 +976,7 @@ export default function XBTLightning({
                   )}
                   {selectedPoint === channel.point && ['active', 'inactive'].includes(channel.state) && (
                     <SettingsListItem
-                      title={'Close channel · ' + channel.localSats + ' local sats'}
+                      title={hideBalances ? 'Close channel' : 'Close channel · ' + channel.localSats + ' local sats'}
                       disabled={busy || channelError || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
                       onPress={() => confirmClose(channel)}
                     />

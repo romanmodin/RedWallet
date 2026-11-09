@@ -55,8 +55,8 @@ extension RegtestNode {
 
     public func openChannel(to key: String, sats: UInt64, feeRate: UInt64 = 1) async throws -> String {
         guard sats <= LightningAmounts.maxChannelOpenSats else { throw NodeFailure.channelOpeningLimit }
-        try await requireSynced()
         guard validKey(key), LightningAmounts.valid(sats), LightningAmounts.validFeeRate(feeRate) else { throw NodeFailure.invalidAmount }
+        try await requireSynced()
         let request = ProtoFields.field(3, data: Data(key.utf8)) + ProtoFields.field(4, integer: sats) +
             ProtoFields.field(1, integer: feeRate) + ProtoFields.field(8, integer: 1)
         let point = try ProtoFields(await rpc { LndmobileOpenChannelSync(request, $0) })

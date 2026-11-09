@@ -175,10 +175,10 @@ internal object RegtestNode {
         "open" -> {
             val amount = sats.toLong()
             require(amount <= LightningAmounts.MAX_CHANNEL_OPEN_SATS) { "New channels can be opened with up to 10,000,000 sats. Resize an existing channel separately." }
-            requireSynced()
             val fee = if (hash.isEmpty()) 1L else hash.toLong()
             require(LightningAmounts.validFeeRate(fee))
             require(publicKey.matches(value) && LightningAmounts.valid(amount))
+            requireSynced()
             val point = rpc { Lndmobile.openChannelSync(message { writeString(3,value); writeUInt64(4,amount); writeUInt64(1,fee); writeUInt64(8,1) },it) }
             val id = point.blobs[1]?.firstOrNull()?.also { require(it.size == 32) }?.reversedArray()?.joinToString("") { "%02x".format(it) } ?: point.string(2)
             id + ":" + point.number(3)

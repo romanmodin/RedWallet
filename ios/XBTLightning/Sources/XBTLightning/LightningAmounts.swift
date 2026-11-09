@@ -5,8 +5,9 @@ import Foundation
 enum LightningAmounts {
     static let maxChannelOpenSats: UInt64 = 10_000_000
     static let maxSats: UInt64 = 2_100_000_000_000_000
-    // 3x cooperative-close negotiation, then sat/vB -> sat/kvB.
-    static let maxFeeRate: UInt64 = 3_002_399_751_580_330 // JS MAX_SAFE_INTEGER / 3
+    // Signed LND fee product through 3x close negotiation and the maximum
+    // consensus transaction size (1,000,000 vB), with 999 rounding headroom.
+    static let maxFeeRate: UInt64 = 3_074_457_345 // (Int64.max - 999) / (3 * 1000 * 1_000_000)
     static func valid(_ sats: UInt64, allowZero: Bool = false) -> Bool {
         sats <= maxSats && (allowZero || sats > 0)
     }
