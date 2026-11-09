@@ -99,8 +99,13 @@ export default function XBTLightningChannelFunds({
       {!!splice?.progress && (
         <SettingsFootnote style={{ color: colors.foregroundColor }}>
           {'Channel resize: ' +
-            splice.progress +
-            (splice.lockDepth !== '0' ? ' · ' + splice.confirmations + '/' + splice.lockDepth + ' confirmations' : '') +
+            (splice.progress === 'confirmed' ? 'confirmed on chain; waiting for both peers to lock' : splice.progress) +
+            (splice.lockDepth !== '0'
+              ? splice.progress === 'confirmed' && splice.confirmations === '0'
+                ? '\nLocal confirmation count unavailable; local requirement: ' + splice.lockDepth
+                : '\nLocal confirmations: ' + splice.confirmations + '/' + splice.lockDepth
+              : '') +
+            (splice.progress !== 'locked' ? '\nThe peer may require more confirmations. The balance updates after both peers lock.' : '') +
             (splice.txid ? '\nTransaction: ' + splice.txid : '')}
         </SettingsFootnote>
       )}
@@ -179,9 +184,9 @@ export default function XBTLightningChannelFunds({
                   '\nYour resulting balance: ' +
                   (hideBalances ? '••••' : review.item.local + ' sats') +
                   (direction === 'out' ? '\nReturn address: ' + review.item.address : '') +
-                  '\nRequired confirmations: ' +
+                  '\nLocal required confirmations: ' +
                   review.item.lockDepth +
-                  '\nThe final fee may vary with transaction size. Wait for both peers to lock the resize.'}
+                  '\nThe peer may require more confirmations. The final fee may vary with transaction size. Wait for both peers to lock the resize.'}
               </Text>
               <SettingsListItem
                 title={direction === 'in' ? 'Confirm add funds' : 'Confirm remove funds'}
