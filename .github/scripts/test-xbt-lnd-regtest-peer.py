@@ -72,4 +72,32 @@ class ReadinessTests(unittest.TestCase):
         self.assertEqual(ns['call'].call_count, 1)
 
 
+class SpliceConfirmationTests(unittest.TestCase):
+    def setUp(self):
+        ns['lightning'] = ['disposable-lncli']
+        ns['time'] = Mock()
+        self.txid = 'a' * 64
+
+    def response(self, depth, txid=None):
+        return json.dumps({'channels': [{'pending_splice': {'txid': txid or self.txid, 'lock_depth': depth}}]})
+
+    def test_large_peer_input_requires_its_full_144_confirmations(self):
+        ns['call'] = Mock(return_value=self.response(144))
+        self.assertEqual(ns['splice_confirmation_depth'](self.txid, 8), 146)
+
+    def test_never_reduces_the_initiators_requirement(self):
+        ns['call'] = Mock(return_value=self.response(6))
+        self.assertEqual(ns['splice_confirmation_depth'](self.txid, 40), 40)
+
+    def test_missing_or_previous_attempt_is_not_authoritative(self):
+        ns['call'] = Mock(return_value=self.response(144, 'b' * 64))
+        with self.assertRaises(ValueError): ns['splice_confirmation_depth'](self.txid, 8)
+        self.assertEqual(ns['call'].call_count, 60)
+
+    def test_invalid_peer_depth_fails_closed(self):
+        for depth in [0, -1, 145]:
+            ns['call'] = Mock(return_value=self.response(depth))
+            with self.assertRaises(ValueError): ns['splice_confirmation_depth'](self.txid, 8)
+
+
 if __name__ == '__main__': unittest.main()

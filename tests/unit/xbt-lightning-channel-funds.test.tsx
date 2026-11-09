@@ -32,6 +32,7 @@ function screen(status = 'ok') {
       splice={{ ...ready, status }}
       busy={false}
       run={run}
+      runAuthorized={run}
       report={report}
       onUpdated={onUpdated}
     />,
@@ -107,7 +108,13 @@ test('a failed confirmation is not retried automatically', async () => {
 });
 
 test.each(['in', 'out'])('large %s resize reviews the exact amount and fee without broadcasting', async direction => {
-  bridge.splice.mockResolvedValue({ ...review(direction), sats: '44000000', feeRate: '250', capacity: '45000000', local: '44000000' });
+  bridge.splice.mockResolvedValue({
+    ...review(direction),
+    sats: '44000000',
+    feeRate: '250',
+    capacity: '45000000',
+    local: '44000000',
+  });
   const s = screen();
   fireEvent.press(s.getByText(direction === 'in' ? 'Add funds' : 'Remove funds'));
   fireEvent.changeText(s.getByLabelText('Channel resize sats'), '44000000');
@@ -129,3 +136,28 @@ test.each(['0', '-1', '1.5', '1e8', '2100000000000001', '9007199254740993'])(
     s.unmount();
   },
 );
+
+test('hidden resize review keeps the confirmed spend and fee visible while masking resulting wallet balances', async () => {
+  bridge.splice.mockResolvedValueOnce(review('in'));
+  const s = render(
+    <XBTLightningChannelFunds
+      point={point}
+      active
+      splice={ready}
+      busy={false}
+      hideBalances
+      run={run}
+      runAuthorized={run}
+      report={report}
+      onUpdated={onUpdated}
+    />,
+  );
+  fireEvent.press(s.getByText('Add funds'));
+  fireEvent.changeText(s.getByLabelText('Channel resize sats'), '20000');
+  fireEvent.changeText(s.getByLabelText('Channel resize fee rate'), '2');
+  await act(async () => fireEvent.press(s.getByText('Review channel resize')));
+  expect(s.getByText(/Add 20000 sats/)).toBeTruthy();
+  expect(s.getByText(/Estimated network fee: 400 sats at 2 sat\/vB/)).toBeTruthy();
+  expect(s.getByText('Confirm add funds')).toBeTruthy();
+  expect(JSON.stringify(s.toJSON())).not.toMatch(/120000|110000/);
+});

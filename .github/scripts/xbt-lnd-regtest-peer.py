@@ -51,6 +51,23 @@ def wait_for_payment_route(invoice):
     raise ValueError("return-payment route did not become ready")
 
 
+def splice_confirmation_depth(txid, local_depth):
+    # EstimateSplice reports OUR minimum. The peer can require a longer depth
+    # for our new inputs (144 for a large splice). Read its authoritative
+    # pending record; do not lower either node's production policy.
+    for _ in range(60):
+        channels = json.loads(call(lightning, "listchannels")).get("channels", [])
+        for channel in channels:
+            pending = channel.get("pending_splice") or {}
+            if pending.get("txid") == txid:
+                depth = int(pending.get("lock_depth", 0))
+                if not 1 <= depth <= 144:
+                    raise ValueError("invalid peer splice confirmation depth")
+                return max(local_depth, depth + 2)
+        time.sleep(1)
+    raise ValueError("peer splice confirmation policy unavailable")
+
+
 class Fixture(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
@@ -88,7 +105,8 @@ class Fixture(BaseHTTPRequestHandler):
                     time.sleep(1)
                 else:
                     raise ValueError("splice transaction missing")
-                call(chain, "generatetoaddress", depth, miner)
+                required = splice_confirmation_depth(txid, int(depth))
+                call(chain, "generatetoaddress", str(required), miner)
                 result = "mined-splice"
             elif self.path == "/withdraw-address":
                 result = withdrawal_target

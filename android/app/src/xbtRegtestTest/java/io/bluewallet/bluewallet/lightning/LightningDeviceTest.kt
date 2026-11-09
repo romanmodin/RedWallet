@@ -9,6 +9,7 @@ import lndmobile.Lndmobile
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.io.File
+import java.math.BigInteger
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -47,6 +48,26 @@ class LightningDeviceTest {
         val rejected = runCatching { RegtestNode.invoice("open", "02" + "a".repeat(64), "1", "10000001") }
         assertTrue(rejected.isFailure)
         assertTrue(rejected.exceptionOrNull()?.message.orEmpty().contains("10,000,000 sats"))
+    }
+    @Test fun unsafeFeeIsRejectedBeforeAnyNodeCall() {
+        val maximum = LightningAmounts.MAX_FEE_RATE
+        assertTrue(LightningAmounts.validFeeRate(maximum))
+        assertTrue(LightningAmounts.validFeeRate(1_000_000L))
+        assertFalse(LightningAmounts.validFeeRate(maximum + 1))
+        assertFalse(LightningAmounts.validFeeRate(3_002_399_751_580_330L))
+        val product = BigInteger.valueOf(maximum).multiply(BigInteger.valueOf(3000L))
+            .multiply(BigInteger.valueOf(1_000_000L)).add(BigInteger.valueOf(999L))
+        assertTrue(product <= BigInteger.valueOf(Long.MAX_VALUE))
+        for (rate in listOf(maximum + 1, 3_002_399_751_580_330L, Long.MAX_VALUE)) {
+            val opening = runCatching { RegtestNode.invoice("open", "02" + "a".repeat(64), rate.toString(), "100000") }
+            assertTrue(opening.exceptionOrNull() is IllegalArgumentException)
+            val withdrawal = runCatching {
+                NodeManagement.run("withdrawReview", MainnetConfiguration.addressPrefix + "qfixture", "1000", rate.toString())
+            }
+            assertTrue(withdrawal.exceptionOrNull() is IllegalArgumentException)
+            val closing = runCatching { NodeManagement.run("close", "a".repeat(64) + ":0", "", rate.toString()) }
+            assertTrue(closing.exceptionOrNull() is IllegalArgumentException)
+        }
     }
     @Test fun payments() {
         assertFalse(MainnetConfiguration.live)

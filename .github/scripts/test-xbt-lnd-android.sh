@@ -37,6 +37,9 @@ run_case() {
     return 1
   fi
 }
+# Rejections must be exercised natively before a node or wallet is started.
+run_case openingCapIsEnforcedBeforeNodeCalls
+run_case unsafeFeeIsRejectedBeforeAnyNodeCall
 run_case payments
 for f in recovery.rwln identity balance; do adb exec-out run-as "$app" cat "cache/$f" > "$dir/$f"; done
 adb shell am force-stop "$app"

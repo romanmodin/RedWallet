@@ -11,6 +11,28 @@ final class SpliceTests: XCTestCase {
             // The cap is enforced natively even when called without the React form.
         } catch { XCTFail("Expected the opening cap error, got \(error)") }
     }
+    func testFeeRatesProtectSignedBackendProductsAtMaximumTransactionWeight() {
+        let rate = LightningAmounts.maxFeeRate
+        XCTAssertTrue(LightningAmounts.validFeeRate(rate))
+        XCTAssertTrue(LightningAmounts.validFeeRate(1_000_000))
+        XCTAssertFalse(LightningAmounts.validFeeRate(rate + 1))
+        XCTAssertFalse(LightningAmounts.validFeeRate(3_002_399_751_580_330))
+        let product = (rate * 3000).multipliedReportingOverflow(by: 1_000_000)
+        XCTAssertFalse(product.overflow)
+        XCTAssertLessThanOrEqual(product.partialValue + 999, UInt64(Int64.max))
+        let weightProduct = (rate * 3000 / 4).multipliedReportingOverflow(by: 4_000_000)
+        XCTAssertFalse(weightProduct.overflow)
+        XCTAssertLessThanOrEqual(weightProduct.partialValue + 999, UInt64(Int64.max))
+    }
+    func testUnsafeOpeningFeeIsRejectedBeforeAnyNodeCall() async {
+        do {
+            _ = try await RegtestNode.shared.openChannel(to: "02" + String(repeating: "a", count: 64), sats: 100_000,
+                                                       feeRate: LightningAmounts.maxFeeRate + 1)
+            XCTFail("Unsafe fee must not reach LND")
+        } catch NodeFailure.invalidAmount {
+            // Local validation must run before the readiness RPC.
+        } catch { XCTFail("Expected the fee validation error, got \(error)") }
+    }
     private func estimate(removing: Bool = false) -> Data {
         var data = Data()
         let pairs: [(UInt64, UInt64)] = [(1, 500), (3, 2), (4, 20_000), (11, 120_000), (12, 100_000), (13, 6)]
