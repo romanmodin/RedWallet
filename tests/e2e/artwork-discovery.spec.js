@@ -87,6 +87,10 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     const appearance = await prepareArtworkApp({ device, setup, waitForReady: waitForWalletsList, run: execFileSync });
     fs.writeFileSync(path.join(setupDirectory, 'appearance.json'), JSON.stringify(appearance, null, 2) + '\n');
     await setup('open-settings', () => element(by.id('SettingsButton')).tap());
+    await setup('capture-settings-menu', () => capture('00-settings-menu', 'portrait', 'SettingsRoot'));
+    await setup('open-general-settings', () => element(by.id('GeneralSettings')).tap());
+    await setup('capture-general-menu', () => capture('00b-general-menu', 'portrait', 'GeneralSettingsScreen'));
+    await goBack();
     await setup('open-network-settings', () => element(by.id('NetworkSettings')).tap());
     await setup('open-electrum-settings', () => element(by.id('ElectrumSettings')).tap());
     await setup('electrum-switch-visible', () => waitForId('ElectrumConnectionEnabledSwitch'));

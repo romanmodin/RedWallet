@@ -13,6 +13,8 @@ export const getSettingsHeaderOptions = (title: string, theme: Theme) => {
     headerTitleAlign: 'center' as const,
     headerTitleStyle: {
       color: titleColor,
+      // Android's native stack otherwise inherits sans-serif-medium.
+      fontFamily: theme.fonts.regular.fontFamily,
       fontSize: 22,
       fontWeight: '400' as const,
     },
