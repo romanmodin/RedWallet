@@ -297,7 +297,7 @@ const WalletsList: React.FC = () => {
       <View style={[styles.listHeaderBack, stylesHook.listHeaderBack]}>
         <Text
           textBreakStrategy="simple"
-          style={[styles.listHeaderText, stylesHook.listHeaderText]}
+          style={[styles.listHeaderText, stylesHook.listHeaderText, styles.transactionsTitle]}
           numberOfLines={2}
           adjustsFontSizeToFit={true}
         >
@@ -503,6 +503,7 @@ const WalletsList: React.FC = () => {
                 its own bounds. Scrolling transactions never moves this area. */}
             <ScrollView
               testID="WalletsHeaderOverflow"
+              style={styles.headerOverflow}
               bounces={false}
               showsVerticalScrollIndicator={false}
               contentInsetAdjustmentBehavior="never"
@@ -547,6 +548,8 @@ export default WalletsList;
 const artworkStyles = StyleSheet.create({ transparent: { backgroundColor: 'transparent' } });
 
 const styles = StyleSheet.create({
+  transactionsTitle: { fontSize: 22, textTransform: 'uppercase' },
+  headerOverflow: { flexGrow: 0 },
   pinnedHeader: {
     maxHeight: '60%',
     flexShrink: 0,
