@@ -307,7 +307,8 @@ const DetailViewStackScreensStack = () => {
       return {
         title: sizeClass === SizeClass.Large ? loc.wallets.list_title : '',
         headerLargeTitle: false,
-        headerTransparent: true,
+        // Native layout must reserve the toolbar/status-bar space for the pinned dashboard.
+        headerTransparent: false,
         unstable_headerLeftItems: (): NativeStackHeaderItem[] => {
           const element = renderHeaderLeft();
           if (element == null) {

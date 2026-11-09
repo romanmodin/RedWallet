@@ -1,5 +1,6 @@
 import {
   nativeCaptureEvidence,
+  nativeDashboardPlacement,
   matchesNativeOrientation,
   shouldRepeatOrientation,
   observeNativeRotation,
@@ -160,4 +161,25 @@ test('invalid UUID and inventory/launch errors fail closed without retries', () 
     });
   expect(() => attachSimulatorForRotation(launch, selectedSimulator)).toThrow(failure);
   expect(launch).toHaveBeenCalledTimes(2);
+});
+
+test.each([
+  [0, false],
+  [80, false],
+  [106, true],
+  [122, true],
+])('portrait dashboard at screen y=%s clears the actual toolbar: %s', (y, clear) => {
+  const header = { frame: { x: 0, y, width: 402, height: 260 }, elementBounds: { x: 0, y: 0, width: 402, height: 260 } };
+  const toolbar = { frame: { x: 286, y: 62, width: 44, height: 44 } };
+  expect(nativeDashboardPlacement(header, toolbar).clearsToolbar).toBe(clear);
+});
+
+test('portrait placement refuses local-only or malformed bounds as proof of screen position', () => {
+  const toolbar = { frame: { x: 286, y: 62, width: 44, height: 44 } };
+  expect(() => nativeDashboardPlacement({ elementBounds: { x: 0, y: 120, width: 402, height: 260 } }, toolbar)).toThrow(
+    'Missing native screen-coordinate frame',
+  );
+  expect(() => nativeDashboardPlacement({ frame: { x: 0, y: NaN, width: 402, height: 260 } }, toolbar)).toThrow(
+    'Missing native screen-coordinate frame',
+  );
 });

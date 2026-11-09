@@ -6,6 +6,7 @@ import path from 'node:path';
 import { element, waitFor } from 'detox';
 import {
   nativeCaptureEvidence,
+  nativeDashboardPlacement,
   matchesNativeOrientation,
   shouldRepeatOrientation,
   observeNativeRotation,
@@ -25,11 +26,18 @@ const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurfac
     orientationRequests++;
   }
   let evidence;
+  const checkPlacement = surfaceId === 'ArtworkSkinSurface' && orientation === 'portrait';
+  const observePlacement = async () =>
+    nativeDashboardPlacement(
+      await element(by.id('WalletsPinnedHeader')).getAttributes(),
+      await element(by.id('AddWalletButton')).getAttributes(),
+    );
   // simctl captures the physical framebuffer in portrait pixel coordinates even
   // when UIKit has rotated. Assert the actual native surface bounds, retain the
   // unmodified screenshot, and require human visual inspection of both views.
   do {
     const preCapture = await element(by.id(surfaceId)).getAttributes();
+    const placementBefore = checkPlacement ? await observePlacement() : undefined;
     const file = await device.takeScreenshot(name);
     const png = fs.readFileSync(file);
     // The screenshot request can advance a pending UIKit geometry update. Keep
@@ -38,10 +46,12 @@ const captureObserved = async (name, orientation, surfaceId = 'ArtworkSkinSurfac
     const before = await element(by.id(surfaceId)).getAttributes();
     const after = await element(by.id(surfaceId)).getAttributes();
     evidence = nativeCaptureEvidence(png, before, after, orientation, preCapture);
+    if (checkPlacement) evidence.dashboardPlacement = { before: placementBefore, after: await observePlacement() };
     // Retain the last observed native state on failure as well as success.
     fs.copyFileSync(file, path.join(directory, name + '.png'));
     fs.writeFileSync(path.join(directory, name + '.json'), JSON.stringify({ surfaceId, orientationRequests, ...evidence }, null, 2) + '\n');
-    if (matchesNativeOrientation(evidence)) return;
+    const clearsToolbar = !evidence.dashboardPlacement || Object.values(evidence.dashboardPlacement).every(value => value.clearsToolbar);
+    if (matchesNativeOrientation(evidence) && clearsToolbar) return;
     if (shouldRepeatOrientation(evidence, Date.now() - started, orientationRequests)) {
       await device.setOrientation(orientation);
       orientationRequests++;
