@@ -3,8 +3,8 @@ import DefaultPreference from 'react-native-default-preference';
 import { GROUP_IO_BLUEWALLET } from './currency';
 
 export const ARTWORK_SKIN_KEY = 'optional_artwork_skin_v1';
-export type ArtworkSkin = 'off' | 'helmet' | 'armour';
-export const ARTWORK_SKINS: readonly ArtworkSkin[] = ['off', 'helmet', 'armour'];
+export type ArtworkSkin = 'off' | 'helmet' | 'armour' | 'dark-angel' | 'templar';
+export const ARTWORK_SKINS: readonly ArtworkSkin[] = ['off', 'helmet', 'armour', 'dark-angel', 'templar'];
 let selected: ArtworkSkin = 'off';
 let loaded: Promise<void> | undefined;
 let queue = Promise.resolve();
@@ -24,7 +24,7 @@ export function loadArtworkSkin(): Promise<void> {
     try {
       await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
       const saved = await DefaultPreference.get(ARTWORK_SKIN_KEY);
-      selected = saved === 'enabled' || saved === 'helmet' ? 'helmet' : saved === 'armour' ? 'armour' : 'off';
+      selected = saved === 'enabled' ? 'helmet' : (ARTWORK_SKINS.find(skin => skin === saved) ?? 'off');
       listeners.forEach(listener => listener());
     } catch {
       // Cosmetic persistence failures keep the original appearance.

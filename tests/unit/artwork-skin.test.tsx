@@ -60,6 +60,13 @@ it('defaults to the normal appearance and changes only the cosmetic preference o
   });
   expect(hook.result.current).toBe(true);
   expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, 'armour');
+  for (const skin of ['dark-angel', 'templar']) {
+    await act(async () => {
+      await toggleArtworkSkin();
+    });
+    expect(hook.result.current).toBe(true);
+    expect(DefaultPreference.set).toHaveBeenLastCalledWith(ARTWORK_SKIN_KEY, skin);
+  }
   await act(async () => {
     await toggleArtworkSkin();
   });
@@ -97,51 +104,57 @@ it('retains wallet content and renders no artwork when disabled', () => {
   ).toBeTruthy();
 });
 
-it('each logo tap cycles Helmet, Armour, Off and rapid taps are serialized', async () => {
+it('each logo tap cycles every skin then Off and rapid taps are serialized', async () => {
   const screen = render(<ArtworkSkinToggle />);
   await act(async () => {});
-  for (const name of ['Helmet', 'Armour', 'Off']) {
+  for (const name of ['Helmet', 'Armour', 'Dark Angel', 'Templar', 'Off']) {
     await act(async () => {
       fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
     });
     expect(screen.getByLabelText(`Artwork skin: ${name}`)).toBeTruthy();
   }
   await act(async () => {
-    fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
-    fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
-    fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
+    for (let index = 0; index < 5; index++) fireEvent.press(screen.getByTestId('ArtworkSkinLogo'));
   });
   expect(screen.getByLabelText('Artwork skin: Off')).toBeTruthy();
   screen.unmount();
 });
 
-it('restores the second skin after app restart', async () => {
+it.each(['armour', 'dark-angel', 'templar'])('restores the %s skin after app restart', async skin => {
   let module: typeof import('../../blue_modules/artwork-skin');
   jest.isolateModules(() => {
-    require('react-native-default-preference').get.mockResolvedValue('armour');
+    require('react-native-default-preference').get.mockResolvedValue(skin);
     module = require('../../blue_modules/artwork-skin');
   });
   await module!.loadArtworkSkin();
-  expect(module!.getArtworkSkin()).toBe('armour');
+  expect(module!.getArtworkSkin()).toBe(skin);
 });
 
-it.each([
-  [390, 740],
-  [740, 390],
-  [768, 1024],
-])('fits the entire portrait armour at %s x %s', (width, height) => {
+it.each(
+  [
+    { skin: 'armour' as const, source: require('../../img/optional-skin/armour.jpeg'), heightRatio: 739 / 415 },
+    { skin: 'dark-angel' as const, source: require('../../img/optional-skin/dark-angel.jpeg'), heightRatio: 720 / 1280 },
+    { skin: 'templar' as const, source: require('../../img/optional-skin/templar.jpeg'), heightRatio: 720 / 1280 },
+  ].flatMap(artwork =>
+    [
+      [390, 740],
+      [740, 390],
+      [768, 1024],
+    ].map(([width, height]) => ({ ...artwork, width, height })),
+  ),
+)('fits the entire $skin image at $width x $height', ({ skin, source, heightRatio, width, height }) => {
   const screen = render(
-    <ArtworkSkinSurface active skin="armour">
+    <ArtworkSkinSurface active skin={skin}>
       <Text>Wallet content</Text>
     </ArtworkSkinSurface>,
   );
   fireEvent(screen.getByTestId('ArtworkSkinSurface'), 'layout', { nativeEvent: { layout: { width, height } } });
   const image = screen.getByTestId('ArtworkSkinBackground', { includeHiddenElements: true });
   const style = StyleSheet.flatten(image.props.style);
-  expect(image.props.source).toEqual(require('../../img/optional-skin/armour.jpeg'));
+  expect(image.props.source).toEqual(source);
   expect(image.props.resizeMode).toBe('contain');
   expect(style.width).toBe(width);
-  expect(style.height).toBe(Math.min(height, (width * 739) / 415));
+  expect(style.height).toBe(Math.min(height, width * heightRatio));
 });
 
 it.each([

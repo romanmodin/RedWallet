@@ -135,6 +135,26 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await capture('02c-armour-portrait', 'portrait');
     await capture('02d-armour-landscape', 'landscape', 'ArtworkSkinSurface', true);
     await capture('02e-armour-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
+    for (const { label, frames } of [
+      { label: 'Dark Angel', frames: ['02f-dark-angel-portrait', '02g-dark-angel-landscape', '02h-dark-angel-return-portrait'] },
+      { label: 'Templar', frames: ['02i-templar-portrait', '02j-templar-landscape', '02k-templar-return-portrait'] },
+    ]) {
+      await element(by.id('SettingsButton')).tap();
+      await waitFor(element(by.id('ArtworkSkinLogo')))
+        .toBeVisible()
+        .whileElement(by.id('SettingsRoot'))
+        .scroll(300, 'down');
+      await element(by.id('ArtworkSkinLogo')).tap();
+      await waitFor(element(by.id('ArtworkSkinLogo')))
+        .toHaveLabel(`Artwork skin: ${label}`)
+        .withTimeout(5000);
+      await goBack();
+      await waitForWalletsList();
+      await scrollUpOnHomeScreen();
+      await capture(frames[0], 'portrait');
+      await capture(frames[1], 'landscape', 'ArtworkSkinSurface', true);
+      await capture(frames[2], 'portrait', 'ArtworkSkinSurface', true);
+    }
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('ArtworkSkinLogo')))
       .toBeVisible()
