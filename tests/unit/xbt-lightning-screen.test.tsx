@@ -91,6 +91,17 @@ test.each([false, true])('review binds the amount, hash and one submission even 
     );
     expect(bridge.invoice.mock.calls.map(call => call[0])).toEqual(['decode', 'pay']);
     expect(screen.getByText('Payment settled.')).toBeTruthy();
+    expect(screen.getByText('PAYMENT SUCCEEDED')).toBeTruthy();
+    if (hidden) {
+      expect(screen.queryByTestId('LightningPaymentReceipt')).toBeNull();
+      expect(screen.queryByLabelText('Copy activity result')).toBeNull();
+    } else {
+      const receipt = screen.getByTestId('LightningPaymentReceipt').props.children;
+      expect(receipt).toContain('AMOUNT: 500 SATS');
+      expect(receipt).toContain('PAYMENT REFERENCE:\n' + 'a'.repeat(64));
+      fireEvent.press(screen.getByLabelText('Copy activity result'));
+      expect(Clipboard.setString).toHaveBeenLastCalledWith('Payment settled.\n' + receipt);
+    }
   } finally {
     prompt.mockRestore();
   }
@@ -958,10 +969,18 @@ describe('payment result reconciliation', () => {
       await act(async () => {});
       await reviewAndPay(screen, prompt);
       expect(screen.getByText('Payment settled.')).toBeTruthy();
+      expect(screen.getByText('PAYMENT SUCCEEDED')).toBeTruthy();
+      bridge.wallet.mockRejectedValueOnce(new Error('offline'));
+      await act(async () => fireEvent.press(screen.getByText('Check payment status')));
+      expect(screen.getByText('PAYMENT STATUS UNAVAILABLE')).toBeTruthy();
+      expect(screen.queryByTestId('LightningPaymentSuccess')).toBeNull();
+      expect(screen.queryByTestId('LightningPaymentReceipt')).toBeNull();
       expect(screen.getByLabelText('Invoice to pay').props.value).toBe('');
       fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
       await act(async () => fireEvent.press(screen.getByText('Review invoice')));
       expect(screen.getByText('This invoice is already paid. No new payment was sent.')).toBeTruthy();
+      expect(screen.getByText('INVOICE ALREADY PAID')).toBeTruthy();
+      expect(screen.queryByText('PAYMENT SUCCEEDED')).toBeNull();
       expect(screen.queryByText('Pay 500 sats')).toBeNull();
       expect(payInvoice).toHaveBeenCalledTimes(1);
     } finally {
@@ -982,11 +1001,19 @@ describe('payment result reconciliation', () => {
       await act(async () => {});
       await reviewAndPay(screen, prompt);
       expect(screen.getByText(/Payment result is not confirmed/)).toBeTruthy();
+      expect(screen.getByText('PAYMENT STATUS UNKNOWN')).toBeTruthy();
+      expect(screen.queryByText('PAYMENT FAILED')).toBeNull();
+      expect(screen.queryByText('PAYMENT SUCCEEDED')).toBeNull();
+      expect(screen.queryByTestId('LightningPaymentSuccess')).toBeNull();
+      expect(screen.queryByTestId('LightningPaymentReceipt')).toBeNull();
       await act(async () => fireEvent.press(screen.getByText('Review invoice')));
       expect(screen.queryByText('Pay 500 sats')).toBeNull();
       state = 'settled';
       await act(async () => fireEvent.press(screen.getByText('Check payment status')));
       expect(screen.getByText('Payment settled.')).toBeTruthy();
+      expect(screen.getByText('PAYMENT SUCCEEDED')).toBeTruthy();
+      expect(screen.getByTestId('LightningPaymentReceipt').props.children).toContain('AMOUNT: 500 SATS');
+      expect(screen.getByTestId('LightningPaymentReceipt').props.children).toContain(hash);
       expect(payInvoice).toHaveBeenCalledTimes(1);
     } finally {
       screen.unmount();
@@ -1015,6 +1042,16 @@ describe('payment result reconciliation', () => {
             : 'Payment pending. The node is still resolving it. Do not resend this invoice.',
         ),
       ).toBeTruthy();
+      expect(screen.queryByText('PAYMENT SUCCEEDED')).toBeNull();
+      if (state === 'settled') {
+        expect(screen.getByText('INVOICE ALREADY PAID')).toBeTruthy();
+        await act(async () => fireEvent.press(screen.getByText('Check payment status')));
+        expect(screen.getByText('INVOICE ALREADY PAID')).toBeTruthy();
+        expect(screen.queryByText('PAYMENT SUCCEEDED')).toBeNull();
+      } else {
+        expect(screen.getByText('PAYMENT PENDING')).toBeTruthy();
+        expect(screen.queryByTestId('LightningPaymentSuccess')).toBeNull();
+      }
       expect(payInvoice).not.toHaveBeenCalled();
     } finally {
       screen.unmount();
@@ -1022,18 +1059,68 @@ describe('payment result reconciliation', () => {
     }
   });
 
-  test('reports a native pre-submission sync rejection instead of an unknown payment', async () => {
-    const payInvoice = jest.fn().mockRejectedValue({ code: 'payment_not_submitted_not_synced' });
+  test.each([
+    [
+      'payment_not_submitted_not_synced',
+      'PAYMENT NOT SENT',
+      'Payment not submitted. Wait for the XBT chain to finish syncing, then review the invoice again.',
+    ],
+    [
+      'payment_not_submitted_invalid_invoice',
+      'PAYMENT REFUSED',
+      'Payment not submitted. The node could not validate this XBT Lightning invoice.',
+    ],
+    [
+      'payment_not_submitted_invalid_review',
+      'PAYMENT REFUSED',
+      'Payment not submitted. The invoice, amount or fee no longer matches the review.',
+    ],
+    [
+      'payment_not_submitted_unavailable',
+      'PAYMENT NOT SENT',
+      'Payment not submitted. The node could not verify its readiness. Check node status before reviewing again.',
+    ],
+    ['payment_not_submitted_canceled', 'PAYMENT CANCELED', 'Action canceled. Nothing was submitted.'],
+  ])('shows the explicit reason for native pre-submission rejection %s', async (code, title, detail) => {
+    const payInvoice = jest.fn().mockRejectedValue({ code });
     Object.assign(bridge, { payInvoice });
     const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const screen = render(<XBTLightning />);
     try {
       await act(async () => {});
       await reviewAndPay(screen, prompt);
-      expect(
-        screen.getByText('Payment not submitted. Wait for the XBT chain to finish syncing, then review the invoice again.'),
-      ).toBeTruthy();
+      expect(screen.getByText(title)).toBeTruthy();
+      expect(screen.getByText(detail)).toBeTruthy();
       expect(screen.queryByText(/Payment result is not confirmed/)).toBeNull();
+      expect(screen.queryByTestId('LightningPaymentSuccess')).toBeNull();
+      expect(screen.queryByTestId('LightningPaymentReceipt')).toBeNull();
+      expect(payInvoice).toHaveBeenCalledTimes(1);
+    } finally {
+      screen.unmount();
+      prompt.mockRestore();
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
+
+  test.each([false, true])('shows a confirmed failure after response interruption=%s', async interrupted => {
+    let state = '';
+    bridge.wallet.mockImplementation(async () => (state ? history(state) : empty));
+    const payInvoice = jest.fn(async () => {
+      state = 'failed';
+      if (interrupted) throw new Error('response interrupted');
+      return false;
+    });
+    Object.assign(bridge, { payInvoice });
+    const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      await reviewAndPay(screen, prompt);
+      expect(screen.getByText('PAYMENT FAILED')).toBeTruthy();
+      expect(screen.getByText('Payment failed. Check channel balance and routing.')).toBeTruthy();
+      expect(screen.queryByText('PAYMENT STATUS UNKNOWN')).toBeNull();
+      expect(screen.queryByTestId('LightningPaymentSuccess')).toBeNull();
+      expect(screen.queryByTestId('LightningPaymentReceipt')).toBeNull();
       expect(payInvoice).toHaveBeenCalledTimes(1);
     } finally {
       screen.unmount();
@@ -1053,6 +1140,8 @@ describe('payment result reconciliation', () => {
       await act(async () => fireEvent.press(screen.getByText('Review invoice')));
       expect(screen.queryByText('Pay 500 sats')).toBeNull();
       expect(screen.getByText('Could not verify Lightning payment history. No new payment was submitted.')).toBeTruthy();
+      expect(screen.getByText('PAYMENT STATUS UNAVAILABLE')).toBeTruthy();
+      expect(screen.queryByTestId('LightningPaymentSuccess')).toBeNull();
       expect(payInvoice).not.toHaveBeenCalled();
     } finally {
       screen.unmount();
