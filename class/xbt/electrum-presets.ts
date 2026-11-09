@@ -1,3 +1,3 @@
-// Published by the operator at https://kilombino.com/. Selection is explicit;
-// this is not an automatic fallback or a certificate trust exception.
+// System-trusted TLS default for unconfigured installations and an explicit settings preset.
+// Saved custom servers and an explicitly removed default take precedence.
 export const XBT_ELECTRUM_PRESETS = [{ host: 'fulcrum.kilombino.com', ssl: 17717 }];
