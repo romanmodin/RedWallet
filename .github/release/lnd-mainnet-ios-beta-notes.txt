@@ -14,3 +14,5 @@ BTC, Lightning and interface update:
 - PAY (INVOICE) now uses all capital letters.
 
 Please check BTC/XBT labels, receive QR amounts, Settings menus, and the saved skins on your iPhone. Bitcoin connections use direct TLS. Tor covers the embedded Lightning paths and configured watchtowers; it does not register a watchtower, and exchange quotes still use direct HTTPS.
+
+The pinned dashboard now clears the native toolbar and status bar.
