@@ -1,3 +1,11 @@
+import { SettingsContext, SettingsProvider } from '../../components/Context/SettingsProvider';
+import * as StorageHook from '../../hooks/context/useStorage';
+import * as Currency from '../../blue_modules/currency';
+import * as XbtPriceHook from '../../hooks/useXbtDisplayPrice';
+import { FiatUnit } from '../../models/fiatUnit';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React from 'react';
+import { act, renderHook } from '@testing-library/react-native';
 import DefaultPreference from 'react-native-default-preference';
 import Realm from 'realm';
 import { parseVerifiedParentTransaction } from '../../class/xbt/verified-transaction';
@@ -813,3 +821,86 @@ describe('fresh installation SSL default', () => {
     expect(await BlueElectrum.getPreferredServer()).toMatchObject({ host: 'custom.example', ssl: 50002 });
   });
 });
+
+describe('settings connection feedback', () => {
+  beforeEach(async () => {
+    BlueElectrum.forceDisconnect();
+    await BlueElectrum.setDisabled(false);
+    created.length = 0;
+    presentAlertMock.mockClear();
+    jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+  });
+
+  afterEach(() => {
+    BlueElectrum.forceDisconnect();
+    jest.useRealTimers();
+  });
+
+  const renderSettings = () => {
+    const storage = jest
+      .spyOn(StorageHook, 'useStorage')
+      .mockReturnValue({ walletsInitialized: true } as ReturnType<typeof StorageHook.useStorage>);
+    const daemon = jest.spyOn(Currency, 'initCurrencyDaemon').mockResolvedValue(undefined);
+    const preferred = jest.spyOn(Currency, 'getPreferredCurrency').mockResolvedValue(FiatUnit.USD);
+    const language = jest.spyOn(AsyncStorage, 'getItem').mockResolvedValue(null);
+    const price = jest.spyOn(XbtPriceHook, 'useXbtDisplayPrice').mockReturnValue({
+      xbtPriceQuote: null,
+      saveManualXbtPriceQuote: jest.fn(),
+      clearXbtPriceQuote: jest.fn(),
+      refreshNeoxexXbtPriceQuote: jest.fn(),
+    });
+    const view = renderHook(() => React.useContext(SettingsContext), {
+      wrapper: ({ children }) => React.createElement(SettingsProvider, null, children),
+    });
+    return {
+      ...view,
+      dispose: () => {
+        view.unmount();
+        storage.mockRestore();
+        daemon.mockRestore();
+        preferred.mockRestore();
+        language.mockRestore();
+        price.mockRestore();
+      },
+    };
+  };
+
+  it.each(['startup', 're-enable'])('keeps a failed automatic %s connection non-blocking', async mode => {
+    const view = renderSettings();
+    try {
+      await act(async () => {
+        await flush();
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(120_000);
+      });
+      if (mode === 're-enable') {
+        await act(async () => view.result.current.setIsElectrumDisabled(true));
+        presentAlertMock.mockClear();
+        created.length = 0;
+        await act(async () => view.result.current.setIsElectrumDisabled(false));
+        await act(async () => {
+          await flush();
+        });
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(120_000);
+        });
+      }
+      expect(created.length).toBeGreaterThan(0);
+      expect(BlueElectrum.getConnectionState()).toBe('disconnected');
+      expect(presentAlertMock).not.toHaveBeenCalled();
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('retains the explicit disconnected-help dialog', async () => {
+    await BlueElectrum.presentElectrumDisconnectedHelpAlert();
+    expect(presentAlertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ allowRepeat: true, buttons: expect.arrayContaining([expect.objectContaining({ style: 'cancel' })]) }),
+    );
+  });
+});
+
+// This suite owns its client implementations; avoid the shared image-picker mock's global resetAllMocks hook.
+jest.mock('react-native-image-picker', () => ({ launchImageLibrary: jest.fn(), launchCamera: jest.fn() }));

@@ -237,7 +237,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
       if (isElectrumDisabled) {
         BlueElectrum.forceDisconnect();
       } else {
-        BlueElectrum.ensureConnected({ showAlertOnFailure: true });
+        // Background connection failures update status without covering another screen.
+        BlueElectrum.ensureConnected();
       }
     }
   }, [isElectrumDisabled, walletsInitialized]);

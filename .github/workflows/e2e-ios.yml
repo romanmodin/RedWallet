@@ -255,6 +255,7 @@ jobs:
           echo "REDWALLET_PREBOOT_SIMULATOR=$UDID" >> "$GITHUB_ENV"
 
       - name: Prepare pristine self-test simulator
+        id: pristine_simulator
         run: python3 .github/scripts/prepare-ios-selftest.py --fresh
 
       # Cut animations so detox sync stays steady on slow CI VMs; Reduce Motion makes reanimated skip to final value.
@@ -267,6 +268,7 @@ jobs:
       - name: Run pristine startup and wallet tests
         timeout-minutes: 90
         run: |
+          WALLET_TEST_RESULT=0
           export REDWALLET_FRESH_SELFTEST_SIMULATOR="$(cat selftest-simulator-id.txt)"
           # Retain supported inherited coverage; bluewallet2 requires a funded Bitcoin fixture.
           npm run e2e:test:ios-release -- \
@@ -277,15 +279,17 @@ jobs:
             --headless \
             --retries 0 \
             --reuse \
-            --artifacts-location ./artifacts
+            --artifacts-location ./artifacts || WALLET_TEST_RESULT=$?
           unset REDWALLET_FRESH_SELFTEST_SIMULATOR
           npm run e2e:test:ios-release -- \
             tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js --runTestsByPath \
             --record-videos failing --record-logs failing --take-screenshots failing \
-            --headless --retries 0 --reuse --artifacts-location ./artifacts
+            --headless --retries 0 --reuse --artifacts-location ./artifacts || WALLET_TEST_RESULT=$?
+          exit "$WALLET_TEST_RESULT"
 
       - name: Verify artwork and read-only pool discovery
         timeout-minutes: 10
+        if: ${{ !cancelled() && steps.pristine_simulator.outcome == 'success' }}
         env:
           REDWALLET_VISUAL_SMOKE: '1'
         run: |
@@ -293,6 +297,7 @@ jobs:
 
       - name: Run TLS tests
         timeout-minutes: 90
+        if: ${{ !cancelled() && steps.pristine_simulator.outcome == 'success' }}
         env:
           IMPORT_DIAGNOSTICS: ${{ inputs.import_diagnostics }}
           WALLET_VALIDATION: ${{ inputs.wallet_validation }}
