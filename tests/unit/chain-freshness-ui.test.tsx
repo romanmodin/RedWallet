@@ -98,3 +98,17 @@ it('discards a response after backgrounding instead of showing stale green', asy
   expect(hook.result.current.status.state).not.toBe('verified');
   hook.unmount();
 });
+
+it('replaces the verified checkmark with a decorative LED and removes it when verification changes', () => {
+  const alert = jest.spyOn(Alert, 'alert');
+  const s = render(<Indicator status={verified} retry={jest.fn()} />);
+  expect(s.getByTestId('ChainVerifiedLED', { includeHiddenElements: true })).toBeTruthy();
+  expect(s.queryByText('✓')).toBeNull();
+  expect(s.getByLabelText('Chain verified. Tap for connection details')).toBeTruthy();
+  fireEvent.press(s.getByTestId('ChainFreshnessIndicator'));
+  expect(alert).toHaveBeenCalledTimes(1);
+  for (const state of ['checking', 'unverified', 'suspect', 'behind', 'disagreement'] as const) {
+    s.rerender(<Indicator status={{ ...verified, state }} retry={jest.fn()} />);
+    expect(s.queryByTestId('ChainVerifiedLED', { includeHiddenElements: true })).toBeNull();
+  }
+});
