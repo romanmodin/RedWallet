@@ -1,3 +1,4 @@
+import { walletElectrum, isBtcWallet } from '../../blue_modules/wallet-network';
 import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BlueApp as BlueAppClass, TCounterpartyMetadata, TTXMetadata } from '../../class/blue-app';
 import { LegacyWallet } from '../../class/wallets/legacy-wallet';
@@ -26,7 +27,7 @@ interface StorageContextType {
   setWalletsWithNewOrder: (wallets: TWallet[]) => void;
   txMetadata: TTXMetadata;
   counterpartyMetadata: TCounterpartyMetadata;
-  saveToDisk: (force?: boolean) => Promise<void>;
+  saveToDisk: (force?: boolean, throwOnError?: boolean) => Promise<void>;
   selectedWalletID: () => string | undefined; // Change from string|undefined to a function
   addWallet: (wallet: TWallet) => void;
   deleteWallet: (wallet: TWallet) => void;
@@ -153,14 +154,14 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
   };
 
   const saveToDisk = useCallback(
-    async (force: boolean = false) => {
+    async (force: boolean = false, throwOnError: boolean = false) => {
       if (!force && BlueApp.getWallets().length === 0) {
         console.debug('Not saving empty wallets array');
         return;
       }
       BlueApp.tx_metadata = txMetadata.current;
       BlueApp.counterparty_metadata = counterpartyMetadata.current;
-      await BlueApp.saveToDisk();
+      await BlueApp.saveToDisk(throwOnError);
       const w: TWallet[] = [...BlueApp.getWallets()];
       setWallets(w);
     },
@@ -349,7 +350,9 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
         // `ensureConnected()` ping-checks the existing socket and, only if needed,
         // tears it down and reconnects. Replaces the old wait+ping+wait pattern
         // which surfaced false "network error" alerts after iOS suspend/resume.
-        const connected = await BlueElectrum.ensureConnected();
+        const connected = await walletElectrum(
+          typeof lastSnappedTo === 'number' ? BlueApp.wallets[lastSnappedTo] : undefined,
+        ).ensureConnected();
         if (!connected) {
           console.log('[refreshAllWalletTransactions] could not establish Electrum connection, aborting refresh');
           return;
@@ -430,7 +433,7 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
         }
         _lastTimeTriedToRefetchWallet[walletID] = Date.now();
 
-        const connected = await BlueElectrum.ensureConnected();
+        const connected = await walletElectrum(wallets[index]).ensureConnected();
         if (!connected) {
           console.log('[fetchAndSaveWalletTransactions] could not establish Electrum connection, aborting');
           return;
@@ -486,6 +489,8 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
         message: w.type === WatchOnlyWallet.type ? loc.wallets.import_success_watchonly : loc.wallets.import_success,
       });
 
+      // Import is offline; Bitcoin refresh begins when the new blue card is selected.
+      if (isBtcWallet(w)) return;
       await w.fetchBalance();
       try {
         await majorTomToGroundControl(w.getAllExternalAddresses(), [], []);

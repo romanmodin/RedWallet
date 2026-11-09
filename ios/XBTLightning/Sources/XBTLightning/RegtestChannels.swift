@@ -53,11 +53,12 @@ extension RegtestNode {
             key.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
     }
 
-    public func openChannel(to key: String, sats: UInt64) async throws -> String {
+    public func openChannel(to key: String, sats: UInt64, feeRate: UInt64 = 1) async throws -> String {
+        guard sats <= LightningAmounts.maxChannelOpenSats else { throw NodeFailure.channelOpeningLimit }
+        guard validKey(key), LightningAmounts.valid(sats), LightningAmounts.validFeeRate(feeRate) else { throw NodeFailure.invalidAmount }
         try await requireSynced()
-        guard validKey(key), (20_000...1_000_000).contains(sats) else { throw NodeFailure.invalidAmount }
         let request = ProtoFields.field(3, data: Data(key.utf8)) + ProtoFields.field(4, integer: sats) +
-            ProtoFields.field(1, integer: 1) + ProtoFields.field(8, integer: 1)
+            ProtoFields.field(1, integer: feeRate) + ProtoFields.field(8, integer: 1)
         let point = try ProtoFields(await rpc { LndmobileOpenChannelSync(request, $0) })
         let txid: String
         if let bytes = point.bytes[1]?.first, bytes.count == 32 {

@@ -1,3 +1,4 @@
+import { walletElectrum, isBtcWallet, walletTicker, formatWalletBalance } from '../../blue_modules/wallet-network';
 import { getPayjoinUrl } from '../../class/payjoin-policy';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
@@ -7,7 +8,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import BlueCard from '../../components/BlueCard';
 import BlueText from '../../components/BlueText';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
-import loc, { formatBalance, formatBalanceWithoutSuffix } from '../../loc';
+import loc, { formatBalanceWithoutSuffix } from '../../loc';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import presentAlert from '../../components/Alert';
 import { useTheme } from '../../components/themes';
@@ -15,7 +16,6 @@ import Button from '../../components/Button';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import SafeArea from '../../components/SafeArea';
 import { satoshiToBTC, satoshiToLocalCurrency } from '../../blue_modules/currency';
-import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { unlockWithBiometrics, useBiometrics } from '../../hooks/useBiometrics';
 import { TWallet, CreateTransactionTarget } from '../../class/wallets/types';
 import PayjoinTransaction from '../../class/payjoin-transaction';
@@ -83,6 +83,7 @@ const Confirm: React.FC = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { navigate, setOptions, goBack } = navigation;
   const wallet = wallets.find((w: TWallet) => w.getID() === walletID) as TWallet;
+  const assetTicker = walletTicker(wallet);
   const payjoinUrl = getPayjoinUrl(wallet, requestedPayjoinUrl);
   const feeSatoshi = new BigNumber(fee).multipliedBy(100000000).toNumber();
   const { colors } = useTheme();
@@ -147,6 +148,8 @@ const Confirm: React.FC = () => {
       }
     }
     navigate('CreateTransaction', {
+      walletID,
+      assetTicker,
       fee,
       recipients,
       memo,
@@ -154,7 +157,7 @@ const Confirm: React.FC = () => {
       satoshiPerByte,
       feeSatoshi,
     });
-  }, [navigate, fee, recipients, memo, tx, satoshiPerByte, feeSatoshi]);
+  }, [navigate, fee, recipients, memo, tx, satoshiPerByte, feeSatoshi, walletID, assetTicker]);
 
   const HeaderRightButton = useMemo(
     () => (
@@ -264,6 +267,8 @@ const Confirm: React.FC = () => {
       amount = Number(formatBalanceWithoutSuffix(amount, BitcoinUnit.BTC, false));
       triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
       navigate('Success', {
+        walletID,
+        assetTicker: walletTicker(wallet),
         fee: Number(fee),
         amount,
         txid,
@@ -282,7 +287,7 @@ const Confirm: React.FC = () => {
   };
 
   const broadcastTransaction = async (transaction: string) => {
-    if (!(await BlueElectrum.ensureConnected())) {
+    if (!(await walletElectrum(wallet).ensureConnected())) {
       throw new Error(loc.errors.network);
     }
 
@@ -322,14 +327,14 @@ const Confirm: React.FC = () => {
           <Text testID="TransactionValue" style={[styles.valueValue, stylesHook.valueValue]}>
             {item.value && satoshiToBTC(item.value)}
           </Text>
-          <Text style={[styles.valueUnit, stylesHook.valueValue]}>{' ' + loc.units[BitcoinUnit.BTC]}</Text>
+          <Text style={[styles.valueUnit, stylesHook.valueValue]}>{' ' + walletTicker(wallet)}</Text>
         </View>
         {XBT_PROFILE.fiatEnabled && (
           <Text style={[styles.transactionAmountFiat, stylesHook.transactionAmountFiat]}>
             {item.value && satoshiToLocalCurrency(item.value)}
           </Text>
         )}
-        <XbtFiatEstimate satoshis={item.value ?? 0} style={styles.quoteEstimate} />
+        {!isBtcWallet(wallet) && <XbtFiatEstimate satoshis={item.value ?? 0} style={styles.quoteEstimate} />}
         <BlueCard>
           <Text style={[styles.transactionDetailsTitle, stylesHook.transactionDetailsTitle]}>{loc.send.create_to}</Text>
           <Text testID="TransactionAddress" style={[styles.transactionDetailsSubtitle, stylesHook.transactionDetailsSubtitle]}>
@@ -389,7 +394,7 @@ const Confirm: React.FC = () => {
       <View style={styles.cardBottom}>
         <BlueCard>
           <Text style={styles.cardText} testID="TransactionFee">
-            {loc.send.create_fee}: {formatBalance(feeSatoshi, BitcoinUnit.BTC)}
+            {loc.send.create_fee}: {formatWalletBalance(wallet, feeSatoshi, BitcoinUnit.BTC)}
             {XBT_PROFILE.fiatEnabled ? ` (${satoshiToLocalCurrency(feeSatoshi)})` : ''}
           </Text>
           {state.isLoading ? (
@@ -397,7 +402,7 @@ const Confirm: React.FC = () => {
           ) : (
             <Button
               testID="ConfirmBroadcastButton"
-              disabled={isElectrumDisabled || state.isButtonDisabled}
+              disabled={(!isBtcWallet(wallet) && isElectrumDisabled) || state.isButtonDisabled}
               onPress={handleSendTransaction}
               title={loc.send.confirm_sendNow}
             />

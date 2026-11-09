@@ -1,24 +1,20 @@
+import { selectWalletNetwork, isBtcWallet } from '../../blue_modules/wallet-network';
 import React, { useCallback, useContext, useEffect, useReducer, useRef, useMemo } from 'react';
 import ArtworkSkinSurface from '../../components/ArtworkSkinSurface';
 import { useArtworkSkinSelection } from '../../blue_modules/artwork-skin';
 import { useFocusEffect, useIsFocused, useRoute, RouteProp } from '@react-navigation/native';
-import { Alert, findNodeHandle, Image, InteractionManager, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, findNodeHandle, Image, InteractionManager, StyleSheet, Text, useWindowDimensions, View, ScrollView } from 'react-native';
 import { getClipboardContent } from '../../blue_modules/clipboard';
-import { isDesktop, isIOS26OrHigher } from '../../blue_modules/environment';
+import { isDesktop } from '../../blue_modules/environment';
 import * as fs from '../../blue_modules/fs';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import DeeplinkSchemaMatch from '../../class/deeplink-schema-match';
-import { ExtendedTransaction, Transaction, TWallet } from '../../class/wallets/types';
+import { ExtendedTransaction, TWallet } from '../../class/wallets/types';
 import presentAlert from '../../components/Alert';
 import { FButton, FContainer, FloatButtonsBottomFade, getFloatingButtonReservedHeight } from '../../components/FloatButtons';
 import { useTheme } from '../../components/themes';
 import { TransactionListItem } from '../../components/TransactionListItem';
-import { TX_ROW_BASE_HEIGHT } from '../../components/ListItem';
-import WalletsCarousel, {
-  getWalletCarouselItemWidth,
-  CarouselListRefType,
-  getWalletCarouselHeight,
-} from '../../components/WalletsCarousel';
+import WalletsCarousel, { getWalletCarouselItemWidth, CarouselListRefType } from '../../components/WalletsCarousel';
 import { useSizeClass, SizeClass } from '../../blue_modules/sizeClass';
 import loc from '../../loc';
 import ActionSheet from '../ActionSheet';
@@ -42,7 +38,7 @@ const ELECTRUM_HEALTH_POLL_WHILE_WALLETS_LIST_FOCUSED_MS = 30_000;
 
 type SectionData = {
   key: string;
-  data: Transaction[] | string[];
+  data: ExtendedTransaction[];
 };
 
 enum ActionTypes {
@@ -116,13 +112,10 @@ const WalletsList: React.FC = () => {
   const { registerTransactionsHandler, unregisterTransactionsHandler } = useMenuElements();
   const { wallets, getTransactions, refreshAllWalletTransactions } = useStorage();
   const { isTotalBalanceEnabled, isElectrumDisabled } = useSettings();
-  const { width, height, fontScale } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const selectedSkin = useArtworkSkinSelection();
   const artworkSkin = selectedSkin !== 'off';
-  const artworkHeroHeight = artworkSkin && !isLarge ? Math.round(Math.min(240, height * 0.26)) : 0;
   const insets = useSafeAreaInsets();
-  const carouselHeight = getWalletCarouselHeight(fontScale);
-  const transactionItemHeight = Math.round(TX_ROW_BASE_HEIGHT * fontScale);
   const sectionHeaderHeight = Math.round(SECTION_HEADER_BASE_HEIGHT * fontScale);
   const floatingButtonHeight = getFloatingButtonReservedHeight(fontScale, insets.bottom);
   const { colors, scanImage } = useTheme();
@@ -130,10 +123,16 @@ const WalletsList: React.FC = () => {
   const isFocused = useIsFocused();
   const route = useRoute<RouteProps>();
   const dataSource = getTransactions(undefined, 10);
+  useFocusEffect(
+    useCallback(() => {
+      selectWalletNetwork(wallets[currentWalletIndex.current]);
+    }, [wallets]),
+  );
   const walletsCount = useRef<number>(wallets.length);
   const walletActionButtonsRef = useRef<View>(null);
 
   const stylesHook = StyleSheet.create({
+    safeHorizontal: { paddingLeft: insets.left, paddingRight: insets.right },
     walletsListWrapper: {
       backgroundColor: artworkSkin ? 'transparent' : colors.brandingColor,
     },
@@ -150,10 +149,13 @@ const WalletsList: React.FC = () => {
 
   const refreshWallets = useCallback(
     async (index: number | undefined, showLoadingIndicator = true, showUpdateStatusIndicator = false) => {
-      if (isElectrumDisabled) return;
+      if (isElectrumDisabled && !isBtcWallet(wallets[index ?? currentWalletIndex.current])) return;
       dispatch({ type: ActionTypes.SET_LOADING, payload: showLoadingIndicator });
       try {
-        await refreshAllWalletTransactions(index, showUpdateStatusIndicator);
+        await refreshAllWalletTransactions(
+          isBtcWallet(wallets[index ?? currentWalletIndex.current]) ? (index ?? currentWalletIndex.current) : index,
+          showUpdateStatusIndicator,
+        );
       } catch (error) {
         console.error(error);
       } finally {
@@ -165,7 +167,7 @@ const WalletsList: React.FC = () => {
         });
       }
     },
-    [isElectrumDisabled, refreshAllWalletTransactions],
+    [isElectrumDisabled, refreshAllWalletTransactions, wallets],
   );
 
   const refreshTransactions = useCallback(() => {
@@ -177,9 +179,9 @@ const WalletsList: React.FC = () => {
   useEffect(() => {
     // Initial load of transactions without triggering scroll
     const initialLoad = async () => {
-      if (isElectrumDisabled) return;
+      if (isElectrumDisabled && !isBtcWallet(wallets[currentWalletIndex.current])) return;
       try {
-        await refreshAllWalletTransactions(undefined, true);
+        await refreshAllWalletTransactions(isBtcWallet(wallets[currentWalletIndex.current]) ? currentWalletIndex.current : undefined, true);
       } catch (error) {
         console.error(error);
       }
@@ -255,6 +257,7 @@ const WalletsList: React.FC = () => {
   const handleClick = useCallback(
     (item?: TWallet) => {
       if (item?.getID) {
+        selectWalletNetwork(item);
         const walletID = item.getID();
         navigation.navigate('WalletTransactions', {
           walletID,
@@ -276,6 +279,7 @@ const WalletsList: React.FC = () => {
       const snapStep = cardWidth; // keep in sync with WalletsCarousel snap interval
       const index = Math.max(0, Math.round(contentOffset.x / snapStep));
 
+      selectWalletNetwork(wallets[index]);
       if (currentWalletIndex.current !== index) {
         console.debug('onSnapToItem', wallets.length === index ? 'NewWallet/Importing card' : index);
         triggerHapticFeedback(HapticFeedbackTypes.Selection);
@@ -293,7 +297,7 @@ const WalletsList: React.FC = () => {
       <View style={[styles.listHeaderBack, stylesHook.listHeaderBack]}>
         <Text
           textBreakStrategy="simple"
-          style={[styles.listHeaderText, stylesHook.listHeaderText]}
+          style={[styles.listHeaderText, stylesHook.listHeaderText, styles.transactionsTitle]}
           numberOfLines={2}
           adjustsFontSizeToFit={true}
         >
@@ -342,17 +346,8 @@ const WalletsList: React.FC = () => {
   }, [handleClick, handleLongPress, isFocused, onSnapToItem, wallets]);
 
   const renderSectionItem = useCallback(
-    (item: { section: any; item: ExtendedTransaction }) => {
-      switch (item.section.key) {
-        case WalletsListSections.CAROUSEL:
-          return sizeClass === SizeClass.Large ? null : renderWalletsCarousel();
-        case WalletsListSections.TRANSACTIONS:
-          return renderTransactionListsRow(item.item);
-        default:
-          return null;
-      }
-    },
-    [sizeClass, renderTransactionListsRow, renderWalletsCarousel],
+    ({ item }: { item: ExtendedTransaction }) => renderTransactionListsRow(item),
+    [renderTransactionListsRow],
   );
 
   const renderSectionHeader = useCallback(
@@ -497,83 +492,52 @@ const WalletsList: React.FC = () => {
 
   const refreshProps = isDesktop || isElectrumDisabled ? {} : { refreshing: isLoading, onRefresh };
 
-  const sections: SectionData[] = useMemo(() => {
-    // On large screens, only show transactions section
-    if (sizeClass === SizeClass.Large) {
-      return [{ key: WalletsListSections.TRANSACTIONS, data: dataSource }];
-    }
-
-    // On smaller screens, show both carousel and transactions
-    return [
-      { key: WalletsListSections.CAROUSEL, data: [WalletsListSections.CAROUSEL] },
-      { key: WalletsListSections.TRANSACTIONS, data: dataSource },
-    ];
-  }, [sizeClass, dataSource]);
-
-  // Constants for layout calculations
-  const getSectionHeaderHeight = useCallback(() => {
-    return sectionHeaderHeight + (sizeClass === SizeClass.Large ? Math.round(20 * fontScale) : 0);
-  }, [sizeClass, sectionHeaderHeight, fontScale]);
-
-  const getItemLayout = useCallback(
-    (data: any, index: number) => {
-      const headerHeight = getSectionHeaderHeight();
-
-      if (sizeClass === SizeClass.Large) {
-        // On large screens: only transaction items, no carousel
-        return {
-          length: transactionItemHeight,
-          offset: artworkHeroHeight + transactionItemHeight * index,
-          index,
-        };
-      } else {
-        // On smaller screens: first item is carousel, rest are transactions
-        // First section: Carousel
-        if (index === 0) {
-          return {
-            length: carouselHeight,
-            offset: artworkHeroHeight,
-            index,
-          };
-        }
-
-        // Second section: Transactions
-        // Need to account for:
-        // 1. Carousel height
-        // 2. Section header height for transactions section
-        // 3. Transaction items
-        const transactionIndex = index - 1; // Adjust index to account for carousel
-        return {
-          length: transactionItemHeight,
-          offset: artworkHeroHeight + carouselHeight + headerHeight + transactionItemHeight * transactionIndex,
-          index,
-        };
-      }
-    },
-    [sizeClass, getSectionHeaderHeight, carouselHeight, transactionItemHeight, artworkHeroHeight],
-  );
+  const sections: SectionData[] = useMemo(() => [{ key: WalletsListSections.TRANSACTIONS, data: dataSource }], [dataSource]);
 
   return (
     <ArtworkSkinSurface active={artworkSkin} skin={selectedSkin}>
-      <SafeAreaSectionList<any | string, SectionData>
-        testID="Wallets"
-        style={artworkSkin ? artworkStyles.transparent : undefined}
-        ListHeaderComponent={artworkHeroHeight ? <View pointerEvents="none" style={{ height: artworkHeroHeight }} /> : null}
-        renderItem={renderSectionItem}
-        keyExtractor={sectionListKeyExtractor}
-        renderSectionHeader={renderSectionHeader}
-        initialNumToRender={10}
-        renderSectionFooter={renderSectionFooter}
-        sections={sections}
-        floatingButtonHeight={floatingButtonHeight}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={50}
-        getItemLayout={getItemLayout}
-        ignoreTopInset={true} // Ignore top inset as the screen header already handles it
-        // On iOS 26+, let the section headers scroll naturally with the content rather than sticking
-        stickySectionHeadersEnabled={!isIOS26OrHigher}
-        {...refreshProps}
-      />
+      {sizeClass !== SizeClass.Large && (
+        <>
+          <View testID="WalletsPinnedHeader" style={[styles.pinnedHeader, stylesHook.safeHorizontal]}>
+            {/* Only an oversized header (landscape or large text) scrolls within
+                its own bounds. Scrolling transactions never moves this area. */}
+            <ScrollView
+              testID="WalletsHeaderOverflow"
+              style={styles.headerOverflow}
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentInsetAdjustmentBehavior="never"
+              automaticallyAdjustContentInsets={false}
+            >
+              {renderSectionHeader({ section: { key: WalletsListSections.CAROUSEL } })}
+              {renderWalletsCarousel()}
+            </ScrollView>
+          </View>
+          <View style={stylesHook.safeHorizontal}>{renderListHeaderComponent()}</View>
+        </>
+      )}
+      <View testID="WalletsTransactionViewport" style={styles.transactionViewport}>
+        <SafeAreaSectionList<ExtendedTransaction, SectionData>
+          testID="Wallets"
+          style={artworkSkin ? artworkStyles.transparent : undefined}
+          renderItem={renderSectionItem}
+          keyExtractor={sectionListKeyExtractor}
+          initialNumToRender={10}
+          renderSectionFooter={renderSectionFooter}
+          sections={sections}
+          floatingButtonHeight={floatingButtonHeight}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          ignoreTopInset={true}
+          // The native navigation header already handles the top inset. This
+          // list starts below Transactions; rows clip here without a divider.
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
+          automaticallyAdjustsScrollIndicatorInsets={false}
+          stickySectionHeadersEnabled={false}
+          {...refreshProps}
+        />
+      </View>
       {renderScanButton()}
     </ArtworkSkinSurface>
   );
@@ -584,6 +548,17 @@ export default WalletsList;
 const artworkStyles = StyleSheet.create({ transparent: { backgroundColor: 'transparent' } });
 
 const styles = StyleSheet.create({
+  transactionsTitle: { fontSize: 22, textTransform: 'uppercase' },
+  headerOverflow: { flexGrow: 0 },
+  pinnedHeader: {
+    maxHeight: '60%',
+    flexShrink: 0,
+  },
+  transactionViewport: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
   listHeaderBack: {
     flexDirection: 'row',
     justifyContent: 'space-between',

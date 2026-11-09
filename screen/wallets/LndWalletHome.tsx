@@ -40,19 +40,30 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const unitSaving = useRef(false);
   const formatAmount = (sats: number | string) => formatLndAmount(sats, displayUnit, xbtPriceQuote);
   const exactAmount = (sats: string) =>
-    displayUnit === 'sats' ? formatAmount(sats) : formatAmount(sats) + ' (' + formatLndAmount(sats, 'sats') + ')';
+    wallet.hideBalance
+      ? '••••'
+      : displayUnit === 'sats'
+        ? formatAmount(sats)
+        : formatAmount(sats) + ' (' + formatLndAmount(sats, 'sats') + ')';
   const changeDisplayUnit = async () => {
-    if (wallet.hideBalance || unitSaving.current) return;
+    if (unitSaving.current) return;
     unitSaving.current = true;
     const previous = wallet.getDisplayUnit();
-    const next = nextLndDisplayUnit(previous);
+    const previouslyHidden = wallet.hideBalance;
+    const nextHidden = !previouslyHidden && previous === 'quote';
+    const next = previouslyHidden ? 'XBT' : nextHidden ? previous : nextLndDisplayUnit(previous);
+    wallet.hideBalance = nextHidden;
     wallet.setDisplayUnit(next);
     setDisplayUnit(next);
+    redraw(value => value + 1);
     try {
-      await saveToDisk();
+      // Privacy changes need the strict storage path so failures reach this rollback.
+      await saveToDisk(false, true);
     } catch {
+      wallet.hideBalance = previouslyHidden;
       wallet.setDisplayUnit(previous);
       setDisplayUnit(previous);
+      redraw(value => value + 1);
       Alert.alert('Unit not saved', 'Could not save your display preference. Please try again.');
     } finally {
       unitSaving.current = false;
@@ -216,7 +227,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       (row.confirmations !== undefined ? row.confirmations + ' confirmations\nTransaction: ' : 'Payment hash: ') +
       row.id +
       (row.direction === 'received' && row.confirmations === undefined ? '\nThe sender’s identity is not supplied by Lightning.' : '') +
-      (row.memo ? '\n' + row.memo : '');
+      (!wallet.hideBalance && row.memo ? '\n' + row.memo : '');
     const canCancel = row.direction === 'received' && row.confirmations === undefined && row.state === 'unpaid';
     Alert.alert(tab === 'funding' ? 'On-chain funding' : 'Lightning payment', text, [
       ...(canCancel
@@ -286,7 +297,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           {item.confirmations !== undefined ? ' · ' + item.confirmations + ' confirmations' : ''} ·{' '}
           {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
         </Text>
-        {!!item.memo && (
+        {!wallet.hideBalance && !!item.memo && (
           <Text numberOfLines={1} style={{ color: colors.alternativeTextColor }}>
             {item.memo}
           </Text>
@@ -330,11 +341,10 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Change wallet display unit"
-          accessibilityHint="Cycles XBT, sats and the exchange-rate estimate for this wallet."
+          accessibilityHint="Cycles XBT, sats, the exchange-rate estimate, and hidden amounts. Tap hidden amounts to show XBT again."
           accessibilityValue={{
-            text: displayUnit === 'quote' ? (xbtPriceQuote?.currency ?? 'Fiat') : displayUnit,
+            text: wallet.hideBalance ? 'Amounts hidden' : displayUnit === 'quote' ? (xbtPriceQuote?.currency ?? 'Fiat') : displayUnit,
           }}
-          disabled={wallet.hideBalance}
           onPress={changeDisplayUnit}
         >
           <Text testID="LndWalletBalance" style={styles.balance} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
@@ -534,7 +544,7 @@ const styles = StyleSheet.create({
   fundingAction: { backgroundColor: '#3A3A3C' },
   secondary: { minHeight: 54 },
   secondaryTitle: { textTransform: 'uppercase', fontSize: 15 },
-  actionTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center', color: '#FFFFFF' },
+  actionTitle: { textTransform: 'uppercase', fontSize: 20, fontWeight: '700', textAlign: 'center', color: '#FFFFFF' },
   actionSubtitle: { textTransform: 'uppercase', fontSize: 12, textAlign: 'center', marginTop: 2, color: '#FFFFFF' },
   footer: {
     position: 'absolute',

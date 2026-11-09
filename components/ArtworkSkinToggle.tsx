@@ -5,7 +5,7 @@ import { useTheme } from './themes';
 
 export default function ArtworkSkinToggle() {
   const skin = useArtworkSkinSelection();
-  const label = { off: 'Off', helmet: 'Helmet', armour: 'Armour' }[skin];
+  const label = { off: 'Off', helmet: 'Helmet', armour: 'Armour', 'dark-angel': 'Dark Angel', templar: 'Templar' }[skin];
   const { colors } = useTheme();
   const toggle = () => {
     toggleArtworkSkin().catch(() => Alert.alert('Skin unchanged', 'Unable to save the appearance setting. Please try again.'));
@@ -17,7 +17,7 @@ export default function ArtworkSkinToggle() {
         onPress={toggle}
         accessibilityRole="button"
         accessibilityLabel={`Artwork skin: ${label}`}
-        accessibilityHint="Activate to cycle Off, Helmet, Armour, then Off"
+        accessibilityHint="Activate to cycle Off, Helmet, Armour, Dark Angel, Templar, then Off"
         accessibilityActions={[{ name: 'activate', label: 'Next artwork skin' }]}
         onAccessibilityAction={event => {
           if (event.nativeEvent.actionName === 'activate') toggle();
@@ -33,5 +33,5 @@ export default function ArtworkSkinToggle() {
 const styles = StyleSheet.create({
   container: { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 20 },
   logo: { width: 92, height: 92, borderRadius: 12 },
-  caption: { fontSize: 12, textAlign: 'center', marginTop: 10 },
+  caption: { fontSize: 11, textTransform: 'uppercase', textAlign: 'center', marginTop: 10 },
 });

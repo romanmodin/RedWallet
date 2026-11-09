@@ -73,11 +73,15 @@ export const SettingsListItem: React.FC<ListItemProps & { iconName?: SettingsIco
   iconName,
   containerStyle,
   leftAvatar,
+  titleStyle,
+  subtitleStyle,
   ...rest
 }) => (
   <ListItem
     {...rest}
     containerStyle={[styles.transparentBackground, containerStyle]}
+    titleStyle={[styles.menuTitle, titleStyle]}
+    subtitleStyle={[styles.menuSubtitle, subtitleStyle]}
     leftAvatar={iconName ? <SettingsIcon name={iconName} /> : leftAvatar}
   />
 );
@@ -139,8 +143,17 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   footnote: {
+    fontSize: 13,
+    lineHeight: 19,
+    textTransform: 'uppercase',
+  },
+  menuTitle: {
     fontSize: 14,
-    lineHeight: 20,
+    textTransform: 'uppercase',
+  },
+  menuSubtitle: {
+    fontSize: 13,
+    textTransform: 'uppercase',
   },
   cardContent: {
     padding: 16,
@@ -148,7 +161,7 @@ const styles = StyleSheet.create({
   listCard: {
     marginHorizontal: 16,
     marginTop: 16,
-    marginBottom: 40,
+    marginBottom: 0,
     // SafeAreaFlatList injects bottom-inset padding into the content container; on a clipped,
     // background-colored card that padding shows as empty space inside the card, so cancel it
     paddingBottom: 0,
@@ -157,7 +170,7 @@ const styles = StyleSheet.create({
   },
   card: {
     marginHorizontal: 16,
-    marginBottom: 40,
+    marginBottom: 0,
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -169,8 +182,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerText: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '400',
+    textTransform: 'uppercase',
     flexShrink: 1,
   },
   headerPressed: {

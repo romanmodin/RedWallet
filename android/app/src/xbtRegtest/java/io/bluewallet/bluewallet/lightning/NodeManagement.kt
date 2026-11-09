@@ -33,10 +33,10 @@ internal object NodeManagement {
             }
         }
         "withdrawReview" -> {
-            RegtestNode.requireSynced()
             val amount = sats.toLong(); val fee = feeRate.toLong()
             require(value.startsWith(MainnetConfiguration.addressPrefix) && value.length <= 90 && value.all { it in 'a'..'z' || it in '0'..'9' })
-            require(amount in 546L..1_000_000L && fee in 1L..100L)
+            require(LightningAmounts.valid(amount) && LightningAmounts.validFeeRate(fee))
+            RegtestNode.requireSynced()
             val item = Review(UUID.randomUUID().toString(),value,amount,fee,SystemClock.elapsedRealtime())
             review = item
             Arguments.createMap().apply {
@@ -57,7 +57,7 @@ internal object NodeManagement {
         }
         "close" -> {
             val fee = feeRate.toLong()
-            require(fee in 1L..100L && value !in closing)
+            require(LightningAmounts.validFeeRate(fee) && value !in closing)
             RegtestNode.requireSynced()
             require(channels().any { it.string(3) == value })
             val parts = value.split(':')

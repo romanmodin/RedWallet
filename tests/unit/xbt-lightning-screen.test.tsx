@@ -3,6 +3,28 @@ import React from 'react';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { Alert, AppState, NativeModules } from 'react-native';
 
+const mockStorage: { wallets: { type: string; hideBalance: boolean }[] } = {
+  wallets: [],
+};
+jest.mock('../../hooks/context/useStorage', () => ({
+  useStorage: () => mockStorage,
+}));
+const mockAuthorize = jest.fn(async () => true);
+const mockAuthorizeExport = jest.fn(async () => true);
+jest.mock('../../hooks/usePaymentAuthorization', () => ({
+  usePaymentAuthorization: () => mockAuthorize,
+}));
+jest.mock('../../hooks/useSecretExport', () => ({
+  useSecretExport: () => mockAuthorizeExport,
+}));
+beforeEach(() => {
+  bridge.run.mockReset().mockResolvedValue('Running');
+  bridge.wallet.mockReset().mockResolvedValue({ rows: [], next: '0', more: false });
+  bridge.invoice.mockClear();
+  mockStorage.wallets = [];
+  mockAuthorize.mockReset().mockResolvedValue(true);
+  mockAuthorizeExport.mockReset().mockResolvedValue(true);
+});
 const mockNavigation = { navigate: jest.fn() };
 jest.mock('../../hooks/useExtendedNavigation', () => ({
   useExtendedNavigation: () => mockNavigation,
@@ -18,6 +40,7 @@ jest.mock('../../components/themes', () => {
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
 const bridge = {
+  wallet: jest.fn<Promise<unknown>, [string, string]>(async () => ({ rows: [], next: '0', more: false })),
   peer: jest.fn(async () => ''),
   manage: jest.fn(
     async (action: string): Promise<unknown> =>
@@ -35,13 +58,16 @@ const bridge = {
   run: jest.fn<Promise<string>, [string, string]>(async () => 'Running'),
   invoice: jest.fn(
     async (action: string): Promise<unknown> =>
-      action === 'decode' ? { sats: '500', destination: 'test peer', hash: 'reviewed-hash' } : true,
+      action === 'decode'
+        ? { sats: '500', destination: 'test peer', hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }
+        : true,
   ),
 };
 NativeModules.XBTLightningBridge = bridge;
 const XBTLightning = require('../../screen/settings/XBTLightning').default;
 
-test('review decodes an invoice without paying; confirmation binds the amount and hash and ignores a repeated tap', async () => {
+test.each([false, true])('review binds the amount, hash and one submission even with hidden balances: %s', async hidden => {
+  mockStorage.wallets = [{ type: 'lndWallet', hideBalance: hidden }];
   const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   try {
     const screen = render(<XBTLightning />);
@@ -57,7 +83,12 @@ test('review decodes an invoice without paying; confirmation binds the amount an
       approve();
       approve();
     });
-    expect(bridge.invoice).toHaveBeenCalledWith('pay', 'lnbcrt-fixture', 'reviewed-hash', '500');
+    expect(bridge.invoice).toHaveBeenCalledWith(
+      'pay',
+      'lnbcrt-fixture',
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      '500',
+    );
     expect(bridge.invoice.mock.calls.map(call => call[0])).toEqual(['decode', 'pay']);
     expect(screen.getByText('Payment settled.')).toBeTruthy();
   } finally {
@@ -555,8 +586,22 @@ test('switching channels clears resize inputs and reviews instead of retargeting
   const splice = jest.fn();
   NativeModules.XBTLightningBridge.splice = splice;
   bridge.manage.mockResolvedValueOnce([
-    { point: 'resize-a:0', peer: 'peer', state: 'active', active: true, localSats: '1000', splice: { status: 'ok' } },
-    { point: 'resize-b:0', peer: 'peer', state: 'active', active: true, localSats: '2000', splice: { status: 'ok' } },
+    {
+      point: 'resize-a:0',
+      peer: 'peer',
+      state: 'active',
+      active: true,
+      localSats: '1000',
+      splice: { status: 'ok' },
+    },
+    {
+      point: 'resize-b:0',
+      peer: 'peer',
+      state: 'active',
+      active: true,
+      localSats: '2000',
+      splice: { status: 'ok' },
+    },
   ]);
   const screen = render(<XBTLightning />);
   try {
@@ -576,4 +621,532 @@ test('switching channels clears resize inputs and reviews instead of retargeting
     screen.unmount();
     delete NativeModules.XBTLightningBridge.splice;
   }
+});
+
+test('large invoice and withdrawal amounts reach native validation without an app ceiling', async () => {
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  bridge.invoice.mockClear();
+  fireEvent.changeText(screen.getByLabelText('Sats to receive'), '44000000');
+  await act(async () => fireEvent.press(screen.getByText('Create invoice')));
+  expect(bridge.invoice).toHaveBeenCalledWith('receive', '', '', '44000000');
+  bridge.manage.mockClear();
+  fireEvent.changeText(screen.getByLabelText('Withdrawal address'), 'bc1q-fixture');
+  fireEvent.changeText(screen.getByLabelText('Withdrawal sats'), '44000000');
+  fireEvent.changeText(screen.getByLabelText('On-chain fee rate'), '250');
+  await act(async () => fireEvent.press(screen.getByText('Review withdrawal')));
+  expect(bridge.manage).toHaveBeenCalledWith('withdrawReview', 'bc1q-fixture', '44000000', '250');
+  expect(bridge.manage.mock.calls.some(call => call[0] === 'withdraw')).toBe(false);
+  screen.unmount();
+});
+test('channel creation binds the chosen large amount and fee to confirmation', async () => {
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    bridge.invoice.mockClear();
+    fireEvent.changeText(screen.getByLabelText('Lightning peer'), 'peer@host:9735');
+    for (const amount of ['10000001', '44000000']) {
+      fireEvent.changeText(screen.getByLabelText('New channel sats'), amount);
+      fireEvent.press(screen.getByText('Open private channel'));
+    }
+    expect(prompt).not.toHaveBeenCalled();
+    expect(bridge.invoice).not.toHaveBeenCalled();
+    fireEvent.changeText(screen.getByLabelText('New channel sats'), '10000000');
+    fireEvent.changeText(screen.getByLabelText('New channel fee rate'), '250');
+    fireEvent.press(screen.getByText('Open private channel'));
+    expect(bridge.invoice).not.toHaveBeenCalled();
+    const [, detail, buttons] = prompt.mock.calls[prompt.mock.calls.length - 1];
+    expect(detail).toContain('10000000 sats at 250 sat/vB');
+    fireEvent.changeText(screen.getByLabelText('New channel sats'), '50000000');
+    const confirm = buttons!.find(button => button.text === 'Open channel')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(bridge.invoice.mock.calls).toEqual([['open', 'peer', '250', '10000000']]);
+    screen.unmount();
+  } finally {
+    prompt.mockRestore();
+  }
+});
+test('editable routing fee is confirmed with the invoice and cannot change after review', async () => {
+  const payInvoice = jest.fn().mockResolvedValue(true);
+  Object.assign(bridge, { payInvoice });
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  try {
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+    fireEvent.changeText(screen.getByLabelText('Maximum routing fee sats'), '250');
+    await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+    fireEvent.press(screen.getByText('Pay 500 sats'));
+    const [, detail, buttons] = prompt.mock.calls[prompt.mock.calls.length - 1];
+    expect(detail).toContain('Maximum routing fee: 250 sats');
+    fireEvent.changeText(screen.getByLabelText('Maximum routing fee sats'), '500');
+    expect(screen.queryByText('Pay 500 sats')).toBeNull();
+    const confirm = buttons!.find(button => button.text === 'Pay')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(payInvoice.mock.calls).toEqual([
+      ['lnbcrt-fixture', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '500', '250'],
+    ]);
+    screen.unmount();
+  } finally {
+    prompt.mockRestore();
+    delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+  }
+});
+
+test.each(['pay', 'withdraw', 'open', 'close'])('declined authentication prevents %s submission', async operation => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const previousManage = bridge.manage.getMockImplementation();
+  const previousInvoice = bridge.invoice.getMockImplementation();
+  bridge.run.mockResolvedValue('Running');
+  bridge.manage.mockImplementation(async action =>
+    action === 'channelStatus'
+      ? [
+          {
+            point: 'auth-channel:0',
+            peer: 'auth-peer',
+            state: 'active',
+            active: true,
+            localSats: '100000',
+          },
+        ]
+      : action === 'withdrawReview'
+        ? {
+            token: 'auth-token',
+            address: 'bc1q-fixture',
+            sats: '1000',
+            feeRate: '1',
+          }
+        : 'txid',
+  );
+  bridge.invoice.mockImplementation(async action =>
+    action === 'decode'
+      ? { sats: '500', destination: 'peer', hash: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }
+      : true,
+  );
+  const s = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    mockAuthorize.mockResolvedValue(false);
+    if (operation === 'pay') {
+      fireEvent.changeText(s.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+      await act(async () => fireEvent.press(s.getByText('Review invoice')));
+      fireEvent.press(s.getByText('Pay 500 sats'));
+    } else if (operation === 'withdraw') {
+      fireEvent.changeText(s.getByLabelText('Withdrawal address'), 'bc1q-fixture');
+      fireEvent.changeText(s.getByLabelText('Withdrawal sats'), '1000');
+      await act(async () => fireEvent.press(s.getByText('Review withdrawal')));
+      fireEvent.press(s.getByText('Withdraw 1000 sats'));
+    } else if (operation === 'open') {
+      fireEvent.changeText(s.getByLabelText('Lightning peer'), 'peer@host:9735');
+      fireEvent.press(s.getByText('Open private channel'));
+    } else {
+      fireEvent.press(s.getByTestId('SelectChannel-auth-channel:0'));
+      fireEvent.press(s.getByText('Close channel · 100000 local sats'));
+    }
+    bridge.invoice.mockClear();
+    bridge.manage.mockClear();
+    const buttons = alert.mock.calls.at(-1)![2]!;
+    const approve = buttons.find(
+      button =>
+        button.text ===
+        {
+          pay: 'Pay',
+          withdraw: 'Withdraw',
+          open: 'Open channel',
+          close: 'Close channel',
+        }[operation],
+    )!.onPress!;
+    await act(async () => {
+      approve();
+      approve();
+    });
+    expect(mockAuthorize).toHaveBeenCalledTimes(1);
+    expect(bridge.invoice).not.toHaveBeenCalled();
+    expect(bridge.manage.mock.calls.some(call => call[0] === 'withdraw' || call[0] === 'close')).toBe(false);
+    expect(s.getByText('Action canceled. Nothing was submitted.')).toBeTruthy();
+  } finally {
+    s.unmount();
+    alert.mockRestore();
+    bridge.manage.mockImplementation(previousManage!);
+    bridge.invoice.mockImplementation(previousInvoice!);
+  }
+});
+
+test('backup export uses secret reauthentication and a declined prompt never reaches native export', async () => {
+  const s = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    bridge.run.mockClear();
+    mockAuthorizeExport.mockResolvedValue(false);
+    await act(async () => fireEvent.press(s.getByText('Export static channel backup')));
+    expect(mockAuthorizeExport).toHaveBeenCalledTimes(1);
+    expect(mockAuthorize).not.toHaveBeenCalled();
+    expect(bridge.run).not.toHaveBeenCalled();
+  } finally {
+    s.unmount();
+  }
+});
+
+test('authentication resolving after the screen is dismissed cannot submit a payment', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  let finish!: (value: boolean) => void;
+  mockAuthorize.mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  const s = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    fireEvent.changeText(s.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+    await act(async () => fireEvent.press(s.getByText('Review invoice')));
+    fireEvent.press(s.getByText('Pay 500 sats'));
+    bridge.invoice.mockClear();
+    await act(async () => {
+      alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Pay')!.onPress!();
+    });
+    s.unmount();
+    await act(async () => finish(true));
+    expect(bridge.invoice).not.toHaveBeenCalled();
+  } finally {
+    alert.mockRestore();
+  }
+});
+
+test('hidden node tools redact native balances, history and error amounts from text, accessibility and clipboard', async () => {
+  const wallet = { type: 'lndWallet', hideBalance: true };
+  mockStorage.wallets = [wallet];
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  jest.mocked(Clipboard.setString).mockClear();
+  try {
+    for (const [button, result] of [
+      ['Node and channel balances', 'Confirmed balance: 7654321 sats; local: 123457 sats'],
+      ['Recent payments', 'Received 123457 sats; fee: 239 sats'],
+    ]) {
+      bridge.run.mockResolvedValueOnce(result);
+      await act(async () => fireEvent.press(screen.getByRole('button', { name: button })));
+      expect(screen.queryByText(/7654321|123457|239/)).toBeNull();
+      expect(screen.queryByLabelText(/7654321|123457|239/)).toBeNull();
+      expect(screen.queryByLabelText('Copy activity result')).toBeNull();
+      expect(JSON.stringify(screen.toJSON())).not.toMatch(/7654321|123457|239/);
+    }
+    bridge.run.mockRejectedValueOnce(new Error('Insufficient balance: 7654321 sats; fee: 239 sats'));
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Recent payments' })));
+    expect(JSON.stringify(screen.toJSON())).not.toMatch(/7654321|239/);
+    expect(Clipboard.setString).not.toHaveBeenCalled();
+  } finally {
+    screen.unmount();
+  }
+});
+
+test.each(['mutated', 'replaced'])(
+  'a %s hidden wallet immediately removes visible results and blocks a retained copy callback',
+  async kind => {
+    const wallet = { type: 'lndWallet', hideBalance: false };
+    mockStorage.wallets = [wallet];
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    try {
+      bridge.run.mockResolvedValueOnce('Channel balance: 123457 sats, fee: 239 sats');
+      await act(async () => fireEvent.press(screen.getByText('Node and channel balances')));
+      let copyButton = screen.getByLabelText('Copy activity result');
+      while (typeof copyButton.props.onPress !== 'function' && copyButton.parent) copyButton = copyButton.parent;
+      const copy = copyButton.props.onPress;
+      expect(typeof copy).toBe('function');
+      expect(screen.getByText(/123457 sats/)).toBeTruthy();
+      jest.mocked(Clipboard.setString).mockClear();
+      if (kind === 'mutated') wallet.hideBalance = true;
+      else mockStorage.wallets = [{ type: 'lndWallet', hideBalance: true }];
+      screen.rerender(<XBTLightning />);
+      expect(screen.queryByText(/123457|239/)).toBeNull();
+      expect(screen.queryByLabelText('Copy activity result')).toBeNull();
+      copy();
+      expect(Clipboard.setString).not.toHaveBeenCalled();
+      wallet.hideBalance = false;
+      mockStorage.wallets = [wallet];
+      screen.rerender(<XBTLightning />);
+      expect(screen.getByText(/123457 sats/)).toBeTruthy();
+    } finally {
+      screen.unmount();
+    }
+  },
+);
+
+test('hidden selected channels retain their identity without disclosing local balances or close-button amounts', async () => {
+  mockStorage.wallets = [{ type: 'lndWallet', hideBalance: true }];
+  bridge.manage.mockResolvedValueOnce([
+    {
+      point: 'hidden-channel:0',
+      peer: 'public-peer-key',
+      peerAlias: 'My peer',
+      peerAddress: 'peer.example:9735',
+      state: 'active',
+      active: true,
+      localSats: '123457',
+    },
+  ]);
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  try {
+    fireEvent.press(screen.getByTestId('SelectChannel-hidden-channel:0'));
+    expect(screen.getByText('Close channel')).toBeTruthy();
+    expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/Peer name: My peer/)).toBeTruthy();
+    expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/peer.example:9735/)).toBeTruthy();
+    expect(JSON.stringify(screen.toJSON())).not.toContain('123457');
+    expect(screen.queryByLabelText('Copy activity result')).toBeNull();
+  } finally {
+    screen.unmount();
+  }
+});
+
+test('hiding an unrelated wallet does not hide the Lightning node tools', async () => {
+  mockStorage.wallets = [
+    { type: 'HDsegwitBech32', hideBalance: true },
+    { type: 'lndWallet', hideBalance: false },
+  ];
+  const screen = render(<XBTLightning />);
+  await act(async () => {});
+  try {
+    bridge.run.mockResolvedValueOnce('Channel balance: 123457 sats');
+    await act(async () => fireEvent.press(screen.getByText('Node and channel balances')));
+    expect(screen.getByText(/123457 sats/)).toBeTruthy();
+    expect(screen.getByLabelText('Copy activity result')).toBeTruthy();
+  } finally {
+    screen.unmount();
+  }
+});
+
+describe('payment result reconciliation', () => {
+  const hash = 'a'.repeat(64);
+  const empty = { rows: [], next: '0', more: false };
+  const history = (state: string) => ({
+    rows: [{ id: hash, direction: 'sent', state, sats: '500', feeSats: '0', timestamp: 1, memo: '' }],
+    next: '1',
+    more: false,
+  });
+  const reviewAndPay = async (screen: ReturnType<typeof render>, prompt: jest.SpyInstance) => {
+    fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+    await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+    fireEvent.press(screen.getByText('Pay 500 sats'));
+    const buttons = prompt.mock.calls[prompt.mock.calls.length - 1][2];
+    const approve = buttons.find((button: { text: string }) => button.text === 'Pay').onPress;
+    await act(async () => {
+      approve();
+    });
+  };
+
+  test('recovers a settled result after the payment stream errors and blocks a second review', async () => {
+    let state = '';
+    bridge.wallet.mockImplementation(async () => (state ? history(state) : empty));
+    const payInvoice = jest.fn(async () => {
+      state = 'settled';
+      throw new Error('stream interrupted');
+    });
+    Object.assign(bridge, { payInvoice });
+    const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      await reviewAndPay(screen, prompt);
+      expect(screen.getByText('Payment settled.')).toBeTruthy();
+      expect(screen.getByLabelText('Invoice to pay').props.value).toBe('');
+      fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+      await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+      expect(screen.getByText('This invoice is already paid. No new payment was sent.')).toBeTruthy();
+      expect(screen.queryByText('Pay 500 sats')).toBeNull();
+      expect(payInvoice).toHaveBeenCalledTimes(1);
+    } finally {
+      screen.unmount();
+      prompt.mockRestore();
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
+
+  test('keeps an unrecorded uncertain attempt blocked and a status check never sends it again', async () => {
+    let state = '';
+    bridge.wallet.mockImplementation(async () => (state ? history(state) : empty));
+    const payInvoice = jest.fn().mockRejectedValue(new Error('response lost'));
+    Object.assign(bridge, { payInvoice });
+    const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      await reviewAndPay(screen, prompt);
+      expect(screen.getByText(/Payment result is not confirmed/)).toBeTruthy();
+      await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+      expect(screen.queryByText('Pay 500 sats')).toBeNull();
+      state = 'settled';
+      await act(async () => fireEvent.press(screen.getByText('Check payment status')));
+      expect(screen.getByText('Payment settled.')).toBeTruthy();
+      expect(payInvoice).toHaveBeenCalledTimes(1);
+    } finally {
+      screen.unmount();
+      prompt.mockRestore();
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
+
+  test.each(['settled', 'pending'])('reopening the screen uses recorded %s state before offering payment', async state => {
+    const first = render(<XBTLightning />);
+    await act(async () => {});
+    first.unmount();
+    bridge.wallet.mockResolvedValue(history(state));
+    const payInvoice = jest.fn();
+    Object.assign(bridge, { payInvoice });
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+      await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+      expect(screen.queryByText('Pay 500 sats')).toBeNull();
+      expect(
+        screen.getByText(
+          state === 'settled'
+            ? 'This invoice is already paid. No new payment was sent.'
+            : 'Payment pending. The node is still resolving it. Do not resend this invoice.',
+        ),
+      ).toBeTruthy();
+      expect(payInvoice).not.toHaveBeenCalled();
+    } finally {
+      screen.unmount();
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
+
+  test('reports a native pre-submission sync rejection instead of an unknown payment', async () => {
+    const payInvoice = jest.fn().mockRejectedValue({ code: 'payment_not_submitted_not_synced' });
+    Object.assign(bridge, { payInvoice });
+    const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      await reviewAndPay(screen, prompt);
+      expect(
+        screen.getByText('Payment not submitted. Wait for the XBT chain to finish syncing, then review the invoice again.'),
+      ).toBeTruthy();
+      expect(screen.queryByText(/Payment result is not confirmed/)).toBeNull();
+      expect(payInvoice).toHaveBeenCalledTimes(1);
+    } finally {
+      screen.unmount();
+      prompt.mockRestore();
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
+
+  test('unavailable history prevents confirmation and native submission', async () => {
+    bridge.wallet.mockRejectedValue(new Error('offline'));
+    const payInvoice = jest.fn();
+    Object.assign(bridge, { payInvoice });
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
+      await act(async () => fireEvent.press(screen.getByText('Review invoice')));
+      expect(screen.queryByText('Pay 500 sats')).toBeNull();
+      expect(screen.getByText('Could not verify Lightning payment history. No new payment was submitted.')).toBeTruthy();
+      expect(payInvoice).not.toHaveBeenCalled();
+    } finally {
+      screen.unmount();
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
+
+  test('backgrounding during the post-auth history lookup prevents submission', async () => {
+    let release: ((value: unknown) => void) | undefined;
+    bridge.wallet.mockResolvedValueOnce(empty).mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          release = resolve;
+        }),
+    );
+    const payInvoice = jest.fn().mockResolvedValue(true);
+    Object.assign(bridge, { payInvoice });
+    const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const previousState = AppState.currentState;
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      await reviewAndPay(screen, prompt);
+      expect(release).toBeDefined();
+      AppState.currentState = 'background';
+      await act(async () => {
+        release!(empty);
+      });
+      expect(payInvoice).not.toHaveBeenCalled();
+      expect(screen.getByText('Action canceled. Nothing was submitted.')).toBeTruthy();
+    } finally {
+      AppState.currentState = previousState;
+      screen.unmount();
+      prompt.mockRestore();
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
+  test('scanning another invoice stops the previous payment status from replacing its instructions', async () => {
+    jest.useFakeTimers();
+    let state = '';
+    bridge.wallet.mockImplementation(async () => (state ? history(state) : empty));
+    const payInvoice = jest.fn().mockRejectedValue(new Error('response lost'));
+    Object.assign(bridge, { payInvoice });
+    const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      await reviewAndPay(screen, prompt);
+      expect(screen.getByText('Check payment status')).toBeTruthy();
+      fireEvent.press(screen.getByText('Scan invoice QR'));
+      const scan = mockNavigation.navigate.mock.calls.at(-1)![1].onBarScanned;
+      act(() => scan('LIGHTNING:LNBC10U1QQQQ'));
+      expect(screen.queryByText('Check payment status')).toBeNull();
+      state = 'settled';
+      await act(async () => {
+        jest.advanceTimersByTime(5000);
+      });
+      expect(screen.getByText('Invoice scanned. Tap Review invoice to check the amount before paying.')).toBeTruthy();
+      expect(screen.getByLabelText('Invoice to pay').props.value).toBe('lnbc10u1qqqq');
+      expect(payInvoice).toHaveBeenCalledTimes(1);
+    } finally {
+      screen.unmount();
+      prompt.mockRestore();
+      jest.useRealTimers();
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
+  test('Android payment history fallback reconciles a lost reply without a wallet bridge', async () => {
+    const nativeWallet = bridge.wallet;
+    const originalInvoice = bridge.invoice.getMockImplementation()!;
+    let state = '';
+    bridge.invoice.mockImplementation(async action =>
+      action === 'paymentHistory' ? (state ? history(state) : empty) : originalInvoice(action),
+    );
+    delete (bridge as { wallet?: unknown }).wallet;
+    const payInvoice = jest.fn(async () => {
+      state = 'settled';
+      throw new Error('response interrupted');
+    });
+    Object.assign(bridge, { payInvoice });
+    const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      await reviewAndPay(screen, prompt);
+      expect(screen.getByText('Payment settled.')).toBeTruthy();
+      expect(bridge.invoice.mock.calls.some(call => call[0] === 'paymentHistory')).toBe(true);
+      expect(payInvoice).toHaveBeenCalledTimes(1);
+    } finally {
+      screen.unmount();
+      prompt.mockRestore();
+      bridge.invoice.mockImplementation(originalInvoice);
+      Object.assign(bridge, { wallet: nativeWallet });
+      delete (bridge as typeof bridge & { payInvoice?: unknown }).payInvoice;
+    }
+  });
 });

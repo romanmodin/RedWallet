@@ -4,6 +4,13 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from './themes';
 import { ArtworkSkin } from '../blue_modules/artwork-skin';
 
+const SKIN_ARTWORK = {
+  helmet: { source: require('../img/optional-skin/background.jpeg'), heightRatio: 1.15, resizeMode: 'cover' as const },
+  armour: { source: require('../img/optional-skin/armour.jpeg'), heightRatio: 739 / 415, resizeMode: 'contain' as const },
+  'dark-angel': { source: require('../img/optional-skin/dark-angel.jpeg'), heightRatio: 720 / 1280, resizeMode: 'contain' as const },
+  templar: { source: require('../img/optional-skin/templar.jpeg'), heightRatio: 720 / 1280, resizeMode: 'contain' as const },
+};
+
 /** Only rows on the artwork-backed wallet dashboard become translucent. */
 export const ArtworkSurfaceContext = createContext(false);
 
@@ -19,9 +26,10 @@ export default function ArtworkSkinSurface({
   const { dark } = useTheme();
   const [bounds, setBounds] = useState({ width: 0, height: 0 });
   const backdrop = dark ? '#080605' : '#FFFFFF';
-  // Keep the original landscape crop bounded; fit the new portrait image whole.
+  // Preserve the original helmet crop and fit all additional artwork whole.
   // Measure this surface so split-view and rotation stay centered.
-  const artworkHeight = Math.min(bounds.height, bounds.width * (skin === 'armour' ? 739 / 415 : 1.15));
+  const artwork = SKIN_ARTWORK[skin === 'off' ? 'helmet' : skin];
+  const artworkHeight = Math.min(bounds.height, bounds.width * artwork.heightRatio);
   return (
     <ArtworkSurfaceContext.Provider value={active}>
       <View
@@ -39,8 +47,8 @@ export default function ArtworkSkinSurface({
             <View style={{ width: bounds.width, height: artworkHeight }}>
               <Image
                 testID="ArtworkSkinBackground"
-                source={skin === 'armour' ? require('../img/optional-skin/armour.jpeg') : require('../img/optional-skin/background.jpeg')}
-                resizeMode={skin === 'armour' ? 'contain' : 'cover'}
+                source={artwork.source}
+                resizeMode={artwork.resizeMode}
                 style={[StyleSheet.absoluteFill, { width: bounds.width, height: artworkHeight }]}
               />
               <LinearGradient

@@ -91,10 +91,10 @@ extension RegtestNode {
     // Tokens bind confirmation to immutable arguments and can be used only once.
     // Expiring a review never executes a transaction.
     public func reviewWithdrawal(address: String, sats: UInt64, feeRate: UInt64) async throws -> WithdrawalReview {
-        try await requireSynced()
         guard address.hasPrefix(addressPrefix), address.count <= 90,
               address == address.lowercased(), address.utf8.allSatisfy({ (48...57).contains($0) || (97...122).contains($0) }),
-              (546...1_000_000).contains(sats), (1...100).contains(feeRate) else { throw NodeFailure.invalidAmount }
+              LightningAmounts.valid(sats), LightningAmounts.validFeeRate(feeRate) else { throw NodeFailure.invalidAmount }
+        try await requireSynced()
         let review = WithdrawalReview(token: UUID().uuidString, address: address, sats: sats, feeRate: feeRate)
         withdrawalReviews = [review.token: (review, Date())]
         return review
@@ -114,7 +114,7 @@ extension RegtestNode {
     }
 
     public func closeChannel(point: String, feeRate: UInt64) async throws -> String {
-        guard !managementBusy, !closingPoints.contains(point), !splicingPoints.contains(point), (1...100).contains(feeRate) else { throw NodeFailure.invalidReply }
+        guard !managementBusy, !closingPoints.contains(point), !splicingPoints.contains(point), LightningAmounts.validFeeRate(feeRate) else { throw NodeFailure.invalidReply }
         managementBusy = true
         defer { managementBusy = false }
         try await requireSynced()

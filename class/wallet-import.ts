@@ -1,3 +1,4 @@
+import { BtcSegwitBech32Wallet } from './wallets/btc-segwit-bech32-wallet';
 import { discoverXbtRecovery, RecoveryScanOptions } from './xbt/recovery-discovery';
 import bip38 from 'bip38';
 import wif from 'wif';
@@ -71,6 +72,7 @@ const startImport = (
   xbtOnly: boolean = false,
   xbtFormat: 'segwit' | 'taproot' = 'segwit',
   recoveryOptions: RecoveryScanOptions = {},
+  network?: 'btc',
 ): TImport => {
   // state
   let promiseResolve: (arg: TStatus) => void;
@@ -132,6 +134,16 @@ const startImport = (
     let text = importTextOrig.trim();
     let password;
 
+    if (network === 'btc') {
+      const wallet = new BtcSegwitBech32Wallet();
+      wallet.setSecret(text);
+      if (!wallet.validateMnemonic()) throw new Error('BTC import requires a BIP39 Native SegWit recovery phrase.');
+      if (askPassphrase) wallet.setPassphrase(await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message));
+      wallet.setLabel('Bitcoin');
+      yield { progress: 'BTC · SHA-256 · Native SegWit' };
+      yield { wallet };
+      return;
+    }
     if (xbtOnly) {
       if (searchAccounts && offline) throw new Error(loc.wallets.recovery_offline);
       const watchOnly = new WatchOnlyWallet();

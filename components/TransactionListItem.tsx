@@ -1,3 +1,4 @@
+import { isBtcWallet, walletTicker } from '../blue_modules/wallet-network';
 import { LndWallet } from '../class/wallets/lnd-wallet';
 import React, { memo, useCallback, useMemo, useRef, useContext } from 'react';
 import { ArtworkSurfaceContext } from './ArtworkSkinSurface';
@@ -134,6 +135,8 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   const artworkSurface = useContext(ArtworkSurfaceContext);
   const { navigate } = useExtendedNavigation<NavigationProps>();
   const { txMetadata, counterpartyMetadata, wallets } = useStorage();
+  const ownerWallet = wallets.find(wallet => wallet.getID() === walletID);
+  const hideAmounts = wallets.some(wallet => wallet.getID() === walletID && wallet.hideBalance);
   const { language } = useSettings();
   const explorerUrl = getTransactionExplorerUrl(item.hash);
   const insets = useSafeAreaInsets();
@@ -158,7 +161,7 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
     counterparty = counterpartyMetadata?.[item.counterparty]?.label ?? item.counterparty;
   }
   const txMemo = (counterparty ? `[${shortenContactName(counterparty)}] ` : '') + (txMetadata[item.hash]?.memo ?? '');
-  const noteForCopy = (txMemo || item.memo || '').trim() || undefined;
+  const noteForCopy = hideAmounts ? undefined : (txMemo || item.memo || '').trim() || undefined;
 
   // For LightningArkWallet rows, prepend a kind tag to the date subtitle. Such a
   // wallet transacts entirely via Boltz swaps, so every row is Lightning; the
@@ -211,8 +214,11 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   }, [isPending, item.timestamp, language, arkRowKind]);
 
   const formattedAmount = useMemo(() => {
-    return formatBalanceWithoutSuffix(item.value, itemPriceUnit, true).toString();
-  }, [item.value, itemPriceUnit]);
+    return hideAmounts
+      ? '••••'
+      : formatBalanceWithoutSuffix(item.value, itemPriceUnit, true).toString() +
+          (isBtcWallet(ownerWallet) ? ` ${itemPriceUnit === BitcoinUnit.BTC ? 'BTC' : 'BTC sats'}` : '');
+  }, [hideAmounts, item.value, itemPriceUnit, ownerWallet]);
 
   const rowTitle = useMemo(() => {
     if (item.type === 'user_invoice' || item.type === 'payment_request') {
@@ -358,12 +364,14 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   const { label: transactionTypeLabel, icon: avatar } = determineTransactionTypeAndAvatar();
 
   const amountWithUnit = useMemo(() => {
+    if (hideAmounts) return 'Amounts hidden';
+    if (isBtcWallet(ownerWallet)) return formattedAmount;
     const unitSuffix =
       itemPriceUnit === BitcoinUnit.BTC || itemPriceUnit === BitcoinUnit.SATS
-        ? ` ${itemPriceUnit === BitcoinUnit.BTC ? loc.units.BTC : itemPriceUnit}`
+        ? ` ${itemPriceUnit === BitcoinUnit.BTC ? walletTicker(ownerWallet) : itemPriceUnit}`
         : ' ';
     return `${formattedAmount}${unitSuffix}`;
-  }, [formattedAmount, itemPriceUnit]);
+  }, [hideAmounts, formattedAmount, itemPriceUnit, ownerWallet]);
 
   const onPress = useCallback(async () => {
     // If a custom onPress handler was provided, use it and return
@@ -455,7 +463,9 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
     }
   }, [item, navigate, walletID, wallets]);
 
-  const handleOnCopyAmountTap = useCallback(() => Clipboard.setString(rowTitle.replace(/[\s\\-]/g, '')), [rowTitle]);
+  const handleOnCopyAmountTap = useCallback(() => {
+    if (!hideAmounts) Clipboard.setString(rowTitle.replace(/[\s\\-]/g, ''));
+  }, [hideAmounts, rowTitle]);
   const handleOnCopyTransactionID = useCallback(() => Clipboard.setString(item.hash), [item.hash]);
   const handleOnCopyNote = useCallback(() => Clipboard.setString(noteForCopy ?? ''), [noteForCopy]);
   const handleOnViewOnBlockExplorer = useCallback(() => {
@@ -499,7 +509,7 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
     const actions: (Action | Action[])[] = [
       {
         ...CommonToolTipActions.CopyAmount,
-        hidden: rowTitle === loc.lnd.expired,
+        hidden: hideAmounts || rowTitle === loc.lnd.expired,
       },
       {
         ...CommonToolTipActions.CopyNote,
@@ -517,7 +527,7 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
     ];
 
     return actions as Action[];
-  }, [rowTitle, noteForCopy, item.hash, explorerUrl]);
+  }, [hideAmounts, rowTitle, noteForCopy, item.hash, explorerUrl]);
 
   const title = listTitle;
   const subtitle = dateLine;

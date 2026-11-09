@@ -9,6 +9,7 @@ import lndmobile.Lndmobile
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.io.File
+import java.math.BigInteger
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -43,11 +44,42 @@ class LightningDeviceTest {
         node("start","127.0.0.1")
         waitFor { node("status") == "Needs setup" }
     }
+    @Test fun openingCapIsEnforcedBeforeNodeCalls() {
+        val rejected = runCatching { RegtestNode.invoice("open", "02" + "a".repeat(64), "1", "10000001") }
+        assertTrue(rejected.isFailure)
+        assertTrue(rejected.exceptionOrNull()?.message.orEmpty().contains("10,000,000 sats"))
+    }
+    @Test fun unsafeFeeIsRejectedBeforeAnyNodeCall() {
+        val maximum = LightningAmounts.MAX_FEE_RATE
+        assertTrue(LightningAmounts.validFeeRate(maximum))
+        assertTrue(LightningAmounts.validFeeRate(1_000_000L))
+        assertFalse(LightningAmounts.validFeeRate(maximum + 1))
+        assertFalse(LightningAmounts.validFeeRate(3_002_399_751_580_330L))
+        val product = BigInteger.valueOf(maximum).multiply(BigInteger.valueOf(3000L))
+            .multiply(BigInteger.valueOf(1_000_000L)).add(BigInteger.valueOf(999L))
+        assertTrue(product <= BigInteger.valueOf(Long.MAX_VALUE))
+        for (rate in listOf(maximum + 1, 3_002_399_751_580_330L, Long.MAX_VALUE)) {
+            val opening = runCatching { RegtestNode.invoice("open", "02" + "a".repeat(64), rate.toString(), "100000") }
+            assertTrue(opening.exceptionOrNull() is IllegalArgumentException)
+            val withdrawal = runCatching {
+                NodeManagement.run("withdrawReview", MainnetConfiguration.addressPrefix + "qfixture", "1000", rate.toString())
+            }
+            assertTrue(withdrawal.exceptionOrNull() is IllegalArgumentException)
+            val closing = runCatching { NodeManagement.run("close", "a".repeat(64) + ":0", "", rate.toString()) }
+            assertTrue(closing.exceptionOrNull() is IllegalArgumentException)
+        }
+    }
     @Test fun payments() {
         assertFalse(MainnetConfiguration.live)
         start()
         node("setup")
         waitFor { node("status") == "Running" }
+        val largeInvoice = RegtestNode.invoice("receive","","","44000000") as String
+        val largeDecoded = RegtestNode.invoice("decode",largeInvoice,"","") as com.facebook.react.bridge.ReadableMap
+        assertEquals("44000000",largeDecoded.getString("sats"))
+        assertFalse(LightningAmounts.valid(Long.MAX_VALUE))
+        assertFalse(LightningAmounts.valid(0L))
+        assertTrue(LightningAmounts.validFeeRate(250L))
         val identity = node("details").lineSequence().first()
         File(ctx.cacheDir,"identity").writeText(identity)
         val addr = node("fund")
@@ -85,7 +117,16 @@ class LightningDeviceTest {
             runCatching { !Fields(result.get(10, TimeUnit.SECONDS)).blobs[1].isNullOrEmpty() }.getOrDefault(false)
         }
         assertTrue(runCatching { RegtestNode.invoice("pay",outgoing,hash,"19999") }.isFailure)
-        assertEquals(true,RegtestNode.invoice("pay",outgoing,hash,"20000"))
+        assertEquals(true,RegtestNode.payInvoice(outgoing,hash,"20000","250"))
+        runCatching { RegtestNode.payInvoice(outgoing,hash,"20000","250") }
+        val paymentHistory = RegtestNode.invoice("paymentHistory","0","","") as com.facebook.react.bridge.ReadableMap
+        val paymentRows = requireNotNull(paymentHistory.getArray("rows"))
+        assertEquals(1,paymentRows.size())
+        assertEquals(hash,paymentRows.getMap(0)!!.getString("id"))
+        assertEquals("sent",paymentRows.getMap(0)!!.getString("direction"))
+        assertEquals("settled",paymentRows.getMap(0)!!.getString("state"))
+        assertFalse(paymentRows.getMap(0)!!.hasKey("payment_preimage"))
+
         assertEquals("settled",fixture("pay",RegtestNode.invoice("receive","","","2000") as String))
         assertTrue(node("history").contains("Settled"))
         val exported = Uri.parse(RegtestNode.recovery(ctx,"export",phrase,""))

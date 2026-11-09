@@ -1,3 +1,4 @@
+import { formatWalletBalance } from '../blue_modules/wallet-network';
 import React, { useMemo } from 'react';
 import { ImageBackground, ImageSourcePropType, StyleSheet, Text, View, ViewStyle, TextStyle, Pressable } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -6,7 +7,6 @@ import { useTheme } from './themes';
 import HighlightedText from './HighlightedText';
 import { TWallet } from '../class/wallets/types';
 import WalletGradient from '../class/wallet-gradient';
-import { formatBalance } from '../loc';
 import { LndWallet } from '../class/wallets/lnd-wallet';
 import { useSettings } from '../hooks/context/useSettings';
 import { formatLndAmount } from '../blue_modules/lnd-display-amount';
@@ -69,7 +69,7 @@ const WalletListItem: React.FC<Props> = ({
     ? ''
     : wallet.type === LndWallet.type
       ? formatLndAmount(wallet.getBalance(), (wallet as LndWallet).getDisplayUnit(), xbtPriceQuote)
-      : formatBalance(Number(wallet.getBalance()), wallet.getPreferredBalanceUnit(), true);
+      : formatWalletBalance(wallet, Number(wallet.getBalance()), wallet.getPreferredBalanceUnit(), true);
 
   const highlightStyle = useMemo(() => {
     if (dark) {

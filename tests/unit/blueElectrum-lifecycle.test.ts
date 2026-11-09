@@ -1,3 +1,11 @@
+import { SettingsContext, SettingsProvider } from '../../components/Context/SettingsProvider';
+import * as StorageHook from '../../hooks/context/useStorage';
+import * as Currency from '../../blue_modules/currency';
+import * as XbtPriceHook from '../../hooks/useXbtDisplayPrice';
+import { FiatUnit } from '../../models/fiatUnit';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React from 'react';
+import { act, renderHook } from '@testing-library/react-native';
 import DefaultPreference from 'react-native-default-preference';
 import Realm from 'realm';
 import { parseVerifiedParentTransaction } from '../../class/xbt/verified-transaction';
@@ -396,9 +404,59 @@ describe('BlueElectrum lifecycle', () => {
     });
   });
 
+  it('does not automatically connect after the user removes the primary', async () => {
+    const get = DefaultPreference.get as jest.Mock;
+    const original = get.getMockImplementation();
+    get.mockImplementation(async key => (key === 'electrum_default_server_declined' ? '1' : undefined));
+    try {
+      expect(await BlueElectrum.ensureConnected()).toBe(false);
+      expect(created).toHaveLength(0);
+    } finally {
+      get.mockImplementation(original!);
+    }
+  });
+
   describe('settings connection authentication deadline', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
+
+    it('reports certificate failure without sending RPCs or falling back to TCP', async () => {
+      const ElectrumClient = require('electrum-client');
+      ElectrumClient.mockClear();
+      const pending = BlueElectrum.testConnectionDetailed('fulcrum.kilombino.com', 0, 17717);
+      const client = created[0];
+      client.connectDeferred.reject(new Error('self-signed certificate'));
+      await expect(pending).resolves.toEqual({ ok: false, reason: 'certificate' });
+      expect(client.server_version).not.toHaveBeenCalled();
+      expect(ElectrumClient).toHaveBeenCalledTimes(1);
+      expect(ElectrumClient.mock.calls[0].slice(2)).toEqual([17717, 'fulcrum.kilombino.com', 'tls', undefined]);
+      expect(client.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('distinguishes an authenticated wrong-chain endpoint from a TLS error', async () => {
+      const pending = BlueElectrum.testConnectionDetailed('wrong-chain.test', 0, 17717);
+      created[0].blockchainBlock_header.mockResolvedValue('00'.repeat(80));
+      created[0].connectDeferred.resolve();
+      await expect(pending).resolves.toEqual({ ok: false, reason: 'checkpoint' });
+    });
+
+    it.each(['server_version', 'server_ping', 'blockchainBlock_header'] as const)(
+      'bounds a stalled %s and does not continue RPCs after the deadline',
+      async method => {
+        const pending = BlueElectrum.testConnectionDetailed('stalled.test', 0, 17717);
+        const client = created[0];
+        const stalled = deferred<unknown>();
+        client[method].mockReturnValue(stalled.promise);
+        client.connectDeferred.resolve();
+        await jest.advanceTimersByTimeAsync(15000);
+        await expect(pending).resolves.toEqual({ ok: false, reason: 'timeout' });
+        expect(client.close).toHaveBeenCalledTimes(1);
+        const counts = [client.server_version, client.server_ping, client.blockchainBlock_header].map(fn => fn.mock.calls.length);
+        stalled.resolve(XBT_MAINNET_CHECKPOINT_HEADER);
+        await jest.advanceTimersByTimeAsync(0);
+        expect([client.server_version, client.server_ping, client.blockchainBlock_header].map(fn => fn.mock.calls.length)).toEqual(counts);
+      },
+    );
 
     it('waits for authenticated TLS beyond five seconds before making RPCs', async () => {
       const pending = BlueElectrum.testConnection('private.example', undefined, 50002, 'configured certificate');
@@ -730,3 +788,119 @@ test.each(['rpc-error', 'missing', 'malformed'])('history %s is never treated as
   await expect(BlueElectrum.multiGetHistoryByAddress([address])).rejects.toThrow();
   BlueElectrum.forceDisconnect();
 });
+
+describe('fresh installation SSL default', () => {
+  const originalGet = (DefaultPreference.get as jest.Mock).getMockImplementation();
+  afterEach(() => {
+    BlueElectrum.forceDisconnect();
+    (DefaultPreference.get as jest.Mock).mockImplementation(originalGet!);
+  });
+  it('uses Kilombino with system-trusted TLS when no server is saved', async () => {
+    BlueElectrum.forceDisconnect();
+    created.length = 0;
+    (DefaultPreference.get as jest.Mock).mockResolvedValue(undefined);
+    expect(await BlueElectrum.getPreferredServer()).toEqual({ host: 'fulcrum.kilombino.com', ssl: 17717 });
+    const pending = BlueElectrum.ensureConnected();
+    await flush();
+    const ElectrumClient = require('electrum-client');
+    expect(ElectrumClient.mock.calls.at(-1).slice(2)).toEqual([17717, 'fulcrum.kilombino.com', 'tls', undefined]);
+    resolveLastConnect();
+    expect(await pending).toBe(true);
+  });
+  it.each([{ electrum_default_server_declined: '1' }, { electrum_ssl_port: '50002' }])(
+    'does not replace removed or incomplete configuration',
+    async values => {
+      (DefaultPreference.get as jest.Mock).mockImplementation(async key => (values as Record<string, string | undefined>)[key]);
+      expect(await BlueElectrum.getPreferredServer()).toBeUndefined();
+    },
+  );
+  it('preserves a saved custom server', async () => {
+    (DefaultPreference.get as jest.Mock).mockImplementation(
+      async key => (({ electrum_host: 'custom.example', electrum_ssl_port: '50002' }) as Record<string, string>)[key],
+    );
+    expect(await BlueElectrum.getPreferredServer()).toMatchObject({ host: 'custom.example', ssl: 50002 });
+  });
+});
+
+describe('settings connection feedback', () => {
+  beforeEach(async () => {
+    BlueElectrum.forceDisconnect();
+    await BlueElectrum.setDisabled(false);
+    created.length = 0;
+    presentAlertMock.mockClear();
+    jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+  });
+
+  afterEach(() => {
+    BlueElectrum.forceDisconnect();
+    jest.useRealTimers();
+  });
+
+  const renderSettings = () => {
+    const storage = jest
+      .spyOn(StorageHook, 'useStorage')
+      .mockReturnValue({ walletsInitialized: true } as ReturnType<typeof StorageHook.useStorage>);
+    const daemon = jest.spyOn(Currency, 'initCurrencyDaemon').mockResolvedValue(undefined);
+    const preferred = jest.spyOn(Currency, 'getPreferredCurrency').mockResolvedValue(FiatUnit.USD);
+    const language = jest.spyOn(AsyncStorage, 'getItem').mockResolvedValue(null);
+    const price = jest.spyOn(XbtPriceHook, 'useXbtDisplayPrice').mockReturnValue({
+      xbtPriceQuote: null,
+      saveManualXbtPriceQuote: jest.fn(),
+      clearXbtPriceQuote: jest.fn(),
+      refreshNeoxexXbtPriceQuote: jest.fn(),
+    });
+    const view = renderHook(() => React.useContext(SettingsContext), {
+      wrapper: ({ children }) => React.createElement(SettingsProvider, null, children),
+    });
+    return {
+      ...view,
+      dispose: () => {
+        view.unmount();
+        storage.mockRestore();
+        daemon.mockRestore();
+        preferred.mockRestore();
+        language.mockRestore();
+        price.mockRestore();
+      },
+    };
+  };
+
+  it.each(['startup', 're-enable'])('keeps a failed automatic %s connection non-blocking', async mode => {
+    const view = renderSettings();
+    try {
+      await act(async () => {
+        await flush();
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(120_000);
+      });
+      if (mode === 're-enable') {
+        await act(async () => view.result.current.setIsElectrumDisabled(true));
+        presentAlertMock.mockClear();
+        created.length = 0;
+        await act(async () => view.result.current.setIsElectrumDisabled(false));
+        await act(async () => {
+          await flush();
+        });
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(120_000);
+        });
+      }
+      expect(created.length).toBeGreaterThan(0);
+      expect(BlueElectrum.getConnectionState()).toBe('disconnected');
+      expect(presentAlertMock).not.toHaveBeenCalled();
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('retains the explicit disconnected-help dialog', async () => {
+    await BlueElectrum.presentElectrumDisconnectedHelpAlert();
+    expect(presentAlertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ allowRepeat: true, buttons: expect.arrayContaining([expect.objectContaining({ style: 'cancel' })]) }),
+    );
+  });
+});
+
+// This suite owns its client implementations; avoid the shared image-picker mock's global resetAllMocks hook.
+jest.mock('react-native-image-picker', () => ({ launchImageLibrary: jest.fn(), launchCamera: jest.fn() }));

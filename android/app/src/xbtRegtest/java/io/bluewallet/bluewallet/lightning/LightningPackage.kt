@@ -16,6 +16,7 @@ class LightningBridge(private val context: ReactApplicationContext) : ReactConte
     private fun submit(promise: Promise, action: () -> Any) {
         nodeThread.execute {
             try { promise.resolve(action()) }
+            catch (e: PaymentSubmissionException) { promise.reject(e.code, e.message) }
             catch (e: Exception) { promise.reject("xbt_node_failed", if (e is IllegalStateException) e.message ?: "Node operation failed." else "Node operation failed. Check the supplied values, connection and node state.") }
         }
     }
@@ -25,6 +26,8 @@ class LightningBridge(private val context: ReactApplicationContext) : ReactConte
     @ReactMethod fun run(action: String, peer: String, promise: Promise) = submit(promise) { RegtestNode.run(context,action,peer) }
     @ReactMethod fun invoice(operation: String, value: String, hash: String, sats: String, promise: Promise) =
         submit(promise) { RegtestNode.invoice(operation,value,hash,sats) }
+    @ReactMethod fun payInvoice(invoice: String, hash: String, sats: String, feeLimit: String, promise: Promise) =
+        submit(promise) { RegtestNode.payInvoice(invoice,hash,sats,feeLimit) }
     @ReactMethod fun recovery(operation: String, phrase: String, source: String, promise: Promise) =
         submit(promise) { RegtestNode.recovery(context,operation,phrase,source) }
 }

@@ -20,6 +20,8 @@ export type ReceiveDetailsStackParamList = {
     headerBackVisible?: boolean;
   };
   ReceiveCustomAmount: {
+    walletID?: string;
+    assetTicker?: 'BTC' | 'XBT';
     address: string;
     currentLabel?: string;
     currentAmount?: string;

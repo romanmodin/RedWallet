@@ -252,6 +252,10 @@ export async function helperCreateWallet(walletName, walletFormat = 'segwit', op
   // why tf we need 2 taps for it to work..? mystery
 
   if (walletFormat === 'taproot') await element(by.id('ToggleXbtWalletFormat')).tap();
+  if (walletFormat === 'btc') {
+    await element(by.id('ActivateBtcButton')).tap();
+    await expect(element(by.id('XbtWalletFormat'))).toHaveText('BTC · SHA-256 · Native SegWit (BIP84)');
+  }
 
   // iOS 26 liquid glass: the navigation transition after tapping "Create" triggers
   // glass animations that never fully settle, keeping the app in a "busy" state.

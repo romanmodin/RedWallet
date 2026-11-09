@@ -24,7 +24,7 @@ test('memoized LND card updates on unit changes even though the wallet object is
     <WalletCarouselItem
       item={wallet}
       lndDisplayUnit={wallet.getDisplayUnit()}
-      hideBalance={false}
+      hideBalance={wallet.hideBalance}
       onPress={onPress}
       animationsEnabled={false}
     />
@@ -37,6 +37,10 @@ test('memoized LND card updates on unit changes even though the wallet object is
   wallet.setDisplayUnit('quote');
   screen.rerender(card());
   expect(screen.getByText('≈ 138.00 USDC')).toBeTruthy();
+  wallet.hideBalance = true;
+  screen.rerender(card());
+  expect(screen.queryByText('≈ 138.00 USDC')).toBeNull();
+  expect(screen.queryByTestId('XbtPriceEstimate')).toBeNull();
   screen.unmount();
 });
 

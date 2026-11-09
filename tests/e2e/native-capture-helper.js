@@ -78,3 +78,17 @@ export async function observeNativeRotation(device, observation) {
     await device.enableSynchronization();
   }
 }
+
+// Compare portrait screen-coordinate frames, not local bounds from unrelated
+// containers. A correct rotation alone cannot prove content clears the toolbar.
+export function nativeDashboardPlacement(headerAttributes, toolbarButtonAttributes) {
+  const frame = attributes => {
+    const value = attributes.frame;
+    if (!value || !['x', 'y', 'width', 'height'].every(key => Number.isFinite(value[key])) || value.width <= 0 || value.height <= 0)
+      throw new Error('Missing native screen-coordinate frame');
+    return { x: value.x, y: value.y, width: value.width, height: value.height };
+  };
+  const header = frame(headerAttributes);
+  const toolbarButton = frame(toolbarButtonAttributes);
+  return { header, toolbarButton, clearsToolbar: header.y >= toolbarButton.y + toolbarButton.height - 1 };
+}

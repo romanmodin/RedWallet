@@ -1,3 +1,4 @@
+import { walletElectrum, walletTicker, isBtcWallet } from '../../blue_modules/wallet-network';
 import { canUseAuthenticatedBip84Rbf, XbtBip84Transaction } from '../../class/xbt-bip84-transaction';
 import { isXbtTaprootWallet, XbtTaprootTransaction } from '../../class/xbt-taproot-transaction';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
@@ -19,7 +20,6 @@ import Icon from '../../components/Icon';
 import dayjs from 'dayjs';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { satoshiToLocalCurrency } from '../../blue_modules/currency';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
@@ -53,12 +53,12 @@ import { isWatchOnlySegwitBech32 } from '../../util/isWatchOnlySegwitBech32';
 dayjs.extend(relativeTime);
 
 /** Mutates Electrum `vin` entries with `value` from previous outputs so fee = sum(inputs) − sum(outputs) works. */
-async function populateVinValuesFromPrevTxs(fetchedTx: any): Promise<void> {
+async function populateVinValuesFromPrevTxs(fetchedTx: any, wallet: TWallet): Promise<void> {
   if (!fetchedTx?.vin?.length) return;
   const vinTxids = fetchedTx.vin.map((vin: any) => vin.txid).filter((tid: string) => !!tid);
   if (vinTxids.length === 0) return;
   try {
-    const prevTransactions = await BlueElectrum.multiGetTransactionByTxid(vinTxids, true, 10);
+    const prevTransactions = await walletElectrum(wallet).multiGetTransactionByTxid(vinTxids, true, 10);
     for (let i = 0; i < fetchedTx.vin.length; i++) {
       const vin = fetchedTx.vin[i];
       if (prevTransactions[vin.txid]?.vout?.[vin.vout]) {
@@ -183,7 +183,8 @@ const TransactionStatus: React.FC = () => {
   const { navigate, goBack, setOptions } = useExtendedNavigation<NavigationProps>();
   const { colors } = useTheme();
   const { width: windowWidth, fontScale } = useWindowDimensions();
-  const explorerUrl = getTransactionExplorerUrl(tx?.hash);
+  const explorerUrl =
+    isBtcWallet(subscribedWallet) && tx?.hash ? `https://mempool.space/tx/${tx.hash}` : getTransactionExplorerUrl(tx?.hash);
   const fetchTxInterval = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const scaledStyles = useMemo(() => {
@@ -383,11 +384,12 @@ const TransactionStatus: React.FC = () => {
 
         // Also fetch from Electrum to get complete transaction data including fee
         // For received transactions, we need to populate vin.value by fetching previous transactions
-        BlueElectrum.multiGetTransactionByTxid([hash], true, 10)
+        walletElectrum(subscribedWallet)
+          .multiGetTransactionByTxid([hash], true, 10)
           .then(async txMap => {
             const fetchedTx = txMap[hash];
             if (fetchedTx && fetchedTx.vin) {
-              await populateVinValuesFromPrevTxs(fetchedTx);
+              await populateVinValuesFromPrevTxs(fetchedTx, subscribedWallet!);
               setTxFromElectrum(fetchedTx);
             }
           })
@@ -406,7 +408,8 @@ const TransactionStatus: React.FC = () => {
   useEffect(() => {
     if (isAdvancedExpanded && tx?.hash && !txHex && !isLoadingHex) {
       setIsLoadingHex(true);
-      BlueElectrum.multiGetTransactionByTxid([tx.hash], false, 10)
+      walletElectrum(subscribedWallet)
+        .multiGetTransactionByTxid([tx.hash], false, 10)
         .then(hexes => {
           const hex = hexes[tx.hash];
           if (hex && typeof hex === 'string') {
@@ -419,7 +422,7 @@ const TransactionStatus: React.FC = () => {
           setIsLoadingHex(false);
         });
     }
-  }, [isAdvancedExpanded, tx?.hash, txHex, isLoadingHex]);
+  }, [isAdvancedExpanded, tx?.hash, txHex, isLoadingHex, subscribedWallet]);
 
   // re-fetching tx status periodically
   useEffect(() => {
@@ -442,7 +445,7 @@ const TransactionStatus: React.FC = () => {
         setIntervalMs(31000);
 
         console.debug('checking tx', hash, 'for confirmations...');
-        const fetchedTxMap = await BlueElectrum.multiGetTransactionByTxid([hash], true, 10);
+        const fetchedTxMap = await walletElectrum(subscribedWallet).multiGetTransactionByTxid([hash], true, 10);
         const fetchedTx = fetchedTxMap[hash];
         if (!fetchedTx) {
           console.error(`Transaction from Electrum with hash ${hash} not found.`);
@@ -453,7 +456,7 @@ const TransactionStatus: React.FC = () => {
 
         // Same as initial load: populate vin.value before committing state, otherwise calculatedFee
         // briefly (or permanently if mempool lookup fails) loses inputs−outputs fee vs the first fetch.
-        await populateVinValuesFromPrevTxs(fetchedTx);
+        await populateVinValuesFromPrevTxs(fetchedTx, subscribedWallet!);
         setTxFromElectrum(fetchedTx);
 
         const address = fetchedTx.vout?.[0]?.scriptPubKey?.addresses?.pop();
@@ -463,7 +466,7 @@ const TransactionStatus: React.FC = () => {
         }
 
         if (!fetchedTx.confirmations && fetchedTx.vsize) {
-          const txsM = await BlueElectrum.getMempoolTransactionsByAddress(address);
+          const txsM = await walletElectrum(subscribedWallet).getMempoolTransactionsByAddress(address);
           let txFromMempool;
           for (const tempTxM of txsM) {
             if (tempTxM?.tx_hash === hash) {
@@ -484,7 +487,7 @@ const TransactionStatus: React.FC = () => {
           }
 
           const satPerVbyte = txFromMempool.fee && fetchedTx.vsize ? Math.round(txFromMempool.fee / fetchedTx.vsize) : 0;
-          const fees = await BlueElectrum.estimateFees();
+          const fees = await walletElectrum(subscribedWallet).estimateFees();
 
           // Only set ETA if we have valid fee data
           // Validate that fees exist, are numbers, and are positive
@@ -535,7 +538,7 @@ const TransactionStatus: React.FC = () => {
             const vinTxids = fetchedTx.vin.map((vin: any) => vin.txid).filter((tid: string) => !!tid);
             if (vinTxids.length > 0) {
               try {
-                const prevTxs = await BlueElectrum.multiGetTransactionByTxid(vinTxids, true, 10);
+                const prevTxs = await walletElectrum(subscribedWallet).multiGetTransactionByTxid(vinTxids, true, 10);
                 // Populate vin.value from previous transaction outputs
                 for (let i = 0; i < fetchedTx.vin.length; i++) {
                   const vin = fetchedTx.vin[i];
@@ -644,7 +647,7 @@ const TransactionStatus: React.FC = () => {
     if (!tx && hash) {
       const fetchTransaction = async () => {
         try {
-          const transactions = await BlueElectrum.multiGetTransactionByTxid([hash], true, 10);
+          const transactions = await walletElectrum(subscribedWallet).multiGetTransactionByTxid([hash], true, 10);
           const fetchedTx = transactions[hash];
           if (fetchedTx) {
             setTX(fetchedTx);
@@ -1113,14 +1116,14 @@ const TransactionStatus: React.FC = () => {
             {txValue !== null ? formatBalanceWithoutSuffix(txValue, preferredBalanceUnit, true) : '-'}
             {preferredBalanceUnit !== BitcoinUnit.LOCAL_CURRENCY && (
               <Text style={[styles.valueUnit, stylesHook.valueUnit]}>
-                {preferredBalanceUnit === BitcoinUnit.BTC ? ` ${loc.units.BTC}` : ` ${preferredBalanceUnit}`}
+                {preferredBalanceUnit === BitcoinUnit.BTC ? ` ${walletTicker(wallet)}` : ` ${preferredBalanceUnit}`}
               </Text>
             )}
           </Text>
           {XBT_PROFILE.fiatEnabled && txValue !== null && (
             <Text style={[styles.localCurrency, stylesHook.localCurrency, scaledStyles.localCurrency]}>
               {preferredBalanceUnit === BitcoinUnit.LOCAL_CURRENCY
-                ? `${formatBalanceWithoutSuffix(Math.abs(txValue), BitcoinUnit.BTC, true)} ${loc.units.BTC}`
+                ? `${formatBalanceWithoutSuffix(Math.abs(txValue), BitcoinUnit.BTC, true)} ${walletTicker(wallet)}`
                 : satoshiToLocalCurrency(Math.abs(txValue))}
             </Text>
           )}

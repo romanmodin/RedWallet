@@ -53,7 +53,7 @@ jobs:
           archive="$RUNNER_TEMP/knots.tar.gz"
           dir="$RUNNER_TEMP/lnd-regtest"
           mkdir -p "$dir/tools" "$dir/data"
-          curl -fsSL --retry 2 "$(jq -r --arg k "$key" '.knots[$k].url' tests/native/backend-assets.json)" -o "$archive"
+          curl -fsSL --retry 2 --retry-all-errors "$(jq -r --arg k "$key" '.knots[$k].url' tests/native/backend-assets.json)" -o "$archive"
           printf '%s  %s\n' "$(jq -r --arg k "$key" '.knots[$k].sha256' tests/native/backend-assets.json)" "$archive" | shasum -a 256 -c -
           tar -xzf "$archive" --strip-components=1 -C "$dir/tools"
           "$dir/tools/bin/bitcoind" -datadir="$dir/data" -regtest -server -daemonwait -bind=127.0.0.1:18444 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -listenonion=0 -connect=0 -dnsseed=0 -discover=0 -blockfilterindex=1 -peerblockfilters=1 -fallbackfee=0.00001 -testactivationheight=blake2b@150
@@ -68,7 +68,7 @@ jobs:
           set -euo pipefail
           dir="$RUNNER_TEMP/lnd-regtest"
           fixture_cookie=$(<"$dir/data/regtest/.cookie")
-          "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${fixture_cookie%%:*}" --bitcoind.rpcpass="${fixture_cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --protocol.splice --watchtower.active --watchtower.listen=127.0.0.1:19911 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
+          "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${fixture_cookie%%:*}" --bitcoind.rpcpass="${fixture_cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --protocol.splice --protocol.wumbo-channels --maxchansize=2100000000000000 --watchtower.active --watchtower.listen=127.0.0.1:19911 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
           pid=$!
           ready=false
           for attempt in {1..90}; do

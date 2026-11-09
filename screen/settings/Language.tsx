@@ -21,7 +21,7 @@ const Language = () => {
   // we just need to configure the search bar and ensure title is updated when language changes
   useLayoutEffect(() => {
     setOptions({
-      title: loc.settings.language,
+      title: loc.settings.language.toUpperCase(),
       headerSearchBarOptions: {
         onChangeText: (event: NativeSyntheticEvent<{ text: string }>) => setSearch(event.nativeEvent.text),
       },

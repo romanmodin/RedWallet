@@ -32,6 +32,7 @@ function screen(status = 'ok') {
       splice={{ ...ready, status }}
       busy={false}
       run={run}
+      runAuthorized={run}
       report={report}
       onUpdated={onUpdated}
     />,
@@ -104,4 +105,92 @@ test('a failed confirmation is not retried automatically', async () => {
   expect(report).toHaveBeenLastCalledWith(expect.stringContaining('outcome unknown'));
   expect(bridge.splice.mock.calls.filter(c => c[0] === 'confirm')).toHaveLength(1);
   expect(s.queryByText('Confirm remove funds')).toBeNull();
+});
+
+test.each(['in', 'out'])('large %s resize reviews the exact amount and fee without broadcasting', async direction => {
+  bridge.splice.mockResolvedValue({
+    ...review(direction),
+    sats: '44000000',
+    feeRate: '250',
+    capacity: '45000000',
+    local: '44000000',
+  });
+  const s = screen();
+  fireEvent.press(s.getByText(direction === 'in' ? 'Add funds' : 'Remove funds'));
+  fireEvent.changeText(s.getByLabelText('Channel resize sats'), '44000000');
+  fireEvent.changeText(s.getByLabelText('Channel resize fee rate'), '250');
+  await act(async () => fireEvent.press(s.getByText('Review channel resize')));
+  expect(bridge.splice).toHaveBeenCalledWith('review', JSON.stringify({ point, direction, sats: '44000000', feeRate: '250' }));
+  expect(bridge.splice).toHaveBeenCalledTimes(1);
+  expect(s.getByText(direction === 'in' ? 'Confirm add funds' : 'Confirm remove funds')).toBeTruthy();
+  s.unmount();
+});
+test.each(['0', '-1', '1.5', '1e8', '2100000000000001', '9007199254740993'])(
+  'rejects invalid resize %s before native review',
+  async amount => {
+    const s = screen();
+    fireEvent.press(s.getByText('Add funds'));
+    fireEvent.changeText(s.getByLabelText('Channel resize sats'), amount);
+    await act(async () => fireEvent.press(s.getByText('Review channel resize')));
+    expect(bridge.splice).not.toHaveBeenCalled();
+    s.unmount();
+  },
+);
+
+test('hidden resize review keeps the confirmed spend and fee visible while masking resulting wallet balances', async () => {
+  bridge.splice.mockResolvedValueOnce(review('in'));
+  const s = render(
+    <XBTLightningChannelFunds
+      point={point}
+      active
+      splice={ready}
+      busy={false}
+      hideBalances
+      run={run}
+      runAuthorized={run}
+      report={report}
+      onUpdated={onUpdated}
+    />,
+  );
+  fireEvent.press(s.getByText('Add funds'));
+  fireEvent.changeText(s.getByLabelText('Channel resize sats'), '20000');
+  fireEvent.changeText(s.getByLabelText('Channel resize fee rate'), '2');
+  await act(async () => fireEvent.press(s.getByText('Review channel resize')));
+  expect(s.getByText(/Add 20000 sats/)).toBeTruthy();
+  expect(s.getByText(/Estimated network fee: 400 sats at 2 sat\/vB/)).toBeTruthy();
+  expect(s.getByText('Confirm add funds')).toBeTruthy();
+  expect(JSON.stringify(s.toJSON())).not.toMatch(/120000|110000/);
+});
+
+test.each(['0', '12'])('confirmed resize separates local depth from peer completion (%s confirmations)', confirmations => {
+  const s = render(
+    <XBTLightningChannelFunds
+      point={point}
+      active
+      splice={{
+        ...ready,
+        status: 'pending',
+        progress: 'confirmed',
+        txid: 'confirmed-resize',
+        confirmations,
+        lockDepth: '6',
+      }}
+      busy={false}
+      run={run}
+      runAuthorized={run}
+      report={report}
+      onUpdated={onUpdated}
+    />,
+  );
+  expect(s.getByText(/confirmed on chain; waiting for both peers to lock/)).toBeTruthy();
+  expect(s.getByText(/The peer may require more confirmations/)).toBeTruthy();
+  if (confirmations === '0') {
+    expect(s.getByText(/Local confirmation count unavailable; local requirement: 6/)).toBeTruthy();
+    expect(s.queryByText(/0\/6 confirmations/)).toBeNull();
+  } else {
+    expect(s.getByText(/Local confirmations: 12\/6/)).toBeTruthy();
+  }
+  fireEvent.press(s.getByText('Add funds'));
+  expect(bridge.splice).not.toHaveBeenCalled();
+  expect(s.queryByLabelText('Channel resize sats')).toBeNull();
 });

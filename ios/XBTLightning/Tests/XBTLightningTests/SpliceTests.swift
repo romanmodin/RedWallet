@@ -3,6 +3,36 @@ import XCTest
 
 final class SpliceTests: XCTestCase {
     private let point = String(repeating: "a", count: 64) + ":0"
+    func testOpeningAboveTenMillionIsRejectedBeforeAnyNodeCall() async {
+        do {
+            _ = try await RegtestNode.shared.openChannel(to: "02" + String(repeating: "a", count: 64), sats: 10_000_001)
+            XCTFail("Opening above the requested cap must not reach LND")
+        } catch NodeFailure.channelOpeningLimit {
+            // The cap is enforced natively even when called without the React form.
+        } catch { XCTFail("Expected the opening cap error, got \(error)") }
+    }
+    func testFeeRatesProtectSignedBackendProductsAtMaximumTransactionWeight() {
+        let rate = LightningAmounts.maxFeeRate
+        XCTAssertTrue(LightningAmounts.validFeeRate(rate))
+        XCTAssertTrue(LightningAmounts.validFeeRate(1_000_000))
+        XCTAssertFalse(LightningAmounts.validFeeRate(rate + 1))
+        XCTAssertFalse(LightningAmounts.validFeeRate(3_002_399_751_580_330))
+        let product = (rate * 3000).multipliedReportingOverflow(by: 1_000_000)
+        XCTAssertFalse(product.overflow)
+        XCTAssertLessThanOrEqual(product.partialValue + 999, UInt64(Int64.max))
+        let weightProduct = (rate * 3000 / 4).multipliedReportingOverflow(by: 4_000_000)
+        XCTAssertFalse(weightProduct.overflow)
+        XCTAssertLessThanOrEqual(weightProduct.partialValue + 999, UInt64(Int64.max))
+    }
+    func testUnsafeOpeningFeeIsRejectedBeforeAnyNodeCall() async {
+        do {
+            _ = try await RegtestNode.shared.openChannel(to: "02" + String(repeating: "a", count: 64), sats: 100_000,
+                                                       feeRate: LightningAmounts.maxFeeRate + 1)
+            XCTFail("Unsafe fee must not reach LND")
+        } catch NodeFailure.invalidAmount {
+            // Local validation must run before the readiness RPC.
+        } catch { XCTFail("Expected the fee validation error, got \(error)") }
+    }
     private func estimate(removing: Bool = false) -> Data {
         var data = Data()
         let pairs: [(UInt64, UInt64)] = [(1, 500), (3, 2), (4, 20_000), (11, 120_000), (12, 100_000), (13, 6)]
@@ -23,9 +53,27 @@ final class SpliceTests: XCTestCase {
             XCTAssertNil(fields.integers[4]); XCTAssertNil(fields.integers[8])
         }
         XCTAssertThrowsError(try RegtestNode.spliceRequest(point: "invalid", direction: "in", sats: 20_000, feeRate: 2, address: ""))
-        for amount in [UInt64(0), 545, 1_000_001, UInt64.max] {
+        for amount in [UInt64(0), LightningAmounts.maxSats + 1, UInt64.max] {
             XCTAssertThrowsError(try RegtestNode.spliceRequest(point: point, direction: "in", sats: amount, feeRate: 2, address: ""))
         }
+    }
+    func testLargeResizeKeepsExactAmountAndFeeAndNeverEnablesUseMax() throws {
+        for direction in ["in", "out"] {
+            let request = try RegtestNode.spliceRequest(point: point, direction: direction, sats: 44_000_000,
+                                                       feeRate: 250, address: direction == "out" ? "bcrt1-own" : "")
+            let fields = try ProtoFields(request)
+            XCTAssertEqual(fields.integers[3], 44_000_000)
+            XCTAssertEqual(fields.integers[5], 250)
+            XCTAssertNil(fields.integers[4])
+        }
+        for rate in [UInt64(0), LightningAmounts.maxFeeRate + 1, UInt64.max] {
+            XCTAssertThrowsError(try RegtestNode.spliceRequest(point: point, direction: "in", sats: 44_000_000, feeRate: rate, address: ""))
+        }
+        XCTAssertFalse(LightningAmounts.valid(UInt64.max))
+        XCTAssertFalse(LightningAmounts.valid(0))
+        XCTAssertTrue(LightningAmounts.valid(0, allowZero: true))
+        XCTAssertLessThanOrEqual(LightningAmounts.maxSats * 1000, UInt64(Int64.max))
+        XCTAssertLessThanOrEqual(LightningAmounts.maxFeeRate * 3000, UInt64(Int64.max))
     }
     func testEstimatesRejectRefusalsNegativeAmountsAndForeignDestinations() throws {
         let e = try SpliceEstimate.decode(estimate(), sats: 20_000, feeRate: 2, removing: false)

@@ -1,5 +1,6 @@
+import WalletNetworkIndicator from '../components/WalletNetworkIndicator';
 import React, { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ChainFreshnessIndicator, { useChainFreshness } from '../components/ChainFreshnessIndicator';
+import { useChainFreshness } from '../components/ChainFreshnessIndicator';
 import { Animated, AppState, View, Platform, Text, StyleSheet, Pressable, Image } from 'react-native';
 import type { NativeStackHeaderItem, NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { createEllipsisHeaderMenuOptions } from '../components/headerMenuOptions';
@@ -272,7 +273,7 @@ const DetailViewStackScreensStack = () => {
     const showUpdating = !isElectrumDisabled && isUpdating;
 
     const renderHeaderLeft = () => {
-      if (!showOffline) return React.createElement(ChainFreshnessIndicator, chainFreshness);
+      if (!showOffline) return React.createElement(WalletNetworkIndicator, chainFreshness);
       if (showOffline) {
         const offlineBg = theme.dark ? theme.colors.darkGray : '#000000';
         return React.createElement(OfflineModePill, {
@@ -306,7 +307,8 @@ const DetailViewStackScreensStack = () => {
       return {
         title: sizeClass === SizeClass.Large ? loc.wallets.list_title : '',
         headerLargeTitle: false,
-        headerTransparent: true,
+        // Native layout must reserve the toolbar/status-bar space for the pinned dashboard.
+        headerTransparent: false,
         unstable_headerLeftItems: (): NativeStackHeaderItem[] => {
           const element = renderHeaderLeft();
           if (element == null) {
@@ -497,43 +499,7 @@ const DetailViewStackScreensStack = () => {
           options={navigationStyle({ title: loc.addresses.addresses_title })(theme)}
         />
 
-        <DetailViewStack.Screen
-          name="Settings"
-          component={Settings}
-          options={
-            isIOS26OrHigher
-              ? getSettingsHeaderOptions(loc.settings.header, theme)
-              : navigationStyle({
-                  title: loc.settings.header,
-                  headerBackButtonDisplayMode: 'minimal',
-                  headerBackTitle: '',
-                  headerShadowVisible: false,
-                  // headerLargeTitle is iOS-only, disable on Android for better compatibility with older versions
-                  headerLargeTitle: Platform.OS === 'ios',
-                  headerLargeTitleStyle:
-                    Platform.OS === 'ios'
-                      ? {
-                          color:
-                            typeof theme.colors.foregroundColor === 'string'
-                              ? theme.colors.foregroundColor
-                              : String(theme.colors.foregroundColor),
-                        }
-                      : undefined,
-                  headerTitleStyle: {
-                    color:
-                      typeof theme.colors.foregroundColor === 'string'
-                        ? theme.colors.foregroundColor
-                        : String(theme.colors.foregroundColor),
-                  },
-                  headerTransparent: false,
-                  headerBlurEffect: undefined,
-                  headerStyle: {
-                    backgroundColor: theme.colors.background,
-                  },
-                  animationTypeForReplace: 'push',
-                })(theme)
-          }
-        />
+        <DetailViewStack.Screen name="Settings" component={Settings} options={settingsScreenOptions(loc.settings.header)} />
         <DetailViewStack.Screen name="Currency" component={Currency} options={settingsScreenOptions(loc.settings.currency)} />
         <DetailViewStack.Screen
           name="XBTLightning"

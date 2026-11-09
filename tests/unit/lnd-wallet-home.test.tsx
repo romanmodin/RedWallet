@@ -17,7 +17,6 @@ jest.mock('../../components/themes', () => {
   const real = jest.requireActual('../../components/themes');
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
-jest.mock('../../components/XbtFiatEstimate', () => () => null);
 const mockSettings: { xbtPriceQuote: XbtPriceQuote | null } = {
   xbtPriceQuote: null,
 };
@@ -357,7 +356,19 @@ test('balance tap cycles all wallet amounts through XBT, sats and the NeoxEX USD
   mockSettings.xbtPriceQuote = createNeoxexXbtPriceQuote('600', Date.now());
   screen.rerender(<LndWalletHome wallet={wallet} />);
   expect(balance()).toBe('≈ 5.39 USDC');
+  expect(screen.getByTestId('XbtPriceEstimate')).toBeTruthy();
   await act(async () => toggle());
+  expect(balance()).toBe('••••');
+  expect(screen.queryByTestId('XbtPriceEstimate')).toBeNull();
+  expect(screen.queryByText(/Lightning: .*Funding:/)).toBeNull();
+  expect(screen.queryByText(/USDC confirmed/)).toBeNull();
+  expect(screen.queryByText('+≈ 6.00 USDC')).toBeNull();
+  expect(screen.getByLabelText('Change wallet display unit').props.accessibilityValue.text).toBe('Amounts hidden');
+  const restored = LndWallet.fromJson(JSON.stringify(wallet));
+  expect(restored.hideBalance).toBe(true);
+  expect(restored.getBalance()).toBe(wallet.getBalance());
+  await act(async () => toggle());
+  expect(wallet.hideBalance).toBe(false);
   expect(balance()).toBe('0.00899056 XBT');
   expect(wallet.getBalance()).toBe(899056);
   expect(bridge.invoice).not.toHaveBeenCalled();
@@ -375,19 +386,23 @@ test('restored quote mode labels NeoxEX USDC accurately and handles a missing ra
   screen.rerender(<LndWalletHome wallet={wallet} />);
   expect(screen.getByTestId('LndWalletBalance').props.children).toBe('Rate unavailable');
   await act(async () => fireEvent.press(screen.getByLabelText('Change wallet display unit')));
+  expect(screen.getByTestId('LndWalletBalance').props.children).toBe('••••');
+  await act(async () => fireEvent.press(screen.getByLabelText('Change wallet display unit')));
   expect(screen.getByTestId('LndWalletBalance').props.children).toBe('0.00899056 XBT');
   screen.unmount();
 });
 
-test('hidden balances stay hidden and cannot change display units by tapping', async () => {
+test('a restored hidden preference masks amounts until the user taps to reveal XBT', async () => {
   const wallet = new LndWallet();
   wallet.hideBalance = true;
   const screen = render(<LndWalletHome wallet={wallet} />);
   await act(async () => {});
-  fireEvent.press(screen.getByLabelText('Change wallet display unit'));
   expect(screen.getByTestId('LndWalletBalance').props.children).toBe('••••');
-  expect(wallet.getDisplayUnit()).toBe('XBT');
   expect(screen.queryByText('+0.000005 XBT')).toBeNull();
+  await act(async () => fireEvent.press(screen.getByLabelText('Change wallet display unit')));
+  expect(wallet.hideBalance).toBe(false);
+  expect(wallet.getDisplayUnit()).toBe('XBT');
+  expect(screen.getByTestId('LndWalletBalance').props.children).toBe('0.00899056 XBT');
   screen.unmount();
 });
 
@@ -401,5 +416,20 @@ test('failed preference save restores the previous unit', async () => {
   expect(wallet.getDisplayUnit()).toBe('XBT');
   expect(screen.getByTestId('LndWalletBalance').props.children).toBe('0.00899056 XBT');
   expect(alert).toHaveBeenCalledWith('Unit not saved', expect.any(String));
+  screen.unmount();
+});
+
+test('a failed save keeps a previously hidden wallet hidden', async () => {
+  const wallet = new LndWallet();
+  wallet.setDisplayUnit('quote');
+  wallet.hideBalance = true;
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  mockStorage.saveToDisk.mockRejectedValueOnce(new Error('Storage unavailable'));
+  await act(async () => fireEvent.press(screen.getByLabelText('Change wallet display unit')));
+  expect(wallet.hideBalance).toBe(true);
+  expect(wallet.getDisplayUnit()).toBe('quote');
+  expect(screen.getByTestId('LndWalletBalance').props.children).toBe('••••');
+  expect(screen.queryByText('+0.000005 XBT')).toBeNull();
   screen.unmount();
 });

@@ -8,7 +8,8 @@ import ListItem from '../../components/ListItem';
 import { BlueSpacing10 } from '../../components/BlueSpacing';
 import Button from '../../components/Button';
 import { useTheme } from '../../components/themes';
-import loc, { formatBalance } from '../../loc';
+import loc from '../../loc';
+import { formatWalletBalance } from '../../blue_modules/wallet-network';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
 import { goFromCoinControlToSendDetails } from '../../navigation/goFromCoinControlToSendDetails';
 import { SendDetailsStackParamList } from '../../navigation/SendDetailsStackParamList';
@@ -70,7 +71,7 @@ const CoinControlOutputSheet: React.FC = () => {
     debouncedSaveMemo.current(memo);
   }, [memo]);
 
-  const amount = formatBalance(utxo.value, wallet?.getPreferredBalanceUnit?.() ?? BitcoinUnit.BTC, true);
+  const amount = formatWalletBalance(wallet, utxo.value, wallet?.getPreferredBalanceUnit?.() ?? BitcoinUnit.BTC, true);
   const color = `#${utxo.txid.substring(0, 6)}`;
   const confirmationsFormatted = useMemo(
     () => new Intl.NumberFormat(RNLocalize.getLocales()[0].languageCode, { maximumSignificantDigits: 3 }).format(utxo.confirmations ?? 0),

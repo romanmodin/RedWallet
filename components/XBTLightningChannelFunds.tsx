@@ -1,3 +1,4 @@
+import { validLightningSats, validLightningFeeRate } from '../blue_modules/lightning-amounts';
 import React, { useRef, useState } from 'react';
 import { NativeModules, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
@@ -25,9 +26,11 @@ type Review = {
 type Props = {
   point: string;
   active: boolean;
+  hideBalances?: boolean;
   splice?: Splice;
   busy: boolean;
   run: (title: string, action: () => Promise<void>) => Promise<void>;
+  runAuthorized: (title: string, action: () => Promise<void>) => Promise<void>;
   report: (message: string) => void;
   onUpdated: () => void;
 };
@@ -43,7 +46,17 @@ const reasons: Record<string, string> = {
   peer_not_locked: 'Waiting for the peer to lock the previous resize.',
 };
 
-export default function XBTLightningChannelFunds({ point, active, splice, busy, run, report, onUpdated }: Props) {
+export default function XBTLightningChannelFunds({
+  point,
+  active,
+  hideBalances = false,
+  splice,
+  busy,
+  run,
+  runAuthorized,
+  report,
+  onUpdated,
+}: Props) {
   const { colors } = useTheme();
   const [direction, setDirection] = useState<'in' | 'out'>();
   const [sats, setSats] = useState('');
@@ -53,12 +66,7 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
   const current = useRef('');
   current.current = JSON.stringify([point, direction, sats, feeRate]);
   const available = active && !!splice && ['ok', 'peer_not_announcing'].includes(splice.status);
-  const valid =
-    /^[1-9][0-9]{0,6}$/.test(sats) &&
-    Number(sats) >= 546 &&
-    Number(sats) <= 1000000 &&
-    /^[1-9][0-9]{0,2}$/.test(feeRate) &&
-    Number(feeRate) <= 100;
+  const valid = validLightningSats(sats) && validLightningFeeRate(feeRate);
   const select = (value: 'in' | 'out') => {
     setDirection(value);
     setReview(undefined);
@@ -66,9 +74,10 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
   const confirm = () => {
     if (!review || review.key !== current.current || !available || busy || submitted.current.has(review.item.token)) return;
     const item = review.item;
-    submitted.current.add(item.token);
-    setReview(undefined);
-    run(item.direction === 'in' ? 'Add channel funds' : 'Remove channel funds', async () => {
+    runAuthorized(item.direction === 'in' ? 'Add channel funds' : 'Remove channel funds', async () => {
+      if (review.key !== current.current || submitted.current.has(item.token)) return;
+      submitted.current.add(item.token);
+      setReview(undefined);
       try {
         const result = await NativeModules.XBTLightningBridge.splice('confirm', item.token);
         report(result);
@@ -90,8 +99,13 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
       {!!splice?.progress && (
         <SettingsFootnote style={{ color: colors.foregroundColor }}>
           {'Channel resize: ' +
-            splice.progress +
-            (splice.lockDepth !== '0' ? ' · ' + splice.confirmations + '/' + splice.lockDepth + ' confirmations' : '') +
+            (splice.progress === 'confirmed' ? 'confirmed on chain; waiting for both peers to lock' : splice.progress) +
+            (splice.lockDepth !== '0'
+              ? splice.progress === 'confirmed' && splice.confirmations === '0'
+                ? '\nLocal confirmation count unavailable; local requirement: ' + splice.lockDepth
+                : '\nLocal confirmations: ' + splice.confirmations + '/' + splice.lockDepth
+              : '') +
+            (splice.progress !== 'locked' ? '\nThe peer may require more confirmations. The balance updates after both peers lock.' : '') +
             (splice.txid ? '\nTransaction: ' + splice.txid : '')}
         </SettingsFootnote>
       )}
@@ -109,7 +123,7 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
           </SettingsFootnote>
           <TextInput
             accessibilityLabel="Channel resize sats"
-            placeholder="Amount in sats (546–1,000,000)"
+            placeholder="Amount in sats"
             keyboardType="number-pad"
             placeholderTextColor={colors.alternativeTextColor2}
             style={inputStyle}
@@ -166,14 +180,13 @@ export default function XBTLightningChannelFunds({ point, active, splice, busy, 
                   review.item.feeRate +
                   ' sat/vB' +
                   '\nNew capacity: ' +
-                  review.item.capacity +
-                  ' sats\nYour resulting balance: ' +
-                  review.item.local +
-                  ' sats' +
+                  (hideBalances ? '••••' : review.item.capacity + ' sats') +
+                  '\nYour resulting balance: ' +
+                  (hideBalances ? '••••' : review.item.local + ' sats') +
                   (direction === 'out' ? '\nReturn address: ' + review.item.address : '') +
-                  '\nRequired confirmations: ' +
+                  '\nLocal required confirmations: ' +
                   review.item.lockDepth +
-                  '\nThe final fee may vary with transaction size. Wait for both peers to lock the resize.'}
+                  '\nThe peer may require more confirmations. The final fee may vary with transaction size. Wait for both peers to lock the resize.'}
               </Text>
               <SettingsListItem
                 title={direction === 'in' ? 'Confirm add funds' : 'Confirm remove funds'}

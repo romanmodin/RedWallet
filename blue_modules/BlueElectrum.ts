@@ -19,6 +19,8 @@ import loc from '../loc';
 import { isXbtMainnetCheckpointHeader, XBT_MAINNET_CHECKPOINT_HEIGHT } from '../class/xbt/electrum-checkpoint';
 import { assertXbtUnifiedTransaction } from '../class/xbt/broadcast-validation';
 import { GROUP_IO_BLUEWALLET } from './currency';
+import { classifyElectrumConnectionError, ElectrumConnectionResult } from './electrum-connection-error';
+import { XBT_ELECTRUM_PRESETS } from '../class/xbt/electrum-presets';
 import { ElectrumServerItem } from '../screen/settings/ElectrumSettings';
 import { triggerWarningHapticFeedback } from './hapticFeedback';
 import { AlertButton } from 'react-native';
@@ -101,8 +103,9 @@ export const validateBackupConfiguration = validateBackupServers;
 const ELECTRUM_CONNECTION_DISABLED = 'electrum_disabled';
 // RedWallet must be configured with an XBT-compatible Electrum server.
 // Do not ship Bitcoin public peers or silently fall back to a different chain.
+const DEFAULT_SERVER_DECLINED = 'electrum_default_server_declined';
 export const hardcodedPeers: Peer[] = [];
-export const suggestedServers: Peer[] = [];
+export const suggestedServers: Peer[] = XBT_ELECTRUM_PRESETS.map(peer => ({ ...peer }));
 
 let mainClient: typeof ElectrumClient | undefined;
 let serverName: string | false = false;
@@ -238,7 +241,9 @@ export const getPreferredServer = async (): Promise<ElectrumServerItem | undefin
     });
 
     if (!host) {
-      console.warn('[electrum] Preferred server host is undefined');
+      if (!tcpPort && !sslPort && !tlsCa && !(await DefaultPreference.get(DEFAULT_SERVER_DECLINED))) {
+        return { ...XBT_ELECTRUM_PRESETS[0] };
+      }
       return;
     }
 
@@ -258,6 +263,7 @@ export const removePreferredServer = async () => {
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
     console.log('[electrum] Removing preferred server');
+    await DefaultPreference.set(DEFAULT_SERVER_DECLINED, '1');
     await DefaultPreference.clear(ELECTRUM_HOST);
     await DefaultPreference.clear(ELECTRUM_TCP_PORT);
     await DefaultPreference.clear(ELECTRUM_SSL_PORT);
@@ -317,6 +323,9 @@ async function getSavedPeer(): Promise<Peer | null> {
     console.log('[electrum] Getting saved peer:', { host, tcpPort, sslPort });
 
     if (!host) {
+      if (!tcpPort && !sslPort && !tlsCa && !(await DefaultPreference.get(DEFAULT_SERVER_DECLINED))) {
+        return { ...XBT_ELECTRUM_PRESETS[0] };
+      }
       return null;
     }
 
@@ -353,7 +362,7 @@ export async function setBackupServers(peers: Peer[]): Promise<void> {
 
 async function connectionCandidates(): Promise<Peer[]> {
   const primary = await getSavedPeer();
-  // Clearing the primary means setup is required, even if backups remain stored.
+  // An explicitly removed or incomplete primary requires setup; never substitute a public server.
   if (!primary) return [];
   const backups = await getBackupServers();
   return [primary, ...backups.filter(peer => serverKey(peer) !== serverKey(primary))];
@@ -536,9 +545,9 @@ async function pingWithTimeout(timeoutMs: number = PING_TIMEOUT_MS): Promise<boo
 export type EnsureConnectedOptions = {
   /**
    * Show the legacy "couldn't connect" alert (Try again / Reset / Cancel) on failure.
-   * Used by initial bootstrap (`SettingsProvider` re-enabling Electrum) and the manual
-   * help alert. Off-hot-path callers (refresh, broadcast, etc.) should leave this false
-   * and surface their own UI.
+   * Used only for explicit disconnected help/retry. Startup and background callers
+   * leave this false and report connection state without a blocking modal. Other
+   * user actions surface their own screen-specific errors.
    */
   showAlertOnFailure?: boolean;
 };
@@ -1665,9 +1674,15 @@ export const calculateBlockTime = function (height: number): number {
 };
 
 /**
- * @returns {Promise<boolean>} Whether provided host:port is a valid electrum server
+ * Test the transport and XBT checkpoint without changing the active connection.
+ * The deadline covers authentication and every probe RPC.
  */
-export const testConnection = async function (host: string, tcpPort?: number, sslPort?: number, tlsCa?: string): Promise<boolean> {
+export const testConnectionDetailed = async function (
+  host: string,
+  tcpPort?: number,
+  sslPort?: number,
+  tlsCa?: string,
+): Promise<ElectrumConnectionResult> {
   const client = new ElectrumClient(
     net,
     tls,
@@ -1679,29 +1694,42 @@ export const testConnection = async function (host: string, tcpPort?: number, ss
 
   client.onError = () => {}; // mute
   let timeoutId: NodeJS.Timeout | undefined;
+  let finished = false;
   // Certificate evaluation is part of TLS connection establishment; a short
   // TCP-only deadline can close a valid connection before trust completes.
   const timeoutMs = host.endsWith('.onion') ? 21_000 : sslPort ? 15_000 : 5_000;
   try {
-    const rez = await Promise.race([
-      new Promise(resolve => {
-        timeoutId = setTimeout(() => resolve('timeout'), timeoutMs);
+    return await Promise.race([
+      new Promise<ElectrumConnectionResult>(resolve => {
+        timeoutId = setTimeout(() => {
+          finished = true;
+          resolve({ ok: false, reason: 'timeout' });
+        }, timeoutMs);
       }),
-      client.connect(),
+      (async (): Promise<ElectrumConnectionResult> => {
+        await client.connect();
+        if (finished) return { ok: false, reason: 'timeout' };
+        await client.server_version('2.7.11', '1.4');
+        if (finished) return { ok: false, reason: 'timeout' };
+        await client.server_ping();
+        if (finished) return { ok: false, reason: 'timeout' };
+        const checkpointHeader: string = await client.blockchainBlock_header(XBT_MAINNET_CHECKPOINT_HEIGHT);
+        if (finished) return { ok: false, reason: 'timeout' };
+        return isXbtMainnetCheckpointHeader(checkpointHeader) ? { ok: true } : { ok: false, reason: 'checkpoint' };
+      })(),
     ]);
-    if (rez === 'timeout') return false;
-
-    await client.server_version('2.7.11', '1.4');
-    await client.server_ping();
-    const checkpointHeader: string = await client.blockchainBlock_header(XBT_MAINNET_CHECKPOINT_HEIGHT);
-    return isXbtMainnetCheckpointHeader(checkpointHeader);
-  } catch (_) {
+  } catch (error) {
+    return { ok: false, reason: classifyElectrumConnectionError(error) };
   } finally {
+    finished = true;
     if (timeoutId) clearTimeout(timeoutId);
     client.close();
   }
+};
 
-  return false;
+// Preserve the boolean API for existing callers.
+export const testConnection = async function (host: string, tcpPort?: number, sslPort?: number, tlsCa?: string): Promise<boolean> {
+  return (await testConnectionDetailed(host, tcpPort, sslPort, tlsCa)).ok;
 };
 
 /**

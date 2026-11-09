@@ -1,4 +1,5 @@
 import { dismissAlertByText, getSwitchValue, waitForId, waitForWalletsList, waitForText } from './helperz';
+import { XBT_ELECTRUM_PRESETS } from '../../class/xbt/electrum-presets';
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
@@ -17,15 +18,16 @@ const selectedScenarios = selectedCase ? scenarios.filter(scenario => scenario.i
 // Disposable local certificates and a public header; no seeds, funds, or external backend.
 const fixture = name => fs.readFileSync(path.join(__dirname, '../fixtures/tls', name));
 const checkpoint = fs.readFileSync(path.join(__dirname, '../../class/xbt/electrum-checkpoint.ts'), 'utf8').match(/'([0-9a-f]{328})'/)[1];
-const failed =
-  'Cannot connect to the provided Electrum server. TLS requires a trusted certificate matching the server name. XBT servers must also match the mainnet checkpoint.';
+// Native TLS libraries report different certificate details. Match the failure
+// title, then independently require zero RPCs to the rejected server below.
+const failed = 'Connection not saved';
 const saved = 'Your changes have been saved successfully. Restarting RedWallet may be required for the changes to take effect.';
 
 function field(id) {
-  // The iOS native hierarchy exposes this custom AddressInput's placeholder
-  // value but omits its testID. Match the actual, unique native input instead.
+  // The iOS native hierarchy exposes the input value but omits its testID.
+  // Fresh installs prefill the default preset, so match that unique native value.
   return device.getPlatform() === 'ios' && id === 'HostInput'
-    ? element(by.type('RCTUITextField').and(by.value('E.g., 10.20.30.40')))
+    ? element(by.type('RCTUITextField').and(by.value(XBT_ELECTRUM_PRESETS[0].host)))
     : element(by.id(id));
 }
 

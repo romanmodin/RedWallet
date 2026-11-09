@@ -1,5 +1,7 @@
 import QRCodeComponent from '../../components/QRCode';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
+import { useStorage } from '../../hooks/context/useStorage';
+import { LndWallet } from '../../class/wallets/lnd-wallet';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -21,11 +23,32 @@ import {
 } from 'react-native';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
+import { usePaymentAuthorization } from '../../hooks/usePaymentAuthorization';
+import { useSecretExport } from '../../hooks/useSecretExport';
 import XBTLightningNetwork from '../../components/XBTLightningNetwork';
 import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
+import { validLightningChannelOpenSats, validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
+import { LndPaymentTracker, LndPaymentOutcome, lndPaymentMessage } from '../../blue_modules/lnd-payment-status';
+
 const bridge = NativeModules.XBTLightningBridge;
+// These fixed outcomes contain no wallet amounts. Keep them visible after a
+// submission; opaque native results and errors require revealing the balance.
+const publicActivityOutcomes = new Set([
+  ...(['pending', 'not_found', 'unknown', 'not_submitted'] as const).map(state => lndPaymentMessage({ state })),
+  ...['not_synced', 'invalid_invoice', 'invalid_review', 'canceled', 'history_unavailable'].map(reason =>
+    lndPaymentMessage({ state: 'not_submitted', reason }),
+  ),
+  lndPaymentMessage({ state: 'settled', alreadyPaid: true }),
+  'Payment settled.',
+  'Payment failed. Check channel balance and routing.',
+  'Action canceled. Nothing was submitted.',
+  'Withdrawal outcome unknown. Check on-chain history before creating another withdrawal.',
+  'Channel close was not confirmed. Check channels and on-chain history before retrying.',
+  'Resize outcome unknown or not completed. Refresh channels and check the node before creating another resize.',
+  'Review ready. No funds have moved.',
+]);
 type Channel = {
   point: string;
   peer: string;
@@ -54,6 +77,7 @@ type Review = {
   hash: string;
   sats: string;
   destination: string;
+  feeLimit: string;
 };
 
 function summarizeChannels(items: Channel[]) {
@@ -86,7 +110,7 @@ function channelState(channel: Channel) {
   }
 }
 
-function selectedChannelDetails(channel: Channel) {
+function selectedChannelDetails(channel: Channel, hideBalances = false) {
   return (
     'Status: ' +
     channelState(channel) +
@@ -99,8 +123,7 @@ function selectedChannelDetails(channel: Channel) {
     '\nChannel funding reference: ' +
     channel.point +
     '\nLocal balance: ' +
-    channel.localSats +
-    ' sats'
+    (hideBalances ? '••••' : channel.localSats + ' sats')
   );
 }
 
@@ -123,6 +146,13 @@ export default function XBTLightning({
   route?: { params?: { mode?: 'pay' | 'invoice' | 'send' | 'receive' } };
 } = {}) {
   const navigation = useExtendedNavigation();
+  const { wallets } = useStorage();
+  const lightningWallet = wallets.find(wallet => wallet.type === LndWallet.type);
+  const hideBalances = lightningWallet?.hideBalance === true;
+  const privacy = useRef(hideBalances);
+  privacy.current = hideBalances;
+  const authorizePayment = usePaymentAuthorization();
+  const authorizeExport = useSecretExport();
   const mode = route?.params?.mode;
   const tools = !mode;
   const { colors, dark } = useTheme();
@@ -142,6 +172,9 @@ export default function XBTLightning({
   const [busy, setBusy] = useState(false);
   const [phrase, setPhrase] = useState('');
   const [amount, setAmount] = useState('');
+  const [channelSats, setChannelSats] = useState('100000');
+  const [channelFeeRate, setChannelFeeRate] = useState('1');
+  const [routingFee, setRoutingFee] = useState('10');
   const [fundingAddress, setFundingAddress] = useState('');
   const [incoming, setIncoming] = useState<LightningReceiveInvoice>();
   const [lightningPeer, setLightningPeer] = useState('');
@@ -159,16 +192,35 @@ export default function XBTLightning({
     setActivityError(channelError);
     if (channelError) setMessage('Channel refresh failed. Refresh channels before using these details or actions.');
   }, [channels, selectedPoint, activityTitle, channelError]);
+  const selectedChannel = channels?.find(channel => channel.point === selectedPoint);
+  // Native results and errors are opaque strings that can include balances,
+  // amounts and fees. Never render or copy them while the wallet is hidden.
+  // Peer identity remains useful and can be reconstructed without its balance.
+  const activityMessage =
+    hideBalances && message && !publicActivityOutcomes.has(message)
+      ? activityTitle === 'Selected channel' && selectedChannel && !channelError
+        ? selectedChannelDetails(selectedChannel, true)
+        : 'Activity details are hidden. Reveal your Lightning balance to view them.'
+      : message;
   const channelRequest = useRef<Promise<Channel[]> | undefined>(undefined);
   const [destination, setDestination] = useState('');
   const [withdrawSats, setWithdrawSats] = useState('');
   const [feeRate, setFeeRate] = useState('1');
   const [withdrawal, setWithdrawal] = useState<Withdrawal>();
   const submitted = useRef(new Set<string>());
-  const validFeeRate = /^[1-9][0-9]{0,2}$/.test(feeRate) && Number(feeRate) <= 100;
+  const validFeeRate = validLightningFeeRate(feeRate);
   const pending = useRef(false);
   const mounted = useRef(false);
-  const pendingPayment = useRef<string | undefined>(undefined);
+  const [paymentTracker] = useState(
+    () =>
+      new LndPaymentTracker(cursor => {
+        // iPhone exposes wallet pages; Android exposes the same read-only page
+        // through its existing invoice bridge.
+        return bridge.wallet ? bridge.wallet('payments', cursor) : bridge.invoice('paymentHistory', cursor, '', '');
+      }),
+  );
+  const [paymentAttempt, setPaymentAttempt] = useState<{ hash: string; outcome: LndPaymentOutcome }>();
+  const paymentStatusVisible = useRef(false);
   const refreshChannels = useCallback((): Promise<Channel[]> => {
     if (channelRequest.current) return channelRequest.current;
     const request = Promise.resolve()
@@ -198,6 +250,7 @@ export default function XBTLightning({
     pending.current = true;
     setBusy(true);
     setActivityTitle(title);
+    paymentStatusVisible.current = title === 'Pay invoice' || title === 'Payment status';
     setActivityError(false);
     setCopied(false);
     setMessage('');
@@ -220,6 +273,18 @@ export default function XBTLightning({
       if (mounted.current) setBusy(false);
     }
   };
+  const runAuthorized = (title: string, action: () => Promise<void>, exporting = false) =>
+    run(title, async () => {
+      // A dismissed screen or a backgrounded app cannot submit from a stale alert.
+      if (!mounted.current || ['background', 'inactive'].includes(AppState.currentState)) return;
+      const authorized = await (exporting ? authorizeExport() : authorizePayment());
+      if (!authorized || !mounted.current || ['background', 'inactive'].includes(AppState.currentState)) {
+        if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
+        return;
+      }
+      await action();
+    });
+  const runExport = (title: string, action: () => Promise<void>) => runAuthorized(title, action, true);
   const node = (action: string) =>
     run(action === 'start' ? 'Starting node' : action === 'setup' ? 'Setting up wallet' : 'Node status', async () => {
       try {
@@ -299,33 +364,81 @@ export default function XBTLightning({
       subscription.remove();
     };
   }, [status, refreshChannels]);
+  const trackedPaymentHash = paymentAttempt?.hash;
+  const trackedPaymentState = paymentAttempt?.outcome.state;
+  useEffect(() => {
+    if (!trackedPaymentHash || !trackedPaymentState || !['pending', 'unknown'].includes(trackedPaymentState)) return;
+    let active = true;
+    let checking = false;
+    const hash = trackedPaymentHash;
+    const refresh = async () => {
+      if (
+        !active ||
+        checking ||
+        pending.current ||
+        !paymentStatusVisible.current ||
+        ['background', 'inactive'].includes(AppState.currentState)
+      )
+        return;
+      checking = true;
+      try {
+        const state = await paymentTracker.status(hash);
+        if (active && mounted.current && paymentStatusVisible.current && !pending.current) {
+          const outcome = { state };
+          setPaymentAttempt({ hash, outcome });
+          setMessage(lndPaymentMessage(outcome));
+          setActivityError(state === 'unknown');
+        }
+      } catch {
+        // An unavailable read cannot release an unresolved payment's guard.
+      } finally {
+        checking = false;
+      }
+    };
+    const timer = setInterval(refresh, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [trackedPaymentHash, trackedPaymentState, paymentTracker]);
   const confirm = (payment: Review) =>
-    Alert.alert('Pay invoice?', payment.sats + ' sats to ' + payment.destination + '. Maximum routing fee: 10 sats.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Pay',
-        onPress: () =>
-          run('Pay invoice', async () => {
-            if (pendingPayment.current === payment.hash) return;
-            pendingPayment.current = payment.hash;
-            setReview(undefined);
-            try {
-              const settled = await bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
-              if (!settled) pendingPayment.current = undefined;
-              if (mounted.current) setMessage(settled ? 'Payment settled.' : 'Payment failed. Check channel balance and routing.');
-            } catch {
-              if (mounted.current) setMessage('Payment outcome unknown. Check the node payment history before trying again.');
-            }
-          }),
-      },
-    ]);
+    Alert.alert(
+      'Pay invoice?',
+      payment.sats + ' sats to ' + payment.destination + '. Maximum routing fee: ' + payment.feeLimit + ' sats.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pay',
+          onPress: () =>
+            runAuthorized('Pay invoice', async () => {
+              setReview(undefined);
+              setPaymentAttempt({ hash: payment.hash, outcome: { state: 'pending' } });
+              const outcome = await paymentTracker.submit(payment.hash, async () => {
+                // Status lookup can finish after authentication or navigation changes.
+                if (!mounted.current || ['background', 'inactive'].includes(AppState.currentState)) {
+                  throw Object.assign(new Error('Payment canceled before submission.'), { code: 'payment_not_submitted_canceled' });
+                }
+                return bridge.payInvoice
+                  ? bridge.payInvoice(payment.invoice, payment.hash, payment.sats, payment.feeLimit)
+                  : bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
+              });
+              if (mounted.current) {
+                setPaymentAttempt({ hash: payment.hash, outcome });
+                setMessage(lndPaymentMessage(outcome));
+                setActivityError(['unknown', 'not_submitted', 'failed'].includes(outcome.state));
+                if (outcome.state === 'settled') setOutgoing('');
+              }
+            }),
+        },
+      ],
+    );
   const confirmWithdrawal = (item: Withdrawal) =>
     Alert.alert('Withdraw XBT?', item.sats + ' sats to ' + item.address + '. Network fee added at ' + item.feeRate + ' sat/vB.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Withdraw',
         onPress: () =>
-          run('Withdraw XBT', async () => {
+          runAuthorized('Withdraw XBT', async () => {
             if (submitted.current.has(item.token)) return;
             submitted.current.add(item.token);
             setWithdrawal(undefined);
@@ -356,7 +469,7 @@ export default function XBTLightning({
         {
           text: 'Close channel',
           onPress: () =>
-            run('Close channel', async () => {
+            runAuthorized('Close channel', async () => {
               if (selection.current !== channel.point || submitted.current.has(channel.point)) return;
               submitted.current.add(channel.point);
               try {
@@ -481,12 +594,13 @@ export default function XBTLightning({
               {activityError ? activityTitle + ' · Error' : activityTitle}
             </Text>
             {busy && <ActivityIndicator accessibilityLabel="Lightning operation in progress" color={colors.foregroundColor} />}
-            {!!message && !busy && (
+            {!!message && !busy && !hideBalances && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Copy activity result"
                 style={[styles.copyButton, { backgroundColor: colors.buttonBackgroundColor }]}
                 onPress={() => {
+                  if (privacy.current || lightningWallet?.hideBalance) return;
                   Clipboard.setString(message);
                   setCopied(true);
                 }}
@@ -495,7 +609,7 @@ export default function XBTLightning({
               </Pressable>
             )}
           </View>
-          <ScrollView key={activityTitle + message} nestedScrollEnabled style={styles.activityBody}>
+          <ScrollView key={activityTitle + activityMessage} nestedScrollEnabled style={styles.activityBody}>
             <Text
               selectable
               accessibilityLiveRegion="polite"
@@ -506,7 +620,7 @@ export default function XBTLightning({
                 },
               ]}
             >
-              {busy ? 'Working…' : message || 'Results will appear here.'}
+              {busy ? 'Working…' : activityMessage || 'Results will appear here.'}
             </Text>
           </ScrollView>
         </View>
@@ -601,14 +715,51 @@ export default function XBTLightning({
                   })
                 }
               />
+              <SettingsFootnote>CHANNEL AMOUNT (SATS) · MAX 10,000,000</SettingsFootnote>
+              <TextInput
+                accessibilityLabel="New channel sats"
+                style={[
+                  styles.input,
+                  {
+                    color: colors.foregroundColor,
+                    borderColor: colors.hdborderColor,
+                  },
+                ]}
+                keyboardType="number-pad"
+                value={channelSats}
+                editable={!busy}
+                onChangeText={setChannelSats}
+              />
+              <SettingsFootnote>FUNDING FEE RATE (SAT/VB)</SettingsFootnote>
+              <TextInput
+                accessibilityLabel="New channel fee rate"
+                style={[
+                  styles.input,
+                  {
+                    color: colors.foregroundColor,
+                    borderColor: colors.hdborderColor,
+                  },
+                ]}
+                keyboardType="number-pad"
+                value={channelFeeRate}
+                editable={!busy}
+                onChangeText={setChannelFeeRate}
+              />
               <SettingsListItem
                 title="Open private channel"
-                disabled={busy || !lightningPeer}
+                disabled={busy || !lightningPeer || !validLightningChannelOpenSats(channelSats) || !validLightningFeeRate(channelFeeRate)}
                 onPress={() => {
                   const key = lightningPeer.trim().split('@')[0];
+                  const sats = channelSats,
+                    rate = channelFeeRate;
+                  let submittedOpen = false;
                   Alert.alert(
                     'Open a private channel?',
-                    'Commit 100,000 sats at 1 sat/vB to ' +
+                    'Commit ' +
+                      sats +
+                      ' sats at ' +
+                      rate +
+                      ' sat/vB to ' +
                       key +
                       '. Tapping Open channel creates a new channel. After opening, wait for the funding transaction to confirm.',
                     [
@@ -616,8 +767,10 @@ export default function XBTLightning({
                       {
                         text: 'Open channel',
                         onPress: () =>
-                          run('Open private channel', async () => {
-                            const point = await bridge.invoice('open', key, '', '100000');
+                          runAuthorized('Open private channel', async () => {
+                            if (submittedOpen) return;
+                            submittedOpen = true;
+                            const point = await bridge.invoice('open', key, rate, sats);
                             refreshChannels().catch(() => {});
                             if (mounted.current)
                               setMessage(
@@ -653,7 +806,7 @@ export default function XBTLightning({
               />
               <SettingsListItem
                 title="Create invoice"
-                disabled={busy || !/^[1-9][0-9]{0,6}$/.test(amount)}
+                disabled={busy || !validLightningSats(amount)}
                 onPress={() =>
                   run('Invoice to receive', async () => {
                     const requestedSats = amount;
@@ -689,6 +842,8 @@ export default function XBTLightning({
                         return;
                       }
                       setReview(undefined);
+                      setPaymentAttempt(undefined);
+                      paymentStatusVisible.current = false;
                       setOutgoing(invoice.toLowerCase());
                       setActivityTitle('Invoice scanned');
                       setActivityError(false);
@@ -714,31 +869,85 @@ export default function XBTLightning({
                 value={outgoing}
                 onChangeText={value => {
                   setReview(undefined);
+                  setPaymentAttempt(undefined);
+                  paymentStatusVisible.current = false;
                   setOutgoing(value);
                 }}
                 editable={!busy}
               />
+              {bridge.payInvoice && (
+                <>
+                  <SettingsFootnote>MAXIMUM ROUTING FEE (SATS)</SettingsFootnote>
+                  <TextInput
+                    accessibilityLabel="Maximum routing fee sats"
+                    style={[
+                      styles.input,
+                      {
+                        color: colors.foregroundColor,
+                        borderColor: colors.hdborderColor,
+                      },
+                    ]}
+                    keyboardType="number-pad"
+                    value={routingFee}
+                    editable={!busy}
+                    onChangeText={value => {
+                      setRoutingFee(value);
+                      setReview(undefined);
+                    }}
+                  />
+                </>
+              )}
               <SettingsListItem
                 title="Review invoice"
-                disabled={busy || !outgoing.trim()}
+                disabled={busy || !outgoing.trim() || !validLightningSats(routingFee, true)}
                 onPress={() =>
                   run('Review invoice', async () => {
                     const invoice = outgoing.trim();
                     const decoded = await bridge.invoice('decode', invoice, '', '');
-                    if (mounted.current) {
-                      setReview({ ...decoded, invoice });
-                      setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
+                    if (!mounted.current) return;
+                    try {
+                      const state = await paymentTracker.status(decoded.hash);
+                      if (!mounted.current) return;
+                      if (state === 'settled' || state === 'pending' || state === 'unknown') {
+                        const outcome: LndPaymentOutcome = { state, alreadyPaid: state === 'settled' };
+                        setReview(undefined);
+                        setPaymentAttempt({ hash: decoded.hash, outcome });
+                        paymentStatusVisible.current = true;
+                        setMessage(lndPaymentMessage(outcome));
+                      } else {
+                        setReview({ ...decoded, invoice, feeLimit: routingFee });
+                        setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
+                      }
+                    } catch {
+                      if (mounted.current) {
+                        setReview(undefined);
+                        setPaymentAttempt({ hash: decoded.hash, outcome: { state: 'unknown' } });
+                        paymentStatusVisible.current = true;
+                        setMessage(lndPaymentMessage({ state: 'not_submitted', reason: 'history_unavailable' }));
+                        setActivityError(true);
+                      }
                     }
                   })
                 }
               />
-              {review && (
+              {paymentAttempt && (
                 <SettingsListItem
-                  title={'Pay ' + review.sats + ' sats'}
-                  disabled={busy || pendingPayment.current === review.hash}
-                  onPress={() => confirm(review)}
+                  title="Check payment status"
+                  disabled={busy}
+                  onPress={() =>
+                    run('Payment status', async () => {
+                      const state = await paymentTracker.status(paymentAttempt.hash);
+                      if (mounted.current) {
+                        const outcome = { state };
+                        setPaymentAttempt({ hash: paymentAttempt.hash, outcome });
+                        setMessage(lndPaymentMessage(outcome));
+                        setActivityError(state === 'unknown');
+                      }
+                    })
+                  }
                 />
               )}
+              {review && <SettingsListItem title={'Pay ' + review.sats + ' sats'} disabled={busy} onPress={() => confirm(review)} />}
             </>
           )}
           {tools && (
@@ -757,7 +966,7 @@ export default function XBTLightning({
                 title="Export static channel backup"
                 disabled={busy}
                 onPress={() =>
-                  run('Export channel backup', async () => {
+                  runExport('Export channel backup', async () => {
                     const url = await bridge.run('backup', '');
                     if (mounted.current) await exportBackup(url);
                   })
@@ -833,15 +1042,24 @@ export default function XBTLightning({
                         animated: true,
                       });
                     }}
-                    subtitle={'Local balance: ' + channel.localSats + ' sats\nPeer: ' + channel.peer + '\nFunding: ' + channel.point}
+                    subtitle={
+                      'Local balance: ' +
+                      (hideBalances ? '••••' : channel.localSats + ' sats') +
+                      '\nPeer: ' +
+                      channel.peer +
+                      '\nFunding: ' +
+                      channel.point
+                    }
                   />
                   {selectedPoint === channel.point && bridge.splice && ['active', 'inactive'].includes(channel.state) && (
                     <XBTLightningChannelFunds
                       point={channel.point}
                       active={channel.active && !channelError}
+                      hideBalances={hideBalances}
                       splice={channel.splice}
                       busy={busy}
                       run={run}
+                      runAuthorized={runAuthorized}
                       report={setMessage}
                       onUpdated={() => {
                         refreshChannels().catch(() => {});
@@ -850,7 +1068,7 @@ export default function XBTLightning({
                   )}
                   {selectedPoint === channel.point && ['active', 'inactive'].includes(channel.state) && (
                     <SettingsListItem
-                      title={'Close channel · ' + channel.localSats + ' local sats'}
+                      title={hideBalances ? 'Close channel' : 'Close channel · ' + channel.localSats + ' local sats'}
                       disabled={busy || channelError || !validFeeRate || !channel.active || submitted.current.has(channel.point)}
                       onPress={() => confirmClose(channel)}
                     />
@@ -902,7 +1120,7 @@ export default function XBTLightning({
           />
           <SettingsListItem
             title="Review withdrawal"
-            disabled={busy || !validFeeRate || !destination.trim() || !/^[1-9][0-9]{0,6}$/.test(withdrawSats)}
+            disabled={busy || !validFeeRate || !destination.trim() || !validLightningSats(withdrawSats)}
             onPress={() =>
               run('Review withdrawal', async () => {
                 const item = await bridge.manage('withdrawReview', destination.trim(), withdrawSats, feeRate);
@@ -1006,7 +1224,7 @@ export default function XBTLightning({
               title="Export encrypted Lightning recovery file"
               disabled={busy || phrase.length < 12}
               onPress={() =>
-                run('Export recovery file', async () => {
+                runExport('Export recovery file', async () => {
                   const password = phrase;
                   setPhrase('');
                   const url = await bridge.recovery('export', password, '');

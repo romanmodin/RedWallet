@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { withAlpha } from './color';
 import * as BlueElectrum from '../blue_modules/BlueElectrum';
 import { checkChain } from '../blue_modules/chain-freshness';
 import { ChainStatus, chainStatusTitle, CHAIN_CHECK_INTERVAL_MS, CHAIN_RETRY_MS } from '../class/xbt/chain-freshness';
@@ -73,7 +74,8 @@ export function useChainFreshness(disabled: boolean) {
 }
 
 export default function ChainFreshnessIndicator({ status, retry }: { status: ChainStatus; retry: () => void }) {
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
+  const ledScale = Math.max(0.8, fontScale);
   const maxWidth = Math.max(140, Math.min(250, width - 175));
   const color = status.state === 'verified' ? '#30C48D' : status.state === 'checking' ? '#92979E' : '#FFBF32';
   const title = chainStatusTitle(status);
@@ -98,7 +100,47 @@ export default function ChainFreshnessIndicator({ status, retry }: { status: Cha
       onPress={showDetails}
       style={[styles.container, { maxWidth }]}
     >
-      <Text style={[styles.icon, { color }]}>{status.state === 'verified' ? '✓' : status.state === 'checking' ? '◷' : '⚠'}</Text>
+      {status.state === 'verified' ? (
+        <View
+          testID="ChainVerifiedLED"
+          accessible={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.ledSlot, { width: 25 * ledScale, height: 32 * ledScale }]}
+        >
+          <View
+            style={[
+              styles.ledLayer,
+              { width: 24 * ledScale, height: 24 * ledScale, borderRadius: 12 * ledScale, backgroundColor: withAlpha(color, 0.12) },
+            ]}
+          >
+            <View
+              style={[
+                styles.ledLayer,
+                { width: 18 * ledScale, height: 18 * ledScale, borderRadius: 9 * ledScale, backgroundColor: withAlpha(color, 0.24) },
+              ]}
+            >
+              <View
+                style={[
+                  styles.ledCore,
+                  {
+                    width: 11 * ledScale,
+                    height: 11 * ledScale,
+                    borderRadius: 6 * ledScale,
+                    backgroundColor: color,
+                    shadowColor: color,
+                    shadowRadius: 5 * ledScale,
+                  },
+                ]}
+              >
+                <View style={[styles.ledHighlight, { width: 3 * ledScale, height: 3 * ledScale, borderRadius: 2 * ledScale }]} />
+              </View>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <Text style={[styles.icon, { color }]}>{status.state === 'checking' ? '◷' : '⚠'}</Text>
+      )}
       <View style={styles.copy}>
         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.title, { color }]}>
           {title}
@@ -114,6 +156,10 @@ export default function ChainFreshnessIndicator({ status, retry }: { status: Cha
 const styles = StyleSheet.create({
   container: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
   icon: { fontSize: 25, marginRight: 8 },
+  ledHighlight: { backgroundColor: 'rgba(255,255,255,0.65)' },
+  ledSlot: { alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  ledLayer: { alignItems: 'center', justifyContent: 'center' },
+  ledCore: { alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9 },
   copy: { flexShrink: 1 },
   title: { fontSize: 15, fontWeight: '600' },
   subtitle: { fontSize: 11, color: '#92979E', marginTop: 2 },

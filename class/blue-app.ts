@@ -1,3 +1,6 @@
+import { BtcSegwitBech32Wallet } from './wallets/btc-segwit-bech32-wallet';
+import { isBtcWallet } from '../blue_modules/wallet-network';
+import { isSelected } from '../blue_modules/BtcElectrum';
 import { LndWallet } from './wallets/lnd-wallet';
 import { WalletJournalStore } from './xbt/kilojoin/wallet-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,7 +24,7 @@ import { hexToUint8Array, uint8ArrayToHex } from '../blue_modules/uint8array-ext
 export class UnsupportedWalletStorageError extends Error {
   constructor() {
     super(
-      'RedWallet cannot load non-XBT signing wallets. Original wallet data has been preserved. Use the original wallet app to access it.',
+      'RedWallet cannot load this unsupported wallet type. Original wallet data has been preserved. Use the original wallet app to access it.',
     );
     this.name = 'UnsupportedWalletStorageError';
   }
@@ -399,7 +402,10 @@ export class BlueApp {
       const wallets = data.wallets;
       if (
         wallets.some(
-          key => ![XbtSegwitBech32Wallet.type, XbtTaprootWallet.type, WatchOnlyWallet.type, LndWallet.type].includes(JSON.parse(key).type),
+          key =>
+            ![XbtSegwitBech32Wallet.type, XbtTaprootWallet.type, WatchOnlyWallet.type, LndWallet.type, BtcSegwitBech32Wallet.type].includes(
+              JSON.parse(key).type,
+            ),
         )
       ) {
         this.storageLoadBlocked = true;
@@ -416,7 +422,9 @@ export class BlueApp {
         // deciding which type is wallet and instantiating correct object
         const tempObj = JSON.parse(key);
         let unserializedWallet: TWallet;
-        if (tempObj.type === XbtSegwitBech32Wallet.type) {
+        if (tempObj.type === BtcSegwitBech32Wallet.type) {
+          unserializedWallet = BtcSegwitBech32Wallet.fromJson(key) as unknown as BtcSegwitBech32Wallet;
+        } else if (tempObj.type === XbtSegwitBech32Wallet.type) {
           unserializedWallet = XbtSegwitBech32Wallet.fromJson(key) as unknown as XbtSegwitBech32Wallet;
         } else if (tempObj.type === XbtTaprootWallet.type) {
           unserializedWallet = XbtTaprootWallet.fromJson(key) as unknown as XbtTaprootWallet;
@@ -712,6 +720,7 @@ export class BlueApp {
     } else {
       await Promise.all(
         this.wallets.map(async wallet => {
+          if (isBtcWallet(wallet) && !isSelected(wallet.getID())) return;
           console.log('fetching balance for', wallet.getLabel());
           await wallet.fetchBalance();
         }),
@@ -746,6 +755,7 @@ export class BlueApp {
     } else {
       await Promise.all(
         this.wallets.map(async wallet => {
+          if (isBtcWallet(wallet) && !isSelected(wallet.getID())) return;
           await wallet.fetchTransactions();
           if ('fetchPendingTransactions' in wallet) {
             await wallet.fetchPendingTransactions();
@@ -769,6 +779,7 @@ export class BlueApp {
     } else {
       await Promise.all(
         this.wallets.map(async wallet => {
+          if (isBtcWallet(wallet) && !isSelected(wallet.getID())) return;
           try {
             if (!(wallet.allowBIP47() && wallet.isBIP47Enabled() && 'fetchBIP47SenderPaymentCodes' in wallet)) return;
             await wallet.fetchBIP47SenderPaymentCodes();
@@ -846,7 +857,7 @@ export class BlueApp {
   getBalance = (): number => {
     let finalBalance = 0;
     for (const wal of this.wallets) {
-      finalBalance += wal.getBalance();
+      if (!isBtcWallet(wal)) finalBalance += wal.getBalance();
     }
     return finalBalance;
   };

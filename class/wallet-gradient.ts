@@ -1,3 +1,4 @@
+import { BtcSegwitBech32Wallet } from './wallets/btc-segwit-bech32-wallet';
 import { LndWallet } from './wallets/lnd-wallet';
 import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
 import { XbtTaprootWallet } from './wallets/xbt-taproot-wallet';
@@ -39,6 +40,9 @@ export default class WalletGradient {
   static gradientsFor(type: string): string[] {
     let gradient: string[];
     switch (type) {
+      case BtcSegwitBech32Wallet.type:
+        gradient = ['#2478D4', '#143D80'];
+        break;
       case LndWallet.type:
       case XbtSegwitBech32Wallet.type:
       case XbtTaprootWallet.type:

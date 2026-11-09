@@ -143,6 +143,7 @@ jobs:
         # Authenticate native TLS first, then preserve settings, encryption, scan, deletion, watch-only import and XBT recovery coverage.
         # bluewallet2 depends on a funded Bitcoin fixture; unsupported cases in bluewallet.spec are explicit skips.
         script: |
+          timeout 180s bash .github/scripts/wait-for-android-ui.sh "${{ github.workspace }}/artifacts/emulator-startup.log"
           npx detox test -c android.release.device tests/e2e/electrum-tls.spec.js --runTestsByPath --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location ${{ github.workspace }}/artifacts/tls
           npx detox test -c android.release.device tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location ${{ github.workspace }}/artifacts
 

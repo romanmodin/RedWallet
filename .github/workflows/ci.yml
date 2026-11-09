@@ -52,6 +52,37 @@ jobs:
     - name: Run tests
       run: npm run unit
 
+    - name: Verify isolated Bitcoin Core test binary
+      if: ${{ hashFiles('class/wallets/btc-segwit-bech32-wallet.ts') != '' }}
+      run: |
+        set -euo pipefail
+        test -f tests/integration/btc-sha256-send.test.ts
+        mkdir -p "$RUNNER_TEMP/btc-core"
+        curl --fail --location --retry 2 --max-time 120 \
+          https://bitcoincore.org/bin/bitcoin-core-29.0/bitcoin-29.0-x86_64-linux-gnu.tar.gz \
+          --output "$RUNNER_TEMP/btc-core/bitcoin.tar.gz"
+        printf '%s  %s\n' a681e4f6ce524c338a105f214613605bac6c33d58c31dc5135bbc02bc458bb6c \
+          "$RUNNER_TEMP/btc-core/bitcoin.tar.gz" | sha256sum --check
+        tar -xzf "$RUNNER_TEMP/btc-core/bitcoin.tar.gz" -C "$RUNNER_TEMP/btc-core" bitcoin-29.0/bin/bitcoind
+        test -x "$RUNNER_TEMP/btc-core/bitcoin-29.0/bin/bitcoind"
+
+    - name: Verify BTC signing with disposable SHA-256 coins
+      if: ${{ hashFiles('class/wallets/btc-segwit-bech32-wallet.ts') != '' }}
+      env:
+        REDWALLET_BTC_REGTEST_BITCOIND: ${{ runner.temp }}/btc-core/bitcoin-29.0/bin/bitcoind
+      run: |
+        node_modules/.bin/jest --runInBand tests/integration/btc-sha256-send.test.ts
+        node -e "const r = require('./artifacts/btc-sha256-regtest/receipt.json'); if (r.cleanupComplete !== true || r.confirmations !== 2 || r.alteredAmountRejected !== true) throw new Error('BTC consensus receipt missing or incomplete');"
+
+    - name: Save BTC consensus-test receipt
+      if: ${{ always() && hashFiles('class/wallets/btc-segwit-bech32-wallet.ts') != '' }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: btc-sha256-consensus-receipt
+        path: artifacts/btc-sha256-regtest/receipt.json
+        if-no-files-found: ignore
+        retention-days: 7
+
   # The inherited integration suite is hardcoded to Bitcoin mainnet fixtures.
   # RedWallet must reject Bitcoin Electrum peers after the XBT checkpoint check,
   # so it cannot safely run until the suite is migrated to the configured Fulcrum.

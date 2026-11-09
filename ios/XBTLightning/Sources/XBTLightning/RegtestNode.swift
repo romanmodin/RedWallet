@@ -113,6 +113,8 @@ public actor RegtestNode {
         norest=true
         nobootstrap=true
         protocol.splice=true
+        protocol.wumbo-channels=true
+        maxchansize=2100000000000000
         tlsdisableautofill=true
         [Bitcoin]
         bitcoin.regtest=true
