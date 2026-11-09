@@ -1,4 +1,4 @@
-BTC and XBT wallet update:
+BTC, Lightning and interface update:
 - Blue BTC wallets now use Bitcoin SHA-256 with Native SegWit receive addresses. BTC and XBT keep their own chain connections and labels.
 - New XBT installations use Kilombino's SSL Fulcrum preset with normal certificate verification.
 - Wallet balance and cards stay fixed while transaction history scrolls. Verified-chain status has a green LED.
@@ -7,5 +7,10 @@ BTC and XBT wallet update:
 - Wallet refresh errors that complete after leaving the wallet screen no longer cover Receive.
 - Automatic connection failures update connection status without interrupting menus or Add Wallet.
 - Lightning hidden balances and sensitive-action checks are tightened. New channels retain the 10,000,000-sat opening cap, and resize progress distinguishes local confirmations from peer lock status.
+
+
+- Lightning payments check the node's recorded status before offering another send. Interrupted replies are reconciled without automatic resending; already-paid and pending invoices are held.
+- Known pre-submission validation or sync errors are distinguished from unresolved payment results. Check Payment Status reads history without sending money.
+- PAY (INVOICE) now uses all capital letters.
 
 Please check BTC/XBT labels, receive QR amounts, Settings menus, and the saved skins on your iPhone. Bitcoin connections use direct TLS. Tor covers the embedded Lightning paths and configured watchtowers; it does not register a watchtower, and exchange quotes still use direct HTTPS.
