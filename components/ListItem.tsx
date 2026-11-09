@@ -32,6 +32,7 @@ export interface ListItemProps {
   switch?: SwitchProps;
   title: string;
   titleStyle?: StyleProp<TextStyle>;
+  subtitleStyle?: StyleProp<TextStyle>;
   subtitle?: string | React.ReactNode;
   subtitleNumberOfLines?: number;
   rightTitle?: string;
@@ -57,6 +58,7 @@ const ListItem: React.FC<ListItemProps> = React.memo(
     switch: switchProps,
     title,
     titleStyle,
+    subtitleStyle,
     subtitle,
     subtitleNumberOfLines,
     rightTitle,
@@ -128,7 +130,11 @@ const ListItem: React.FC<ListItemProps> = React.memo(
             {title}
           </Text>
           {subtitle ? (
-            <Text numberOfLines={switchProps ? 0 : (subtitleNumberOfLines ?? 1)} accessibilityRole="text" style={stylesHook.subtitle}>
+            <Text
+              numberOfLines={switchProps ? 0 : (subtitleNumberOfLines ?? 1)}
+              accessibilityRole="text"
+              style={[stylesHook.subtitle, subtitleStyle]}
+            >
               {subtitle}
             </Text>
           ) : null}

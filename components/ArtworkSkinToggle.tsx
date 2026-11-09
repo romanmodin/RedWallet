@@ -33,5 +33,5 @@ export default function ArtworkSkinToggle() {
 const styles = StyleSheet.create({
   container: { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 20 },
   logo: { width: 92, height: 92, borderRadius: 12 },
-  caption: { fontSize: 12, textAlign: 'center', marginTop: 10 },
+  caption: { fontSize: 11, textTransform: 'uppercase', textAlign: 'center', marginTop: 10 },
 });

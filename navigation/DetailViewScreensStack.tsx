@@ -498,43 +498,7 @@ const DetailViewStackScreensStack = () => {
           options={navigationStyle({ title: loc.addresses.addresses_title })(theme)}
         />
 
-        <DetailViewStack.Screen
-          name="Settings"
-          component={Settings}
-          options={
-            isIOS26OrHigher
-              ? getSettingsHeaderOptions(loc.settings.header, theme)
-              : navigationStyle({
-                  title: loc.settings.header,
-                  headerBackButtonDisplayMode: 'minimal',
-                  headerBackTitle: '',
-                  headerShadowVisible: false,
-                  // headerLargeTitle is iOS-only, disable on Android for better compatibility with older versions
-                  headerLargeTitle: Platform.OS === 'ios',
-                  headerLargeTitleStyle:
-                    Platform.OS === 'ios'
-                      ? {
-                          color:
-                            typeof theme.colors.foregroundColor === 'string'
-                              ? theme.colors.foregroundColor
-                              : String(theme.colors.foregroundColor),
-                        }
-                      : undefined,
-                  headerTitleStyle: {
-                    color:
-                      typeof theme.colors.foregroundColor === 'string'
-                        ? theme.colors.foregroundColor
-                        : String(theme.colors.foregroundColor),
-                  },
-                  headerTransparent: false,
-                  headerBlurEffect: undefined,
-                  headerStyle: {
-                    backgroundColor: theme.colors.background,
-                  },
-                  animationTypeForReplace: 'push',
-                })(theme)
-          }
-        />
+        <DetailViewStack.Screen name="Settings" component={Settings} options={settingsScreenOptions(loc.settings.header)} />
         <DetailViewStack.Screen name="Currency" component={Currency} options={settingsScreenOptions(loc.settings.currency)} />
         <DetailViewStack.Screen
           name="XBTLightning"

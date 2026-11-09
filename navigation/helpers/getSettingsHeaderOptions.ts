@@ -1,27 +1,24 @@
 import { Platform, PlatformColor } from 'react-native';
-import { isIOS26OrHigher } from '../../blue_modules/environment';
 import type { Theme } from '../../components/themes';
 
-// Consistent header configuration for all settings screens
+// Shared compact, centered appearance for Settings and its submenus.
 export const getSettingsHeaderOptions = (title: string, theme: Theme) => {
-  if (isIOS26OrHigher) {
-    return {
-      title,
-      headerLargeTitle: true,
-      headerLargeTitleShadowVisible: true,
-      headerBackButtonDisplayMode: 'minimal' as const,
-    };
-  }
-  // Use PlatformColor for iOS to match the system label color, fallback to theme color.
-  // react-navigation types the color as `string`, but the native side accepts any ColorValue —
-  // stringifying an OpaqueColorValue would break it at runtime, hence the cast.
+  // Native headers accept dynamic iOS colors; keep their opaque value intact.
   const titleColor = (Platform.OS === 'ios' ? PlatformColor('label') : theme.colors.foregroundColor) as string;
   return {
-    title,
-    headerBackButtonDisplayMode: 'default' as const,
+    title: title.toUpperCase(),
+    headerLargeTitle: false,
+    headerLargeTitleShadowVisible: false,
+    headerBackButtonDisplayMode: 'minimal' as const,
+    headerTitleAlign: 'center' as const,
     headerTitleStyle: {
       color: titleColor,
+      fontSize: 22,
+      fontWeight: '400' as const,
     },
+    headerShadowVisible: false,
+    headerTransparent: false,
+    headerBlurEffect: undefined,
     headerStyle: {
       backgroundColor: theme.colors.background,
     },

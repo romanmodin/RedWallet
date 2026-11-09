@@ -17,7 +17,7 @@ const Settings = () => {
   const { language } = useSettings(); // Subscribe to language changes to trigger re-render
   useLayoutEffect(() => {
     // Only the title needs refreshing on language change; header styling comes from the route options
-    setOptions({ title: loc.settings.header });
+    setOptions({ title: loc.settings.header.toUpperCase() });
   }, [setOptions, language]);
 
   const handleDonatePress = useCallback(() => {
@@ -43,11 +43,8 @@ const Settings = () => {
           leftAvatar={donateIcon}
           onPress={handleDonatePress}
           testID="Donate"
-          bottomDivider={false}
         />
-      </SettingsSection>
 
-      <SettingsSection>
         <SettingsListItem
           title="Support RedWallet"
           subtitle="RedWallet is free. Voluntary XBT donations help cover development and testing."
@@ -55,7 +52,6 @@ const Settings = () => {
           iconName="currency"
           onPress={() => setShowDonationAddress(value => !value)}
           testID="RedWalletDonate"
-          bottomDivider={false}
         />
         {showDonationAddress && (
           <View style={styles.redWalletDonation} testID="RedWalletDonationDetails">
@@ -71,9 +67,7 @@ const Settings = () => {
             />
           </View>
         )}
-      </SettingsSection>
 
-      <SettingsSection>
         <SettingsListItem
           title={loc.settings.general}
           iconName="settings"
@@ -111,22 +105,10 @@ const Settings = () => {
           onPress={() => navigate('NetworkSettings')}
           testID="NetworkSettings"
           chevron
-          bottomDivider={false}
         />
-      </SettingsSection>
 
-      <SettingsSection>
-        <SettingsListItem
-          title={loc.settings.tools}
-          iconName="tools"
-          onPress={() => navigate('SettingsTools')}
-          testID="Tools"
-          chevron
-          bottomDivider={false}
-        />
-      </SettingsSection>
+        <SettingsListItem title={loc.settings.tools} iconName="tools" onPress={() => navigate('SettingsTools')} testID="Tools" chevron />
 
-      <SettingsSection>
         <SettingsListItem
           title={loc.settings.about}
           iconName="about"
