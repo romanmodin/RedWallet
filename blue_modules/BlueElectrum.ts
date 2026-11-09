@@ -103,6 +103,7 @@ export const validateBackupConfiguration = validateBackupServers;
 const ELECTRUM_CONNECTION_DISABLED = 'electrum_disabled';
 // RedWallet must be configured with an XBT-compatible Electrum server.
 // Do not ship Bitcoin public peers or silently fall back to a different chain.
+const DEFAULT_SERVER_DECLINED = 'electrum_default_server_declined';
 export const hardcodedPeers: Peer[] = [];
 export const suggestedServers: Peer[] = XBT_ELECTRUM_PRESETS.map(peer => ({ ...peer }));
 
@@ -240,7 +241,9 @@ export const getPreferredServer = async (): Promise<ElectrumServerItem | undefin
     });
 
     if (!host) {
-      console.warn('[electrum] Preferred server host is undefined');
+      if (!tcpPort && !sslPort && !tlsCa && !(await DefaultPreference.get(DEFAULT_SERVER_DECLINED))) {
+        return { ...XBT_ELECTRUM_PRESETS[0] };
+      }
       return;
     }
 
@@ -260,6 +263,7 @@ export const removePreferredServer = async () => {
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
     console.log('[electrum] Removing preferred server');
+    await DefaultPreference.set(DEFAULT_SERVER_DECLINED, '1');
     await DefaultPreference.clear(ELECTRUM_HOST);
     await DefaultPreference.clear(ELECTRUM_TCP_PORT);
     await DefaultPreference.clear(ELECTRUM_SSL_PORT);
@@ -319,6 +323,9 @@ async function getSavedPeer(): Promise<Peer | null> {
     console.log('[electrum] Getting saved peer:', { host, tcpPort, sslPort });
 
     if (!host) {
+      if (!tcpPort && !sslPort && !tlsCa && !(await DefaultPreference.get(DEFAULT_SERVER_DECLINED))) {
+        return { ...XBT_ELECTRUM_PRESETS[0] };
+      }
       return null;
     }
 
@@ -355,7 +362,7 @@ export async function setBackupServers(peers: Peer[]): Promise<void> {
 
 async function connectionCandidates(): Promise<Peer[]> {
   const primary = await getSavedPeer();
-  // Clearing the primary means setup is required, even if backups remain stored.
+  // An explicitly removed or incomplete primary requires setup; never substitute a public server.
   if (!primary) return [];
   const backups = await getBackupServers();
   return [primary, ...backups.filter(peer => serverKey(peer) !== serverKey(primary))];

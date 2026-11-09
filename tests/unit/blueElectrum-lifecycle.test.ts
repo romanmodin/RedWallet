@@ -396,10 +396,10 @@ describe('BlueElectrum lifecycle', () => {
     });
   });
 
-  it('does not automatically connect to the public preset when no primary is configured', async () => {
+  it('does not automatically connect after the user removes the primary', async () => {
     const get = DefaultPreference.get as jest.Mock;
     const original = get.getMockImplementation();
-    get.mockResolvedValue(undefined);
+    get.mockImplementation(async key => (key === 'electrum_default_server_declined' ? '1' : undefined));
     try {
       expect(await BlueElectrum.ensureConnected()).toBe(false);
       expect(created).toHaveLength(0);
@@ -779,4 +779,37 @@ test.each(['rpc-error', 'missing', 'malformed'])('history %s is never treated as
   const address = bitcoin.payments.p2wpkh({ hash: Buffer.alloc(20, 1) }).address!;
   await expect(BlueElectrum.multiGetHistoryByAddress([address])).rejects.toThrow();
   BlueElectrum.forceDisconnect();
+});
+
+describe('fresh installation SSL default', () => {
+  const originalGet = (DefaultPreference.get as jest.Mock).getMockImplementation();
+  afterEach(() => {
+    BlueElectrum.forceDisconnect();
+    (DefaultPreference.get as jest.Mock).mockImplementation(originalGet!);
+  });
+  it('uses Kilombino with system-trusted TLS when no server is saved', async () => {
+    BlueElectrum.forceDisconnect();
+    created.length = 0;
+    (DefaultPreference.get as jest.Mock).mockResolvedValue(undefined);
+    expect(await BlueElectrum.getPreferredServer()).toEqual({ host: 'fulcrum.kilombino.com', ssl: 17717 });
+    const pending = BlueElectrum.ensureConnected();
+    await flush();
+    const ElectrumClient = require('electrum-client');
+    expect(ElectrumClient.mock.calls.at(-1).slice(2)).toEqual([17717, 'fulcrum.kilombino.com', 'tls', undefined]);
+    resolveLastConnect();
+    expect(await pending).toBe(true);
+  });
+  it.each([{ electrum_default_server_declined: '1' }, { electrum_ssl_port: '50002' }])(
+    'does not replace removed or incomplete configuration',
+    async values => {
+      (DefaultPreference.get as jest.Mock).mockImplementation(async key => (values as Record<string, string | undefined>)[key]);
+      expect(await BlueElectrum.getPreferredServer()).toBeUndefined();
+    },
+  );
+  it('preserves a saved custom server', async () => {
+    (DefaultPreference.get as jest.Mock).mockImplementation(
+      async key => (({ electrum_host: 'custom.example', electrum_ssl_port: '50002' }) as Record<string, string>)[key],
+    );
+    expect(await BlueElectrum.getPreferredServer()).toMatchObject({ host: 'custom.example', ssl: 50002 });
+  });
 });
