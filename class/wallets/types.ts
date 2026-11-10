@@ -1,3 +1,4 @@
+import { BtcWatchOnlyWallet } from './btc-watch-only-wallet';
 import { BtcSegwitBech32Wallet } from './btc-segwit-bech32-wallet';
 import { LndWallet } from './lnd-wallet';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -161,6 +162,7 @@ export type ExtendedTransaction = Transaction & {
 };
 
 export type TWallet =
+  | BtcWatchOnlyWallet
   | BtcSegwitBech32Wallet
   | LndWallet
   | HDAezeedWallet
@@ -186,6 +188,7 @@ export type TWallet =
   | WatchOnlyWallet;
 
 export type THDWalletForWatchOnly =
+  | BtcSegwitBech32Wallet
   | HDSegwitBech32Wallet
   | XbtSegwitBech32Wallet
   | XbtTaprootWallet

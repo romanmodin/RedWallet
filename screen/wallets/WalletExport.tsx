@@ -229,7 +229,7 @@ const WalletExport: React.FC = () => {
       onLayout={onLayout}
       testID="WalletExportScroll"
     >
-      {wallet.type !== WatchOnlyWallet.type && <DoNotDisclose />}
+      {!(wallet instanceof WatchOnlyWallet) && <DoNotDisclose />}
 
       <BlueText style={styles.scanText}>{loc.wallets.scan_import}</BlueText>
 
@@ -255,7 +255,7 @@ const WalletExport: React.FC = () => {
         </>
       )}
 
-      {wallet.type === WatchOnlyWallet.type && (
+      {wallet instanceof WatchOnlyWallet && (
         <HandOffComponent title={loc.wallets.xpub_title} type={HandOffActivityType.Xpub} userInfo={{ xpub: secret }} />
       )}
 

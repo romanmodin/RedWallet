@@ -1,3 +1,4 @@
+import { BtcWatchOnlyWallet } from './wallets/btc-watch-only-wallet';
 import { BtcSegwitBech32Wallet } from './wallets/btc-segwit-bech32-wallet';
 import { discoverXbtRecovery, RecoveryScanOptions } from './xbt/recovery-discovery';
 import bip38 from 'bip38';
@@ -135,9 +136,38 @@ const startImport = (
     let password;
 
     if (network === 'btc') {
+      // Animated crypto-account QR decoding returns an array of public account exports.
+      if (/^\[\s*\{/.test(text)) {
+        const accounts = JSON.parse(text);
+        if (!Array.isArray(accounts) || accounts.length > 20) throw new Error('Invalid cold-wallet account export.');
+        const supported = accounts.filter(
+          account => typeof account?.AccountKeyPath === 'string' && /^m\/84['h]\/0['h]\/\d+['h]$/.test(account.AccountKeyPath),
+        );
+        if (!supported.length) throw new Error('This QR has no supported BTC BIP84 Native SegWit public account.');
+        for (const account of supported) {
+          const watch = new BtcWatchOnlyWallet();
+          watch.setSecret(JSON.stringify(account));
+          if (!watch.valid()) throw new Error('Invalid BTC public account in the cold-wallet QR.');
+          watch.init();
+          watch.setLabel('BTC cold wallet');
+          yield { progress: 'BTC · SHA-256 · Watch-only · ' + account.AccountKeyPath };
+          yield { wallet: watch };
+        }
+        return;
+      }
       const wallet = new BtcSegwitBech32Wallet();
       wallet.setSecret(text);
-      if (!wallet.validateMnemonic()) throw new Error('BTC import requires a BIP39 Native SegWit recovery phrase.');
+      if (!wallet.validateMnemonic()) {
+        const watch = new BtcWatchOnlyWallet();
+        watch.setSecret(text);
+        if (!watch.valid())
+          throw new Error('BTC import accepts a BIP39 recovery phrase or a BIP84 Native SegWit public account exported by a cold wallet.');
+        watch.init();
+        watch.setLabel('BTC cold wallet');
+        yield { progress: 'BTC · SHA-256 · Watch-only' };
+        yield { wallet: watch };
+        return;
+      }
       if (askPassphrase) wallet.setPassphrase(await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message));
       wallet.setLabel('Bitcoin');
       yield { progress: 'BTC · SHA-256 · Native SegWit' };

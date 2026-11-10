@@ -4,7 +4,8 @@ import { formatBalance } from '../loc';
 import { BitcoinUnit } from '../models/bitcoinUnits';
 
 type WalletIdentity = { type: string; getID(): string };
-export const isBtcWallet = (wallet?: { type: string } | null): boolean => wallet?.type === 'HDsegwitBech32BTC';
+export const isBtcWallet = (wallet?: { type: string } | null): boolean =>
+  wallet?.type === 'HDsegwitBech32BTC' || wallet?.type === 'watchOnlyBTC';
 export const walletTicker = (wallet?: { type: string } | null): 'BTC' | 'XBT' => (isBtcWallet(wallet) ? 'BTC' : 'XBT');
 export const walletElectrum = (wallet?: WalletIdentity | null) =>
   isBtcWallet(wallet) && wallet ? BtcElectrum.forWallet(wallet.getID()) : BlueElectrum;
