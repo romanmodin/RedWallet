@@ -76,15 +76,20 @@ export const SettingsListItem: React.FC<ListItemProps & { iconName?: SettingsIco
   titleStyle,
   subtitleStyle,
   ...rest
-}) => (
-  <ListItem
-    {...rest}
-    containerStyle={[styles.transparentBackground, containerStyle]}
-    titleStyle={[styles.menuTitle, titleStyle]}
-    subtitleStyle={[styles.menuSubtitle, subtitleStyle]}
-    leftAvatar={iconName ? <SettingsIcon name={iconName} /> : leftAvatar}
-  />
-);
+}) => {
+  const { colors } = useTheme();
+  const informationColor = colors.settingsTextColor ?? colors.alternativeTextColor;
+  const actionable = !rest.disabled && (!!rest.onPress || (!!rest.switch && !rest.switch.disabled));
+  return (
+    <ListItem
+      {...rest}
+      containerStyle={[styles.transparentBackground, containerStyle]}
+      titleStyle={[styles.menuTitle, titleStyle, !actionable && { color: informationColor }]}
+      subtitleStyle={[styles.menuSubtitle, { color: informationColor }, subtitleStyle]}
+      leftAvatar={iconName ? <SettingsIcon name={iconName} /> : leftAvatar}
+    />
+  );
+};
 
 // SafeAreaScrollView with the default top spacing settings screens use before their first section
 export const SettingsScrollView = forwardRef<ScrollView, React.ComponentProps<typeof SafeAreaScrollView>>(
@@ -97,7 +102,7 @@ SettingsScrollView.displayName = 'SettingsScrollView';
 // Subdued explanation text used inside section bodies
 export const SettingsFootnote: React.FC<TextProps> = ({ style, ...rest }) => {
   const { colors } = useTheme();
-  return <Text style={[styles.footnote, { color: colors.alternativeTextColor }, style]} {...rest} />;
+  return <Text style={[styles.footnote, { color: colors.settingsTextColor ?? colors.alternativeTextColor }, style]} {...rest} />;
 };
 
 interface SettingsSectionProps {
@@ -112,7 +117,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({ title, headerR
   const { colors } = useTheme();
   const stylesHook = StyleSheet.create({
     header: { backgroundColor: colors.cardSectionHeaderBackground },
-    headerText: { color: colors.foregroundColor },
+    headerText: { color: onHeaderPress ? colors.foregroundColor : (colors.settingsTextColor ?? colors.alternativeTextColor) },
     body: { backgroundColor: colors.cardSectionBackground },
   });
 
