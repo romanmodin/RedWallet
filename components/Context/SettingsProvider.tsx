@@ -1,3 +1,6 @@
+import { useBtcDisplayPrice } from '../../hooks/useBtcDisplayPrice';
+import type { BtcUsdcPriceQuote } from '../../blue_modules/btc-usdc-price';
+import { isBtcWallet } from '../../blue_modules/wallet-network';
 import { useXbtDisplayPrice } from '../../hooks/useXbtDisplayPrice';
 import type { XbtPriceQuote } from '../../blue_modules/xbt-price';
 import { normalizeXbtUnit } from '../../class/xbt/units';
@@ -83,6 +86,8 @@ export const getTotalBalancePreferredUnit = async (): Promise<BitcoinUnit> => {
 };
 
 interface SettingsContextType {
+  btcUsdcPriceQuote: BtcUsdcPriceQuote | null;
+  refreshNeoxexBtcPriceQuote: () => Promise<void>;
   xbtPriceQuote: XbtPriceQuote | null;
   saveManualXbtPriceQuote: (price: string, currency: string) => Promise<void>;
   clearXbtPriceQuote: () => Promise<void>;
@@ -119,6 +124,8 @@ interface SettingsContextType {
 }
 
 const defaultSettingsContext: SettingsContextType = {
+  btcUsdcPriceQuote: null,
+  refreshNeoxexBtcPriceQuote: async () => {},
   xbtPriceQuote: null,
   saveManualXbtPriceQuote: async () => {},
   clearXbtPriceQuote: async () => {},
@@ -176,7 +183,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
   const [selectedBlockExplorer, setSelectedBlockExplorer] = useState<BlockExplorer>(BLOCK_EXPLORERS.default);
   const [isElectrumDisabled, setIsElectrumDisabled] = useState<boolean>(true);
 
-  const { walletsInitialized } = useStorage();
+  const { walletsInitialized, wallets } = useStorage();
+  const { btcUsdcPriceQuote, refreshNeoxexBtcPriceQuote } = useBtcDisplayPrice(walletsInitialized && wallets.some(isBtcWallet));
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -389,6 +397,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
 
   const value = useMemo(
     () => ({
+      btcUsdcPriceQuote,
+      refreshNeoxexBtcPriceQuote,
       xbtPriceQuote,
       saveManualXbtPriceQuote,
       clearXbtPriceQuote,
@@ -424,6 +434,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
       setIsElectrumDisabled,
     }),
     [
+      btcUsdcPriceQuote,
+      refreshNeoxexBtcPriceQuote,
       xbtPriceQuote,
       saveManualXbtPriceQuote,
       clearXbtPriceQuote,

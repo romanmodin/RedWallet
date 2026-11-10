@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { XbtPriceQuote } from '../blue_modules/xbt-price';
 
 /** Refresh quote-age labels without making any network requests. */
-export function useXbtPriceClock(quote: XbtPriceQuote | null | undefined): number {
+export function useXbtPriceClock(quote: Pick<XbtPriceQuote, 'source' | 'updatedAt'> | null | undefined): number {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     setNow(Date.now());
