@@ -18,11 +18,13 @@ export function resizeProgressText(splice: LightningResize): string {
   const phase =
     count !== undefined && count < 0
       ? 'transaction conflicted'
-      : splice.progress === 'confirmed'
-        ? count === 0
-          ? 'awaiting on-chain confirmation'
-          : 'confirmed on chain; waiting for both peers to lock'
-        : splice.progress.replace(/_/g, ' ');
+      : completed
+        ? 'completed'
+        : splice.progress === 'confirmed'
+          ? count === 0
+            ? 'awaiting on-chain confirmation'
+            : 'confirmed on chain; waiting for both peers to lock'
+          : splice.progress.replace(/_/g, ' ');
   const lines = ['Channel resize: ' + phase];
   if (count !== undefined)
     lines.push(count < 0 ? 'On-chain transaction conflicted. Check node history.' : 'On-chain confirmations: ' + count);

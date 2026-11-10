@@ -1,7 +1,7 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import React from 'react';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
-import { Alert, AppState, NativeModules } from 'react-native';
+import { Alert, AppState, AppStateStatus, NativeModules } from 'react-native';
 
 const mockStorage: { wallets: { type: string; hideBalance: boolean }[] } = {
   wallets: [],
@@ -18,14 +18,21 @@ jest.mock('../../hooks/useSecretExport', () => ({
   useSecretExport: () => mockAuthorizeExport,
 }));
 beforeEach(() => {
+  AppState.currentState = 'active';
   bridge.run.mockReset().mockResolvedValue('Running');
   bridge.wallet.mockReset().mockResolvedValue({ rows: [], next: '0', more: false });
   bridge.invoice.mockClear();
   mockStorage.wallets = [];
   mockAuthorize.mockReset().mockResolvedValue(true);
   mockAuthorizeExport.mockReset().mockResolvedValue(true);
+  mockNavigation.isFocused.mockReset().mockReturnValue(true);
+  mockNavigation.addListener.mockReset().mockImplementation(() => jest.fn());
 });
-const mockNavigation = { navigate: jest.fn() };
+const mockNavigation = {
+  navigate: jest.fn(),
+  isFocused: jest.fn(() => true),
+  addListener: jest.fn((_event: string, _listener: () => void) => jest.fn()),
+};
 jest.mock('../../hooks/useExtendedNavigation', () => ({
   useExtendedNavigation: () => mockNavigation,
 }));
@@ -1239,3 +1246,107 @@ describe('payment result reconciliation', () => {
     }
   });
 });
+
+test.each(['success', 'declined', 'background-return', 'navigation-return', 'dismissed', 'timeout'])(
+  'channel add-funds authorization handles %s without an unintended submission',
+  async outcome => {
+    jest.useFakeTimers();
+    const previousState = AppState.currentState;
+    AppState.currentState = 'active';
+    const listeners = new Set<(state: AppStateStatus) => void>();
+    const subscribe = jest.spyOn(AppState, 'addEventListener').mockImplementation((event, listener) => {
+      if (event === 'change') listeners.add(listener);
+      return { remove: () => listeners.delete(listener) };
+    });
+    const changeState = (state: AppStateStatus) => {
+      AppState.currentState = state;
+      listeners.forEach(listener => listener(state));
+    };
+    const previousManage = bridge.manage.getMockImplementation()!;
+    const channel = {
+      point: 'auth-resize:0',
+      peer: 'fixture-peer',
+      active: true,
+      state: 'active',
+      localSats: '1079056',
+      splice: {
+        status: 'ok',
+        progress: '',
+        txid: '',
+        confirmations: '0',
+        lockDepth: '6',
+      },
+    };
+    bridge.manage.mockImplementation(async action => (action === 'channelStatus' ? [channel] : 'fixture-result'));
+    const splice = jest.fn(async (action: string) =>
+      action === 'review'
+        ? {
+            token: 'auth-resize-token',
+            point: channel.point,
+            direction: 'in',
+            address: '',
+            sats: '8800000',
+            fee: '252',
+            feeRate: '1',
+            capacity: '9900000',
+            local: '9879056',
+            lockDepth: '6',
+          }
+        : 'Resize preparing.',
+    );
+    Object.assign(bridge, { splice });
+    let finish!: (allowed: boolean) => void;
+    mockAuthorize.mockImplementation(() => new Promise(resolve => (finish = resolve)));
+    const screen = render(<XBTLightning />);
+    try {
+      await act(async () => {});
+      fireEvent.press(screen.getByTestId('SelectChannel-' + channel.point));
+      fireEvent.press(screen.getByText('Add funds'));
+      fireEvent.changeText(screen.getByLabelText('Channel resize sats'), '8800000');
+      await act(async () => fireEvent.press(screen.getByText('Review channel resize')));
+      const confirm = screen.getByText('Confirm add funds');
+      await act(async () => {
+        fireEvent.press(confirm);
+        fireEvent.press(confirm);
+      });
+      expect(mockAuthorize).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        changeState('inactive');
+        if (outcome === 'background-return') {
+          changeState('background');
+          changeState('active');
+        }
+        if (outcome === 'navigation-return') {
+          const blur = mockNavigation.addListener.mock.calls.at(-1)![1];
+          blur(); // Leaving and returning must not revive the original authorization.
+          mockNavigation.isFocused.mockReturnValue(true);
+        }
+        finish(outcome !== 'declined');
+      });
+      expect(splice.mock.calls.filter(call => call[0] === 'confirm')).toHaveLength(0);
+      if (outcome === 'dismissed') screen.unmount();
+      await act(async () => {
+        if (outcome === 'timeout') jest.advanceTimersByTime(3000);
+        else changeState('active');
+      });
+      expect(splice.mock.calls.filter(call => call[0] === 'confirm')).toEqual(
+        outcome === 'success' ? [['confirm', 'auth-resize-token']] : [],
+      );
+      if (outcome !== 'success' && outcome !== 'dismissed') {
+        expect(screen.getByText('Action canceled. Nothing was submitted.')).toBeTruthy();
+        expect(screen.getByText('Confirm add funds')).toBeTruthy();
+      }
+      if (outcome === 'timeout') {
+        await act(async () => changeState('active'));
+        expect(splice.mock.calls.filter(call => call[0] === 'confirm')).toHaveLength(0);
+      }
+    } finally {
+      screen.unmount();
+      subscribe.mockRestore();
+      bridge.manage.mockImplementation(previousManage);
+      delete (bridge as typeof bridge & { splice?: unknown }).splice;
+      AppState.currentState = previousState;
+      jest.useRealTimers();
+    }
+  },
+);

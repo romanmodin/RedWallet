@@ -29,6 +29,8 @@ test('completion is taken only from native locked outcome', () => {
     weLocked: true,
     peerLocked: true,
   });
+  expect(text).toContain('Channel resize: completed');
+  expect(text).not.toContain('Channel resize: locked');
   expect(text).toContain('Peer: locked');
   expect(text).not.toContain('Funds update after');
 });

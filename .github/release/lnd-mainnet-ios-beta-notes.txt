@@ -4,6 +4,7 @@ SHA-256, watch-only and Lightning update:
 - Sparrow-compatible and Keystone public-account QR imports work without entering a recovery phrase. Native SegWit BIP84 accounts are supported; other hardware account types remain unavailable.
 - Watch-only cards stay gray with a red XBT corner coin or blue SHA-256 corner coin. Hot-wallet card colors are unchanged.
 - BTC SHA-256 has its own editable server settings and chain connection, separate from XBT. New XBT installations use Kilombino's certificate-verified SSL Fulcrum preset.
+- Add/remove channel funds now waits for iOS to return to the foreground after successful Face ID. Canceling authentication or leaving the app cancels the authorization without retrying. A finished resize is labeled completed, instead of locked.
 - Channel resize status shows the transaction's measured confirmations and each side's lock status. The peer's confirmation requirement is marked unavailable when the node does not report it. Funds become available after the resize locks; foreground refresh updates the balance without submitting another resize.
 - Balance details separate available funds, pending funding/channels/resize, locked outputs and reserves. Lightning availability is an estimate; routing, limits and fees can reduce the amount you can pay. Hidden amounts stay masked.
 - Lightning payments show confirmed success or failure and retain unknown/pending results for status checks. No automatic payment retry. Outgoing payments are red and incoming payments green.
