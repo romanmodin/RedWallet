@@ -41,7 +41,6 @@ export default class WalletGradient {
   static gradientsFor(type: string): string[] {
     let gradient: string[];
     switch (type) {
-      case BtcWatchOnlyWallet.type:
       case BtcSegwitBech32Wallet.type:
         gradient = ['#2478D4', '#143D80'];
         break;
@@ -50,6 +49,7 @@ export default class WalletGradient {
       case XbtTaprootWallet.type:
         gradient = WalletGradient.xbtWallet;
         break;
+      case BtcWatchOnlyWallet.type:
       case WatchOnlyWallet.type:
         gradient = WalletGradient.watchOnlyWallet;
         break;
@@ -94,6 +94,13 @@ export default class WalletGradient {
         break;
     }
     return gradient;
+  }
+
+  /** Only watch-only cards get a chain-colored coin; hot-card artwork stays unchanged. */
+  static watchOnlyCoinColorFor(type: string): string | undefined {
+    if (type === BtcWatchOnlyWallet.type) return '#2478D4';
+    if (type === WatchOnlyWallet.type) return WalletGradient.xbtWallet[0];
+    return undefined;
   }
 
   static headerColorFor(type: string): string {
