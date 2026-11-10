@@ -56,3 +56,10 @@ USDC) → hidden amounts → XBT. Hidden mode persists with the wallet's existin
 hide-balance preference and masks balances, the funding/channel breakdown,
 fiat estimate and activity amounts on the wallet home and its main-menu card.
 Payment entry and confirmation still use explicit amounts in sats.
+
+Long help paragraphs start expanded and can be tapped to collapse. Each help
+section remembers its preference and can be reopened from its heading. Live
+status, warnings and transaction amounts/fees remain visible. Informational and
+unavailable settings text uses grey; the pinned activity display retains its
+existing colors. Available Add funds and Confirm add funds actions are green;
+Remove funds and Confirm remove funds are red. Disabled actions remain grey.

@@ -23,6 +23,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import SettingsExplanation from '../../components/SettingsExplanation';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
 import { usePaymentAuthorization } from '../../hooks/usePaymentAuthorization';
@@ -173,6 +174,7 @@ export default function XBTLightning({
   const mode = route?.params?.mode;
   const tools = !mode;
   const { colors, dark } = useTheme();
+  const informationColor = colors.settingsTextColor ?? colors.alternativeTextColor;
   const panelBackground = dark ? colors.cardSectionBackground : colors.hdbackgroundColor;
   const [torActive, setTorActive] = useState(false);
   const [peer, setPeer] = useState('');
@@ -575,10 +577,10 @@ export default function XBTLightning({
     >
       <SettingsSection>
         {tools && (
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsExplanation id="lightning.node-peers" title="About this Lightning node">
             XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
             your own compact-filter chain peer as host:port. Your home node is optional.
-          </SettingsFootnote>
+          </SettingsExplanation>
         )}
         {status === 'Stopped' && (
           <TextInput
@@ -586,7 +588,7 @@ export default function XBTLightning({
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -602,17 +604,17 @@ export default function XBTLightning({
           />
         )}
         {['Starting', 'Tor connecting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status) && (
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsFootnote>
             The node is starting or syncing. Status updates automatically. If this does not advance, the configured chain peer may be
             unreachable.
           </SettingsFootnote>
         )}
         {status === 'Failed' && (
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsFootnote>
             The Lightning node could not finish starting. Close and reopen RedWallet to retry. Your saved wallet is retained.
           </SettingsFootnote>
         )}
-        {!!progress && <SettingsFootnote style={{ color: colors.foregroundColor }}>{progress}</SettingsFootnote>}
+        {!!progress && <SettingsFootnote>{progress}</SettingsFootnote>}
         <SettingsListItem title="Node status" subtitle={busy ? 'Working…' : status} />
         {status === 'Stopped' && <SettingsListItem title="Start XBT node" disabled={busy || !peerLoaded} onPress={() => node('start')} />}
         {(status === 'Needs setup' || status === 'Locked') && (
@@ -777,7 +779,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     backgroundColor: panelBackground,
                     borderColor: colors.hdborderColor,
                   },
@@ -812,7 +814,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     borderColor: colors.hdborderColor,
                   },
                 ]}
@@ -827,7 +829,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     borderColor: colors.hdborderColor,
                   },
                 ]}
@@ -884,7 +886,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     backgroundColor: panelBackground,
                     borderColor: colors.hdborderColor,
                   },
@@ -948,7 +950,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     backgroundColor: panelBackground,
                     borderColor: colors.hdborderColor,
                   },
@@ -974,7 +976,7 @@ export default function XBTLightning({
                     style={[
                       styles.input,
                       {
-                        color: colors.foregroundColor,
+                        color: busy ? informationColor : colors.foregroundColor,
                         borderColor: colors.hdborderColor,
                       },
                     ]}
@@ -1069,19 +1071,19 @@ export default function XBTLightning({
       )}
       {status === 'Running' && (tools || mode === 'send') && (
         <SettingsSection>
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsExplanation id="lightning.channel-management" title="About channel management">
             Manage channels and withdraw the Lightning node’s on-chain balance. Closing a channel requires its peer online and a
             confirmation before withdrawing the returned funds. Withdrawals currently support SegWit and Taproot addresses beginning with
             bc1.
-          </SettingsFootnote>
-          <Text style={[styles.fieldLabel, { color: colors.foregroundColor }]}>Fee rate (sat/vB)</Text>
+          </SettingsExplanation>
+          <Text style={[styles.fieldLabel, { color: informationColor }]}>Fee rate (sat/vB)</Text>
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="On-chain fee rate"
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -1107,10 +1109,10 @@ export default function XBTLightning({
                   })
                 }
               />
-              <SettingsFootnote style={{ color: colors.foregroundColor }}>
+              <SettingsExplanation id="lightning.channel-selection" title="How to select a channel">
                 Tap a channel to select it and show its peer identity above. Actions apply only to the selected channel. Inactive channels
                 remain listed; pending channels are still opening.
-              </SettingsFootnote>
+              </SettingsExplanation>
               {(channels ?? []).map(channel => (
                 <View key={channel.point}>
                   <SettingsListItem
@@ -1175,7 +1177,7 @@ export default function XBTLightning({
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -1196,7 +1198,7 @@ export default function XBTLightning({
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -1247,16 +1249,16 @@ export default function XBTLightning({
       )}
       {tools && ['Needs setup', 'Running'].includes(status) && (
         <SettingsSection>
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsExplanation id="lightning.recovery" title="About Lightning recovery">
             Portable Lightning recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export
             again after channel changes.
-          </SettingsFootnote>
+          </SettingsExplanation>
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
