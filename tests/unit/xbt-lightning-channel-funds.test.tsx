@@ -200,3 +200,32 @@ test.each(['0', '12'])('confirmed resize separates local depth from peer complet
   expect(bridge.splice).not.toHaveBeenCalled();
   expect(s.queryByLabelText('Channel resize sats')).toBeNull();
 });
+
+test('switching away from a resize during authentication cannot confirm its old token', async () => {
+  bridge.splice.mockResolvedValueOnce(review('in'));
+  let authorize!: () => Promise<void>;
+  const delayedAuthorization = async (_: string, action: () => Promise<void>) => {
+    authorize = action;
+  };
+  const s = render(
+    <XBTLightningChannelFunds
+      point={point}
+      active
+      splice={ready}
+      busy={false}
+      run={run}
+      runAuthorized={delayedAuthorization}
+      report={report}
+      onUpdated={onUpdated}
+    />,
+  );
+  fireEvent.press(s.getByText('Add funds'));
+  fireEvent.changeText(s.getByLabelText('Channel resize sats'), '20000');
+  fireEvent.changeText(s.getByLabelText('Channel resize fee rate'), '2');
+  await act(async () => fireEvent.press(s.getByText('Review channel resize')));
+  await act(async () => fireEvent.press(s.getByText('Confirm add funds')));
+  s.unmount();
+  await act(async () => authorize());
+  expect(bridge.splice.mock.calls.filter(call => call[0] === 'confirm')).toHaveLength(0);
+  expect(onUpdated).not.toHaveBeenCalled();
+});

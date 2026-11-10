@@ -1,4 +1,5 @@
 import { LightningResize, selectedChannelAfterResize } from '../../blue_modules/lightning-resize';
+import { authorizeInForeground } from '../../blue_modules/foreground-authorization';
 import QRCodeComponent from '../../components/QRCode';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -337,14 +338,23 @@ export default function XBTLightning({
   };
   const runAuthorized = (title: string, action: () => Promise<void>, exporting = false) =>
     run(title, async () => {
-      // A dismissed screen or a backgrounded app cannot submit from a stale alert.
-      if (!mounted.current || ['background', 'inactive'].includes(AppState.currentState)) return;
-      const authorized = await (exporting ? authorizeExport() : authorizePayment());
-      if (!authorized || !mounted.current || ['background', 'inactive'].includes(AppState.currentState)) {
-        if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
-        return;
+      let current = true;
+      const unsubscribe = navigation.addListener('blur', () => {
+        current = false;
+      });
+      try {
+        const authorized = await authorizeInForeground(
+          exporting ? authorizeExport : authorizePayment,
+          () => mounted.current && current && navigation.isFocused(),
+        );
+        if (!authorized) {
+          if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
+          return;
+        }
+        await action();
+      } finally {
+        unsubscribe();
       }
-      await action();
     });
   const runExport = (title: string, action: () => Promise<void>) => runAuthorized(title, action, true);
   const node = (action: string) =>

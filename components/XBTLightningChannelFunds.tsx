@@ -1,6 +1,6 @@
 import { LightningResize, resizeProgressText } from '../blue_modules/lightning-resize';
 import { validLightningSats, validLightningFeeRate } from '../blue_modules/lightning-amounts';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NativeModules, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
 import { useTheme } from './themes';
@@ -57,6 +57,13 @@ export default function XBTLightningChannelFunds({
   const [feeRate, setFeeRate] = useState('1');
   const [review, setReview] = useState<{ item: Review; key: string }>();
   const submitted = useRef(new Set<string>());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const current = useRef('');
   current.current = JSON.stringify([point, direction, sats, feeRate]);
   const available = active && !!splice && ['ok', 'peer_not_announcing'].includes(splice.status);
@@ -69,7 +76,7 @@ export default function XBTLightningChannelFunds({
     if (!review || review.key !== current.current || !available || busy || submitted.current.has(review.item.token)) return;
     const item = review.item;
     runAuthorized(item.direction === 'in' ? 'Add channel funds' : 'Remove channel funds', async () => {
-      if (review.key !== current.current || submitted.current.has(item.token)) return;
+      if (!mounted.current || review.key !== current.current || submitted.current.has(item.token)) return;
       submitted.current.add(item.token);
       setReview(undefined);
       try {
