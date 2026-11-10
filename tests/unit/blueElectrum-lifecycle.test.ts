@@ -839,7 +839,7 @@ describe('settings connection feedback', () => {
   const renderSettings = () => {
     const storage = jest
       .spyOn(StorageHook, 'useStorage')
-      .mockReturnValue({ walletsInitialized: true } as ReturnType<typeof StorageHook.useStorage>);
+      .mockReturnValue({ walletsInitialized: true, wallets: [] } as ReturnType<typeof StorageHook.useStorage>);
     const daemon = jest.spyOn(Currency, 'initCurrencyDaemon').mockResolvedValue(undefined);
     const preferred = jest.spyOn(Currency, 'getPreferredCurrency').mockResolvedValue(FiatUnit.USD);
     const language = jest.spyOn(AsyncStorage, 'getItem').mockResolvedValue(null);
