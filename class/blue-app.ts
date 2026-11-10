@@ -1,3 +1,4 @@
+import { BtcWatchOnlyWallet } from './wallets/btc-watch-only-wallet';
 import { BtcSegwitBech32Wallet } from './wallets/btc-segwit-bech32-wallet';
 import { isBtcWallet } from '../blue_modules/wallet-network';
 import { isSelected } from '../blue_modules/BtcElectrum';
@@ -403,9 +404,14 @@ export class BlueApp {
       if (
         wallets.some(
           key =>
-            ![XbtSegwitBech32Wallet.type, XbtTaprootWallet.type, WatchOnlyWallet.type, LndWallet.type, BtcSegwitBech32Wallet.type].includes(
-              JSON.parse(key).type,
-            ),
+            ![
+              XbtSegwitBech32Wallet.type,
+              XbtTaprootWallet.type,
+              WatchOnlyWallet.type,
+              LndWallet.type,
+              BtcSegwitBech32Wallet.type,
+              BtcWatchOnlyWallet.type,
+            ].includes(JSON.parse(key).type),
         )
       ) {
         this.storageLoadBlocked = true;
@@ -422,7 +428,11 @@ export class BlueApp {
         // deciding which type is wallet and instantiating correct object
         const tempObj = JSON.parse(key);
         let unserializedWallet: TWallet;
-        if (tempObj.type === BtcSegwitBech32Wallet.type) {
+        if (tempObj.type === BtcWatchOnlyWallet.type) {
+          const watch = BtcWatchOnlyWallet.fromJson(key) as unknown as BtcWatchOnlyWallet;
+          watch.init();
+          unserializedWallet = watch;
+        } else if (tempObj.type === BtcSegwitBech32Wallet.type) {
           unserializedWallet = BtcSegwitBech32Wallet.fromJson(key) as unknown as BtcSegwitBech32Wallet;
         } else if (tempObj.type === XbtSegwitBech32Wallet.type) {
           unserializedWallet = XbtSegwitBech32Wallet.fromJson(key) as unknown as XbtSegwitBech32Wallet;
