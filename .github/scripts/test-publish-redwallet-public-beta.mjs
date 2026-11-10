@@ -49,7 +49,12 @@ function fixture(options = {}) {
       return {};
     }
     if (path === "/v1/apps/" + R.app) return { data: app };
-    if (path === "/v1/betaGroups/" + R.group) return { data: group };
+    if (path === "/v1/apps/" + R.app + "/betaGroups") return { data: state.missingGroup ? [] : [group] };
+    if (path === "/v1/builds") {
+      assert.equal(query["filter[app]"], R.app);
+      assert.equal(query["filter[version]"], R.build);
+      return { data: state.wrongBuildMembership ? [] : [info().data] };
+    }
     if (path.endsWith("/betaBuildLocalizations")) return { data: [{ attributes: { locale: "en-US", whatsNew: "Existing release notes" } }] };
     assert.equal(path, "/v1/builds/" + R.appleBuild);
     return info();
@@ -96,6 +101,8 @@ test("wrong upload or bundle is rejected", () => {
 });
 for (const [name, mutate] of [
   ["app", f => { f.app.attributes.bundleId = "another.app"; }],
+  ["group missing from app", f => { f.state.missingGroup = true; }],
+  ["build missing from app", f => { f.state.wrongBuildMembership = true; }],
   ["group", f => { f.group.attributes.isInternalGroup = true; }],
   ["link", f => { f.group.attributes.publicLink = "https://testflight.apple.com/join/other"; }],
   ["expired", f => { f.state.buildAttributes = { expired: true }; }],
@@ -134,4 +141,27 @@ test("transport disallows unrelated writes, deletes, tester reads and credential
 test("transport rejects incomplete and failed responses", async () => {
   await assert.rejects(apiClient("fixture", async () => new Response(JSON.stringify({ links: { next: "more" } })))("GET", "/v1/apps/" + R.app), /Incomplete/);
   await assert.rejects(apiClient("fixture", async () => new Response("private detail", { status: 403 }))("GET", "/v1/apps/" + R.app), /HTTP 403/);
+});
+
+test("transport reports only fixed operation identity on server errors and never retries", async () => {
+  let calls = 0;
+  const api = apiClient("private-token", async () => {
+    calls++;
+    return new Response("private-server-response", { status: 500 });
+  });
+  await assert.rejects(api("GET", "/v1/apps/" + R.app), error => {
+    assert.equal(error.message, "Apple operation failed: HTTP 500 (GET /v1/apps/" + R.app + ")");
+    assert.ok(!error.message.includes("private"));
+    return true;
+  });
+  assert.equal(calls, 1);
+});
+test("transport rejects unscoped and different-build membership queries", async () => {
+  let calls = 0;
+  const api = apiClient("fixture", async () => { calls++; return new Response("{}"); });
+  for (const query of [{}, { "filter[app]": "other", "filter[version]": R.build },
+    { "filter[app]": R.app, "filter[version]": "other" }]) {
+    await assert.rejects(api("GET", "/v1/builds", query), /Unexpected Apple/);
+  }
+  assert.equal(calls, 0);
 });
