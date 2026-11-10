@@ -260,7 +260,11 @@ async function recover(): Promise<void> {
 }
 
 async function openWallet(label: string): Promise<void> {
-  await scrollUpOnHomeScreen();
+  // Wallet cards are pinned above the independently scrolling transaction list.
+  // Run 42689733324 attempt 2 returned home, then the obsolete scroll-to-top
+  // gesture opened transaction details before the wallet-card tap. Require the
+  // actual card to be visible instead of touching the transaction list.
+  await waitForId(label);
   // Navigate using the destination screen as the sentinel. Send mounts later
   // while a newly imported wallet loads; do not retap its old home card then.
   await tapAndTapAgainIfElementIsNotVisible(label, 'WalletTransactionsList');
