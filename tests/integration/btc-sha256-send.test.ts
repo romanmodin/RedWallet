@@ -11,6 +11,10 @@ import net from 'net';
 import { tmpdir } from 'os';
 import path from 'path';
 import * as bitcoin from 'bitcoinjs-lib';
+import { BtcWatchOnlyWallet } from '../../class/wallets/btc-watch-only-wallet';
+import { ECPairFactory } from 'ecpair';
+import ecc from '../../blue_modules/noble_ecc';
+import { BlueURDecoder, encodeUR } from '../../blue_modules/ur';
 import { BtcSegwitBech32Wallet } from '../../class/wallets/btc-segwit-bech32-wallet';
 import { assertXbtUnifiedTransaction } from '../../class/xbt/broadcast-validation';
 
@@ -137,7 +141,36 @@ real(
         getTransactions.mockRestore();
       }
       assert(signed.tx, 'Production BTC signer returned no transaction');
-      const tx = signed.tx;
+      const cold = new BtcWatchOnlyWallet();
+      cold.setSecret(JSON.stringify({ xpub: wallet.getXpub(), path: "m/84'/0'/0'", xfp: '73c5da0a' })).init();
+      cold.setUseWithHardwareWalletEnabled(true);
+      const history = jest
+        .spyOn(cold._hdWalletInstance!, 'getTransactions')
+        .mockReturnValue([{ txid: fundingID, rawHex: parent.hex, confirmations: parent.confirmations } as any]);
+      let tx: bitcoin.Transaction;
+      try {
+        const request = cold.createTransaction(
+          [{ txid: fundingID, vout: fundingOutput.n, value: 100_000, address, confirmations: parent.confirmations }],
+          [{ address: destination, value: 20_000 }],
+          2,
+          cold._getInternalAddressByIndex(0),
+        );
+        const returned = request.psbt.clone();
+        // Simulate the offline device with a published test seed, never a user's keys.
+        returned.signInput(0, ECPairFactory(ecc).fromWIF(wallet._getWifForAddress(address)!));
+        const parts = encodeUR(returned.toHex(), 80, null, 'URv2');
+        const decoder = new BlueURDecoder();
+        for (const part of [...parts].reverse()) decoder.receivePart(part.toUpperCase());
+        assert(decoder.isComplete(), 'Signed QR not complete');
+        tx = cold.combinePsbt(request.psbt, decoder.toString());
+        const changed = tx.clone();
+        changed.outs[0].value += 1n;
+        expect(() => cold.acceptSignedTransaction(changed.toHex(), request.psbt)).toThrow();
+        // The refused return clears approval. Verify the genuine return again.
+        cold.combinePsbt(request.psbt, decoder.toString());
+      } finally {
+        history.mockRestore();
+      }
       const reviewedHex = tx.toHex();
       expect(() => assertXbtUnifiedTransaction(reviewedHex)).toThrow();
       expect(tx.outs.filter(output => Buffer.from(output.script).equals(Buffer.from(expectedScript)))).toHaveLength(1);
@@ -153,8 +186,17 @@ real(
       const refused = await rpc('testmempoolaccept', [[altered.toHex()]]);
       expect(refused[0].allowed).toBe(false);
       // Submit exactly once, using the immutable bytes that were reviewed above.
-      const sentID = await rpc('sendrawtransaction', [reviewedHex]);
-      expect(sentID).toBe(tx.getId());
+      let broadcastCount = 0;
+      jest.spyOn(cold, 'getElectrum').mockReturnValue({
+        broadcastV2: async (hex: string) => {
+          broadcastCount += 1;
+          expect(hex).toBe(reviewedHex);
+          return rpc('sendrawtransaction', [hex]);
+        },
+      } as any);
+      expect(await cold.broadcastTx(reviewedHex)).toBe(true);
+      expect(broadcastCount).toBe(1);
+      const sentID = tx.getId();
       const mempool = await rpc('getmempoolentry', [sentID]);
       expect(Math.round(mempool.fees.base * 100_000_000)).toBe(actualFee);
       const settledBlocks = await rpc('generatetoaddress', [2, miner]);
@@ -178,6 +220,9 @@ real(
         txid: sentID,
         confirmations: settled.confirmations,
         alteredAmountRejected: true,
+        hardwareQrRoundTripVerified: true,
+        hardwareBroadcastCount: broadcastCount,
+        hardwareSigner: 'Simulated device using a published test seed; not physical Keystone qualification',
         observedAt: new Date().toISOString(),
       };
     } finally {

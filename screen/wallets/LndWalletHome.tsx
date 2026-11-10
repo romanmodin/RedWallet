@@ -1,3 +1,4 @@
+import LndBalanceBreakdown from '../../components/LndBalanceBreakdown';
 import React, { useCallback, useLayoutEffect, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -410,6 +411,9 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         contentContainerStyle={{ paddingBottom: 170 + insets.bottom }}
         ListHeaderComponent={
           <>
+            {!!overview && (
+              <LndBalanceBreakdown overview={overview} hidden={wallet.hideBalance === true} stale={!ready} format={formatAmount} />
+            )}
             {tab === 'funding' && (
               <View style={styles.funding}>
                 {!!overview && (

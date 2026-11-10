@@ -1,16 +1,10 @@
+import { LightningResize, resizeProgressText } from '../blue_modules/lightning-resize';
 import { validLightningSats, validLightningFeeRate } from '../blue_modules/lightning-amounts';
 import React, { useRef, useState } from 'react';
 import { NativeModules, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
 import { useTheme } from './themes';
 
-type Splice = {
-  status: string;
-  progress: string;
-  txid: string;
-  confirmations: string;
-  lockDepth: string;
-};
 type Review = {
   token: string;
   point: string;
@@ -27,7 +21,7 @@ type Props = {
   point: string;
   active: boolean;
   hideBalances?: boolean;
-  splice?: Splice;
+  splice?: LightningResize;
   busy: boolean;
   run: (title: string, action: () => Promise<void>) => Promise<void>;
   runAuthorized: (title: string, action: () => Promise<void>) => Promise<void>;
@@ -96,19 +90,7 @@ export default function XBTLightningChannelFunds({
   const inputStyle = [styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }];
   return (
     <View testID={'ChannelFunds-' + point}>
-      {!!splice?.progress && (
-        <SettingsFootnote style={{ color: colors.foregroundColor }}>
-          {'Channel resize: ' +
-            (splice.progress === 'confirmed' ? 'confirmed on chain; waiting for both peers to lock' : splice.progress) +
-            (splice.lockDepth !== '0'
-              ? splice.progress === 'confirmed' && splice.confirmations === '0'
-                ? '\nLocal confirmation count unavailable; local requirement: ' + splice.lockDepth
-                : '\nLocal confirmations: ' + splice.confirmations + '/' + splice.lockDepth
-              : '') +
-            (splice.progress !== 'locked' ? '\nThe peer may require more confirmations. The balance updates after both peers lock.' : '') +
-            (splice.txid ? '\nTransaction: ' + splice.txid : '')}
-        </SettingsFootnote>
-      )}
+      {!!splice?.progress && <SettingsFootnote style={{ color: colors.foregroundColor }}>{resizeProgressText(splice)}</SettingsFootnote>}
       {!available && (
         <SettingsFootnote>{reasons[splice?.status ?? ''] || 'Resizing is unavailable for this channel right now.'}</SettingsFootnote>
       )}

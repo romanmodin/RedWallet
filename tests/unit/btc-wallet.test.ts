@@ -215,7 +215,10 @@ test('accepts Sparrow single-key JSON and routes the public account through its 
   wallet._hdWalletInstance!.getElectrum();
   expect(backend).toHaveBeenLastCalledWith(wallet.getID());
   backend.mockRestore();
-  expect(() => wallet.setUseWithHardwareWalletEnabled(true)).toThrow();
+  expect(wallet.allowSend()).toBe(false);
+  wallet.setUseWithHardwareWalletEnabled(true);
+  expect(wallet.allowSend()).toBe(true);
+  expect(wallet.isXbtSigningCompatible()).toBe(false);
 });
 
 test.each(['tr(not-a-supported-account)', 'wsh(sortedmulti(2,public-keys))', 'xpub-without-script-metadata'])(

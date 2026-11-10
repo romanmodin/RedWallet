@@ -72,7 +72,7 @@ jobs:
         REDWALLET_BTC_REGTEST_BITCOIND: ${{ runner.temp }}/btc-core/bitcoin-29.0/bin/bitcoind
       run: |
         node_modules/.bin/jest --runInBand tests/integration/btc-sha256-send.test.ts
-        node -e "const r = require('./artifacts/btc-sha256-regtest/receipt.json'); if (r.cleanupComplete !== true || r.confirmations !== 2 || r.alteredAmountRejected !== true) throw new Error('BTC consensus receipt missing or incomplete');"
+        node -e "const r = require('./artifacts/btc-sha256-regtest/receipt.json'); if (r.cleanupComplete !== true || r.confirmations !== 2 || r.alteredAmountRejected !== true || r.hardwareQrRoundTripVerified !== true || r.hardwareBroadcastCount !== 1) throw new Error('BTC consensus receipt missing or incomplete');"
 
     - name: Save BTC consensus-test receipt
       if: ${{ always() && hashFiles('class/wallets/btc-segwit-bech32-wallet.ts') != '' }}

@@ -34,6 +34,7 @@ export type LndOverview = {
   lightningRemote: string;
   channelPending: string;
   splicePending: string;
+  lightningAvailable?: string;
 };
 
 const sats = (value: string): number => {
@@ -187,7 +188,18 @@ export class LndWallet extends LegacyWallet {
         return;
       }
       const next: LndOverview = await bridge.wallet('overview', '');
-      for (const key of ['fundingTotal', 'lightningLocal', 'channelPending', 'splicePending'] as const) sats(next[key]);
+      for (const key of [
+        'fundingTotal',
+        'fundingConfirmed',
+        'fundingPending',
+        'fundingLocked',
+        'anchorReserve',
+        'lightningLocal',
+        'channelPending',
+        'splicePending',
+      ] as const)
+        sats(next[key]);
+      if (next.lightningAvailable !== undefined) sats(next.lightningAvailable);
       this.overview = next;
       this.observedAt = Date.now();
       this._lastBalanceFetch = this.observedAt;

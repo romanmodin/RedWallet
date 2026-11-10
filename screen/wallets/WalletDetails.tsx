@@ -1,3 +1,4 @@
+import { BtcWatchOnlyWallet } from '../../class/wallets/btc-watch-only-wallet';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { writeFileAndExport } from '../../blue_modules/fs';
@@ -671,6 +672,35 @@ const WalletDetails: React.FC = () => {
 
             {/* Options container — header full width (single row so section background spans the card) */}
             <SettingsSection title={loc.wallets.details_options}>
+              {wallet instanceof BtcWatchOnlyWallet && (
+                <SettingsListItem
+                  title="Use with hardware wallet (BTC SHA-256)"
+                  switch={{
+                    value: externalSignerEnabled,
+                    testID: 'BtcExternalSignerSwitch',
+                    onValueChange: async (enabled: boolean) => {
+                      if (
+                        enabled &&
+                        !(await confirm(
+                          'Enable BTC hardware signing',
+                          'Use standard BTC Native SegWit signing on your Keystone. Verify each recipient, amount and fee on the device. Your recovery phrase stays on the device.',
+                        ))
+                      )
+                        return;
+                      const previous = wallet.useWithHardwareWalletEnabled();
+                      try {
+                        wallet.setUseWithHardwareWalletEnabled(enabled);
+                        await saveToDisk(false, true);
+                        setExternalSignerEnabled(enabled);
+                      } catch (error: any) {
+                        wallet.setUseWithHardwareWalletEnabled(previous);
+                        presentAlert({ message: error.message });
+                      }
+                    },
+                  }}
+                  bottomDivider
+                />
+              )}
               {wallet instanceof WatchOnlyWallet && wallet.isXbtSigningCompatible() && (
                 <SettingsListItem
                   title={`${loc.wallets.details_use_with_hardware_wallet} (XBT Unified)`}

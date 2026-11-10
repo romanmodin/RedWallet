@@ -174,6 +174,9 @@ test.each(['0', '12'])('confirmed resize separates local depth from peer complet
         txid: 'confirmed-resize',
         confirmations,
         lockDepth: '6',
+        weLocked: true,
+        peerLocked: false,
+        ...(confirmations === '12' ? { onchainConfirmations: confirmations } : {}),
       }}
       busy={false}
       run={run}
@@ -183,12 +186,15 @@ test.each(['0', '12'])('confirmed resize separates local depth from peer complet
     />,
   );
   expect(s.getByText(/confirmed on chain; waiting for both peers to lock/)).toBeTruthy();
-  expect(s.getByText(/The peer may require more confirmations/)).toBeTruthy();
+  expect(s.getByText(/The peer’s required depth is not reported/)).toBeTruthy();
+  expect(s.getByText(/Our side: locked/)).toBeTruthy();
+  expect(s.getByText(/Peer: waiting/)).toBeTruthy();
   if (confirmations === '0') {
-    expect(s.getByText(/Local confirmation count unavailable; local requirement: 6/)).toBeTruthy();
+    expect(s.getByText(/On-chain confirmation count unavailable/)).toBeTruthy();
+    expect(s.getByText(/Local confirmation requirement: 6/)).toBeTruthy();
     expect(s.queryByText(/0\/6 confirmations/)).toBeNull();
   } else {
-    expect(s.getByText(/Local confirmations: 12\/6/)).toBeTruthy();
+    expect(s.getByText(/On-chain confirmations: 12/)).toBeTruthy();
   }
   fireEvent.press(s.getByText('Add funds'));
   expect(bridge.splice).not.toHaveBeenCalled();

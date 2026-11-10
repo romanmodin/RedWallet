@@ -1,3 +1,4 @@
+import { LightningResize, selectedChannelAfterResize } from '../../blue_modules/lightning-resize';
 import QRCodeComponent from '../../components/QRCode';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -54,17 +55,12 @@ type Channel = {
   peer: string;
   peerAlias?: string;
   peerAddress?: string;
+  originalPoint?: string;
   active: boolean;
   localSats: string;
   state: 'active' | 'inactive' | 'pending' | 'closing' | 'forceClosing';
   confirmationsRemaining?: number;
-  splice?: {
-    status: string;
-    progress: string;
-    txid: string;
-    confirmations: string;
-    lockDepth: string;
-  };
+  splice?: LightningResize;
 };
 type Withdrawal = {
   token: string;
@@ -166,7 +162,7 @@ export default function XBTLightning({
   route?: { params?: { mode?: 'pay' | 'invoice' | 'send' | 'receive' } };
 } = {}) {
   const navigation = useExtendedNavigation();
-  const { wallets } = useStorage();
+  const { wallets, saveToDisk } = useStorage();
   const lightningWallet = wallets.find(wallet => wallet.type === LndWallet.type);
   const hideBalances = lightningWallet?.hideBalance === true;
   const privacy = useRef(hideBalances);
@@ -223,6 +219,7 @@ export default function XBTLightning({
         : 'Activity details are hidden. Reveal your Lightning balance to view them.'
       : message;
   const channelRequest = useRef<Promise<Channel[]> | undefined>(undefined);
+  const channelSnapshot = useRef<Channel[]>([]);
   const [destination, setDestination] = useState('');
   const [withdrawSats, setWithdrawSats] = useState('');
   const [feeRate, setFeeRate] = useState('1');
@@ -281,10 +278,20 @@ export default function XBTLightning({
     const request = Promise.resolve()
       .then(() => bridge.manage('channelStatus', '', '', '') as Promise<Channel[]>)
       .then(
-        items => {
+        async items => {
+          if (lightningWallet instanceof LndWallet) {
+            try {
+              await lightningWallet.fetchBalance();
+              await saveToDisk();
+            } catch {
+              // A failed balance read never completes a resize.
+            }
+          }
           if (mounted.current) {
+            const previous = channelSnapshot.current;
+            channelSnapshot.current = items;
             setChannels(items);
-            setSelectedPoint(current => (items.some(item => item.point === current) ? current : undefined));
+            setSelectedPoint(current => selectedChannelAfterResize(current, previous, items));
             setChannelError(false);
           }
           return items;
@@ -299,7 +306,7 @@ export default function XBTLightning({
       });
     channelRequest.current = request;
     return request;
-  }, []);
+  }, [lightningWallet, saveToDisk]);
   const run = async (title: string, action: () => Promise<void>) => {
     if (pending.current) return;
     pending.current = true;

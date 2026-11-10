@@ -89,7 +89,7 @@ async function clearUseURv1() {
  */
 function encodeUR(value, capacity = 175, walletID, forceProtocol = 'auto') {
   if (forceProtocol === 'URv2') {
-    return useURv1 ? encodeURv1(value, capacity) : encodeURv2(value, capacity);
+    return encodeURv2(value, capacity);
   }
 
   if (forceProtocol === 'BBQR' || (walletID && useBBQRWalletIDs.includes(walletID))) {
