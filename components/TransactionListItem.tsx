@@ -252,7 +252,7 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
         }
       }
     } else if (item.value! / 100000000 < 0) {
-      color = colors.foregroundColor;
+      color = dark ? '#FF8D96' : '#B42318';
     }
 
     return {
@@ -266,7 +266,7 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
     } as TextStyle;
   }, [
     colors.successColor,
-    colors.foregroundColor,
+    dark,
     item.type,
     item.value,
     item.timestamp,

@@ -5,6 +5,20 @@ on:
       - 'ios/XBTLightning/**'
       - 'ios/BlueWallet/XBTLightningBridge.*'
       - 'screen/settings/XBTLightning.tsx'
+      - 'components/TotalWalletsBalance.tsx'
+      - 'components/Context/SettingsProvider.tsx'
+      - 'components/TransactionListItem.tsx'
+      - 'screen/wallets/LndWalletHome.tsx'
+      - 'blue_modules/total-balance-display.ts'
+      - 'blue_modules/BtcElectrum.ts'
+      - 'screen/settings/BtcElectrumSettings.tsx'
+      - 'screen/settings/NetworkSettings.tsx'
+      - 'navigation/DetailViewScreensStack.tsx'
+      - 'navigation/DetailViewStackParamList.ts'
+      - 'tests/unit/btc-electrum.test.ts'
+      - 'tests/unit/btc-electrum-settings.test.tsx'
+      - 'tests/unit/total-wallets-balance-privacy.test.tsx'
+      - 'tests/unit/lnd-wallet-home.test.tsx'
       - 'blue_modules/lnd-payment-status.ts'
       - 'tests/unit/xbt-lightning-screen.test.tsx'
       - 'tests/unit/lnd-payment-status.test.ts'
@@ -32,7 +46,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
-          ruby-version: "3.4.10"
+          ruby-version: '3.4.10'
           bundler-cache: true
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         if: matrix.tier == 'payments'
@@ -114,11 +128,11 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
-          ruby-version: "3.4.10"
+          ruby-version: '3.4.10'
           bundler-cache: true
       - name: Sync a disposable public XBT node without funding it
         env:
-          XBT_PUBLIC_SMOKE: "1"
+          XBT_PUBLIC_SMOKE: '1'
         run: |
           set -eo pipefail
           bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/xbt-public-host"
@@ -133,11 +147,11 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
-          ruby-version: "3.4.10"
+          ruby-version: '3.4.10'
           bundler-cache: true
       - name: Sync a disposable Tor XBT node without funding it
         env:
-          XBT_TOR_SMOKE: "1"
+          XBT_TOR_SMOKE: '1'
         run: |
           set -eo pipefail
           bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/xbt-tor-host"

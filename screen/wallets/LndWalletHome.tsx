@@ -32,7 +32,7 @@ const merge = (old: LndActivity[], next: LndActivity[]) => [
 ];
 
 export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
-  const { colors } = useTheme();
+  const { colors, dark } = useTheme();
   const navigation = useExtendedNavigation();
   const { saveToDisk } = useStorage();
   const { xbtPriceQuote } = useSettings();
@@ -309,9 +309,13 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           {
             color: isCanceled(item)
               ? colors.alternativeTextColor
-              : item.direction === 'received' && ['settled', 'confirmed'].includes(item.state)
-                ? colors.successColor
-                : colors.foregroundColor,
+              : item.direction === 'sent'
+                ? dark
+                  ? '#FF8D96'
+                  : '#B42318'
+                : item.direction === 'received' && ['settled', 'confirmed'].includes(item.state)
+                  ? colors.successColor
+                  : colors.foregroundColor,
           },
         ]}
       >

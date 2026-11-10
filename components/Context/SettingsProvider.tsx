@@ -1,7 +1,7 @@
 import { useXbtDisplayPrice } from '../../hooks/useXbtDisplayPrice';
 import type { XbtPriceQuote } from '../../blue_modules/xbt-price';
 import { normalizeXbtUnit } from '../../class/xbt/units';
-import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import DefaultPreference from 'react-native-default-preference';
 import { isReadClipboardAllowed, setReadClipboardAllowed } from '../../blue_modules/clipboard';
 import { getPreferredCurrency, GROUP_IO_BLUEWALLET, initCurrencyDaemon, setPreferredCurrency } from '../../blue_modules/currency';
@@ -21,6 +21,11 @@ import { BLOCK_EXPLORERS, getBlockExplorerUrl, saveBlockExplorer, BlockExplorer,
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { isBalanceDisplayAllowed, setBalanceDisplayAllowed } from '../../hooks/useWidgetCommunication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  loadTotalBalanceDisplayMode,
+  saveTotalBalanceDisplayMode,
+  TotalBalanceDisplayMode,
+} from '../../blue_modules/total-balance-display';
 
 const getDoNotTrackStorage = async (): Promise<boolean> => {
   try {
@@ -102,6 +107,9 @@ interface SettingsContextType {
   setIsQuickActionsEnabledStorage: (value: boolean) => Promise<void>;
   isTotalBalanceEnabled: boolean;
   setIsTotalBalanceEnabledStorage: (value: boolean) => Promise<void>;
+  totalBalanceDisplayMode: TotalBalanceDisplayMode;
+  setTotalBalanceDisplayModeStorage: (mode: TotalBalanceDisplayMode) => Promise<void>;
+  getTotalBalanceDisplayMode: () => TotalBalanceDisplayMode;
   totalBalancePreferredUnit: BitcoinUnit;
   setTotalBalancePreferredUnitStorage: (unit: BitcoinUnit) => Promise<void>;
   selectedBlockExplorer: BlockExplorer;
@@ -135,6 +143,9 @@ const defaultSettingsContext: SettingsContextType = {
   setIsQuickActionsEnabledStorage: async () => {},
   isTotalBalanceEnabled: true,
   setIsTotalBalanceEnabledStorage: async () => {},
+  totalBalanceDisplayMode: 'hidden',
+  setTotalBalanceDisplayModeStorage: async () => {},
+  getTotalBalanceDisplayMode: () => 'hidden',
   totalBalancePreferredUnit: BitcoinUnit.BTC,
   setTotalBalancePreferredUnitStorage: async () => {},
   selectedBlockExplorer: BLOCK_EXPLORERS.default,
@@ -158,6 +169,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
   const [isQuickActionsEnabled, setIsQuickActionsEnabled] = useState<boolean>(true);
   const [isTotalBalanceEnabled, setIsTotalBalanceEnabled] = useState<boolean>(true);
   const [totalBalancePreferredUnit, setTotalBalancePreferredUnit] = useState<BitcoinUnit>(BitcoinUnit.BTC);
+  const [totalBalanceDisplayMode, setTotalBalanceDisplayMode] = useState<TotalBalanceDisplayMode>('hidden');
+  const liveTotalBalanceDisplayMode = useRef<TotalBalanceDisplayMode>('hidden');
+  const totalDisplayRevision = useRef(0);
+  const totalDisplaySaveQueue = useRef<Promise<void>>(Promise.resolve());
   const [selectedBlockExplorer, setSelectedBlockExplorer] = useState<BlockExplorer>(BLOCK_EXPLORERS.default);
   const [isElectrumDisabled, setIsElectrumDisabled] = useState<boolean>(true);
 
@@ -165,6 +180,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
 
   useEffect(() => {
     const loadSettings = async () => {
+      const displayRevision = totalDisplayRevision.current;
       try {
         await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
       } catch (e) {
@@ -199,8 +215,13 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
         getIsTotalBalanceViewEnabled().then(totalBalanceEnabled => {
           setIsTotalBalanceEnabled(totalBalanceEnabled);
         }),
-        getTotalBalancePreferredUnit().then(preferredUnit => {
+        getTotalBalancePreferredUnit().then(async preferredUnit => {
           setTotalBalancePreferredUnit(preferredUnit);
+          const mode = await loadTotalBalanceDisplayMode(preferredUnit);
+          if (displayRevision === totalDisplayRevision.current) {
+            liveTotalBalanceDisplayMode.current = mode;
+            setTotalBalanceDisplayMode(mode);
+          }
         }),
         getBlockExplorerUrl().then(url => {
           const predefinedExplorer = Object.values(BLOCK_EXPLORERS).find(explorer => normalizeUrl(explorer.url) === normalizeUrl(url));
@@ -342,6 +363,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
     }
   }, []);
 
+  const getTotalBalanceDisplayMode = useCallback(() => liveTotalBalanceDisplayMode.current, []);
+  const setTotalBalanceDisplayModeStorage = useCallback(async (mode: TotalBalanceDisplayMode): Promise<void> => {
+    // Supersede delayed startup reads and serialize persisted privacy changes.
+    totalDisplayRevision.current += 1;
+    const write = totalDisplaySaveQueue.current.then(() => saveTotalBalanceDisplayMode(mode));
+    totalDisplaySaveQueue.current = write.catch(() => {});
+    await write;
+    liveTotalBalanceDisplayMode.current = mode;
+    setTotalBalanceDisplayMode(mode);
+  }, []);
+
   const setBlockExplorerStorage = useCallback(async (explorer: BlockExplorer): Promise<boolean> => {
     try {
       const success = await saveBlockExplorer(explorer.url);
@@ -381,6 +413,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
       setIsQuickActionsEnabledStorage,
       isTotalBalanceEnabled,
       setIsTotalBalanceEnabledStorage,
+      totalBalanceDisplayMode,
+      setTotalBalanceDisplayModeStorage,
+      getTotalBalanceDisplayMode,
       totalBalancePreferredUnit,
       setTotalBalancePreferredUnitStorage,
       selectedBlockExplorer,
@@ -413,6 +448,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = React.m
       setIsQuickActionsEnabledStorage,
       isTotalBalanceEnabled,
       setIsTotalBalanceEnabledStorage,
+      totalBalanceDisplayMode,
+      setTotalBalanceDisplayModeStorage,
+      getTotalBalanceDisplayMode,
       totalBalancePreferredUnit,
       setTotalBalancePreferredUnitStorage,
       selectedBlockExplorer,
