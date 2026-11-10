@@ -168,7 +168,7 @@ test('all probes target the exact simulator and every subprocess has a bounded t
   for (const [command, args, options] of run.mock.calls) {
     expect(options.encoding).toBe('utf8');
     expect(options.timeout).toBeGreaterThan(0);
-    expect(options.timeout).toBeLessThanOrEqual(command === 'applesimutils' ? 60000 : 5000);
+    expect(options.timeout).toBeLessThanOrEqual(command === 'applesimutils' ? 60000 : 15000);
     if (command === 'xcrun') expect(args).toEqual(['simctl', 'spawn', id, 'launchctl', 'list']);
   }
 });
@@ -181,7 +181,9 @@ test.each(['before', 'after'])('a timed-out %s observation is resampled inside t
     const index = reads++;
     if (index === (stage === 'before' ? 0 : 1)) {
       ticks.advance(5000);
-      throw Object.assign(new Error('spawnSync xcrun ETIMEDOUT'), { code: 'ETIMEDOUT' });
+      throw Object.assign(new Error('spawnSync xcrun ETIMEDOUT'), {
+        code: 'ETIMEDOUT',
+      });
     }
     return index < 2 && stage === 'before' ? table() : index === 0 ? table() : table(101, 201);
   });
@@ -205,7 +207,9 @@ test('repeated observation timeouts exhaust the original total deadline without 
 });
 
 test('a combined-reset timeout itself remains fatal and is never repeated', async () => {
-  const error = Object.assign(new Error('reset timed out'), { code: 'ETIMEDOUT' });
+  const error = Object.assign(new Error('reset timed out'), {
+    code: 'ETIMEDOUT',
+  });
   const run = jest.fn(command => {
     if (command === 'applesimutils') throw error;
     return table();
@@ -224,4 +228,38 @@ test('a late successful observation beyond the deadline cannot pass', async () =
     return table(101, 201);
   });
   await expect(resetArtworkSimulator(run, id, ticks)).rejects.toThrow('restart did not settle');
+});
+
+test('a six-second transport observation can return the replacement PID inside the same overall deadline', async () => {
+  const ticks = clock();
+  let reads = 0;
+  const run = jest.fn((command, _args, options) => {
+    if (command === 'applesimutils') return '';
+    if (reads++ === 0) return table();
+    const duration = 6000;
+    ticks.advance(Math.min(duration, options.timeout));
+    if (options.timeout < duration) throw Object.assign(new Error('query timeout'), { code: 'ETIMEDOUT' });
+    return table(101, 201);
+  });
+  const receipt = await resetArtworkSimulator(run, id, ticks);
+  expect(receipt.after).toEqual({ springboard: 101, spotlight: 201 });
+  expect(receipt.elapsedMs).toBe(6000);
+  expect(receipt.observationTimeouts).toEqual([]);
+  expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(1);
+});
+
+test('deadline failure includes the actual service observations without accepting an unchanged PID', async () => {
+  const ticks = clock();
+  const run = jest.fn(command => (command === 'applesimutils' ? '' : table()));
+  try {
+    await resetArtworkSimulator(run, id, ticks);
+    throw new Error('unchanged shell was accepted');
+  } catch (error) {
+    expect(error.message).toMatch(/restart did not settle/);
+    const receipt = JSON.parse(error.message.slice(error.message.indexOf('{')));
+    expect(receipt.deviceId).toBe(id);
+    expect(receipt.before).toEqual({ springboard: 100, spotlight: 200 });
+    expect(receipt.lastAfter).toEqual(receipt.before);
+    expect(receipt.elapsedMs).toBe(120000);
+  }
 });
