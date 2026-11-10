@@ -15,7 +15,7 @@ export const RELEASE = Object.freeze({
   ipa: "dfd9a4e84a2ebb50989d3b4cb99bc96799f725f089753c2015320ec306155299"
 });
 const buildPath = "/v1/builds/" + RELEASE.appleBuild;
-const groupPath = "/v1/betaGroups/" + RELEASE.group;
+const appGroupsPath = "/v1/apps/" + RELEASE.app + "/betaGroups";
 const assert = (condition, message) => { if (!condition) throw Error(message); };
 const id = (value) => {
   assert(typeof value === "string" && /^[A-Za-z0-9-]+$/.test(value), "Invalid Apple resource identity");
@@ -25,7 +25,8 @@ const id = (value) => {
 export function apiClient(token, request = fetch) {
   return async (method, path, query = {}, payload) => {
     const allowed = method === "GET"
-      ? ["/v1/apps/" + RELEASE.app, groupPath, buildPath, buildPath + "/betaBuildLocalizations"].includes(path)
+      ? ["/v1/apps/" + RELEASE.app, appGroupsPath, buildPath, buildPath + "/betaBuildLocalizations"].includes(path) ||
+        (path === "/v1/builds" && query["filter[app]"] === RELEASE.app && query["filter[version]"] === RELEASE.build)
       : method === "POST"
         ? [buildPath + "/relationships/betaGroups", "/v1/betaAppReviewSubmissions", "/v1/buildBetaNotifications"].includes(path)
         : method === "PATCH" && /^\/v1\/buildBetaDetails\/[A-Za-z0-9-]+$/.test(path);
@@ -38,7 +39,7 @@ export function apiClient(token, request = fetch) {
         ...(payload ? { "Content-Type": "application/json" } : {}) },
       ...(payload ? { body: JSON.stringify(payload) } : {})
     });
-    assert(response.ok, "Apple operation failed: HTTP " + response.status);
+    assert(response.ok, "Apple operation failed: HTTP " + response.status + " (" + method + " " + path + ")");
     const result = response.status === 204 ? {} : await response.json();
     assert(!result.links?.next, "Incomplete Apple response");
     return result;
@@ -64,8 +65,7 @@ export function verifyReceipt(receipt, uploadRun) {
 function snapshot(response) {
   const build = response.data, included = response.included || [];
   assert(build?.id === RELEASE.appleBuild && build.type === "builds" &&
-    build.attributes?.version === RELEASE.build &&
-    build.relationships?.app?.data?.id === RELEASE.app, "Wrong Apple build identity");
+    build.attributes?.version === RELEASE.build, "Wrong Apple build identity");
   assert(build.attributes.processingState === "VALID" && build.attributes.expired === false,
     "Build is not valid for testing");
   assert(build.attributes.usesNonExemptEncryption === false, "Existing export compliance requires attention");
@@ -103,16 +103,28 @@ export async function publish(api, receipt, uploadRun, save = () => {}) {
     save(structuredClone(report));
   };
   const info = async () => snapshot(await api("GET", buildPath, {
-    include: "app,preReleaseVersion,buildBetaDetail,betaAppReviewSubmission,betaGroups"
+    include: "buildBetaDetail,betaAppReviewSubmission,betaGroups,preReleaseVersion"
   }));
   try {
     const app = (await api("GET", "/v1/apps/" + RELEASE.app)).data;
     assert(app?.id === RELEASE.app && app.attributes?.bundleId === RELEASE.bundle, "Wrong Apple app identity");
-    const group = (await api("GET", groupPath, { include: "app" })).data;
+    // Verify membership using app-scoped endpoints. The independent live inspector
+    // reads the app-scoped relationships successfully; this avoids expanding app data.
+    const groups = (await api("GET", appGroupsPath, { limit: "200" })).data;
+    const matches = groups.filter(x => x.id === RELEASE.group);
+    assert(matches.length === 1, "Existing public group is not in the verified app");
+    const group = matches[0];
     assert(group?.id === RELEASE.group && group.attributes?.name === RELEASE.groupName &&
-      group.attributes?.isInternalGroup === false && group.relationships?.app?.data?.id === RELEASE.app &&
+      group.attributes?.isInternalGroup === false &&
       group.attributes?.publicLinkEnabled === true && group.attributes?.publicLink === RELEASE.publicLink,
       "Existing public group identity or link changed");
+    const builds = (await api("GET", "/v1/builds", {
+      "filter[app]": RELEASE.app, "filter[version]": RELEASE.build, limit: "200"
+    })).data;
+    assert(builds.length === 1 && builds[0].type === "builds" &&
+      builds[0].id === RELEASE.appleBuild && builds[0].attributes?.version === RELEASE.build,
+      "Wrong Apple build app membership");
+    report.appScopedMembershipVerified = true;
     let state = await info();
     assert(state.internalBuildState === "IN_BETA_TESTING", "Internal testing prerequisite not met");
     assert(!["REJECTED", "EXPIRED", "BETA_REJECTED", "FAILED"].includes(state.betaReviewState) &&
