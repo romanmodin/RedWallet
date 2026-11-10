@@ -3,7 +3,8 @@ import { RouteProp, StackActions, useIsFocused, useRoute } from '@react-navigati
 import * as bitcoin from 'bitcoinjs-lib';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import { walletElectrum, isBtcWallet } from '../../blue_modules/wallet-network';
+import { BtcWatchOnlyWallet } from '../../class/wallets/btc-watch-only-wallet';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import BlueCard from '../../components/BlueCard';
 import BlueText from '../../components/BlueText';
@@ -81,16 +82,21 @@ const PsbtWithHardwareWallet = () => {
       const data = typeof ret === 'string' ? ret : ret.data;
       if (data.toUpperCase().startsWith('UR')) {
         presentAlert({
-          message: 'BC-UR not decoded. This should never happen',
+          message: 'Finish scanning all QR fragments before importing the signature.',
         });
-      }
-      if (data.indexOf('+') === -1 && data.indexOf('=') === -1 && data.indexOf('=') === -1) {
-        // this looks like NOT base64, so maybe its transaction's hex
-        setTxHex(data);
         return;
       }
       try {
-        const Tx = _combinePSBT(data);
+        const trimmed = data.trim();
+        const isHex = /^(?:[0-9a-fA-F]{2})+$/.test(trimmed);
+        const received = isHex && trimmed.toLowerCase().startsWith('70736274ff') ? bitcoin.Psbt.fromHex(trimmed) : trimmed;
+        const Tx =
+          isHex && !trimmed.toLowerCase().startsWith('70736274ff')
+            ? wallet instanceof BtcWatchOnlyWallet && psbt
+              ? wallet.acceptSignedTransaction(trimmed, psbt)
+              : undefined
+            : _combinePSBT(received);
+        if (!Tx) throw new Error('Scan a signed PSBT for the current transaction.');
         setTxHex(Tx?.toHex());
         if (launchedBy) {
           // we must navigate back to the screen who requested psbt (instead of broadcasting it ourselves)
@@ -106,7 +112,7 @@ const PsbtWithHardwareWallet = () => {
         presentAlert({ message });
       }
     },
-    [_combinePSBT, launchedBy, navigation, psbt],
+    [_combinePSBT, launchedBy, navigation, psbt, wallet],
   );
 
   useEffect(() => {
@@ -181,7 +187,8 @@ const PsbtWithHardwareWallet = () => {
         setIsLoading(false);
         return;
       }
-      if (!(await BlueElectrum.ensureConnected())) {
+      if (wallet instanceof BtcWatchOnlyWallet) wallet.acceptSignedTransaction(txHex, reviewed);
+      if (!(await walletElectrum(wallet).ensureConnected())) {
         throw new Error(loc.errors.network);
       }
 
@@ -219,7 +226,7 @@ const PsbtWithHardwareWallet = () => {
 
   const handleOnVerifyPressed = () => {
     presentAlert({
-      message: 'External transaction verification is disabled for XBT. This transaction will not be sent to a third-party website.',
+      message: 'Transaction verification takes place on this device. Your transaction is not sent to a third-party website.',
     });
   };
 
@@ -233,6 +240,9 @@ const PsbtWithHardwareWallet = () => {
     return (
       <View style={[styles.rootPadding, stylesHook.rootPadding]}>
         <BlueCard style={[styles.hexWrap, stylesHook.hexWrap]}>
+          {wallet instanceof BtcWatchOnlyWallet && routeParamsPSBT.current && (
+            <BlueText testID="BtcSignedTransactionReview">{'Signature verified\n\n' + btcReview}</BlueText>
+          )}
           <BlueText style={[styles.hexLabel, stylesHook.hexLabel]}>{loc.send.create_this_is_hex}</BlueText>
           <TextInput style={[styles.hexInput, stylesHook.hexInput]} multiline editable={false} value={txHex} />
 
@@ -244,7 +254,7 @@ const PsbtWithHardwareWallet = () => {
           </TouchableOpacity>
           <BlueSpacing20 />
           <SecondButton
-            disabled={isElectrumDisabled}
+            disabled={isLoading || (!isBtcWallet(wallet) && isElectrumDisabled)}
             onPress={broadcast}
             title={loc.send.confirm_sendNow}
             testID="PsbtWithHardwareWalletBroadcastTransactionButton"
@@ -281,19 +291,51 @@ const PsbtWithHardwareWallet = () => {
     });
   };
 
-  if (txHex) return _renderBroadcastHex();
+  let btcReview = '';
+  if (wallet instanceof BtcWatchOnlyWallet) {
+    try {
+      if (!routeParamsPSBT.current) throw new Error('No current signing request.');
+      btcReview = wallet.getSigningReview(routeParamsPSBT.current);
+      if (txHex) wallet.acceptSignedTransaction(txHex, routeParamsPSBT.current);
+    } catch {
+      return (
+        <BlueCard>
+          <BlueText>
+            Signing session expired or the returned transaction could not be verified. Return to your wallet and review a new transaction.
+          </BlueText>
+          <SecondButton title="Return to wallet" onPress={() => navigation.goBack()} />
+        </BlueCard>
+      );
+    }
+  }
+
+  if (txHex) {
+    return (
+      <ScrollView style={stylesHook.scrollViewContent} contentInsetAdjustmentBehavior="automatic">
+        {_renderBroadcastHex()}
+      </ScrollView>
+    );
+  }
 
   const renderView = isLoading ? (
     <ActivityIndicator />
   ) : (
     <View style={styles.container}>
       <BlueCard>
+        {wallet instanceof BtcWatchOnlyWallet && psbt && <BlueText testID="BtcHardwareTransactionReview">{btcReview}</BlueText>}
         <BlueText testID="TextHelperForPSBT">{loc.send.psbt_this_is_psbt}</BlueText>
         <BlueSpacing20 />
         <Text testID="PSBTHex" style={styles.hidden}>
           {psbt?.toHex()}
         </Text>
-        {psbt && <DynamicQRCode value={psbt.toHex()} ref={dynamicQRCode} walletID={walletID} />}
+        {psbt && (
+          <DynamicQRCode
+            value={psbt.toHex()}
+            ref={dynamicQRCode}
+            walletID={walletID}
+            forceProtocol={wallet instanceof BtcWatchOnlyWallet ? 'URv2' : undefined}
+          />
+        )}
         <BlueSpacing20 />
         <SecondButton
           testID="PsbtTxScanButton"

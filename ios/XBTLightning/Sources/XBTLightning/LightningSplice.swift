@@ -29,6 +29,9 @@ public struct SpliceChannelState: Sendable {
     public let txid: String
     public let confirmations: UInt64
     public let lockDepth: UInt64
+    public var onchainConfirmations: Int64? = nil
+    public var weLocked: Bool? = nil
+    public var peerLocked: Bool? = nil
     static func decode(_ channel: ProtoFields, awaitingNewAttempt: Bool = false) throws -> SpliceChannelState {
         let pending = try ProtoFields(channel.bytes[1003]?.first ?? Data())
         let last = try ProtoFields(channel.bytes[1004]?.first ?? Data())
@@ -40,10 +43,29 @@ public struct SpliceChannelState: Sendable {
             return SpliceChannelState(status: "awaiting_update", progress: "awaiting_update",
                                       txid: "", confirmations: 0, lockDepth: 0)
         }
-        return SpliceChannelState(status: try channel.optionalString(1002),
+        var result = SpliceChannelState(status: try channel.optionalString(1002),
             progress: hasPending ? try pending.optionalString(2) : try last.optionalString(6),
             txid: hasPending ? try pending.optionalString(8) : try last.optionalString(4),
             confirmations: pending.integers[10] ?? 0, lockDepth: pending.integers[11] ?? 0)
+        if hasPending {
+            result.weLocked = pending.integers[12] == 1
+            result.peerLocked = pending.integers[13] == 1
+        } else if result.progress == "locked" {
+            result.weLocked = true
+            result.peerLocked = true
+        }
+        return result
+    }
+
+    // Exact txid only. Never infer depth from broadcast height, keep the maximum
+    // seen, or reuse the channel's original funding transaction after a reorg.
+    static func transactionConfirmations(_ data: Data) throws -> [String: Int64] {
+        var result: [String: Int64] = [:]
+        for bytes in try ProtoFields(data).bytes[1] ?? [] {
+            let row = try ProtoFields(bytes)
+            result[try row.string(1)] = Int64(bitPattern: row.integers[3] ?? 0)
+        }
+        return result
     }
     static func permits(_ status: String) -> Bool { status == "ok" || status == "peer_not_announcing" }
 }

@@ -174,6 +174,9 @@ test.each(['0', '12'])('confirmed resize separates local depth from peer complet
         txid: 'confirmed-resize',
         confirmations,
         lockDepth: '6',
+        weLocked: true,
+        peerLocked: false,
+        ...(confirmations === '12' ? { onchainConfirmations: confirmations } : {}),
       }}
       busy={false}
       run={run}
@@ -183,14 +186,46 @@ test.each(['0', '12'])('confirmed resize separates local depth from peer complet
     />,
   );
   expect(s.getByText(/confirmed on chain; waiting for both peers to lock/)).toBeTruthy();
-  expect(s.getByText(/The peer may require more confirmations/)).toBeTruthy();
+  expect(s.getByText(/The peer’s required depth is not reported/)).toBeTruthy();
+  expect(s.getByText(/Our side: locked/)).toBeTruthy();
+  expect(s.getByText(/Peer: waiting/)).toBeTruthy();
   if (confirmations === '0') {
-    expect(s.getByText(/Local confirmation count unavailable; local requirement: 6/)).toBeTruthy();
+    expect(s.getByText(/On-chain confirmation count unavailable/)).toBeTruthy();
+    expect(s.getByText(/Local confirmation requirement: 6/)).toBeTruthy();
     expect(s.queryByText(/0\/6 confirmations/)).toBeNull();
   } else {
-    expect(s.getByText(/Local confirmations: 12\/6/)).toBeTruthy();
+    expect(s.getByText(/On-chain confirmations: 12/)).toBeTruthy();
   }
   fireEvent.press(s.getByText('Add funds'));
   expect(bridge.splice).not.toHaveBeenCalled();
   expect(s.queryByLabelText('Channel resize sats')).toBeNull();
+});
+
+test('switching away from a resize during authentication cannot confirm its old token', async () => {
+  bridge.splice.mockResolvedValueOnce(review('in'));
+  let authorize!: () => Promise<void>;
+  const delayedAuthorization = async (_: string, action: () => Promise<void>) => {
+    authorize = action;
+  };
+  const s = render(
+    <XBTLightningChannelFunds
+      point={point}
+      active
+      splice={ready}
+      busy={false}
+      run={run}
+      runAuthorized={delayedAuthorization}
+      report={report}
+      onUpdated={onUpdated}
+    />,
+  );
+  fireEvent.press(s.getByText('Add funds'));
+  fireEvent.changeText(s.getByLabelText('Channel resize sats'), '20000');
+  fireEvent.changeText(s.getByLabelText('Channel resize fee rate'), '2');
+  await act(async () => fireEvent.press(s.getByText('Review channel resize')));
+  await act(async () => fireEvent.press(s.getByText('Confirm add funds')));
+  s.unmount();
+  await act(async () => authorize());
+  expect(bridge.splice.mock.calls.filter(call => call[0] === 'confirm')).toHaveLength(0);
+  expect(onUpdated).not.toHaveBeenCalled();
 });

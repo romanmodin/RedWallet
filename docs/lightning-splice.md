@@ -24,6 +24,13 @@ checks channel readiness and re-estimates before one SpliceChannel call.
 Changed estimates require a new review. No use-max or force-low-fee option is
 set. The fee is an estimate; the fixed fee rate is submitted to LND.
 The first stream update means the attempt started, not that it completed.
+A completed resize is shown as “Channel resize: completed”. This corresponds to
+LND’s terminal “locked” outcome: both peers accepted the new channel funding.
+It does not mean the wallet or its funds have been frozen.
+
+After successful device authentication, iOS must return to the foreground before
+submission. A canceled prompt, leaving this screen, entering the background or
+failing to return promptly cancels this authorization; no automatic retry occurs.
 Channel polling shows native pending/last splice progress and confirmation
 counts. LND owns persistence and disconnect/restart recovery. A timeout never
 triggers a second submission. Check the native channel state before another
@@ -49,3 +56,10 @@ USDC) → hidden amounts → XBT. Hidden mode persists with the wallet's existin
 hide-balance preference and masks balances, the funding/channel breakdown,
 fiat estimate and activity amounts on the wallet home and its main-menu card.
 Payment entry and confirmation still use explicit amounts in sats.
+
+Long help paragraphs start expanded and can be tapped to collapse. Each help
+section remembers its preference and can be reopened from its heading. Live
+status, warnings and transaction amounts/fees remain visible. Informational and
+unavailable settings text uses grey; the pinned activity display retains its
+existing colors. Available Add funds and Confirm add funds actions are green;
+Remove funds and Confirm remove funds are red. Disabled actions remain grey.

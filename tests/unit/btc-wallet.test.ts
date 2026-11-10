@@ -1,3 +1,5 @@
+import { BtcWatchOnlyWallet } from '../../class/wallets/btc-watch-only-wallet';
+import { isBtcWallet, formatWalletBalance } from '../../blue_modules/wallet-network';
 import * as bitcoin from 'bitcoinjs-lib';
 import ecc from 'tiny-secp256k1';
 import { BtcSegwitBech32Wallet } from '../../class/wallets/btc-segwit-bech32-wallet';
@@ -7,7 +9,6 @@ import { assertXbtUnifiedTransaction } from '../../class/xbt/broadcast-validatio
 import { BlueApp } from '../../class/blue-app';
 import startImport from '../../class/wallet-import';
 import WalletGradient from '../../class/wallet-gradient';
-import { formatWalletBalance } from '../../blue_modules/wallet-network';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
 import { AbstractHDElectrumWallet } from '../../class/wallets/abstract-hd-electrum-wallet';
 const seed = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -153,4 +154,99 @@ test('advances cached Bitcoin coinbase confirmations through maturity instead of
   } finally {
     baseRefresh.mockRestore();
   }
+});
+
+test('imports a public BIP84 cold-wallet descriptor without a seed or signing permission', async () => {
+  const signer = new BtcSegwitBech32Wallet();
+  signer.setSecret(seed);
+  const descriptor = `wpkh([73c5da0a/84h/0h/0h]${signer.getXpub()}/0/*)`;
+  const result = await startImport(
+    descriptor,
+    false,
+    false,
+    true,
+    () => {},
+    () => {},
+    async () => '',
+    true,
+    'segwit',
+    {},
+    'btc',
+  ).promise;
+  const watch = result.wallets[0] as BtcWatchOnlyWallet;
+  expect(watch).toBeInstanceOf(BtcWatchOnlyWallet);
+  expect(isBtcWallet(watch)).toBe(true);
+  expect(watch._getExternalAddressByIndex(0)).toBe(signer._getExternalAddressByIndex(0));
+  expect(watch._getInternalAddressByIndex(1)).toBe(signer._getInternalAddressByIndex(1));
+  expect(watch.getSecret()).not.toContain(seed);
+  expect(watch.allowSend()).toBe(false);
+  expect(watch.isXbtSigningCompatible()).toBe(false);
+  expect(watch._hdWalletInstance).toBeInstanceOf(BtcSegwitBech32Wallet);
+  const app = new BlueApp();
+  app.wallets = [watch];
+  await app.saveToDisk();
+  const restored = new BlueApp();
+  expect(await restored.loadFromDisk()).toBe(true);
+  expect(restored.wallets[0]).toBeInstanceOf(BtcWatchOnlyWallet);
+  expect(restored.wallets[0].getID()).toBe(watch.getID());
+  expect((restored.wallets[0] as BtcWatchOnlyWallet)._getExternalAddressByIndex(0)).toBe(signer._getExternalAddressByIndex(0));
+  expect(restored.wallets[0].allowSend()).toBe(false);
+});
+
+test('accepts Sparrow single-key JSON and routes the public account through its selected BTC backend', () => {
+  const signer = new BtcSegwitBech32Wallet();
+  signer.setSecret(seed);
+  const wallet = new BtcWatchOnlyWallet();
+  wallet.setSecret(
+    JSON.stringify({
+      policyType: 'SINGLE',
+      scriptType: 'P2WPKH',
+      keystores: [
+        {
+          extendedPublicKey: signer.getXpub(),
+          keyDerivation: { masterFingerprint: '73c5da0a', derivationPath: "m/84'/0'/0'" },
+        },
+      ],
+    }),
+  );
+  wallet.init();
+  expect(wallet._getExternalAddressByIndex(0)).toBe(signer._getExternalAddressByIndex(0));
+  const backend = jest.spyOn(require('../../blue_modules/BtcElectrum'), 'forWallet');
+  wallet._hdWalletInstance!.getElectrum();
+  expect(backend).toHaveBeenLastCalledWith(wallet.getID());
+  backend.mockRestore();
+  expect(wallet.allowSend()).toBe(false);
+  wallet.setUseWithHardwareWalletEnabled(true);
+  expect(wallet.allowSend()).toBe(true);
+  expect(wallet.isXbtSigningCompatible()).toBe(false);
+});
+
+test.each(['tr(not-a-supported-account)', 'wsh(sortedmulti(2,public-keys))', 'xpub-without-script-metadata'])(
+  'refuses unsupported BTC cold exports: %s',
+  text => {
+    expect(() => new BtcWatchOnlyWallet().setSecret(text)).toThrow();
+  },
+);
+
+test('imports the BIP84 account from decoded animated crypto-account QR data', async () => {
+  const signer = new BtcSegwitBech32Wallet();
+  signer.setSecret(seed);
+  const account = { ExtPubKey: signer.getXpub(), MasterFingerprint: '73c5da0a', AccountKeyPath: "m/84'/0'/0'" };
+  const qr = JSON.stringify([{ ...account, AccountKeyPath: "m/86'/0'/0'" }, account]);
+  const result = await startImport(
+    qr,
+    false,
+    false,
+    true,
+    () => {},
+    () => {},
+    async () => '',
+    true,
+    'segwit',
+    {},
+    'btc',
+  ).promise;
+  expect(result.wallets).toHaveLength(1);
+  expect((result.wallets[0] as BtcWatchOnlyWallet)._getExternalAddressByIndex(0)).toBe(signer._getExternalAddressByIndex(0));
+  expect(result.wallets[0].allowSend()).toBe(false);
 });

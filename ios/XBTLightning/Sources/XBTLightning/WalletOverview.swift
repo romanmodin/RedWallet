@@ -60,6 +60,30 @@ public struct LightningWalletActivity: Sendable {
     }
 }
 
+// An estimate of active outgoing liquidity, never a routing guarantee.
+// local_balance already excludes committed outgoing HTLCs and commitment fees.
+// Reserve an additional fee buffer for the funder; offline channels contribute zero.
+enum LightningLiquidity {
+    static func available(_ data: Data) throws -> UInt64 {
+        var total: UInt64 = 0
+        for bytes in try ProtoFields(data).bytes[11] ?? [] {
+            let row = try ProtoFields(bytes)
+            guard row.integers[1] == 1 else { continue }
+            let local = row.integers[6] ?? 0
+            let constraints = try ProtoFields(row.bytes[29]?.first ?? Data())
+            let reserve = constraints.integers[2] ?? row.integers[20] ?? 0
+            let fee = row.integers[18] == 1 ? row.integers[8] ?? 0 : 0
+            guard local <= LightningAmounts.maxSats, reserve <= LightningAmounts.maxSats,
+                  fee <= LightningAmounts.maxSats else { throw NodeFailure.invalidReply }
+            let deductions = reserve + fee * 2
+            let available = local > deductions ? local - deductions : 0
+            guard total <= LightningAmounts.maxSats - available else { throw NodeFailure.invalidReply }
+            total += available
+        }
+        return total
+    }
+}
+
 extension RegtestNode {
     public func walletOverview() async throws -> [String: Any] {
         let info = try ProtoFields(await XBTLightningNode.info())
@@ -68,13 +92,15 @@ extension RegtestNode {
         func amount(_ field: UInt64) throws -> String {
             String(try ProtoFields(channels.bytes[field]?.first ?? Data()).integers[1] ?? 0)
         }
+        let open = try await rpc { LndmobileListChannels(Data(), $0) }
         return ["node": try info.string(1), "synced": info.integers[9] == 1,
                 "peers": String(info.integers[5] ?? 0), "height": String(info.integers[6] ?? 0), "activeChannels": String(info.integers[4] ?? 0),
                 "fundingTotal": String(wallet.integers[1] ?? 0), "fundingConfirmed": String(wallet.integers[2] ?? 0),
                 "fundingPending": String(wallet.integers[3] ?? 0), "fundingLocked": String(wallet.integers[5] ?? 0),
                 "anchorReserve": String(wallet.integers[6] ?? 0), "lightningLocal": try amount(3),
                 "lightningRemote": try amount(4), "channelPending": try amount(7),
-                "splicePending": String(channels.integers[1002] ?? 0)]
+                "splicePending": String(channels.integers[1002] ?? 0),
+                "lightningAvailable": String(try LightningLiquidity.available(open))]
     }
 
     public func walletActivity(_ kind: String, offset: UInt64) async throws -> [String: Any] {

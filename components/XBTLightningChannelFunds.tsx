@@ -1,16 +1,11 @@
+import { LightningResize, resizeProgressText } from '../blue_modules/lightning-resize';
 import { validLightningSats, validLightningFeeRate } from '../blue_modules/lightning-amounts';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NativeModules, StyleSheet, Text, TextInput, View } from 'react-native';
+import SettingsExplanation from './SettingsExplanation';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
 import { useTheme } from './themes';
 
-type Splice = {
-  status: string;
-  progress: string;
-  txid: string;
-  confirmations: string;
-  lockDepth: string;
-};
 type Review = {
   token: string;
   point: string;
@@ -27,7 +22,7 @@ type Props = {
   point: string;
   active: boolean;
   hideBalances?: boolean;
-  splice?: Splice;
+  splice?: LightningResize;
   busy: boolean;
   run: (title: string, action: () => Promise<void>) => Promise<void>;
   runAuthorized: (title: string, action: () => Promise<void>) => Promise<void>;
@@ -57,12 +52,22 @@ export default function XBTLightningChannelFunds({
   report,
   onUpdated,
 }: Props) {
-  const { colors } = useTheme();
+  const { colors, dark } = useTheme();
+  const informationColor = colors.settingsTextColor ?? colors.alternativeTextColor;
+  const addColor = dark ? '#73DFA6' : '#147648';
+  const removeColor = dark ? '#FF8D96' : '#B42318';
   const [direction, setDirection] = useState<'in' | 'out'>();
   const [sats, setSats] = useState('');
   const [feeRate, setFeeRate] = useState('1');
   const [review, setReview] = useState<{ item: Review; key: string }>();
   const submitted = useRef(new Set<string>());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const current = useRef('');
   current.current = JSON.stringify([point, direction, sats, feeRate]);
   const available = active && !!splice && ['ok', 'peer_not_announcing'].includes(splice.status);
@@ -75,7 +80,7 @@ export default function XBTLightningChannelFunds({
     if (!review || review.key !== current.current || !available || busy || submitted.current.has(review.item.token)) return;
     const item = review.item;
     runAuthorized(item.direction === 'in' ? 'Add channel funds' : 'Remove channel funds', async () => {
-      if (review.key !== current.current || submitted.current.has(item.token)) return;
+      if (!mounted.current || review.key !== current.current || submitted.current.has(item.token)) return;
       submitted.current.add(item.token);
       setReview(undefined);
       try {
@@ -93,34 +98,30 @@ export default function XBTLightningChannelFunds({
       }
     });
   };
-  const inputStyle = [styles.input, { color: colors.foregroundColor, borderColor: colors.hdborderColor }];
+  const inputStyle = [styles.input, { color: busy ? informationColor : colors.foregroundColor, borderColor: colors.hdborderColor }];
   return (
     <View testID={'ChannelFunds-' + point}>
-      {!!splice?.progress && (
-        <SettingsFootnote style={{ color: colors.foregroundColor }}>
-          {'Channel resize: ' +
-            (splice.progress === 'confirmed' ? 'confirmed on chain; waiting for both peers to lock' : splice.progress) +
-            (splice.lockDepth !== '0'
-              ? splice.progress === 'confirmed' && splice.confirmations === '0'
-                ? '\nLocal confirmation count unavailable; local requirement: ' + splice.lockDepth
-                : '\nLocal confirmations: ' + splice.confirmations + '/' + splice.lockDepth
-              : '') +
-            (splice.progress !== 'locked' ? '\nThe peer may require more confirmations. The balance updates after both peers lock.' : '') +
-            (splice.txid ? '\nTransaction: ' + splice.txid : '')}
-        </SettingsFootnote>
-      )}
+      {!!splice?.progress && <SettingsFootnote>{resizeProgressText(splice)}</SettingsFootnote>}
       {!available && (
         <SettingsFootnote>{reasons[splice?.status ?? ''] || 'Resizing is unavailable for this channel right now.'}</SettingsFootnote>
       )}
-      <SettingsListItem title="Add funds" disabled={busy || !available} onPress={() => select('in')} />
-      <SettingsListItem title="Remove funds" disabled={busy || !available} onPress={() => select('out')} />
+      <SettingsListItem title="Add funds" titleStyle={{ color: addColor }} disabled={busy || !available} onPress={() => select('in')} />
+      <SettingsListItem
+        title="Remove funds"
+        titleStyle={{ color: removeColor }}
+        disabled={busy || !available}
+        onPress={() => select('out')}
+      />
       {direction && (
         <View>
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsExplanation
+            id={'lightning.resize-' + direction}
+            title={direction === 'in' ? 'About adding channel funds' : 'About removing channel funds'}
+          >
             {direction === 'in'
               ? 'Add funds from the Lightning node’s on-chain balance.'
               : 'Return funds to the Lightning node’s on-chain wallet. The peer’s funds remain theirs.'}
-          </SettingsFootnote>
+          </SettingsExplanation>
           <TextInput
             accessibilityLabel="Channel resize sats"
             placeholder="Amount in sats"
@@ -169,7 +170,7 @@ export default function XBTLightningChannelFunds({
           />
           {review && review.key === current.current && available && (
             <View>
-              <Text selectable style={[styles.review, { color: colors.foregroundColor }]}>
+              <Text selectable style={[styles.review, { color: informationColor }]}>
                 {(direction === 'in' ? 'Add ' : 'Remove ') +
                   review.item.sats +
                   ' sats\nChannel: ' +
@@ -190,6 +191,7 @@ export default function XBTLightningChannelFunds({
               </Text>
               <SettingsListItem
                 title={direction === 'in' ? 'Confirm add funds' : 'Confirm remove funds'}
+                titleStyle={{ color: direction === 'in' ? addColor : removeColor }}
                 disabled={busy}
                 onPress={confirm}
               />

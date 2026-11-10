@@ -136,4 +136,32 @@ final class SpliceTests: XCTestCase {
         XCTAssertThrowsError(try book.consume("token", now: now.addingTimeInterval(120)))
         XCTAssertThrowsError(try book.consume("token", now: now))
     }
+    func testPeerLocksAndMeasuredConfirmationsAreIndependent() throws {
+        let pending = ProtoFields.field(2, data: Data("confirmed".utf8)) +
+            ProtoFields.field(8, data: Data("new-tx".utf8)) +
+            ProtoFields.field(11, integer: 6) + ProtoFields.field(12, integer: 1)
+        let state = try SpliceChannelState.decode(ProtoFields(ProtoFields.field(1003, data: pending)))
+        XCTAssertEqual(state.confirmations, 0)
+        XCTAssertEqual(state.weLocked, true)
+        XCTAssertEqual(state.peerLocked, false)
+        XCTAssertNil(state.onchainConfirmations)
+        let transactions = ProtoFields.field(1, data: ProtoFields.field(1, data: Data("old-tx".utf8)) + ProtoFields.field(3, integer: 63)) +
+            ProtoFields.field(1, data: ProtoFields.field(1, data: Data("new-tx".utf8)) + ProtoFields.field(3, integer: 12))
+        let measured = try SpliceChannelState.transactionConfirmations(transactions)
+        XCTAssertEqual(measured["new-tx"], 12)
+        XCTAssertNil(measured["unrelated"])
+        let reorg = ProtoFields.field(1, data: ProtoFields.field(1, data: Data("new-tx".utf8)))
+        XCTAssertEqual(try SpliceChannelState.transactionConfirmations(reorg)["new-tx"], 0)
+    }
+
+    func testAvailableLiquidityExcludesOfflineChannelsReservesAndFunderFeeBuffer() throws {
+        let constraints = ProtoFields.field(2, integer: 1_000)
+        let active = ProtoFields.field(1, integer: 1) + ProtoFields.field(6, integer: 10_000) +
+            ProtoFields.field(8, integer: 500) + ProtoFields.field(18, integer: 1) +
+            ProtoFields.field(29, data: constraints)
+        let offline = ProtoFields.field(6, integer: 50_000)
+        XCTAssertEqual(try LightningLiquidity.available(
+            ProtoFields.field(11, data: active) + ProtoFields.field(11, data: offline)), 8_000)
+    }
+
 }

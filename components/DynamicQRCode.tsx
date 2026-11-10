@@ -12,6 +12,7 @@ const { height, width } = Dimensions.get('window');
 interface DynamicQRCodeProps {
   value: string;
   walletID?: string;
+  forceProtocol?: 'URv2';
   capacity?: number;
   hideControls?: boolean;
 }
@@ -46,9 +47,9 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
   }
 
   componentDidMount() {
-    const { value, capacity = 175, hideControls = true, walletID } = this.props;
+    const { value, capacity = 175, hideControls = true, walletID, forceProtocol } = this.props;
     try {
-      this.fragments = encodeUR(value, capacity, walletID ?? null);
+      this.fragments = encodeUR(value, capacity, walletID ?? null, forceProtocol);
       this.setState(
         {
           total: this.fragments.length,

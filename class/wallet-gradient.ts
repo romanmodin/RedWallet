@@ -1,3 +1,4 @@
+import { BtcWatchOnlyWallet } from './wallets/btc-watch-only-wallet';
 import { BtcSegwitBech32Wallet } from './wallets/btc-segwit-bech32-wallet';
 import { LndWallet } from './wallets/lnd-wallet';
 import { XbtSegwitBech32Wallet } from './wallets/xbt-segwit-bech32-wallet';
@@ -48,6 +49,7 @@ export default class WalletGradient {
       case XbtTaprootWallet.type:
         gradient = WalletGradient.xbtWallet;
         break;
+      case BtcWatchOnlyWallet.type:
       case WatchOnlyWallet.type:
         gradient = WalletGradient.watchOnlyWallet;
         break;
@@ -92,6 +94,13 @@ export default class WalletGradient {
         break;
     }
     return gradient;
+  }
+
+  /** Only watch-only cards get a chain-colored coin; hot-card artwork stays unchanged. */
+  static watchOnlyCoinColorFor(type: string): string | undefined {
+    if (type === BtcWatchOnlyWallet.type) return '#2478D4';
+    if (type === WatchOnlyWallet.type) return WalletGradient.xbtWallet[0];
+    return undefined;
   }
 
   static headerColorFor(type: string): string {

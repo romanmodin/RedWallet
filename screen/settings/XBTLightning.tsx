@@ -1,3 +1,5 @@
+import { LightningResize, selectedChannelAfterResize } from '../../blue_modules/lightning-resize';
+import { authorizeInForeground } from '../../blue_modules/foreground-authorization';
 import QRCodeComponent from '../../components/QRCode';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -21,6 +23,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import SettingsExplanation from '../../components/SettingsExplanation';
 import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection } from '../../components/SettingsSection';
 import { useTheme } from '../../components/themes';
 import { usePaymentAuthorization } from '../../hooks/usePaymentAuthorization';
@@ -54,17 +57,12 @@ type Channel = {
   peer: string;
   peerAlias?: string;
   peerAddress?: string;
+  originalPoint?: string;
   active: boolean;
   localSats: string;
   state: 'active' | 'inactive' | 'pending' | 'closing' | 'forceClosing';
   confirmationsRemaining?: number;
-  splice?: {
-    status: string;
-    progress: string;
-    txid: string;
-    confirmations: string;
-    lockDepth: string;
-  };
+  splice?: LightningResize;
 };
 type Withdrawal = {
   token: string;
@@ -79,6 +77,26 @@ type Review = {
   destination: string;
   feeLimit: string;
 };
+type PaymentAttempt = { hash: string; sats?: string; outcome: LndPaymentOutcome };
+
+function paymentFeedbackTitle(outcome: LndPaymentOutcome): string {
+  switch (outcome.state) {
+    case 'settled':
+      return outcome.alreadyPaid ? 'INVOICE ALREADY PAID' : 'PAYMENT SUCCEEDED';
+    case 'failed':
+      return 'PAYMENT FAILED';
+    case 'pending':
+      return 'PAYMENT PENDING';
+    case 'unknown':
+      return 'PAYMENT STATUS UNKNOWN';
+    case 'not_found':
+      return 'NO PAYMENT RECORDED';
+    case 'not_submitted':
+      if (outcome.reason === 'canceled') return 'PAYMENT CANCELED';
+      if (outcome.reason === 'history_unavailable') return 'PAYMENT STATUS UNAVAILABLE';
+      return outcome.reason === 'invalid_invoice' || outcome.reason === 'invalid_review' ? 'PAYMENT REFUSED' : 'PAYMENT NOT SENT';
+  }
+}
 
 function summarizeChannels(items: Channel[]) {
   const active = items.filter(channel => channel.state === 'active').length;
@@ -146,7 +164,7 @@ export default function XBTLightning({
   route?: { params?: { mode?: 'pay' | 'invoice' | 'send' | 'receive' } };
 } = {}) {
   const navigation = useExtendedNavigation();
-  const { wallets } = useStorage();
+  const { wallets, saveToDisk } = useStorage();
   const lightningWallet = wallets.find(wallet => wallet.type === LndWallet.type);
   const hideBalances = lightningWallet?.hideBalance === true;
   const privacy = useRef(hideBalances);
@@ -156,6 +174,7 @@ export default function XBTLightning({
   const mode = route?.params?.mode;
   const tools = !mode;
   const { colors, dark } = useTheme();
+  const informationColor = colors.settingsTextColor ?? colors.alternativeTextColor;
   const panelBackground = dark ? colors.cardSectionBackground : colors.hdbackgroundColor;
   const [torActive, setTorActive] = useState(false);
   const [peer, setPeer] = useState('');
@@ -203,6 +222,7 @@ export default function XBTLightning({
         : 'Activity details are hidden. Reveal your Lightning balance to view them.'
       : message;
   const channelRequest = useRef<Promise<Channel[]> | undefined>(undefined);
+  const channelSnapshot = useRef<Channel[]>([]);
   const [destination, setDestination] = useState('');
   const [withdrawSats, setWithdrawSats] = useState('');
   const [feeRate, setFeeRate] = useState('1');
@@ -219,17 +239,62 @@ export default function XBTLightning({
         return bridge.wallet ? bridge.wallet('payments', cursor) : bridge.invoice('paymentHistory', cursor, '', '');
       }),
   );
-  const [paymentAttempt, setPaymentAttempt] = useState<{ hash: string; outcome: LndPaymentOutcome }>();
+  const [paymentAttempt, setPaymentAttempt] = useState<PaymentAttempt>();
   const paymentStatusVisible = useRef(false);
+  const visiblePayment = !busy && paymentStatusVisible.current ? paymentAttempt : undefined;
+  const feedbackTitle =
+    visiblePayment &&
+    message === lndPaymentMessage(visiblePayment.outcome) &&
+    (visiblePayment.outcome.state !== 'settled' || !activityError)
+      ? paymentFeedbackTitle(visiblePayment.outcome)
+      : !busy && paymentStatusVisible.current && activityError
+        ? 'PAYMENT STATUS UNAVAILABLE'
+        : undefined;
+  const confirmedPayment =
+    visiblePayment && (feedbackTitle === 'PAYMENT SUCCEEDED' || feedbackTitle === 'INVOICE ALREADY PAID') ? visiblePayment : undefined;
+  const paymentWarning = ['PAYMENT PENDING', 'PAYMENT STATUS UNKNOWN', 'PAYMENT STATUS UNAVAILABLE'].includes(feedbackTitle ?? '');
+  const paymentFailure = ['PAYMENT FAILED', 'PAYMENT REFUSED', 'PAYMENT NOT SENT'].includes(feedbackTitle ?? '');
+  const paymentFeedbackColor = confirmedPayment
+    ? dark
+      ? '#73DFA6'
+      : '#147648'
+    : paymentFailure
+      ? dark
+        ? '#FF8D96'
+        : '#B42318'
+      : paymentWarning
+        ? dark
+          ? '#FFD166'
+          : '#8A5A00'
+        : colors.foregroundColor;
+  const paymentReceipt =
+    confirmedPayment && !hideBalances
+      ? [
+          confirmedPayment.sats ? 'AMOUNT: ' + Number(confirmedPayment.sats).toLocaleString() + ' SATS' : undefined,
+          'PAYMENT REFERENCE:\n' + confirmedPayment.hash,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : '';
   const refreshChannels = useCallback((): Promise<Channel[]> => {
     if (channelRequest.current) return channelRequest.current;
     const request = Promise.resolve()
       .then(() => bridge.manage('channelStatus', '', '', '') as Promise<Channel[]>)
       .then(
-        items => {
+        async items => {
+          if (lightningWallet instanceof LndWallet) {
+            try {
+              await lightningWallet.fetchBalance();
+              await saveToDisk();
+            } catch {
+              // A failed balance read never completes a resize.
+            }
+          }
           if (mounted.current) {
+            const previous = channelSnapshot.current;
+            channelSnapshot.current = items;
             setChannels(items);
-            setSelectedPoint(current => (items.some(item => item.point === current) ? current : undefined));
+            setSelectedPoint(current => selectedChannelAfterResize(current, previous, items));
             setChannelError(false);
           }
           return items;
@@ -244,7 +309,7 @@ export default function XBTLightning({
       });
     channelRequest.current = request;
     return request;
-  }, []);
+  }, [lightningWallet, saveToDisk]);
   const run = async (title: string, action: () => Promise<void>) => {
     if (pending.current) return;
     pending.current = true;
@@ -275,14 +340,23 @@ export default function XBTLightning({
   };
   const runAuthorized = (title: string, action: () => Promise<void>, exporting = false) =>
     run(title, async () => {
-      // A dismissed screen or a backgrounded app cannot submit from a stale alert.
-      if (!mounted.current || ['background', 'inactive'].includes(AppState.currentState)) return;
-      const authorized = await (exporting ? authorizeExport() : authorizePayment());
-      if (!authorized || !mounted.current || ['background', 'inactive'].includes(AppState.currentState)) {
-        if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
-        return;
+      let current = true;
+      const unsubscribe = navigation.addListener('blur', () => {
+        current = false;
+      });
+      try {
+        const authorized = await authorizeInForeground(
+          exporting ? authorizeExport : authorizePayment,
+          () => mounted.current && current && navigation.isFocused(),
+        );
+        if (!authorized) {
+          if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
+          return;
+        }
+        await action();
+      } finally {
+        unsubscribe();
       }
-      await action();
     });
   const runExport = (title: string, action: () => Promise<void>) => runAuthorized(title, action, true);
   const node = (action: string) =>
@@ -366,6 +440,7 @@ export default function XBTLightning({
   }, [status, refreshChannels]);
   const trackedPaymentHash = paymentAttempt?.hash;
   const trackedPaymentState = paymentAttempt?.outcome.state;
+  const trackedPaymentSats = paymentAttempt?.sats;
   useEffect(() => {
     if (!trackedPaymentHash || !trackedPaymentState || !['pending', 'unknown'].includes(trackedPaymentState)) return;
     let active = true;
@@ -385,7 +460,7 @@ export default function XBTLightning({
         const state = await paymentTracker.status(hash);
         if (active && mounted.current && paymentStatusVisible.current && !pending.current) {
           const outcome = { state };
-          setPaymentAttempt({ hash, outcome });
+          setPaymentAttempt({ hash, sats: trackedPaymentSats, outcome });
           setMessage(lndPaymentMessage(outcome));
           setActivityError(state === 'unknown');
         }
@@ -400,7 +475,7 @@ export default function XBTLightning({
       active = false;
       clearInterval(timer);
     };
-  }, [trackedPaymentHash, trackedPaymentState, paymentTracker]);
+  }, [trackedPaymentHash, trackedPaymentState, trackedPaymentSats, paymentTracker]);
   const confirm = (payment: Review) =>
     Alert.alert(
       'Pay invoice?',
@@ -412,7 +487,7 @@ export default function XBTLightning({
           onPress: () =>
             runAuthorized('Pay invoice', async () => {
               setReview(undefined);
-              setPaymentAttempt({ hash: payment.hash, outcome: { state: 'pending' } });
+              setPaymentAttempt({ hash: payment.hash, sats: payment.sats, outcome: { state: 'pending' } });
               const outcome = await paymentTracker.submit(payment.hash, async () => {
                 // Status lookup can finish after authentication or navigation changes.
                 if (!mounted.current || ['background', 'inactive'].includes(AppState.currentState)) {
@@ -423,7 +498,7 @@ export default function XBTLightning({
                   : bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
               });
               if (mounted.current) {
-                setPaymentAttempt({ hash: payment.hash, outcome });
+                setPaymentAttempt({ hash: payment.hash, sats: payment.sats, outcome });
                 setMessage(lndPaymentMessage(outcome));
                 setActivityError(['unknown', 'not_submitted', 'failed'].includes(outcome.state));
                 if (outcome.state === 'settled') setOutgoing('');
@@ -502,10 +577,10 @@ export default function XBTLightning({
     >
       <SettingsSection>
         {tools && (
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsExplanation id="lightning.node-peers" title="About this Lightning node">
             XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
             your own compact-filter chain peer as host:port. Your home node is optional.
-          </SettingsFootnote>
+          </SettingsExplanation>
         )}
         {status === 'Stopped' && (
           <TextInput
@@ -513,7 +588,7 @@ export default function XBTLightning({
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -529,17 +604,17 @@ export default function XBTLightning({
           />
         )}
         {['Starting', 'Tor connecting', 'Unlocked', 'RPC ready', 'Syncing'].includes(status) && (
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsFootnote>
             The node is starting or syncing. Status updates automatically. If this does not advance, the configured chain peer may be
             unreachable.
           </SettingsFootnote>
         )}
         {status === 'Failed' && (
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsFootnote>
             The Lightning node could not finish starting. Close and reopen RedWallet to retry. Your saved wallet is retained.
           </SettingsFootnote>
         )}
-        {!!progress && <SettingsFootnote style={{ color: colors.foregroundColor }}>{progress}</SettingsFootnote>}
+        {!!progress && <SettingsFootnote>{progress}</SettingsFootnote>}
         <SettingsListItem title="Node status" subtitle={busy ? 'Working…' : status} />
         {status === 'Stopped' && <SettingsListItem title="Start XBT node" disabled={busy || !peerLoaded} onPress={() => node('start')} />}
         {(status === 'Needs setup' || status === 'Locked') && (
@@ -559,11 +634,12 @@ export default function XBTLightning({
         style={[styles.activityWrapper, { backgroundColor: colors.background }]}
       >
         <View
+          testID={confirmedPayment ? 'LightningPaymentSuccess' : undefined}
           style={[
             styles.activityPanel,
             {
               backgroundColor: panelBackground,
-              borderColor: colors.hdborderColor,
+              borderColor: feedbackTitle ? paymentFeedbackColor : colors.hdborderColor,
             },
           ]}
         >
@@ -590,8 +666,12 @@ export default function XBTLightning({
             </View>
           )}
           <View style={styles.activityHeader}>
-            <Text accessibilityRole="header" style={[styles.activityTitle, { color: colors.alternativeTextColor2 }]}>
-              {activityError ? activityTitle + ' · Error' : activityTitle}
+            <Text
+              accessibilityRole="header"
+              accessibilityLiveRegion="polite"
+              style={[styles.activityTitle, { color: feedbackTitle ? paymentFeedbackColor : colors.alternativeTextColor2 }]}
+            >
+              {feedbackTitle || (activityError ? activityTitle + ' · Error' : activityTitle)}
             </Text>
             {busy && <ActivityIndicator accessibilityLabel="Lightning operation in progress" color={colors.foregroundColor} />}
             {!!message && !busy && !hideBalances && (
@@ -601,7 +681,7 @@ export default function XBTLightning({
                 style={[styles.copyButton, { backgroundColor: colors.buttonBackgroundColor }]}
                 onPress={() => {
                   if (privacy.current || lightningWallet?.hideBalance) return;
-                  Clipboard.setString(message);
+                  Clipboard.setString(paymentReceipt ? message + '\n' + paymentReceipt : message);
                   setCopied(true);
                 }}
               >
@@ -609,7 +689,11 @@ export default function XBTLightning({
               </Pressable>
             )}
           </View>
-          <ScrollView key={activityTitle + activityMessage} nestedScrollEnabled style={styles.activityBody}>
+          <ScrollView
+            key={activityTitle + activityMessage + (confirmedPayment?.hash ?? '')}
+            nestedScrollEnabled
+            style={styles.activityBody}
+          >
             <Text
               selectable
               accessibilityLiveRegion="polite"
@@ -622,6 +706,15 @@ export default function XBTLightning({
             >
               {busy ? 'Working…' : activityMessage || 'Results will appear here.'}
             </Text>
+            {!!paymentReceipt && (
+              <Text
+                testID="LightningPaymentReceipt"
+                selectable
+                style={[styles.activityText, styles.paymentReceipt, { color: colors.foregroundColor }]}
+              >
+                {paymentReceipt}
+              </Text>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -686,7 +779,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     backgroundColor: panelBackground,
                     borderColor: colors.hdborderColor,
                   },
@@ -721,7 +814,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     borderColor: colors.hdborderColor,
                   },
                 ]}
@@ -736,7 +829,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     borderColor: colors.hdborderColor,
                   },
                 ]}
@@ -793,7 +886,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     backgroundColor: panelBackground,
                     borderColor: colors.hdborderColor,
                   },
@@ -857,7 +950,7 @@ export default function XBTLightning({
                 style={[
                   styles.input,
                   {
-                    color: colors.foregroundColor,
+                    color: busy ? informationColor : colors.foregroundColor,
                     backgroundColor: panelBackground,
                     borderColor: colors.hdborderColor,
                   },
@@ -883,7 +976,7 @@ export default function XBTLightning({
                     style={[
                       styles.input,
                       {
-                        color: colors.foregroundColor,
+                        color: busy ? informationColor : colors.foregroundColor,
                         borderColor: colors.hdborderColor,
                       },
                     ]}
@@ -911,7 +1004,7 @@ export default function XBTLightning({
                       if (state === 'settled' || state === 'pending' || state === 'unknown') {
                         const outcome: LndPaymentOutcome = { state, alreadyPaid: state === 'settled' };
                         setReview(undefined);
-                        setPaymentAttempt({ hash: decoded.hash, outcome });
+                        setPaymentAttempt({ hash: decoded.hash, sats: decoded.sats, outcome });
                         paymentStatusVisible.current = true;
                         setMessage(lndPaymentMessage(outcome));
                       } else {
@@ -921,7 +1014,7 @@ export default function XBTLightning({
                     } catch {
                       if (mounted.current) {
                         setReview(undefined);
-                        setPaymentAttempt({ hash: decoded.hash, outcome: { state: 'unknown' } });
+                        setPaymentAttempt({ hash: decoded.hash, sats: decoded.sats, outcome: { state: 'unknown' } });
                         paymentStatusVisible.current = true;
                         setMessage(lndPaymentMessage({ state: 'not_submitted', reason: 'history_unavailable' }));
                         setActivityError(true);
@@ -938,8 +1031,8 @@ export default function XBTLightning({
                     run('Payment status', async () => {
                       const state = await paymentTracker.status(paymentAttempt.hash);
                       if (mounted.current) {
-                        const outcome = { state };
-                        setPaymentAttempt({ hash: paymentAttempt.hash, outcome });
+                        const outcome = { state, alreadyPaid: state === 'settled' ? paymentAttempt.outcome.alreadyPaid : undefined };
+                        setPaymentAttempt({ ...paymentAttempt, outcome });
                         setMessage(lndPaymentMessage(outcome));
                         setActivityError(state === 'unknown');
                       }
@@ -978,19 +1071,19 @@ export default function XBTLightning({
       )}
       {status === 'Running' && (tools || mode === 'send') && (
         <SettingsSection>
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsExplanation id="lightning.channel-management" title="About channel management">
             Manage channels and withdraw the Lightning node’s on-chain balance. Closing a channel requires its peer online and a
             confirmation before withdrawing the returned funds. Withdrawals currently support SegWit and Taproot addresses beginning with
             bc1.
-          </SettingsFootnote>
-          <Text style={[styles.fieldLabel, { color: colors.foregroundColor }]}>Fee rate (sat/vB)</Text>
+          </SettingsExplanation>
+          <Text style={[styles.fieldLabel, { color: informationColor }]}>Fee rate (sat/vB)</Text>
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             accessibilityLabel="On-chain fee rate"
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -1016,10 +1109,10 @@ export default function XBTLightning({
                   })
                 }
               />
-              <SettingsFootnote style={{ color: colors.foregroundColor }}>
+              <SettingsExplanation id="lightning.channel-selection" title="How to select a channel">
                 Tap a channel to select it and show its peer identity above. Actions apply only to the selected channel. Inactive channels
                 remain listed; pending channels are still opening.
-              </SettingsFootnote>
+              </SettingsExplanation>
               {(channels ?? []).map(channel => (
                 <View key={channel.point}>
                   <SettingsListItem
@@ -1084,7 +1177,7 @@ export default function XBTLightning({
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -1105,7 +1198,7 @@ export default function XBTLightning({
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -1156,16 +1249,16 @@ export default function XBTLightning({
       )}
       {tools && ['Needs setup', 'Running'].includes(status) && (
         <SettingsSection>
-          <SettingsFootnote style={{ color: colors.foregroundColor }}>
+          <SettingsExplanation id="lightning.recovery" title="About Lightning recovery">
             Portable Lightning recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export
             again after channel changes.
-          </SettingsFootnote>
+          </SettingsExplanation>
           <TextInput
             placeholderTextColor={colors.alternativeTextColor2}
             style={[
               styles.input,
               {
-                color: colors.foregroundColor,
+                color: busy ? informationColor : colors.foregroundColor,
                 backgroundColor: panelBackground,
                 borderColor: colors.hdborderColor,
               },
@@ -1244,6 +1337,7 @@ export default function XBTLightning({
 }
 
 const styles = StyleSheet.create({
+  paymentReceipt: { marginTop: 12 },
   activityWrapper: { paddingHorizontal: 16, paddingVertical: 8 },
   activityPanel: {
     borderWidth: 1,

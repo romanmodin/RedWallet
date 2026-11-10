@@ -122,9 +122,14 @@ final class XBTLightningBridge: NSObject {
                             "active": channel.state == "active", "localSats": String(channel.localSats)]
                         item["peerAlias"] = channel.peerAlias
                         item["peerAddress"] = channel.peerAddress
+                        item["originalPoint"] = channel.originalPoint
                         if let splice = channel.splice {
-                            item["splice"] = ["status": splice.status, "progress": splice.progress, "txid": splice.txid,
-                                              "confirmations": String(splice.confirmations), "lockDepth": String(splice.lockDepth)]
+                            var state: [String: Any] = ["status": splice.status, "progress": splice.progress, "txid": splice.txid,
+                                                       "confirmations": String(splice.confirmations), "lockDepth": String(splice.lockDepth)]
+                            if let count = splice.onchainConfirmations { state["onchainConfirmations"] = String(count) }
+                            if let locked = splice.weLocked { state["weLocked"] = locked }
+                            if let locked = splice.peerLocked { state["peerLocked"] = locked }
+                            item["splice"] = state
                         }
                         if let remaining = channel.confirmationsRemaining {
                             item["confirmationsRemaining"] = remaining

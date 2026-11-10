@@ -79,7 +79,7 @@ const ImportWalletDiscovery: React.FC = () => {
 
       try {
         // For watch-only wallets, display the descriptor or xpub
-        if (wallet.type === WatchOnlyWallet.type) {
+        if (wallet instanceof WatchOnlyWallet) {
           if (wallet.isHd() && wallet.getSecret()) {
             subtitle = wallet.getSecret(); // Display descriptor
             if (wallet._hdWalletInstance) {

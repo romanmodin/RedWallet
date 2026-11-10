@@ -1,6 +1,7 @@
 import { formatWalletBalance } from '../blue_modules/wallet-network';
 import { LndWallet } from '../class/wallets/lnd-wallet';
 import LndConnectionBadge from './LndConnectionBadge';
+import Icon from './Icon';
 import { useSettings } from '../hooks/context/useSettings';
 import { formatLndAmount, LndDisplayUnit } from '../blue_modules/lnd-display-amount';
 import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useEffect } from 'react';
@@ -221,6 +222,12 @@ const iStyles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
+  },
+  coinGlyph: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    includeFontPadding: false,
   },
   imageCompact: {
     width: 78,
@@ -444,6 +451,8 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
       transform: [{ translateY: balanceTranslateY.value }],
     }));
 
+    const watchOnlyCoinColor = WalletGradient.watchOnlyCoinColorFor(item.type);
+    const coinGlyphSize = isCompact ? 104 : 132;
     let image;
     switch (item.type) {
       case LightningCustodianWallet.type:
@@ -515,7 +524,27 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
               colors={WalletGradient.gradientsFor(item.type)}
               style={[iStyles.grad, isCompact && iStyles.gradCompact, scaledCardStyles.grad]}
             >
-              <ImageBackground source={image} style={[iStyles.image, isCompact && iStyles.imageCompact]} />
+              {watchOnlyCoinColor ? (
+                <View
+                  testID="WatchOnlyNetworkCoin"
+                  pointerEvents="none"
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={[iStyles.image, isCompact && iStyles.imageCompact]}
+                >
+                  <Icon
+                    name="bitcoin"
+                    type="font-awesome-6"
+                    iconStyle="brand"
+                    size={coinGlyphSize}
+                    color={watchOnlyCoinColor}
+                    style={[iStyles.coinGlyph, { lineHeight: coinGlyphSize }]}
+                  />
+                </View>
+              ) : (
+                <ImageBackground source={image} style={[iStyles.image, isCompact && iStyles.imageCompact]} />
+              )}
               <View style={[iStyles.gradContent, isCompact && iStyles.gradContentCompact, !isCompact && scaledCardStyles.gradContent]}>
                 {!isPlaceHolder && (
                   <>

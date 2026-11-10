@@ -15,9 +15,10 @@ public struct LightningChannelStatus: Sendable {
     public let state: String
     public let localSats: UInt64
     public let confirmationsRemaining: UInt64?
-    public let splice: SpliceChannelState?
+    public var splice: SpliceChannelState?
     public var peerAlias: String? = nil
     public var peerAddress: String? = nil
+    public var originalPoint: String? = nil
 
     static func decode(open: Data, pending: Data, awaitingSplices: Set<String> = [], peers: Data? = nil) throws -> [LightningChannelStatus] {
         var items: [String: LightningChannelStatus] = [:]
@@ -32,6 +33,7 @@ public struct LightningChannelStatus: Sendable {
         for bytes in try ProtoFields(open).bytes[11] ?? [] {
             let channel = try ProtoFields(bytes)
             items[try channel.string(3)]?.peerAlias = try? channel.string(34)
+            items[try channel.string(3)]?.originalPoint = try? channel.string(1005)
         }
         let response = try ProtoFields(pending)
         let states: [(UInt64, String)] = [(2, "pending"), (3, "closing"), (5, "closing"), (4, "forceClosing")]
@@ -85,7 +87,17 @@ extension RegtestNode {
         let pending = try await rpc { LndmobilePendingChannels(Data(), $0) }
         let open = try await rpc { LndmobileListChannels(ProtoFields.field(6, integer: 1), $0) }
         let peers = try? await rpc { LndmobileListPeers(Data(), $0) }
-        return try LightningChannelStatus.decode(open: open, pending: pending, awaitingSplices: splicingPoints, peers: peers)
+        var items = try LightningChannelStatus.decode(open: open, pending: pending, awaitingSplices: splicingPoints, peers: peers)
+        if items.contains(where: { !($0.splice?.txid ?? "").isEmpty }),
+           let transactions = try? await rpc({ LndmobileGetTransactions(Data(), $0) }),
+           let confirmations = try? SpliceChannelState.transactionConfirmations(transactions) {
+            for index in items.indices {
+                if let txid = items[index].splice?.txid {
+                    items[index].splice?.onchainConfirmations = confirmations[txid]
+                }
+            }
+        }
+        return items
     }
 
     // Tokens bind confirmation to immutable arguments and can be used only once.
