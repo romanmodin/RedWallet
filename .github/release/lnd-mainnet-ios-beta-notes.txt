@@ -1,5 +1,5 @@
 BTC, Lightning and interface update:
-- Blue BTC wallets now use Bitcoin SHA-256 with Native SegWit receive addresses. BTC and XBT keep their own chain connections and labels.
+- Blue BTC wallets now use SHA-256 with Native SegWit receive addresses. BTC and XBT keep their own chain connections and labels.
 - New XBT installations use Kilombino's SSL Fulcrum preset with normal certificate verification.
 - Wallet balance and cards stay fixed while transaction history scrolls. Verified-chain status has a green LED.
 - Settings and its submenus use centered regular-weight uppercase headings, smaller labels, and adjacent sections. Donate and Support sit together.
@@ -13,6 +13,15 @@ BTC, Lightning and interface update:
 - Known pre-submission validation or sync errors are distinguished from unresolved payment results. Check Payment Status reads history without sending money.
 - PAY (INVOICE) now uses all capital letters.
 
-Please check BTC/XBT labels, receive QR amounts, Settings menus, and the saved skins on your iPhone. Bitcoin connections use direct TLS. Tor covers the embedded Lightning paths and configured watchtowers; it does not register a watchtower, and exchange quotes still use direct HTTPS.
+Please check BTC/XBT labels, receive QR amounts, Settings menus, and the saved skins on your iPhone. SHA-256 connections use direct TLS. Tor covers the embedded Lightning paths and configured watchtowers; it does not register a watchtower, and exchange quotes still use direct HTTPS.
 
 The pinned dashboard now clears the native toolbar and status bar.
+
+- Confirmed Lightning payments show a green PAYMENT SUCCEEDED receipt with amount and payment reference. Already-paid invoices are identified without sending again. Receipt details and copying respect hidden balances.
+- Definite failures and validation refusals have clear headings and available safe reasons. Pending, unknown, and unavailable status reads remain distinct; uncertain replies never trigger an automatic resend.
+
+- Tap the main Wallets total to cycle XBT, sats, your price estimate and hidden stars. Hiding keeps a tappable mask so the amount can be shown again; General > Total Balance still controls the whole section. Hidden totals also hide the separate BTC subtotal and price estimate.
+- Sent transaction amounts use red with a minus sign; settled incoming amounts remain green.
+
+- Network settings now separate XBT Fulcrum from BTC SHA-256 servers. Set your own SHA-256 Electrum/Fulcrum host, port and SSL settings, with optional trusted certificate support. The SHA-256 chain is checked before saving.
+- Custom BTC settings persist separately and never silently fall back to a public endpoint. Restore BTC Default explicitly returns to Blockstream. TCP is available only as an explicit unencrypted transport choice; BTC onion connections are not supported here.
