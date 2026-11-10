@@ -49,24 +49,41 @@ export async function resetArtworkSimulator(
   // App launch still has its separate, unchanged 60-second budget.
   const started = now();
   const deadline = started + 120000;
+  const observationTimeouts = [];
+  let before = null;
+  let lastAfter = null;
   const remaining = () => {
     const value = deadline - now();
-    if (value <= 0) throw new Error('Simulator restart did not settle before the reset deadline');
+    if (value <= 0) {
+      throw new Error(
+        'Simulator restart did not settle before the reset deadline: ' +
+          JSON.stringify({
+            deviceId,
+            before,
+            lastAfter,
+            observationTimeouts,
+            elapsedMs: now() - started,
+          }),
+      );
+    }
     return value;
   };
   const processes = () =>
     simulatorServicePids(
       run('xcrun', ['simctl', 'spawn', deviceId, 'launchctl', 'list'], {
         encoding: 'utf8',
-        timeout: Math.min(5000, remaining()),
+        // A five-second simctl transport deadline repeatedly interrupted a
+        // replacement-shell query in 42824559949 attempt 2. Allow one query to
+        // settle, still inside the unchanged 120-second total reset budget.
+        timeout: Math.min(15000, remaining()),
       }),
     );
-  const observationTimeouts = [];
   const observe = async stage => {
     for (;;) {
       remaining();
       try {
         const result = processes();
+        if (stage === 'after') lastAfter = result;
         remaining(); // A late subprocess result is not readiness within our deadline.
         return result;
       } catch (error) {
@@ -79,7 +96,7 @@ export async function resetArtworkSimulator(
       await pause(Math.min(500, remaining()));
     }
   };
-  const before = await observe('before');
+  before = await observe('before');
   if (!before.springboard) throw new Error('SpringBoard was not running before simulator reset');
   run('applesimutils', ['--byId', deviceId, '--bundle', 'com.romanmodin.redwallet', '--clearKeychain', ...permissionArgs], {
     encoding: 'utf8',
@@ -97,7 +114,13 @@ export async function resetArtworkSimulator(
       after.springboard !== before.springboard &&
       (!before.spotlight || (after.spotlight && after.spotlight !== before.spotlight))
     ) {
-      return { deviceId, before, after, observationTimeouts, elapsedMs: now() - started };
+      return {
+        deviceId,
+        before,
+        after,
+        observationTimeouts,
+        elapsedMs: now() - started,
+      };
     }
     await pause(Math.min(500, remaining()));
   }
