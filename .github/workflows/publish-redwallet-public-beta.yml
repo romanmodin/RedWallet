@@ -1,0 +1,68 @@
+name: Release verified RedWallet build to public TestFlight
+"on":
+  pull_request:
+    paths:
+      - ".github/scripts/publish-redwallet-public-beta.mjs"
+      - ".github/scripts/test-publish-redwallet-public-beta.mjs"
+      - ".github/workflows/publish-redwallet-public-beta.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: redwallet-verified-public-beta
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - run: |
+          node --test .github/scripts/test-publish-redwallet-public-beta.mjs
+          python3 -m py_compile .github/scripts/verify-uploaded-beta.py
+  publish:
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      UPLOAD_RUN_ID: "42811915314"
+      UPLOAD_RECEIPT_PATH: ${{ github.workspace }}/upload-receipt/ios-ipa-verification.json
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: ios-ipa-verification
+          path: upload-receipt
+          run-id: "42811915314"
+          github-token: ${{ github.token }}
+      - name: Verify existing uploaded package and completed native gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I .github/scripts/verify-uploaded-beta.py
+      - name: Publish only the verified build to the existing public group
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: node .github/scripts/publish-redwallet-public-beta.mjs
+      - name: Save public TestFlight status
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: redwallet-public-beta-verification
+          path: redwallet-public-beta-verification.json
+          if-no-files-found: ignore
+          retention-days: 7
