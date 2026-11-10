@@ -1,18 +1,13 @@
-BTC, Lightning and interface update:
-- Blue BTC wallets now use Bitcoin SHA-256 with Native SegWit receive addresses. BTC and XBT keep their own chain connections and labels.
-- New XBT installations use Kilombino's SSL Fulcrum preset with normal certificate verification.
-- Wallet balance and cards stay fixed while transaction history scrolls. Verified-chain status has a green LED.
-- Settings and its submenus use centered regular-weight uppercase headings, smaller labels, and adjacent sections. Donate and Support sit together.
-- Added Dark Angel and Templar to the saved logo-tap skin cycle.
-- Wallet refresh errors that complete after leaving the wallet screen no longer cover Receive.
-- Automatic connection failures update connection status without interrupting menus or Add Wallet.
-- Lightning hidden balances and sensitive-action checks are tightened. New channels retain the 10,000,000-sat opening cap, and resize progress distinguishes local confirmations from peer lock status.
+SHA-256, watch-only and Lightning update:
 
+- Imported BTC Native SegWit public accounts can use hardware signing. Enable Use with hardware wallet (BTC SHA-256) in wallet details, review the transaction, scan it with your signing device, then scan the signed QR back. RedWallet verifies the signatures, recipient/change and fee before offering Send. Verify those details on the device too. Your recovery phrase stays on the device. Physical Keystone compatibility remains part of this beta's device testing.
+- Sparrow-compatible and Keystone public-account QR imports work without entering a recovery phrase. Native SegWit BIP84 accounts are supported; other hardware account types remain unavailable.
+- Watch-only cards stay gray with a red XBT corner coin or blue SHA-256 corner coin. Hot-wallet card colors are unchanged.
+- BTC SHA-256 has its own editable server settings and chain connection, separate from XBT. New XBT installations use Kilombino's certificate-verified SSL Fulcrum preset.
+- Channel resize status shows the transaction's measured confirmations and each side's lock status. The peer's confirmation requirement is marked unavailable when the node does not report it. Funds become available after the resize locks; foreground refresh updates the balance without submitting another resize.
+- Balance details separate available funds, pending funding/channels/resize, locked outputs and reserves. Lightning availability is an estimate; routing, limits and fees can reduce the amount you can pay. Hidden amounts stay masked.
+- Lightning payments show confirmed success or failure and retain unknown/pending results for status checks. No automatic payment retry. Outgoing payments are red and incoming payments green.
+- Total-balance display cycles units and hidden amounts and can be revealed again. Transaction history scrolls below the fixed dashboard; the green LED marks verified chain status. Settings headings and saved Dark Angel/Templar skins are retained.
+- New Lightning channels retain the 10,000,000-sat opening cap. Existing channel resizing keeps its separate amount and fee rules.
 
-- Lightning payments check the node's recorded status before offering another send. Interrupted replies are reconciled without automatic resending; already-paid and pending invoices are held.
-- Known pre-submission validation or sync errors are distinguished from unresolved payment results. Check Payment Status reads history without sending money.
-- PAY (INVOICE) now uses all capital letters.
-
-Please check BTC/XBT labels, receive QR amounts, Settings menus, and the saved skins on your iPhone. Bitcoin connections use direct TLS. Tor covers the embedded Lightning paths and configured watchtowers; it does not register a watchtower, and exchange quotes still use direct HTTPS.
-
-The pinned dashboard now clears the native toolbar and status bar.
+Update the existing app in TestFlight; no reimport is required. SHA-256 server connections use the direct network. Tor covers the embedded Lightning paths and configured watchtowers; quote requests use direct HTTPS.
