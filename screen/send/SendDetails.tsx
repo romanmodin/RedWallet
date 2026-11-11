@@ -1,3 +1,4 @@
+import BtcSendAmountInput from '../../components/BtcSendAmountInput';
 import { isBtcWallet, walletElectrum, walletTicker, formatWalletBalance, selectWalletNetwork } from '../../blue_modules/wallet-network';
 import confirm from '../../helpers/confirm';
 import { updatePaymentRecipient } from '../../helpers/update-payment-recipient';
@@ -1521,7 +1522,17 @@ const SendDetails = () => {
     return (
       <View style={[styles.transactionItemContainer, { width: dimensions.width }]} testID={'Transaction' + index} collapsable={false}>
         <View style={styles.amountInputContainer}>
-          <AmountInput.AmountInput
+          <BtcSendAmountInput
+            key={`${item.key}-${wallet?.getID()}`}
+            onSatsChange={(sats, btc) =>
+              setAddresses(addrs =>
+                updatePaymentRecipient(addrs, item.key, current => {
+                  current.amount = btc ?? sats;
+                  current.amountSats = sats ? Number(sats) : 0;
+                  current.unit = btc === undefined ? BitcoinUnit.SATS : BitcoinUnit.BTC;
+                }),
+              )
+            }
             assetTicker={walletTicker(wallet)}
             isLoading={isLoading}
             amount={item.amount ? item.amount.toString() : undefined}
