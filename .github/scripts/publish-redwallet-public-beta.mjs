@@ -4,15 +4,15 @@ import { makeToken } from "./inspect-ios-store.mjs";
 
 export const RELEASE = Object.freeze({
   app: "6817118871", bundle: "com.romanmodin.redwallet",
-  version: "8.0.1", build: "1794312336",
-  appleBuild: "6bb9a125-479c-417f-ba5d-51fb88fe8747",
+  version: "8.0.1", build: "1794365227",
+  appleBuild: "ea4205f3-35dd-4a31-a539-640215158b94",
   group: "463ff340-3283-4f17-949d-39c7aa929da2",
   groupName: "RedWallet Early Testers",
   publicLink: "https://testflight.apple.com/join/UuExh5RP",
-  source: "206f960384620007923b9659454f1c0d7f99caf1",
-  orchestration: "24a495a41354d540659380677c0ad8fdc3811c05",
-  uploadRun: "42811915314",
-  ipa: "dfd9a4e84a2ebb50989d3b4cb99bc96799f725f089753c2015320ec306155299"
+  source: "260e2431114a14469566b91359bfc51dca89192c",
+  orchestration: "1ec93cacbfb65e7db28678372507d6fd9a62bd88",
+  uploadRun: "42947673301",
+  ipa: "5fcc96e3ac8b53206be60b4f2695a110dffa5ec2b571e44e81ab5510d13c23dc"
 });
 const buildPath = "/v1/builds/" + RELEASE.appleBuild;
 const appGroupsPath = "/v1/apps/" + RELEASE.app + "/betaGroups";
