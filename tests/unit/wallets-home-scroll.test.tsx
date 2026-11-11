@@ -7,12 +7,25 @@ const mockNavigation = { navigate: jest.fn() };
 const mockTransactions = Array.from({ length: 20 }, (_, i) => ({ hash: `tx-${i}`, walletID: 'wallet' }));
 const mockWallets = [{ getID: () => 'wallet' }, { getID: () => 'second-wallet' }];
 const mockMenu = { registerTransactionsHandler: jest.fn(), unregisterTransactionsHandler: jest.fn() };
+let mockBtc = false;
+let mockXbtSource: 'manual' | 'neoxex' | undefined;
+const mockBtcPriceRefresh = jest.fn(async () => {});
+const mockXbtPriceRefresh = jest.fn(async () => {});
+let mockElectrumDisabled = false;
 let mockSkin = 'off';
 let mockLarge = false;
 jest.mock('../../hooks/context/useStorage', () => ({
   useStorage: () => ({ wallets: mockWallets, getTransactions: () => mockTransactions, refreshAllWalletTransactions: mockRefresh }),
 }));
-jest.mock('../../hooks/context/useSettings', () => ({ useSettings: () => ({ isTotalBalanceEnabled: true, isElectrumDisabled: false }) }));
+jest.mock('../../hooks/context/useSettings', () => ({
+  useSettings: () => ({
+    isTotalBalanceEnabled: true,
+    isElectrumDisabled: mockElectrumDisabled,
+    xbtPriceQuote: mockXbtSource ? { source: mockXbtSource } : null,
+    refreshNeoxexBtcPriceQuote: mockBtcPriceRefresh,
+    refreshNeoxexXbtPriceQuote: mockXbtPriceRefresh,
+  }),
+}));
 jest.mock('../../hooks/useMenuElements', () => ({ __esModule: true, default: () => mockMenu }));
 jest.mock('../../hooks/useExtendedNavigation', () => ({ useExtendedNavigation: () => mockNavigation }));
 jest.mock('@react-navigation/native', () => ({
@@ -26,7 +39,7 @@ jest.mock('../../blue_modules/sizeClass', () => ({
   useSizeClass: () => ({ sizeClass: mockLarge ? 2 : 0, isLarge: mockLarge }),
 }));
 jest.mock('../../blue_modules/artwork-skin', () => ({ useArtworkSkinSelection: () => mockSkin }));
-jest.mock('../../blue_modules/wallet-network', () => ({ selectWalletNetwork: jest.fn(), isBtcWallet: () => false }));
+jest.mock('../../blue_modules/wallet-network', () => ({ selectWalletNetwork: jest.fn(), isBtcWallet: () => mockBtc }));
 jest.mock('../../blue_modules/fs', () => ({}));
 jest.mock('../../class/deeplink-schema-match', () => ({}));
 jest.mock('../../helpers/scan-qr', () => ({ scanQrHelper: jest.fn() }));
@@ -63,6 +76,9 @@ beforeEach(() => jest.useFakeTimers());
 afterEach(() => {
   act(() => jest.runOnlyPendingTimers());
   jest.useRealTimers();
+  mockBtc = false;
+  mockXbtSource = undefined;
+  mockElectrumDisabled = false;
   mockSkin = 'off';
   mockLarge = false;
   jest.clearAllMocks();
@@ -105,3 +121,18 @@ test('large-screen transaction pane keeps its standalone list', async () => {
   expect(s.getByTestId('Wallets')).toBeTruthy();
   s.unmount();
 });
+
+test.each(['manual', 'neoxex'] as const)(
+  'SHA-256 pull-to-refresh works with XBT disabled and respects the %s XBT quote choice',
+  async source => {
+    mockBtc = true;
+    mockElectrumDisabled = true;
+    mockXbtSource = source;
+    const view = render(<WalletsList />);
+    await act(async () => {});
+    await act(async () => fireEvent(view.getByTestId('Wallets'), 'refresh'));
+    expect(mockBtcPriceRefresh).toHaveBeenCalledTimes(1);
+    expect(mockXbtPriceRefresh).toHaveBeenCalledTimes(source === 'neoxex' ? 1 : 0);
+    view.unmount();
+  },
+);

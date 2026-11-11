@@ -11,6 +11,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useTheme } from './themes';
 import { formatLndAmount } from '../blue_modules/lnd-display-amount';
 import { nextTotalBalanceDisplayMode, TotalBalanceDisplayMode } from '../blue_modules/total-balance-display';
+import BtcUsdcEstimate from './BtcUsdcEstimate';
 import XbtFiatEstimate from './XbtFiatEstimate';
 
 export const TotalWalletsBalancePreferredUnit = 'TotalWalletsBalancePreferredUnit';
@@ -161,6 +162,7 @@ const TotalWalletsBalance: React.FC = React.memo(() => {
         {!masked && btcWallets.some(wallet => !wallet.hideBalance) && (
           <Text testID="TotalBtcBalance" style={{ color: colors.alternativeTextColor }}>
             {formatWalletBalance(btcWallets[0], btcTotal, BitcoinUnit.BTC, true)}
+            <BtcUsdcEstimate satoshis={btcTotal} inline testID="TotalBtcUsdcEstimate" />
           </Text>
         )}
         {!masked && <XbtFiatEstimate satoshis={totalBalance} style={[styles.estimate, { color: colors.alternativeTextColor }]} />}

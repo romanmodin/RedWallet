@@ -111,7 +111,8 @@ const WalletsList: React.FC = () => {
   const currentWalletIndex = useRef<number>(0);
   const { registerTransactionsHandler, unregisterTransactionsHandler } = useMenuElements();
   const { wallets, getTransactions, refreshAllWalletTransactions } = useStorage();
-  const { isTotalBalanceEnabled, isElectrumDisabled } = useSettings();
+  const { isTotalBalanceEnabled, isElectrumDisabled, xbtPriceQuote, refreshNeoxexXbtPriceQuote, refreshNeoxexBtcPriceQuote } =
+    useSettings();
   const { width, fontScale } = useWindowDimensions();
   const selectedSkin = useArtworkSkinSelection();
   const artworkSkin = selectedSkin !== 'off';
@@ -193,9 +194,11 @@ const WalletsList: React.FC = () => {
 
   const onRefresh = useCallback(() => {
     console.debug('WalletsList onRefresh');
+    if (wallets.some(isBtcWallet)) refreshNeoxexBtcPriceQuote().catch(() => {});
+    if (xbtPriceQuote?.source === 'neoxex') refreshNeoxexXbtPriceQuote().catch(() => {});
     return refreshTransactions();
     // Optimized for Mac option doesn't like RN Refresh component. Menu Elements now handles it for macOS
-  }, [refreshTransactions]);
+  }, [refreshTransactions, wallets, xbtPriceQuote?.source, refreshNeoxexXbtPriceQuote, refreshNeoxexBtcPriceQuote]);
 
   useEffect(() => {
     const screenKey = route.name;
@@ -490,7 +493,8 @@ const WalletsList: React.FC = () => {
     return txKey || `${item}${index}`;
   }, []);
 
-  const refreshProps = isDesktop || isElectrumDisabled ? {} : { refreshing: isLoading, onRefresh };
+  const refreshProps =
+    isDesktop || (isElectrumDisabled && !isBtcWallet(wallets[currentWalletIndex.current])) ? {} : { refreshing: isLoading, onRefresh };
 
   const sections: SectionData[] = useMemo(() => [{ key: WalletsListSections.TRANSACTIONS, data: dataSource }], [dataSource]);
 

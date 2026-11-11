@@ -1,4 +1,5 @@
-import { formatWalletBalance } from '../blue_modules/wallet-network';
+import BtcUsdcEstimate from './BtcUsdcEstimate';
+import { formatWalletBalance, isBtcWallet } from '../blue_modules/wallet-network';
 import { LndWallet } from '../class/wallets/lnd-wallet';
 import LndConnectionBadge from './LndConnectionBadge';
 import Icon from './Icon';
@@ -339,6 +340,8 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
         label: { lineHeight: scaleLayoutUp(24, fontScale) },
         balance: { lineHeight: scaleLayoutUp(38, fontScale) },
         balanceCompact: { lineHeight: scaleLayoutUp(30, fontScale) },
+        quoteRow: { height: scaleLayoutUp(18, fontScale) },
+        quote: { fontSize: 13, lineHeight: scaleLayoutUp(18, fontScale) },
         latestTx: { lineHeight: scaleLayoutUp(18, fontScale) },
         latestTxTime: { lineHeight: scaleLayoutUp(22, fontScale) },
       }),
@@ -583,6 +586,18 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
                         </Animated.Text>
                       )}
                     </View>
+                    {isBtcWallet(item) && (
+                      // Reserve the row while a quote loads or the amount is hidden.
+                      <View style={scaledCardStyles.quoteRow}>
+                        {!hideBalance && (
+                          <BtcUsdcEstimate
+                            satoshis={Number(item.getBalance())}
+                            style={[scaledCardStyles.quote, cardTextStyle]}
+                            testID="WalletBtcUsdcEstimate"
+                          />
+                        )}
+                      </View>
+                    )}
                     <View style={scaledCardStyles.textSpacer} />
                     <Text
                       numberOfLines={1}

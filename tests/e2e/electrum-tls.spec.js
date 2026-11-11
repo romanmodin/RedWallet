@@ -6,6 +6,7 @@ const tls = require('tls');
 const assert = require('assert').strict;
 const { cleanupTlsFixture } = require('./tls-fixture-cleanup');
 const { prepareTlsApp } = require('./tls-setup');
+const { settleIosHostKeyboard } = require('./tls-host-keyboard');
 const { observeNativeSetupStep } = require('./native-setup-step');
 const { execFileSync } = require('child_process');
 const scenarios = require('./tls-scenarios.json');
@@ -135,7 +136,9 @@ describe('native Electrum TLS authentication', () => {
         await openSettings();
         console.log('[tls-e2e] settings opened:', scenario.name);
         await visible('HostInput');
-        await field('HostInput').replaceText(device.getPlatform() === 'android' ? '10.0.2.2' : '127.0.0.1');
+        const localHost = device.getPlatform() === 'android' ? '10.0.2.2' : '127.0.0.1';
+        await field('HostInput').replaceText(localHost);
+        await settleIosHostKeyboard({ device, element, by, waitFor }, localHost);
         await visible('PortInput');
         await element(by.id('PortInput')).replaceText(String(server.address().port));
         await visible('SSLPortInput');
