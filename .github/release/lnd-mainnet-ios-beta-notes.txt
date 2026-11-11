@@ -1,5 +1,6 @@
 SHA-256, watch-only and Lightning update:
 
+- SHA-256 balances now show an approximate USDC value beside the main BTC subtotal and below the BTC amount on each wallet card. BTC and XBT use separate NeoxEX USDC markets. Hidden balances hide estimates too; an older trade is marked stale. Pull to refresh for an updated quote.
 - Imported BTC Native SegWit public accounts can use hardware signing. Enable Use with hardware wallet (BTC SHA-256) in wallet details, review the transaction, scan it with your signing device, then scan the signed QR back. RedWallet verifies the signatures, recipient/change and fee before offering Send. Verify those details on the device too. Your recovery phrase stays on the device. Physical Keystone compatibility remains part of this beta's device testing.
 - Sparrow-compatible and Keystone public-account QR imports work without entering a recovery phrase. Native SegWit BIP84 accounts are supported; other hardware account types remain unavailable.
 - Watch-only cards stay gray with a red XBT corner coin or blue SHA-256 corner coin. Hot-wallet card colors are unchanged.
