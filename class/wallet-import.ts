@@ -176,6 +176,41 @@ const startImport = (
     }
     if (xbtOnly) {
       if (searchAccounts && offline) throw new Error(loc.wallets.recovery_offline);
+      // Keystone crypto-account QR exports decode to multiple public accounts.
+      // Validate the complete supported set before exposing any imported wallet.
+      if (/^\[\s*(?:\{|\])/.test(text)) {
+        const accounts = JSON.parse(text);
+        if (!Array.isArray(accounts) || accounts.length > 20) throw new Error('Invalid cold-wallet account export.');
+        const supported: WatchOnlyWallet[] = [];
+        for (const account of accounts) {
+          if (typeof account?.AccountKeyPath !== 'string') continue;
+          const path = account.AccountKeyPath.replace(/h/g, "'");
+          const normalizedPath = path.startsWith('m/') ? path : 'm/' + path;
+          if (!/^m\/(84|86)'\/0'\/\d+'$/.test(normalizedPath)) continue;
+          if (typeof account.ExtPubKey !== 'string' || !/^[0-9a-fA-F]{8}$/.test(account.MasterFingerprint ?? ''))
+            throw new Error('Invalid XBT public account in the cold-wallet QR.');
+          const watch = new WatchOnlyWallet();
+          watch.setSecret(JSON.stringify({ ...account, AccountKeyPath: normalizedPath }));
+          if (!watch.valid()) throw new Error('Invalid XBT public account in the cold-wallet QR.');
+          watch.init();
+          if (!watch.isXbtSigningCompatible()) throw new Error('Invalid XBT public account in the cold-wallet QR.');
+          watch.xbt_network = true;
+          watch.init();
+          supported.push(watch);
+        }
+        if (!supported.length) throw new Error('This QR has no supported XBT BIP84 Native SegWit or BIP86 Taproot public account.');
+        for (const watch of supported) {
+          yield {
+            progress: 'XBT watch-only account · ' + watch.getDerivationPath(),
+          };
+          if (searchAccounts && watch._hdWalletInstance) {
+            watch._hdWalletInstance.gap_limit = recoveryOptions.gapLimit ?? 20;
+            await fetch(watch, true, true);
+          }
+          yield { wallet: watch };
+        }
+        return;
+      }
       const watchOnly = new WatchOnlyWallet();
       try {
         watchOnly.setSecret(text);
