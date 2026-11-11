@@ -5,12 +5,18 @@ import loc from '../loc';
 import { useTheme } from './themes';
 
 interface InputAccessoryAllFundsProps {
+  assetTicker?: 'BTC' | 'XBT';
   balance: string;
   canUseAll: boolean;
   onUseAllPressed: () => void;
 }
 
-const InputAccessoryAllFunds: React.FC<InputAccessoryAllFundsProps> = ({ balance, canUseAll, onUseAllPressed }) => {
+const InputAccessoryAllFunds: React.FC<InputAccessoryAllFundsProps> = ({
+  balance,
+  canUseAll,
+  onUseAllPressed,
+  assetTicker = loc.units.BTC,
+}) => {
   const { colors } = useTheme();
 
   const stylesHook = StyleSheet.create({
@@ -30,10 +36,10 @@ const InputAccessoryAllFunds: React.FC<InputAccessoryAllFundsProps> = ({ balance
       <View style={styles.left}>
         <Text style={[styles.totalLabel, stylesHook.totalLabel]}>{loc.send.input_total}</Text>
         {canUseAll ? (
-          <BlueButtonLink onPress={onUseAllPressed} style={styles.totalCan} title={`${balance} ${loc.units.BTC}`} />
+          <BlueButtonLink onPress={onUseAllPressed} style={styles.totalCan} title={`${balance} ${assetTicker}`} />
         ) : (
           <Text style={[styles.totalCanNot, stylesHook.totalCanNot]}>
-            {balance} {loc.units.BTC}
+            {balance} {assetTicker}
           </Text>
         )}
       </View>

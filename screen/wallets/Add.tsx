@@ -1,3 +1,4 @@
+import { BtcSegwitBech32Wallet } from '../../class/wallets/btc-segwit-bech32-wallet';
 import { LndWallet } from '../../class/wallets/lnd-wallet';
 import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 import { ActivityIndicator, Keyboard, NativeModules, StyleSheet, TextInput, View } from 'react-native';
@@ -123,6 +124,7 @@ const WalletsAdd: React.FC = () => {
   const route = useRoute<RouteProps>();
   const { entropy: entropyHex } = route.params || {};
   const selectedIndex = route.params?.selectedIndex === 1 ? 1 : 0;
+  const btc = route.params?.network === 'btc';
   const selectedWalletType = state.selectedWalletType;
   const entropy = entropyHex ? hexToUint8Array(entropyHex) : undefined;
   const { navigate, goBack, setParams } = useExtendedNavigation<NavigationProps>();
@@ -179,10 +181,17 @@ const WalletsAdd: React.FC = () => {
     } else if (selectedWalletType === ButtonSelected.ARK) {
       createLightningArkWallet();
     } else if (selectedWalletType === ButtonSelected.ONCHAIN) {
-      let w: HDSegwitBech32Wallet | XbtSegwitBech32Wallet | XbtTaprootWallet | HDLegacyP2PKHWallet | HDTaprootWallet;
+      let w:
+        | BtcSegwitBech32Wallet
+        | HDSegwitBech32Wallet
+        | XbtSegwitBech32Wallet
+        | XbtTaprootWallet
+        | HDLegacyP2PKHWallet
+        | HDTaprootWallet;
 
+      if (btc) w = new BtcSegwitBech32Wallet().setLabel(label || 'Bitcoin');
       for (let c = 0; c < Object.values(index2walletType).length; c++) {
-        if (c === selectedIndex) {
+        if (!btc && c === selectedIndex) {
           switch (index2walletType[c].walletType) {
             case XbtTaprootWallet.type:
               w = new XbtTaprootWallet();
@@ -223,6 +232,7 @@ const WalletsAdd: React.FC = () => {
 
         triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
         if (
+          w.type === BtcSegwitBech32Wallet.type ||
           w.type === HDLegacyP2PKHWallet.type ||
           w.type === HDSegwitBech32Wallet.type ||
           w.type === XbtSegwitBech32Wallet.type ||
@@ -305,11 +315,13 @@ const WalletsAdd: React.FC = () => {
   const navigateToImportWallet = () => {
     navigate('ImportWallet', {
       xbtFormat: selectedIndex === 1 ? 'taproot' : 'segwit',
+      network: btc ? 'btc' : 'xbt',
     });
   };
 
   const handleOnBitcoinButtonPressed = () => {
     Keyboard.dismiss();
+    setParams({ network: 'xbt' });
   };
 
   return (
@@ -341,18 +353,32 @@ const WalletsAdd: React.FC = () => {
           <WalletButton
             buttonType="XBT"
             testID="ActivateBitcoinButton"
-            active={selectedWalletType === ButtonSelected.ONCHAIN}
+            active={!btc && selectedWalletType === ButtonSelected.ONCHAIN}
             onPress={handleOnBitcoinButtonPressed}
             size={styles.button}
           />
+          <WalletButton
+            buttonType="BTC"
+            testID="ActivateBtcButton"
+            active={btc}
+            onPress={() => {
+              Keyboard.dismiss();
+              setParams({ network: 'btc' });
+            }}
+            size={styles.button}
+          />
         </View>
-        <BlueFormLabel testID="XbtWalletFormat">{index2walletType[selectedIndex].subtitle}</BlueFormLabel>
-        <BlueButtonLink
-          testID="ToggleXbtWalletFormat"
-          title={selectedIndex === 1 ? 'Use Native SegWit' : 'Use Taproot'}
-          onPress={() => setParams({ selectedIndex: selectedIndex === 1 ? 0 : 1 })}
-        />
-        {!!NativeModules.XBTLightningBridge && (
+        <BlueFormLabel testID="XbtWalletFormat">
+          {btc ? 'BTC · SHA-256 · Native SegWit (BIP84)' : index2walletType[selectedIndex].subtitle}
+        </BlueFormLabel>
+        {!btc && (
+          <BlueButtonLink
+            testID="ToggleXbtWalletFormat"
+            title={selectedIndex === 1 ? 'Use Native SegWit' : 'Use Taproot'}
+            onPress={() => setParams({ selectedIndex: selectedIndex === 1 ? 0 : 1 })}
+          />
+        )}
+        {!btc && !!NativeModules.XBTLightningBridge && (
           <BlueButtonLink
             testID="AddXBTLightningRegtest"
             title={NativeModules.XBTLightningBridge.wallet ? 'Add LND wallet' : 'Set up XBT Lightning'}

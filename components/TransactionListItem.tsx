@@ -1,3 +1,4 @@
+import { isBtcWallet, walletTicker } from '../blue_modules/wallet-network';
 import { LndWallet } from '../class/wallets/lnd-wallet';
 import React, { memo, useCallback, useMemo, useRef, useContext } from 'react';
 import { ArtworkSurfaceContext } from './ArtworkSkinSurface';
@@ -134,6 +135,7 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   const artworkSurface = useContext(ArtworkSurfaceContext);
   const { navigate } = useExtendedNavigation<NavigationProps>();
   const { txMetadata, counterpartyMetadata, wallets } = useStorage();
+  const ownerWallet = wallets.find(wallet => wallet.getID() === walletID);
   const hideAmounts = wallets.some(wallet => wallet.getID() === walletID && wallet.hideBalance);
   const { language } = useSettings();
   const explorerUrl = getTransactionExplorerUrl(item.hash);
@@ -212,8 +214,11 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
   }, [isPending, item.timestamp, language, arkRowKind]);
 
   const formattedAmount = useMemo(() => {
-    return hideAmounts ? '••••' : formatBalanceWithoutSuffix(item.value, itemPriceUnit, true).toString();
-  }, [hideAmounts, item.value, itemPriceUnit]);
+    return hideAmounts
+      ? '••••'
+      : formatBalanceWithoutSuffix(item.value, itemPriceUnit, true).toString() +
+          (isBtcWallet(ownerWallet) ? ` ${itemPriceUnit === BitcoinUnit.BTC ? 'BTC' : 'BTC sats'}` : '');
+  }, [hideAmounts, item.value, itemPriceUnit, ownerWallet]);
 
   const rowTitle = useMemo(() => {
     if (item.type === 'user_invoice' || item.type === 'payment_request') {
@@ -360,12 +365,13 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
 
   const amountWithUnit = useMemo(() => {
     if (hideAmounts) return 'Amounts hidden';
+    if (isBtcWallet(ownerWallet)) return formattedAmount;
     const unitSuffix =
       itemPriceUnit === BitcoinUnit.BTC || itemPriceUnit === BitcoinUnit.SATS
-        ? ` ${itemPriceUnit === BitcoinUnit.BTC ? loc.units.BTC : itemPriceUnit}`
+        ? ` ${itemPriceUnit === BitcoinUnit.BTC ? walletTicker(ownerWallet) : itemPriceUnit}`
         : ' ';
     return `${formattedAmount}${unitSuffix}`;
-  }, [hideAmounts, formattedAmount, itemPriceUnit]);
+  }, [hideAmounts, formattedAmount, itemPriceUnit, ownerWallet]);
 
   const onPress = useCallback(async () => {
     // If a custom onPress handler was provided, use it and return

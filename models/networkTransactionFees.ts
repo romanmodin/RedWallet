@@ -22,13 +22,15 @@ export class NetworkTransactionFee {
 }
 
 export default class NetworkTransactionFees {
-  static async recommendedFees(): Promise<NetworkTransactionFee> {
+  static async recommendedFees(
+    backend: Pick<typeof BlueElectrum, 'isDisabled' | 'estimateFees'> = BlueElectrum,
+  ): Promise<NetworkTransactionFee> {
     try {
-      const isDisabled = await BlueElectrum.isDisabled();
+      const isDisabled = await backend.isDisabled();
       if (isDisabled) {
         throw new Error('Electrum is disabled. Dont attempt to fetch fees');
       }
-      const response = await BlueElectrum.estimateFees();
+      const response = await backend.estimateFees();
       if (response.fast === response.medium) {
         // exception, if fees are equal lets bump priority fee + 1 so actual priority tx is above the rest
         return new NetworkTransactionFee(response.fast + 1, response.medium, response.slow);

@@ -22,6 +22,7 @@ type HeaderRightRenderer = NonNullable<NativeStackNavigationOptions['headerRight
 export type AddWalletStackParamList = {
   XBTLightningRegtest: undefined;
   AddWallet: {
+    network?: 'xbt' | 'btc';
     entropy?: string;
     words?: number;
     selectedIndex?: number;
@@ -35,11 +36,13 @@ export type AddWalletStackParamList = {
     onBarScanned?: string;
     askPassphraseMenuState?: boolean;
     clearClipboardMenuState?: boolean;
+    network?: 'xbt' | 'btc';
     xbtFormat?: 'segwit' | 'taproot';
     headerRight?: HeaderRightRenderer;
   };
   ImportWalletDiscovery: {
     importText: string;
+    network?: 'xbt' | 'btc';
     xbtFormat?: 'segwit' | 'taproot';
     askPassphrase: boolean;
     searchAccounts: boolean;
@@ -153,7 +156,9 @@ const addWalletTypes = [
 
 const createAddWalletOptions = (theme: ReturnType<typeof useTheme>) =>
   navigationStyle({ closeButtonPosition: CloseButtonPosition.Left, title: loc.wallets.add_title }, (options, { navigation, route }) => {
-    const selectedIndex = route.params?.selectedIndex === 1 ? 1 : 0;
+    const bitcoinSelected = route.params?.network === 'btc';
+    const selectedIndex = !bitcoinSelected && route.params?.selectedIndex === 1 ? 1 : 0;
+    const walletTypes = bitcoinSelected ? addWalletTypes.slice(0, 1) : addWalletTypes;
     const selectedWalletType = Chain.ONCHAIN;
     const words = route.params?.words;
     const entropyHex = route.params?.entropy;
@@ -173,7 +178,7 @@ const createAddWalletOptions = (theme: ReturnType<typeof useTheme>) =>
       } else if (id === CommonToolTipActions.ResetToDefault.id) {
         navigation.setParams({ entropy: undefined, words: undefined, selectedWalletType: Chain.ONCHAIN });
       } else {
-        const nextIndex = addWalletTypes.findIndex(item => item.id === id);
+        const nextIndex = walletTypes.findIndex(item => item.id === id);
         if (nextIndex >= 0) {
           navigation.setParams({ selectedIndex: nextIndex, selectedWalletType: Chain.ONCHAIN });
         }
@@ -185,7 +190,7 @@ const createAddWalletOptions = (theme: ReturnType<typeof useTheme>) =>
         id: 'wallets',
         text: loc.multisig.wallet_type,
         displayInline: true,
-        subactions: addWalletTypes.map((walletType, index) => ({
+        subactions: walletTypes.map((walletType, index) => ({
           id: walletType.id,
           text: walletType.text,
           subtitle: walletType.subtitle,

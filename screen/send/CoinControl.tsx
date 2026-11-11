@@ -13,7 +13,8 @@ import SafeAreaScrollView from '../../components/SafeAreaScrollView';
 import { useTheme } from '../../components/themes';
 import { useStorage } from '../../hooks/context/useStorage';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
-import loc, { formatBalance } from '../../loc';
+import loc from '../../loc';
+import { formatWalletBalance } from '../../blue_modules/wallet-network';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
 import { goFromCoinControlToSendDetails } from '../../navigation/goFromCoinControlToSendDetails';
 import { CoinControlSortDirection, CoinControlSortType, SendDetailsStackParamList } from '../../navigation/SendDetailsStackParamList';
@@ -80,6 +81,7 @@ const AnimatedTip: React.FC<{ text: string }> = ({ text }) => {
 };
 
 type TOutputListProps = {
+  walletType: string;
   item: Utxo;
   balanceUnit: string;
   oMemo?: string;
@@ -93,6 +95,7 @@ type TOutputListProps = {
 };
 
 const OutputList: React.FC<TOutputListProps> = ({
+  walletType,
   item: { address, txid, value },
   balanceUnit = BitcoinUnit.BTC,
   oMemo,
@@ -108,7 +111,7 @@ const OutputList: React.FC<TOutputListProps> = ({
   const { txMetadata } = useStorage();
   const memo = oMemo || txMetadata[txid]?.memo || '';
   const color = `#${txid.substring(0, 6)}`;
-  const amount = formatBalance(value, balanceUnit, true);
+  const amount = formatWalletBalance({ type: walletType }, value, balanceUnit, true);
 
   let onPress = onOpen;
   if (selectionStarted) {
@@ -248,7 +251,7 @@ const CoinControl: React.FC = () => {
     const summ = selected.reduce((prev, curr) => {
       return prev + (utxos.find(({ txid, vout }) => `${txid}:${vout}` === curr) as Utxo).value;
     }, 0);
-    const value = formatBalance(summ, wallet.getPreferredBalanceUnit(), true);
+    const value = formatWalletBalance(wallet, summ, wallet.getPreferredBalanceUnit(), true);
     return loc.formatString(loc.cc.selected_summ, { value });
   }, [selected, utxos, wallet]);
 
@@ -293,6 +296,7 @@ const CoinControl: React.FC = () => {
     const oFrozen = frozen.includes(key);
     return (
       <OutputList
+        walletType={wallet.type}
         key={key}
         balanceUnit={wallet.getPreferredBalanceUnit()}
         item={item}

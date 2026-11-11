@@ -31,6 +31,7 @@ const ImportWallet = () => {
   const navigation = useExtendedNavigation<NavigationProps>();
   const { colors } = useTheme();
   const route = useRoute<RouteProps>();
+  const btc = route.params?.network === 'btc';
   const xbtFormat = route.params?.xbtFormat ?? 'segwit';
   const label = route?.params?.label ?? '';
   const triggerImport = route?.params?.triggerImport ?? false;
@@ -95,10 +96,11 @@ const ImportWallet = () => {
         recoveryGapLimit,
         recoveryAccountLimit,
         xbtFormat,
+        network: btc ? 'btc' : 'xbt',
       });
     },
 
-    [askPassphraseMenuState, clearClipboardMenuState, navigation, xbtFormat, searchAccounts, recoveryGapLimit, recoveryAccountLimit],
+    [btc, askPassphraseMenuState, clearClipboardMenuState, navigation, xbtFormat, searchAccounts, recoveryGapLimit, recoveryAccountLimit],
   );
 
   const handleImport = useCallback(() => {
@@ -166,23 +168,29 @@ const ImportWallet = () => {
       <BlueSpacing20 />
       <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
       <BlueSpacing20 />
-      <BlueFormLabel testID="XbtImportFormat">{xbtFormat === 'taproot' ? 'Taproot (BIP86)' : 'Native SegWit (BIP84)'}</BlueFormLabel>
-      <BlueButtonLink
-        testID="ToggleXbtImportFormat"
-        title={xbtFormat === 'taproot' ? 'Use Native SegWit' : 'Use Taproot'}
-        onPress={() =>
-          navigation.setParams({
-            xbtFormat: xbtFormat === 'taproot' ? 'segwit' : 'taproot',
-          })
-        }
-      />
+      <BlueFormLabel testID="XbtImportFormat">
+        {btc ? 'BTC · SHA-256 · Native SegWit (BIP84)' : xbtFormat === 'taproot' ? 'Taproot (BIP86)' : 'Native SegWit (BIP84)'}
+      </BlueFormLabel>
+      {!btc && (
+        <BlueButtonLink
+          testID="ToggleXbtImportFormat"
+          title={xbtFormat === 'taproot' ? 'Use Native SegWit' : 'Use Taproot'}
+          onPress={() =>
+            navigation.setParams({
+              xbtFormat: xbtFormat === 'taproot' ? 'segwit' : 'taproot',
+            })
+          }
+        />
+      )}
       <BlueSpacing20 />
-      <BlueButtonLink
-        testID="ToggleRecoveryDiscovery"
-        title={searchAccounts ? loc.wallets.recovery_manual : loc.wallets.recovery_search}
-        onPress={() => setSearchAccounts(value => !value)}
-      />
-      {searchAccounts && (
+      {!btc && (
+        <BlueButtonLink
+          testID="ToggleRecoveryDiscovery"
+          title={searchAccounts ? loc.wallets.recovery_manual : loc.wallets.recovery_search}
+          onPress={() => setSearchAccounts(value => !value)}
+        />
+      )}
+      {!btc && searchAccounts && (
         <>
           <BlueText>{loc.wallets.recovery_limits}</BlueText>
           <BlueButtonLink

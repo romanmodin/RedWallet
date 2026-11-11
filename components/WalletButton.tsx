@@ -24,6 +24,12 @@ interface WalletButtonProps {
 }
 
 const buttonDetails: Record<string, ButtonDetails> = {
+  BTC: {
+    image: require('../img/addWallet/bitcoin.png'),
+    title: 'BTC · SHA-256',
+    explain: 'Bitcoin mainnet · connects only when selected',
+    borderColorActive: 'foregroundColor',
+  },
   XBT: {
     image: require('../img/addWallet/bitcoin.png'),
     title: 'XBT',
@@ -60,7 +66,8 @@ const WalletButton: React.FC<WalletButtonProps> = ({ buttonType, testID, onPress
   const details = buttonDetails[buttonType];
   const { colors } = useTheme();
   const { direction } = useLocale();
-  const borderColor = active ? colors[details.borderColorActive] : colors.buttonDisabledBackgroundColor;
+  const activeColor = buttonType === 'BTC' ? '#2478D4' : colors[details.borderColorActive];
+  const borderColor = active ? activeColor : colors.buttonDisabledBackgroundColor;
   const stylesHook = StyleSheet.create({
     buttonContainer: {
       borderColor: borderColor as ColorValue,
@@ -70,7 +77,7 @@ const WalletButton: React.FC<WalletButtonProps> = ({ buttonType, testID, onPress
       height: size.height,
     },
     textTitle: {
-      color: colors[details.borderColorActive] as ColorValue,
+      color: activeColor as ColorValue,
       fontWeight: 'bold',
       fontSize: 18,
       writingDirection: direction,

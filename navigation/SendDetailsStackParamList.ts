@@ -101,6 +101,8 @@ export type SendDetailsStackParamList = {
     onBarScanned?: string;
   };
   CreateTransaction: {
+    walletID?: string;
+    assetTicker?: 'BTC' | 'XBT';
     memo?: string;
     psbt?: Psbt;
     txhex?: string;
@@ -127,6 +129,8 @@ export type SendDetailsStackParamList = {
     onBarScanned?: string;
   };
   Success: {
+    walletID?: string;
+    assetTicker?: 'BTC' | 'XBT';
     fee?: number;
     amount: number;
     amountUnit?: BitcoinUnit;

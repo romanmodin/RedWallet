@@ -1,3 +1,4 @@
+import { selectWalletNetwork, isBtcWallet } from '../../blue_modules/wallet-network';
 import React, { useCallback, useContext, useEffect, useReducer, useRef, useMemo } from 'react';
 import ArtworkSkinSurface from '../../components/ArtworkSkinSurface';
 import { useArtworkSkinSelection } from '../../blue_modules/artwork-skin';
@@ -130,6 +131,11 @@ const WalletsList: React.FC = () => {
   const isFocused = useIsFocused();
   const route = useRoute<RouteProps>();
   const dataSource = getTransactions(undefined, 10);
+  useFocusEffect(
+    useCallback(() => {
+      selectWalletNetwork(wallets[currentWalletIndex.current]);
+    }, [wallets]),
+  );
   const walletsCount = useRef<number>(wallets.length);
   const walletActionButtonsRef = useRef<View>(null);
 
@@ -150,10 +156,13 @@ const WalletsList: React.FC = () => {
 
   const refreshWallets = useCallback(
     async (index: number | undefined, showLoadingIndicator = true, showUpdateStatusIndicator = false) => {
-      if (isElectrumDisabled) return;
+      if (isElectrumDisabled && !isBtcWallet(wallets[index ?? currentWalletIndex.current])) return;
       dispatch({ type: ActionTypes.SET_LOADING, payload: showLoadingIndicator });
       try {
-        await refreshAllWalletTransactions(index, showUpdateStatusIndicator);
+        await refreshAllWalletTransactions(
+          isBtcWallet(wallets[index ?? currentWalletIndex.current]) ? (index ?? currentWalletIndex.current) : index,
+          showUpdateStatusIndicator,
+        );
       } catch (error) {
         console.error(error);
       } finally {
@@ -165,7 +174,7 @@ const WalletsList: React.FC = () => {
         });
       }
     },
-    [isElectrumDisabled, refreshAllWalletTransactions],
+    [isElectrumDisabled, refreshAllWalletTransactions, wallets],
   );
 
   const refreshTransactions = useCallback(() => {
@@ -177,9 +186,9 @@ const WalletsList: React.FC = () => {
   useEffect(() => {
     // Initial load of transactions without triggering scroll
     const initialLoad = async () => {
-      if (isElectrumDisabled) return;
+      if (isElectrumDisabled && !isBtcWallet(wallets[currentWalletIndex.current])) return;
       try {
-        await refreshAllWalletTransactions(undefined, true);
+        await refreshAllWalletTransactions(isBtcWallet(wallets[currentWalletIndex.current]) ? currentWalletIndex.current : undefined, true);
       } catch (error) {
         console.error(error);
       }
@@ -255,6 +264,7 @@ const WalletsList: React.FC = () => {
   const handleClick = useCallback(
     (item?: TWallet) => {
       if (item?.getID) {
+        selectWalletNetwork(item);
         const walletID = item.getID();
         navigation.navigate('WalletTransactions', {
           walletID,
@@ -276,6 +286,7 @@ const WalletsList: React.FC = () => {
       const snapStep = cardWidth; // keep in sync with WalletsCarousel snap interval
       const index = Math.max(0, Math.round(contentOffset.x / snapStep));
 
+      selectWalletNetwork(wallets[index]);
       if (currentWalletIndex.current !== index) {
         console.debug('onSnapToItem', wallets.length === index ? 'NewWallet/Importing card' : index);
         triggerHapticFeedback(HapticFeedbackTypes.Selection);

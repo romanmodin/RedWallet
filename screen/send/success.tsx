@@ -24,8 +24,8 @@ const Success = () => {
   const { colors } = useTheme();
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavigationProps>();
-  const { amount, fee, amountUnit = BitcoinUnit.BTC, invoiceDescription = '', txid } = route.params || {};
-  const explorerUrl = getTransactionExplorerUrl(txid);
+  const { amount, fee, amountUnit = BitcoinUnit.BTC, invoiceDescription = '', txid, assetTicker } = route.params || {};
+  const explorerUrl = assetTicker === 'BTC' && txid ? `https://mempool.space/tx/${txid}` : getTransactionExplorerUrl(txid);
   const stylesHook = StyleSheet.create({
     root: {
       backgroundColor: colors.elevated,
@@ -48,7 +48,7 @@ const Success = () => {
 
   return (
     <SafeArea style={[styles.root, stylesHook.root]}>
-      <SuccessView amount={amount} amountUnit={amountUnit} fee={fee} invoiceDescription={invoiceDescription} />
+      <SuccessView assetTicker={assetTicker} amount={amount} amountUnit={amountUnit} fee={fee} invoiceDescription={invoiceDescription} />
       <View style={styles.buttonContainer}>
         <Button testID="SendSuccessDone" onPress={onDonePressed} title={loc.send.success_done} />
       </View>
@@ -62,6 +62,7 @@ const Success = () => {
 export default Success;
 
 interface SuccessViewParam {
+  assetTicker?: 'BTC' | 'XBT';
   amount?: number;
   amountUnit?: BitcoinUnit;
   fee?: number;
@@ -69,7 +70,7 @@ interface SuccessViewParam {
   shouldAnimate?: boolean;
 }
 
-export const SuccessView = ({ amount, amountUnit, fee, invoiceDescription, shouldAnimate = true }: SuccessViewParam) => {
+export const SuccessView = ({ assetTicker, amount, amountUnit, fee, invoiceDescription, shouldAnimate = true }: SuccessViewParam) => {
   const { colors } = useTheme();
   // A persisted fiat number has no verified XBT value; keep the success state without that amount.
   const displayAmount = !XBT_PROFILE.fiatEnabled && amountUnit === BitcoinUnit.LOCAL_CURRENCY ? undefined : amount;
@@ -78,7 +79,7 @@ export const SuccessView = ({ amount, amountUnit, fee, invoiceDescription, shoul
   switch (amountUnit) {
     case BitcoinUnit.BTC:
     case BitcoinUnit.SATS:
-      unit = loc.units[amountUnit];
+      unit = amountUnit === BitcoinUnit.BTC ? (assetTicker ?? loc.units.BTC) : loc.units[amountUnit];
       break;
   }
 
@@ -105,7 +106,7 @@ export const SuccessView = ({ amount, amountUnit, fee, invoiceDescription, shoul
           </View>
           {(fee ?? 0) > 0 && (
             <Text style={styles.feeText}>
-              {loc.send.create_fee}: {new BigNumber(fee ?? 0).toFixed(8)} {loc.units[BitcoinUnit.BTC]}
+              {loc.send.create_fee}: {new BigNumber(fee ?? 0).toFixed(8)} {assetTicker ?? loc.units.BTC}
             </Text>
           )}
           <Text numberOfLines={0} style={styles.feeText}>

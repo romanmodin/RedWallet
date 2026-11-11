@@ -1,3 +1,4 @@
+import { BtcSegwitBech32Wallet } from './btc-segwit-bech32-wallet';
 import { LndWallet } from './lnd-wallet';
 import * as bitcoin from 'bitcoinjs-lib';
 import { CoinSelectOutput, CoinSelectReturnInput, CoinSelectUtxo } from 'coinselect';
@@ -160,6 +161,7 @@ export type ExtendedTransaction = Transaction & {
 };
 
 export type TWallet =
+  | BtcSegwitBech32Wallet
   | LndWallet
   | HDAezeedWallet
   | HDLegacyBreadwalletWallet

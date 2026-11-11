@@ -1,3 +1,4 @@
+import { formatWalletBalance } from '../blue_modules/wallet-network';
 import { LndWallet } from '../class/wallets/lnd-wallet';
 import LndConnectionBadge from './LndConnectionBadge';
 import { useSettings } from '../hooks/context/useSettings';
@@ -32,7 +33,7 @@ import { LightningCustodianWallet } from '../class/wallets/lightning-custodian-w
 import { MultisigHDWallet } from '../class/wallets/multisig-hd-wallet';
 import WalletGradient from '../class/wallet-gradient';
 import { useSizeClass, SizeClass } from '../blue_modules/sizeClass';
-import loc, { formatBalance, transactionTimeToReadable } from '../loc';
+import loc, { transactionTimeToReadable } from '../loc';
 import { BlurredBalanceView } from './BlurredBalanceView';
 import { withAlpha } from './color';
 import { useTheme } from './themes';
@@ -349,7 +350,7 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
       !hideBalance &&
       (item.type === LndWallet.type
         ? formatLndAmount(item.getBalance(), lndDisplayUnit ?? (item as LndWallet).getDisplayUnit(), xbtPriceQuote)
-        : formatBalance(Number(item.getBalance()), item.getPreferredBalanceUnit(), true));
+        : formatWalletBalance(item, Number(item.getBalance()), item.getPreferredBalanceUnit(), true));
     const safeBalance = balance || undefined;
 
     const animatePressScale = useCallback(

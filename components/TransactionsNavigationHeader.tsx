@@ -1,3 +1,4 @@
+import { isBtcWallet, walletTicker, formatWalletBalance } from '../blue_modules/wallet-network';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -8,7 +9,7 @@ import { LightningCustodianWallet } from '../class/wallets/lightning-custodian-w
 import { MultisigHDWallet } from '../class/wallets/multisig-hd-wallet';
 import WalletGradient from '../class/wallet-gradient';
 import { TWallet } from '../class/wallets/types';
-import loc, { formatBalance, formatBalanceWithoutSuffix } from '../loc';
+import loc, { formatBalanceWithoutSuffix } from '../loc';
 import { BitcoinUnit } from '../models/bitcoinUnits';
 import { FiatUnit } from '../models/fiatUnit';
 import { BlurredBalanceView } from './BlurredBalanceView';
@@ -72,7 +73,7 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
   }, [wallet, verifyIfWalletAllowsOnchainAddress]);
 
   const handleCopyPress = useCallback(() => {
-    const value = formatBalance(wallet.getBalance(), unit);
+    const value = formatWalletBalance(wallet, wallet.getBalance(), unit);
     if (value) {
       Clipboard.setString(value);
     }
@@ -132,9 +133,9 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
   const currentBalance = wallet ? wallet.getBalance() : 0;
   const formattedBalance = useMemo(() => {
     return displayUnit === BitcoinUnit.LOCAL_CURRENCY
-      ? formatBalance(currentBalance, displayUnit, true)
+      ? formatWalletBalance(wallet, currentBalance, displayUnit, true)
       : formatBalanceWithoutSuffix(currentBalance, displayUnit, true);
-  }, [displayUnit, currentBalance]);
+  }, [displayUnit, currentBalance, wallet]);
 
   const balance = !wallet.hideBalance && formattedBalance;
 
@@ -209,13 +210,13 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
                   {displayUnit === BitcoinUnit.LOCAL_CURRENCY
                     ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD)
                     : displayUnit === BitcoinUnit.BTC
-                      ? loc.units.BTC
+                      ? walletTicker(wallet)
                       : displayUnit}
                 </Text>
               </TouchableOpacity>
             )}
           </View>
-          {!hideBalance && <XbtFiatEstimate satoshis={currentBalance} style={styles.priceEstimate} />}
+          {!hideBalance && !isBtcWallet(wallet) && <XbtFiatEstimate satoshis={currentBalance} style={styles.priceEstimate} />}
           {(wallet.type === LightningCustodianWallet.type || wallet.type === LightningArkWallet.type) && allowOnchainAddress && (
             <TouchableOpacity style={styles.manageFundsButton} accessibilityRole="button" onPress={showManageFundsActionSheet}>
               <Text style={styles.manageFundsButtonText}>{loc.lnd.title}</Text>

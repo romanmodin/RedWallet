@@ -133,7 +133,13 @@ const ReceiveCustomAmountSheet = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
       <View style={styles.flex}>
-        <AmountInput.AmountInput unit={unit} amount={amount || ''} onChangeText={setAmount} onAmountUnitChange={setUnit} />
+        <AmountInput.AmountInput
+          assetTicker={route.params.assetTicker}
+          unit={unit}
+          amount={amount || ''}
+          onChangeText={setAmount}
+          onAmountUnitChange={setUnit}
+        />
         <View style={[styles.customAmount, stylesHook.customAmount]}>
           <TextInput
             onChangeText={handleLabelChange}

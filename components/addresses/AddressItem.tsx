@@ -6,7 +6,8 @@ import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/h
 import confirm from '../../helpers/confirm';
 import { useSecretExport } from '../../hooks/useSecretExport';
 import { copySensitiveClipboard } from '../../blue_modules/sensitive-clipboard';
-import loc, { formatBalance } from '../../loc';
+import loc from '../../loc';
+import { formatWalletBalance } from '../../blue_modules/wallet-network';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
 import presentAlert from '../Alert';
 import { useTheme } from '../themes';
@@ -107,7 +108,12 @@ const AddressItem = ({
     [allowSignVerifyMessage],
   );
 
-  const balance = formatBalance(item.balance, balanceUnit, true);
+  const balance = formatWalletBalance(
+    wallets.find(wallet => wallet.getID() === walletID),
+    item.balance,
+    balanceUnit,
+    true,
+  );
 
   useEffect(() => {
     if (previousBalance.current !== undefined && previousBalance.current !== balance) {
