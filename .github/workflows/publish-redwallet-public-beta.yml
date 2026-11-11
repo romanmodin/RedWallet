@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      UPLOAD_RUN_ID: "42811915314"
+      UPLOAD_RUN_ID: "42947673301"
       UPLOAD_RECEIPT_PATH: ${{ github.workspace }}/upload-receipt/ios-ipa-verification.json
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
@@ -48,7 +48,7 @@ jobs:
         with:
           name: ios-ipa-verification
           path: upload-receipt
-          run-id: "42811915314"
+          run-id: "42947673301"
           github-token: ${{ github.token }}
       - name: Verify existing uploaded package and completed native gates
         env:
