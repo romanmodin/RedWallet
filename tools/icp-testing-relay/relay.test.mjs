@@ -53,18 +53,13 @@ test('TLS relay forwards and disconnects existing clients on retirement or looku
     await relay.refresh();
     assert.equal(client.destroyed, false); // One public platform alone does not expire the relay.
     let closed = once(client, 'close');
-    state = grant({ ios_published: true, android_published: true });
-    await relay.refresh(); await closed;
-    state = grant(); await relay.refresh();
-    client = await connect(); closed = once(client, 'close');
     fail = true; await relay.refresh(); await closed;
     fail = false; state = grant(); await relay.refresh();
     client = await connect(); closed = once(client, 'close');
-    state = grant({ deadline_ms: BigInt(Date.now() - 1) });
+    state = grant({ ios_published: true, android_published: true });
     await relay.refresh(); await closed;
-    state = grant(); await relay.refresh();
-    client = await connect(); closed = once(client, 'close');
-    state = grant({ active: false }); await relay.refresh(); await closed;
+    assert.equal(relay.server.listening, false);
+
   } finally {
     for (const socket of sockets) socket.destroy();
     if (relay) await relay.close();
@@ -82,3 +77,29 @@ test('inactive, malformed and hung lease readers cannot start listening', async 
     await relay.close();
   }
 });
+
+
+for (const [reason, terminal] of [
+  ['revoked', { active: false }],
+  ['both published', { ios_published: true, android_published: true }],
+  ['expired', { deadline_ms: 1n }],
+]) {
+  test('permanent retirement stops polling and prevents restart: ' + reason, async () => {
+    let reads = 0;
+    let state = grant();
+    const relay = createRelay({ readLease: async () => { reads++; return state; }, pollMs: 10 });
+    try {
+      await relay.start();
+      state = grant(terminal);
+      await relay.refresh();
+      assert.equal(relay.server.listening, false);
+      const retiredReads = reads;
+      state = grant();
+      await new Promise(resolve => setTimeout(resolve, 60));
+      await relay.refresh();
+      await assert.rejects(relay.start(), /No active/);
+      assert.equal(reads, retiredReads);
+      assert.equal(relay.server.listening, false);
+    } finally { await relay.close(); }
+  });
+}

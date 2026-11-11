@@ -62,6 +62,7 @@ export function createRelay({ readLease, key, cert, upstream, listenHost = '127.
   });
 
   async function refresh() {
+    if (closed) return;
     if (refreshing) return refreshing;
     refreshing = (async () => {
       let timeout;
@@ -76,11 +77,21 @@ export function createRelay({ readLease, key, cert, upstream, listenHost = '127.
         deadline = BigInt(lease.deadline_ms) * 1000000n;
         enabled = lease.active && !(lease.ios_published && lease.android_published);
         refreshedAt = monotonicMs();
+        if (!lease.active || (lease.ios_published && lease.android_published) ||
+            BigInt(Date.now()) * 1000000n >= deadline) {
+          await close();
+          return;
+        }
       } catch { enabled = false; }
       finally { clearTimeout(timeout); }
       if (!allowed()) disconnect();
     })().finally(() => { refreshing = undefined; });
     return refreshing;
+  }
+
+  async function close() {
+    closed = true; enabled = false; clearInterval(timer); disconnect();
+    if (server.listening) await new Promise(resolve => server.close(resolve));
   }
 
   return {
@@ -99,10 +110,7 @@ export function createRelay({ readLease, key, cert, upstream, listenHost = '127.
       }, Math.min(pollMs, 1000));
       return server.address();
     },
-    async close() {
-      closed = true; enabled = false; clearInterval(timer); disconnect();
-      if (server.listening) await new Promise(resolve => server.close(resolve));
-    },
+    close,
   };
 }
 
