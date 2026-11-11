@@ -37,11 +37,12 @@ All seven were already addressed on current main. Rechecked the present code and
 
 The bot found that the initial confirmation lookup could read an arbitrary recipient/third-party parent script. Corrected it before release: hot and watch-only BTC adapters provide their own address set; live status reads are restricted to that set, shared once per script per transaction batch, and can use owned-history associations for outgoing transactions with no change. Associations persist through reconnect only as lookup hints, never as confirmation heights; changing wallets clears them. Third-party parents are decoded from verified raw bytes without querying their address histories. An oversized or malformed owned history yields unknown/zero confirmations for that transaction, while raw-ID mismatches and wallet/session changes still reject.
 
-Regressions cover owned-output selection when a recipient output comes first, one shared status request for multiple transactions, third-party parents, oversized/malformed histories, outgoing no-change confirmation after reconnect, wallet changes during failed reads, and watch-only address-provider wiring.
+Regressions cover owned-output selection when a recipient output comes first, one shared status request for multiple transactions, third-party parents, oversized/malformed histories, outgoing no-change confirmation after reconnect, wallet changes during failed reads, and watch-only address-provider wiring through both the wallet and screen network helper.
 
 ## Validation
 
 - 20 relevant unit/UI suites: **359 tests passed**.
+- Final screen-routing follow-up: **4 suites, 43 tests passed**, with TypeScript and zero-warning lint passing.
 - Relay branch: **12 tests passed**, including all three permanent-retirement causes, no future polling, and temporary-error recovery.
 - Full repository lint pipeline (TypeScript, localization, metadata and ESLint): passed with warnings; changed/new files checked separately with zero warnings after cleanup.
 - `git diff --check`: passed.
