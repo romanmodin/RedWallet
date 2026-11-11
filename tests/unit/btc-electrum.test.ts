@@ -146,7 +146,7 @@ test('verifies raw transaction IDs instead of trusting verbose server amounts', 
   const tx = new bitcoin.Transaction();
   tx.addInput(Buffer.alloc(32, 1), 0);
   tx.addOutput(bitcoin.address.toOutputScript(address), 1200n);
-  mockClients[0].request.mockResolvedValue(tx.toHex());
+  mockClients[0].request.mockImplementation(async (method: string) => (method === 'blockchain.transaction.get' ? tx.toHex() : []));
   const result = await backend.multiGetTransactionByTxid([tx.getId()], true);
   expect(result[tx.getId()].vout[0].value).toBe(0.000012);
   expect(result[tx.getId()].rawHex).toBe(tx.toHex());
@@ -370,4 +370,69 @@ test('server configuration changes are serialized, so the most recent explicit c
     host: 'last.server',
     ssl: 51002,
   });
+});
+
+test('refreshes UTXO tip and retries a block arriving between tip and listunspent', async () => {
+  Btc.selectWallet('blue');
+  const backend = Btc.forWallet('blue');
+  await backend.ensureConnected();
+  mockClients[0].blockchainHeaders_subscribe.mockResolvedValueOnce({ height: 981001 }).mockResolvedValue({ height: 981002 });
+  mockClients[0].request.mockResolvedValue([{ tx_hash: '12'.repeat(32), tx_pos: 0, value: 1200, height: 981002 }]);
+  const result = await backend.multiGetUtxoByAddress([address]);
+  expect(result[address][0].confirmations).toBe(1);
+  mockClients[0].request.mockResolvedValue([{ tx_hash: '12'.repeat(32), tx_pos: 0, value: 1200, height: 981003 }]);
+  await expect(backend.multiGetUtxoByAddress([address])).rejects.toThrow('Invalid Bitcoin UTXO');
+});
+
+test('verbose reads follow confirmation, tip growth and reorg without an address scan, including reconnect', async () => {
+  Btc.selectWallet('blue');
+  const backend = Btc.forWallet('blue');
+  const tx = new bitcoin.Transaction();
+  tx.addInput(Buffer.alloc(32, 1), 0);
+  tx.addOutput(bitcoin.address.toOutputScript(address), 1200n);
+  let height = 0;
+  let chainTip = 981000;
+  const setup = async () => {
+    await backend.ensureConnected();
+    const active = mockClients[mockClients.length - 1];
+    active.blockchainHeaders_subscribe.mockImplementation(async () => ({
+      height: chainTip,
+    }));
+    active.request.mockImplementation(async (method: string) => {
+      if (method === 'blockchain.transaction.get') return tx.toHex();
+      if (method === 'blockchain.scripthash.get_history') return [{ tx_hash: tx.getId(), height }];
+      if (method === 'blockchain.block.header') return mockHeader;
+      throw new Error(method);
+    });
+  };
+  const confirmations = async () => (await backend.multiGetTransactionByTxid([tx.getId()], true))[tx.getId()].confirmations;
+  await setup();
+  expect(await confirmations()).toBe(0);
+  height = ++chainTip;
+  expect(await confirmations()).toBe(1);
+  chainTip += 2;
+  expect(await confirmations()).toBe(3);
+  Btc.forceDisconnect();
+  await setup();
+  expect(await confirmations()).toBe(3);
+  height = 0; // Removed from a block: cached history must not keep it confirmed.
+  expect(await confirmations()).toBe(0);
+});
+
+test('a wallet switch during tip refresh cannot make an old UTXO read continue', async () => {
+  Btc.selectWallet('blue');
+  const backend = Btc.forWallet('blue');
+  await backend.ensureConnected();
+  let finish!: (value: unknown) => void;
+  mockClients[0].blockchainHeaders_subscribe.mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  const pending = backend.multiGetUtxoByAddress([address]);
+  Btc.selectWallet('other');
+  finish({ height: 981002 });
+  await expect(pending).rejects.toThrow();
+  expect(mockClients[0].request).not.toHaveBeenCalled();
 });

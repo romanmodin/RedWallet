@@ -32,7 +32,6 @@ export const subscribe = (listener: () => void) => {
 export const getConnectionState = (): 'inactive' | 'selected' | 'connected' =>
   !selectedWallet || !foreground ? 'inactive' : connected ? 'connected' : 'selected';
 const emit = () => listeners.forEach(listener => listener());
-const heights = new Map<string, number>();
 const timestamps = new Map<number, number>();
 
 export function isBitcoinCheckpoint(header: unknown): boolean {
@@ -54,7 +53,6 @@ export function forceDisconnect(): void {
     old?.close();
   } catch {}
   tip = 0;
-  heights.clear();
   timestamps.clear();
   emit();
 }
@@ -295,10 +293,8 @@ async function rpc<T>(walletID: string, method: string, params: unknown[]): Prom
   return result;
 }
 
-const scriptHash = (address: string) =>
-  Buffer.from(bitcoin.crypto.sha256(bitcoin.address.toOutputScript(address)))
-    .reverse()
-    .toString('hex');
+const outputScriptHash = (script: Uint8Array) => Buffer.from(bitcoin.crypto.sha256(script)).reverse().toString('hex');
+const scriptHash = (address: string) => outputScriptHash(bitcoin.address.toOutputScript(address));
 const validTxid = (id: string) => /^[0-9a-f]{64}$/i.test(id);
 const sats = (n: number, signed = false) => {
   if (!Number.isSafeInteger(n) || Math.abs(n) > 2_100_000_000_000_000 || (!signed && n < 0)) throw new Error('Invalid Bitcoin amount');
@@ -320,17 +316,27 @@ export function assertBitcoinPayment(hex: string): void {
 /** Each method is bound to the wallet ID, so an old screen cannot use another wallet's session. */
 export function forWallet(walletID: string) {
   const request = <T>(method: string, params: unknown[]) => rpc<T>(walletID, method, params);
-  const getTransactionsByAddress = async (address: string): Promise<XbtElectrum.ElectrumHistory[]> => {
-    const history = await request<XbtElectrum.ElectrumHistory[]>('blockchain.scripthash.get_history', [scriptHash(address)]);
+  const refreshTip = async () => {
+    const epoch = generation;
+    requireSelected(walletID);
+    if (!(await ensureConnected(walletID, true))) throw new Error('Could not refresh the Bitcoin chain height.');
+    requireSelected(walletID);
+    if (epoch !== generation) throw new Error('Bitcoin wallet selection changed.');
+    // Headers can change at the same height during a reorg.
+    timestamps.clear();
+  };
+  const getHistory = async (hash: string): Promise<XbtElectrum.ElectrumHistory[]> => {
+    const history = await request<XbtElectrum.ElectrumHistory[]>('blockchain.scripthash.get_history', [hash]);
     if (!Array.isArray(history)) throw new Error('Invalid Bitcoin history');
+    if (history.some(item => item?.height > tip)) await refreshTip();
     for (const item of history) {
-      if (!validTxid(item.tx_hash) || !Number.isSafeInteger(item.height) || item.height < -1 || item.height > tip) {
+      if (!item || !validTxid(item.tx_hash) || !Number.isSafeInteger(item.height) || item.height < -1 || item.height > tip) {
         throw new Error('Invalid Bitcoin history entry');
       }
-      heights.set(item.tx_hash, item.height);
     }
     return history;
   };
+  const getTransactionsByAddress = (address: string) => getHistory(scriptHash(address));
   const getBalanceByAddress = async (address: string) => {
     const balance = await request<{ confirmed: number; unconfirmed: number }>('blockchain.scripthash.get_balance', [scriptHash(address)]);
     return {
@@ -357,6 +363,7 @@ export function forWallet(walletID: string) {
     _batchsize = 45,
     _verifyRaw = false,
   ): Promise<T extends true ? Record<string, XbtElectrum.ElectrumTransaction> : Record<string, string>> => {
+    if (verbose) await refreshTip();
     const result: Record<string, T extends true ? XbtElectrum.ElectrumTransaction : string> = {};
     for (const id of new Set(ids)) {
       if (!validTxid(id)) throw new Error('Invalid Bitcoin transaction ID');
@@ -367,7 +374,12 @@ export function forWallet(walletID: string) {
         result[id] = raw as T extends true ? XbtElectrum.ElectrumTransaction : string;
         continue;
       }
-      const height = heights.get(id) ?? 0;
+      // Read live confirmation status from a verified transaction's output script.
+      // A cached address scan cannot track new confirmations or reorganizations.
+      // This also works on servers without verbose transaction RPC support.
+      const statusOutput = tx.outs.find(out => out.script[0] !== bitcoin.opcodes.OP_RETURN);
+      const history = statusOutput ? await getHistory(outputScriptHash(statusOutput.script)) : [];
+      const height = history.find(item => item.tx_hash === id)?.height ?? 0;
       const time = height > 0 ? (await getBlockTimestamps([height]))[height] : Math.floor(Date.now() / 1000);
       const decoded: XbtElectrum.ElectrumTransaction = {
         txid: id,
@@ -456,6 +468,7 @@ export function forWallet(walletID: string) {
       return result;
     },
     multiGetUtxoByAddress: async (addresses: string[]) => {
+      await refreshTip();
       const result: Record<
         string,
         {
@@ -472,8 +485,11 @@ export function forWallet(walletID: string) {
           'blockchain.scripthash.listunspent',
           [scriptHash(address)],
         );
+        if (!Array.isArray(entries)) throw new Error('Invalid Bitcoin UTXOs');
+        if (entries.some(entry => entry?.height > tip)) await refreshTip();
         result[address] = entries.map(entry => {
           if (
+            !entry ||
             !validTxid(entry.tx_hash) ||
             !Number.isSafeInteger(entry.tx_pos) ||
             entry.tx_pos < 0 ||

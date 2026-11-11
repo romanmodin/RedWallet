@@ -51,3 +51,17 @@ test('an on-chain rollback overrides a stale confirmed label', () => {
   expect(rolledBack).toContain('awaiting on-chain confirmation');
   expect(rolledBack).not.toContain('confirmed on chain;');
 });
+
+test.each(['aborted', 'dead'])('a %s resize never promises to finish after peer locking', progress => {
+  const text = resizeProgressText({ ...splice, progress });
+  expect(text).toContain('This resize did not complete');
+  expect(text).not.toContain('waiting');
+  expect(text).not.toContain('Funds update after');
+  expect(text).not.toContain('Local confirmation requirement');
+});
+test('a conflicted resize does not wait for peer locking', () => {
+  const text = resizeProgressText({ ...splice, onchainConfirmations: '-1' });
+  expect(text).toContain('transaction conflicted');
+  expect(text).not.toContain('waiting');
+  expect(text).not.toContain('Funds update after');
+});
