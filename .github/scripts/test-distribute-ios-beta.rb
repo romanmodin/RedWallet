@@ -5,7 +5,7 @@ require_relative 'distribute-ios-beta'
 
 class FixtureBetaRelease < RedWalletBetaRelease
   attr_reader :writes, :assigned
-  attr_accessor :wrong_app, :wrong_group, :wrong_build, :expired, :compliance, :review_state, :existing, :external_state, :internal_state
+  attr_accessor :wrong_app, :wrong_group, :wrong_build, :expired, :compliance, :review_state, :existing, :external_state, :internal_state, :missing_group, :duplicate_group, :incomplete_groups
   def initialize(notes_path:, receipt_path:)
     super(key_path: nil, notes_path: notes_path, receipt_path: receipt_path, token: Object.new)
     @writes = []; @assigned = []; @compliance = false; @review_state = 'WAITING_FOR_REVIEW'
@@ -18,11 +18,11 @@ class FixtureBetaRelease < RedWalletBetaRelease
     if path == "/v1/apps/#{APP_ID}"
       return { 'data' => { 'attributes' => { 'bundleId' => wrong_app ? 'wrong.app' : BUNDLE_ID } } }
     end
-    group = GROUPS.find { |g| path == "/v1/betaGroups/#{g[:id]}" }
-    if group
-      return { 'data' => { 'attributes' => { 'name' => wrong_group ? 'Wrong group' : group[:name],
-                 'isInternalGroup' => group[:internal] },
-                 'relationships' => { 'app' => { 'data' => { 'id' => APP_ID } } } } }
+    if path == "/v1/apps/#{APP_ID}/betaGroups"
+      groups = missing_group ? [] : GROUPS.map { |group| { 'id' => group[:id], 'attributes' => {
+        'name' => wrong_group ? 'Wrong group' : group[:name], 'isInternalGroup' => group[:internal] } } }
+      groups += groups if duplicate_group
+      return { 'data' => groups, 'links' => { 'next' => incomplete_groups ? 'another-page' : nil } }
     end
     if path == '/v1/builds'
       return { 'data' => [{ 'id' => 'fixture-build', 'attributes' => { 'processingState' => 'VALID',
@@ -68,7 +68,7 @@ Dir.mktmpdir('redwallet-beta-fixtures') do |dir|
                                              sourceCommit: 'fixture', orchestrationCommit: 'fixture' }))
     factory = -> { FixtureBetaRelease.new(notes_path: 'notes.txt', receipt_path: 'receipt.json') }
     report = -> { JSON.parse(File.read('testflight-beta-verification.json')) }
-    [:wrong_app, :wrong_group, :wrong_build, :expired].each do |failure|
+    [:wrong_app, :wrong_group, :wrong_build, :expired, :missing_group, :duplicate_group, :incomplete_groups].each do |failure|
       release = factory.call
       release.public_send("#{failure}=", true)
       begin
