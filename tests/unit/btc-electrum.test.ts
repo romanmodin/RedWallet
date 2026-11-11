@@ -42,14 +42,14 @@ test('identifies BTC with its post-fork checkpoint, rejecting XBT, malformed and
   expect(Btc.isBitcoinCheckpoint('00'.repeat(80))).toBe(false);
 });
 test('does not connect on import, inactive refresh, or a direct address read', async () => {
-  const backend = Btc.forWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
   expect(await backend.ensureConnected()).toBe(false);
   await expect(backend.getBalanceByAddress(address)).rejects.toThrow('Select the blue BTC wallet');
   expect(mockClients).toHaveLength(0);
 });
 test('uses authenticated TLS and only the selected blue wallet session', async () => {
   Btc.selectWallet('blue');
-  const backend = Btc.forWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
   expect(await backend.ensureConnected()).toBe(true);
   expect(require('electrum-client')).toHaveBeenCalledWith(expect.anything(), expect.anything(), 50002, 'electrum.blockstream.info', 'tls', {
     rejectUnauthorized: true,
@@ -131,7 +131,7 @@ test('does not continue a connection handshake after the blue wallet is deselect
 });
 test.each([NaN, -1, 2_100_000_000_000_001, 1.5])('rejects a malformed confirmed balance: %s', async value => {
   Btc.selectWallet('blue');
-  const backend = Btc.forWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
   await backend.ensureConnected();
   mockClients[0].request.mockResolvedValue({
     confirmed: value,
@@ -141,7 +141,7 @@ test.each([NaN, -1, 2_100_000_000_000_001, 1.5])('rejects a malformed confirmed 
 });
 test('verifies raw transaction IDs instead of trusting verbose server amounts', async () => {
   Btc.selectWallet('blue');
-  const backend = Btc.forWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
   await backend.ensureConnected();
   const tx = new bitcoin.Transaction();
   tx.addInput(Buffer.alloc(32, 1), 0);
@@ -374,7 +374,7 @@ test('server configuration changes are serialized, so the most recent explicit c
 
 test('refreshes UTXO tip and retries a block arriving between tip and listunspent', async () => {
   Btc.selectWallet('blue');
-  const backend = Btc.forWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
   await backend.ensureConnected();
   mockClients[0].blockchainHeaders_subscribe.mockResolvedValueOnce({ height: 981001 }).mockResolvedValue({ height: 981002 });
   mockClients[0].request.mockResolvedValue([{ tx_hash: '12'.repeat(32), tx_pos: 0, value: 1200, height: 981002 }]);
@@ -386,7 +386,7 @@ test('refreshes UTXO tip and retries a block arriving between tip and listunspen
 
 test('verbose reads follow confirmation, tip growth and reorg without an address scan, including reconnect', async () => {
   Btc.selectWallet('blue');
-  const backend = Btc.forWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
   const tx = new bitcoin.Transaction();
   tx.addInput(Buffer.alloc(32, 1), 0);
   tx.addOutput(bitcoin.address.toOutputScript(address), 1200n);
@@ -421,7 +421,7 @@ test('verbose reads follow confirmation, tip growth and reorg without an address
 
 test('a wallet switch during tip refresh cannot make an old UTXO read continue', async () => {
   Btc.selectWallet('blue');
-  const backend = Btc.forWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
   await backend.ensureConnected();
   let finish!: (value: unknown) => void;
   mockClients[0].blockchainHeaders_subscribe.mockImplementation(
@@ -435,4 +435,101 @@ test('a wallet switch during tip refresh cannot make an old UTXO read continue',
   finish({ height: 981002 });
   await expect(pending).rejects.toThrow();
   expect(mockClients[0].request).not.toHaveBeenCalled();
+});
+
+const recipient = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
+const ownedHash = Buffer.from(bitcoin.crypto.sha256(bitcoin.address.toOutputScript(address)))
+  .reverse()
+  .toString('hex');
+function statusTransaction(seed: number, ownOutput = true) {
+  const tx = new bitcoin.Transaction();
+  tx.addInput(Buffer.alloc(32, seed), 0);
+  tx.addOutput(bitcoin.address.toOutputScript(recipient), 1000n);
+  if (ownOutput) tx.addOutput(bitcoin.address.toOutputScript(address), 2000n);
+  return tx;
+}
+test('confirmation lookup uses an owned output and shares history reads across a batch', async () => {
+  Btc.selectWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
+  await backend.ensureConnected();
+  const txs = [statusTransaction(4), statusTransaction(5)];
+  mockClients[0].request.mockImplementation(async (method: string, params: any[]) => {
+    if (method === 'blockchain.transaction.get') return txs.find(tx => tx.getId() === params[0])!.toHex();
+    if (method === 'blockchain.block.header') return mockHeader;
+    if (method === 'blockchain.scripthash.get_history' && params[0] === ownedHash)
+      return txs.map(tx => ({ tx_hash: tx.getId(), height: 981000 }));
+    throw new Error('Unexpected third-party history lookup');
+  });
+  const result = await backend.multiGetTransactionByTxid(
+    txs.map(tx => tx.getId()),
+    true,
+  );
+  expect(Object.values(result).map(tx => tx.confirmations)).toEqual([1, 1]);
+  expect(mockClients[0].request.mock.calls.filter((call: unknown[]) => call[0] === 'blockchain.scripthash.get_history')).toEqual([
+    ['blockchain.scripthash.get_history', [ownedHash]],
+  ]);
+});
+test('decodes third-party parent transactions without querying their scripts', async () => {
+  Btc.selectWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
+  await backend.ensureConnected();
+  const tx = statusTransaction(6, false);
+  mockClients[0].request.mockImplementation(async (method: string) => {
+    if (method === 'blockchain.transaction.get') return tx.toHex();
+    throw new Error('Third-party history is too large');
+  });
+  const result = await backend.multiGetTransactionByTxid([tx.getId()], true);
+  expect(result[tx.getId()].confirmations).toBe(0);
+  expect(result[tx.getId()].vout[0].value).toBe(0.00001);
+  expect(mockClients[0].request).toHaveBeenCalledTimes(1);
+});
+test.each(['oversized', 'invalid'])('unknown owned-script status (%s) cannot fail unrelated raw transaction decoding', async mode => {
+  Btc.selectWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
+  await backend.ensureConnected();
+  const tx = statusTransaction(7);
+  mockClients[0].request.mockImplementation(async (method: string) => {
+    if (method === 'blockchain.transaction.get') return tx.toHex();
+    if (mode === 'oversized') throw new Error('History is too large');
+    return [{ tx_hash: tx.getId(), height: 1.5 }];
+  });
+  const result = await backend.multiGetTransactionByTxid([tx.getId()], true);
+  expect(result[tx.getId()].confirmations).toBe(0);
+  expect(result[tx.getId()].rawHex).toBe(tx.toHex());
+  await expect(backend.multiGetTransactionByTxid(['00'.repeat(32)], true)).rejects.toThrow('does not match');
+});
+test('outgoing transactions without change refresh an owned input history after reconnect', async () => {
+  Btc.selectWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
+  const tx = statusTransaction(8, false);
+  let height = 0;
+  const setup = async () => {
+    await backend.ensureConnected();
+    const active = mockClients[mockClients.length - 1];
+    active.request.mockImplementation(async (method: string, params: any[]) => {
+      if (method === 'blockchain.transaction.get') return tx.toHex();
+      if (method === 'blockchain.block.header') return mockHeader;
+      if (method === 'blockchain.scripthash.get_history' && params[0] === ownedHash) return [{ tx_hash: tx.getId(), height }];
+      throw new Error('Unexpected third-party history lookup');
+    });
+  };
+  await setup();
+  await backend.getTransactionsByAddress(address);
+  expect((await backend.multiGetTransactionByTxid([tx.getId()], true))[tx.getId()].confirmations).toBe(0);
+  Btc.forceDisconnect();
+  height = 981000;
+  await setup();
+  expect((await backend.multiGetTransactionByTxid([tx.getId()], true))[tx.getId()].confirmations).toBe(1);
+});
+test('a failed history reply after changing wallet cannot be masked as unknown confirmation', async () => {
+  Btc.selectWallet('blue');
+  const backend = Btc.forWallet('blue', () => [address]);
+  await backend.ensureConnected();
+  const tx = statusTransaction(9);
+  mockClients[0].request.mockImplementation(async (method: string) => {
+    if (method === 'blockchain.transaction.get') return tx.toHex();
+    Btc.selectWallet('other');
+    throw new Error('Interrupted');
+  });
+  await expect(backend.multiGetTransactionByTxid([tx.getId()], true)).rejects.toThrow('Select the blue BTC wallet');
 });

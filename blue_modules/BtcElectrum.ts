@@ -33,6 +33,8 @@ export const getConnectionState = (): 'inactive' | 'selected' | 'connected' =>
   !selectedWallet || !foreground ? 'inactive' : connected ? 'connected' : 'selected';
 const emit = () => listeners.forEach(listener => listener());
 const timestamps = new Map<number, number>();
+// Script associations are hints only, never cached confirmation heights.
+const historyScripts = new Map<string, string>();
 
 export function isBitcoinCheckpoint(header: unknown): boolean {
   if (typeof header !== 'string' || !/^[0-9a-f]{160}$/i.test(header)) return false;
@@ -61,6 +63,7 @@ export function forceDisconnect(): void {
 export function selectWallet(walletID?: string): void {
   if (selectedWallet === walletID) return;
   forceDisconnect();
+  historyScripts.clear();
   selectedWallet = walletID;
   emit();
 }
@@ -314,7 +317,7 @@ export function assertBitcoinPayment(hex: string): void {
 }
 
 /** Each method is bound to the wallet ID, so an old screen cannot use another wallet's session. */
-export function forWallet(walletID: string) {
+export function forWallet(walletID: string, ownedAddresses: () => string[] = () => []) {
   const request = <T>(method: string, params: unknown[]) => rpc<T>(walletID, method, params);
   const refreshTip = async () => {
     const epoch = generation;
@@ -336,7 +339,14 @@ export function forWallet(walletID: string) {
     }
     return history;
   };
-  const getTransactionsByAddress = (address: string) => getHistory(scriptHash(address));
+  const getTransactionsByAddress = async (address: string) => {
+    const hash = scriptHash(address);
+    const history = await getHistory(hash);
+    if (ownedAddresses().includes(address)) {
+      for (const item of history) historyScripts.set(item.tx_hash, hash);
+    }
+    return history;
+  };
   const getBalanceByAddress = async (address: string) => {
     const balance = await request<{ confirmed: number; unconfirmed: number }>('blockchain.scripthash.get_balance', [scriptHash(address)]);
     return {
@@ -364,6 +374,23 @@ export function forWallet(walletID: string) {
     _verifyRaw = false,
   ): Promise<T extends true ? Record<string, XbtElectrum.ElectrumTransaction> : Record<string, string>> => {
     if (verbose) await refreshTip();
+    const epoch = generation;
+    const ownedScripts = new Set(verbose ? ownedAddresses().map(scriptHash) : []);
+    const statusReads = new Map<string, Promise<XbtElectrum.ElectrumHistory[]>>();
+    const readStatus = (hash: string) => {
+      if (!statusReads.has(hash)) {
+        statusReads.set(
+          hash,
+          getHistory(hash).catch(() => {
+            requireSelected(walletID);
+            if (epoch !== generation) throw new Error('Bitcoin wallet selection changed.');
+            // Unknown status must not be treated as confirmed or abort unrelated reads.
+            return [];
+          }),
+        );
+      }
+      return statusReads.get(hash)!;
+    };
     const result: Record<string, T extends true ? XbtElectrum.ElectrumTransaction : string> = {};
     for (const id of new Set(ids)) {
       if (!validTxid(id)) throw new Error('Invalid Bitcoin transaction ID');
@@ -374,11 +401,15 @@ export function forWallet(walletID: string) {
         result[id] = raw as T extends true ? XbtElectrum.ElectrumTransaction : string;
         continue;
       }
-      // Read live confirmation status from a verified transaction's output script.
-      // A cached address scan cannot track new confirmations or reorganizations.
-      // This also works on servers without verbose transaction RPC support.
-      const statusOutput = tx.outs.find(out => out.script[0] !== bitcoin.opcodes.OP_RETURN);
-      const history = statusOutput ? await getHistory(outputScriptHash(statusOutput.script)) : [];
+      // Query only this wallet's scripts, once per script per batch. Incoming
+      // payments may put a recipient/service output first, and parent transactions
+      // fetched for input decoding need not belong to this wallet at all.
+      const hint = historyScripts.get(id);
+      const hash =
+        hint && ownedScripts.has(hint)
+          ? hint
+          : tx.outs.map(out => outputScriptHash(out.script)).find(candidate => ownedScripts.has(candidate));
+      const history = hash ? await readStatus(hash) : [];
       const height = history.find(item => item.tx_hash === id)?.height ?? 0;
       const time = height > 0 ? (await getBlockTimestamps([height]))[height] : Math.floor(Date.now() / 1000);
       const decoded: XbtElectrum.ElectrumTransaction = {

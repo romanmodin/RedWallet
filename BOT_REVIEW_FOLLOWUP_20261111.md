@@ -12,7 +12,7 @@ The inventory covered all 219 existing pull requests (open, closed and merged), 
 | [PR 152](https://github.com/romanmodin/RedWallet/pull/152) | Automatic confirmation clears unrelated errors | Fixed here with separate action and confirmation errors. Successful automatic retries clear only the confirmation error. |
 | [PR 152](https://github.com/romanmodin/RedWallet/pull/152) | Unconditional recovery refresh erases frozen-output notice | Fixed here. Only eligible uncertain, reviewed journals trigger automatic recovery reads; preserve the confirmed frozen-review notice when no further work is pending. |
 | [PR 195](https://github.com/romanmodin/RedWallet/pull/195) | Stale SHA-256 tip rejects newly confirmed UTXOs | Fixed here. Refresh tip before UTXO reads; make one bounded additional refresh if a newer block arrives during the request. Future or malformed heights remain rejected. |
-| [PR 195](https://github.com/romanmodin/RedWallet/pull/195) | Cached history keeps transaction confirmations stale or zero | Fixed here. Verify raw transaction ID, then read live history for its output script. Refresh tip and block timestamps. Reconnect and reorg tests require confirmations to change without a wallet-wide history scan. No server-reported output amounts are trusted. |
+| [PR 195](https://github.com/romanmodin/RedWallet/pull/195) | Cached history keeps transaction confirmations stale or zero | Fixed here. Verify raw transaction ID, then read live history only for a wallet-owned script (output or a known input-history association). Refresh tip and block timestamps. Reconnect and reorg tests require confirmations to change without a wallet-wide history scan. No server-reported output amounts are trusted. |
 | [PR 194](https://github.com/romanmodin/RedWallet/pull/194) | Face ID success canceled by transient iOS inactive state | Already fixed on current main by `authorizeInForeground`. Current screen regressions verify transient inactivity succeeds, while real backgrounding, navigation, dismissal, rejection and timeout cannot submit. |
 | [PR 199](https://github.com/romanmodin/RedWallet/pull/199) | Failed resize still says to wait for peer locking | Fixed here. Aborted, dead and conflicted resizes show a terminal failure explanation and omit waiting/lock-depth promises. |
 | [PR 200](https://github.com/romanmodin/RedWallet/pull/200) | No UI path persists default-server opt-out | Fixed here. Explicit Remove server action persists the opt-out, disconnects and clears backups; partial removal cannot reconnect. Explicit Save and Reset to defaults restore an endpoint. Reset failures no longer claim success. Repeated settings refreshes replace, rather than leak, their status timer. |
@@ -33,9 +33,15 @@ All seven were already addressed on current main. Rechecked the present code and
 
 [PR 223](https://github.com/romanmodin/RedWallet/pull/223) was rechecked after its bot review finished: it reports no open findings. Its separate Android build/release verification remains outstanding and is not represented as complete here.
 
+## Follow-up on PR 224
+
+The bot found that the initial confirmation lookup could read an arbitrary recipient/third-party parent script. Corrected it before release: hot and watch-only BTC adapters provide their own address set; live status reads are restricted to that set, shared once per script per transaction batch, and can use owned-history associations for outgoing transactions with no change. Associations persist through reconnect only as lookup hints, never as confirmation heights; changing wallets clears them. Third-party parents are decoded from verified raw bytes without querying their address histories. An oversized or malformed owned history yields unknown/zero confirmations for that transaction, while raw-ID mismatches and wallet/session changes still reject.
+
+Regressions cover owned-output selection when a recipient output comes first, one shared status request for multiple transactions, third-party parents, oversized/malformed histories, outgoing no-change confirmation after reconnect, wallet changes during failed reads, and watch-only address-provider wiring.
+
 ## Validation
 
-- 20 relevant unit/UI suites: **353 tests passed**.
+- 20 relevant unit/UI suites: **359 tests passed**.
 - Relay branch: **12 tests passed**, including all three permanent-retirement causes, no future polling, and temporary-error recovery.
 - Full repository lint pipeline (TypeScript, localization, metadata and ESLint): passed with warnings; changed/new files checked separately with zero warnings after cleanup.
 - `git diff --check`: passed.
