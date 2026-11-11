@@ -81,11 +81,11 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
 
   forceUseBBQR = () => {
     const { value, capacity = 175, hideControls = true, walletID } = this.props;
-    console.log({ value, capacity, walletID });
 
     try {
       this.fragments = encodeUR(value, capacity, walletID ?? null, 'BBQR');
       this.setState({
+        index: 0,
         total: this.fragments.length,
         displayQRCode: true,
       });
@@ -97,11 +97,11 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
 
   forceUseURv2 = () => {
     const { value, capacity = 175, hideControls = true, walletID } = this.props;
-    console.log({ value, capacity, walletID });
 
     try {
       this.fragments = encodeUR(value, capacity, walletID ?? null, 'URv2');
       this.setState({
+        index: 0,
         total: this.fragments.length,
         displayQRCode: true,
       });
@@ -212,10 +212,10 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
 
             <View style={animatedQRCodeStyle.controller2}>
               <TouchableOpacity accessibilityRole="button" style={animatedQRCodeStyle.buttonUseFormat} onPress={this.forceUseBBQR}>
-                <Text style={animatedQRCodeStyle.text}>Force use BBQR</Text>
+                <Text style={animatedQRCodeStyle.text}>BBQr format</Text>
               </TouchableOpacity>
               <TouchableOpacity accessibilityRole="button" style={animatedQRCodeStyle.buttonUseFormat} onPress={this.forceUseURv2}>
-                <Text style={animatedQRCodeStyle.text}>Force use URv2</Text>
+                <Text style={animatedQRCodeStyle.text}>UR v2 format</Text>
               </TouchableOpacity>
             </View>
           </View>
