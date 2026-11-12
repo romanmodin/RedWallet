@@ -63,7 +63,7 @@ export function linkXbtAccounts(a: XbtAccount, b: XbtAccount, label = a.getLabel
   const group = {
     id,
     label: label.trim() || 'XBT wallet',
-    receiveWalletID: a.getID(),
+    receiveWalletID: (xbtAddressType(a) === 'taproot' ? a : b).getID(),
   };
   a.xbtAccountGroup = { ...group };
   b.xbtAccountGroup = { ...group };

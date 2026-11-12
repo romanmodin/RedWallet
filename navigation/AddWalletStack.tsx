@@ -157,7 +157,7 @@ const addWalletTypes = [
 const createAddWalletOptions = (theme: ReturnType<typeof useTheme>) =>
   navigationStyle({ closeButtonPosition: CloseButtonPosition.Left, title: loc.wallets.add_title }, (options, { navigation, route }) => {
     const bitcoinSelected = route.params?.network === 'btc';
-    const selectedIndex = !bitcoinSelected && route.params?.selectedIndex === 1 ? 1 : 0;
+    const selectedIndex = !bitcoinSelected && route.params?.selectedIndex !== 0 ? 1 : 0;
     const walletTypes = bitcoinSelected ? addWalletTypes.slice(0, 1) : addWalletTypes;
     const selectedWalletType = Chain.ONCHAIN;
     const words = route.params?.words;
