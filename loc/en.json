@@ -726,7 +726,7 @@
     "unavailable": "This XBT account is no longer available.",
     "back": "BACK TO WALLET",
     "settings": "ACCOUNT SETTINGS",
-    "receive_help": "Choose the default receive address type. Existing balances remain in their original accounts.",
+    "receive_help": "Choose the default receive address type for this grouped wallet. Opening an individual account uses its own address type. Existing balances remain in their original accounts.",
     "selected": "Selected",
     "link": "LINK",
     "add": "ADD",

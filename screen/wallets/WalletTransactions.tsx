@@ -1,4 +1,3 @@
-import { getXbtReceiveAccount } from '../../blue_modules/xbt-account-groups';
 import { walletElectrum, isBtcWallet, formatWalletBalance } from '../../blue_modules/wallet-network';
 import { LndWallet } from '../../class/wallets/lnd-wallet';
 import LndWalletHome from './LndWalletHome';
@@ -446,12 +445,10 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
           selectWallet(navigation, name, Chain.ONCHAIN).then(onWalletSelect);
         }
       } else if (id === actionKeys.RefillWithExternalWallet) {
-        navigate('ReceiveDetails', {
-          walletID: getXbtReceiveAccount(wallet, wallets).getID(),
-        });
+        navigate('ReceiveDetails', { walletID });
       }
     },
-    [name, navigate, navigation, onWalletSelect, wallet, wallets],
+    [name, navigate, navigation, onWalletSelect, walletID, wallets],
   );
 
   const txRowHeight = Math.round(TX_ROW_BASE_HEIGHT * fontScale);
@@ -904,9 +901,7 @@ const WalletTransactions: React.FC<WalletTransactionsProps> = ({ route }: { rout
                   params: { walletID },
                 });
               } else {
-                navigate('ReceiveDetails', {
-                  walletID: getXbtReceiveAccount(wallet, wallets).getID(),
-                });
+                navigate('ReceiveDetails', { walletID });
               }
             }}
             icon={
