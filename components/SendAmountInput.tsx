@@ -31,12 +31,18 @@ export default function SendAmountInput({ onSatsChange, onQuoteRefreshChange, us
     unit: props.unit,
     entry: usdcEntry,
     blocked,
+    onQuoteRefreshChange,
   });
-  latest.current = { amount: props.amount, unit: props.unit, entry: usdcEntry, blocked };
+  latest.current = { amount: props.amount, unit: props.unit, entry: usdcEntry, blocked, onQuoteRefreshChange };
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      request.current += 1;
+      if (inFlight.current) {
+        inFlight.current = false;
+        latest.current.onQuoteRefreshChange(false);
+      }
     };
   }, []);
   const now = useXbtPriceClock(usdcEntry?.quote);
@@ -77,7 +83,7 @@ export default function SendAmountInput({ onSatsChange, onQuoteRefreshChange, us
     } catch (error) {
       if (mounted.current && id === request.current) Alert.alert('USDC entry unavailable', (error as Error).message);
     } finally {
-      inFlight.current = false;
+      if (id === request.current) inFlight.current = false;
       if (mounted.current && id === request.current) {
         setRefreshing(false);
         onQuoteRefreshChange(false);

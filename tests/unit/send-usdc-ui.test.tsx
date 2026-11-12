@@ -29,7 +29,17 @@ jest.mock('../../components/themes', () => {
 });
 jest.mock('../../components/BtcUsdcEstimate', () => 'BtcEstimate');
 jest.mock('../../components/XbtFiatEstimate', () => 'XbtEstimate');
-function Harness({ asset, amount = '0.1', disabled = false }: { asset: SendAsset; amount?: string; disabled?: boolean }) {
+function Harness({
+  asset,
+  amount = '0.1',
+  disabled = false,
+  show = true,
+}: {
+  asset: SendAsset;
+  amount?: string;
+  disabled?: boolean;
+  show?: boolean;
+}) {
   const [state, setState] = useState<typeof current>({
     amount,
     amountSats: Number(amount) * 100000000,
@@ -38,6 +48,7 @@ function Harness({ asset, amount = '0.1', disabled = false }: { asset: SendAsset
   useEffect(() => {
     current = state;
   }, [state]);
+  if (!show) return null;
   return (
     <SendAmountInput
       assetTicker={asset}
@@ -178,8 +189,12 @@ test.each(['disabled', 'unmounted'])('late refresh cannot change an amount after
   fireEvent.press(view.getByTestId('changeAmountUnitButton'));
   fireEvent.changeText(view.getByTestId('SendUsdcInput'), '1');
   fireEvent.press(view.getByTestId('RefreshSendUsdcQuote'));
-  if (mode === 'unmounted') view.unmount();
-  else view.rerender(<Harness asset="BTC" disabled />);
+  if (mode === 'unmounted') {
+    view.rerender(<Harness asset="BTC" show={false} />);
+    expect(current.usdcRefreshing).toBe(false);
+    expect(() => validateUsdcSendRecipient(current, 'BTC', NOW)).not.toThrow();
+  } else view.rerender(<Harness asset="BTC" disabled />);
   await act(async () => finish({ ...mockBtc, pricePerBtc: '50000' }));
   expect(current.amountSats).toBe(1364);
+  expect(current.usdcRefreshing).toBe(false);
 });
