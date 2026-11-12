@@ -12,7 +12,7 @@ class BetaReleaseError < StandardError; end
 class RedWalletBetaRelease
   APP_ID = '6817118871'
   BUNDLE_ID = 'com.romanmodin.redwallet'
-  BUILD = '1794312336'
+  BUILD = '1794416109'
   VERSION = '8.0.1'
   GROUPS = [
     { id: '0bc2722a-48b6-4520-871d-dd5a4a8988cb', name: 'Roman iPhone Testing', internal: true }
@@ -92,11 +92,14 @@ class RedWalletBetaRelease
   def run
     app = api('GET', "/v1/apps/#{APP_ID}").fetch('data')
     raise BetaReleaseError, 'Wrong Apple app identity' unless app.dig('attributes', 'bundleId') == BUNDLE_ID
+    response = api('GET', "/v1/apps/#{APP_ID}/betaGroups", { 'limit' => '200' })
+    raise BetaReleaseError, 'Incomplete app tester group response' if response.dig('links', 'next')
     GROUPS.each do |expected|
-      group = api('GET', "/v1/betaGroups/#{expected[:id]}", { 'include' => 'app' }).fetch('data')
+      matches = response.fetch('data').select { |item| item['id'] == expected[:id] }
+      raise BetaReleaseError, 'Existing tester group is not uniquely in the verified app' unless matches.length == 1
+      group = matches.first
       valid = group.dig('attributes', 'name') == expected[:name] &&
-              group.dig('attributes', 'isInternalGroup') == expected[:internal] &&
-              group.dig('relationships', 'app', 'data', 'id') == APP_ID
+              group.dig('attributes', 'isInternalGroup') == expected[:internal]
       raise BetaReleaseError, 'Existing tester group identity does not match' unless valid
     end
 

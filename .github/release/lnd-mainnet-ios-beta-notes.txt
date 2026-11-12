@@ -1,7 +1,10 @@
-SHA-256, watch-only and Lightning update:
+Hardware wallet compatibility update:
 
+- SHA-256 balances now show an approximate USDC value beside the main BTC subtotal and below the BTC amount on each wallet card. BTC and XBT use separate NeoxEX USDC markets. Hidden balances hide estimates too; an older trade is marked stale. Pull to refresh for an updated quote.
 - Imported BTC Native SegWit public accounts can use hardware signing. Enable Use with hardware wallet (BTC SHA-256) in wallet details, review the transaction, scan it with your signing device, then scan the signed QR back. RedWallet verifies the signatures, recipient/change and fee before offering Send. Verify those details on the device too. Your recovery phrase stays on the device. Physical Keystone compatibility remains part of this beta's device testing.
-- Sparrow-compatible and Keystone public-account QR imports work without entering a recovery phrase. Native SegWit BIP84 accounts are supported; other hardware account types remain unavailable.
+- Keystone multi-account public QR exports now import supported XBT Native SegWit (BIP84) and Taproot (BIP86) watch-only accounts, preserving their derivation paths and fingerprints. The existing BTC public-account importer remains Native SegWit only. No recovery phrase is needed.
+- Hardware signing now exports binary .psbt files for tools that expect them. Clipboard copy remains base64 text. UR v2 and BBQr controls are visible beneath the transaction QR; switching formats restarts at the first frame.
+- Watch-only keys remain on the signing device. QR/file compatibility does not establish XBT signing support in a device firmware: RedWallet still requires valid XBT Unified signatures and verifies the returned transaction against the reviewed request. Stock Keystone and OneKey XBT signing compatibility is not claimed.
 - Watch-only cards stay gray with a red XBT corner coin or blue SHA-256 corner coin. Hot-wallet card colors are unchanged.
 - BTC SHA-256 has its own editable server settings and chain connection, separate from XBT. New XBT installations use Kilombino's certificate-verified SSL Fulcrum preset.
 - Add/remove channel funds now waits for iOS to return to the foreground after successful Face ID. Canceling authentication or leaving the app cancels the authorization without retrying. A finished resize is labeled completed, instead of locked.

@@ -10,13 +10,22 @@ import { Action } from './types';
 interface SaveFileButtonProps extends TouchableOpacityProps {
   fileName: string;
   fileContent: string;
+  fileEncoding?: 'utf8' | 'base64';
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;
   afterOnPress?: () => void;
   beforeOnPress?: (() => Promise<void>) | (() => void);
 }
 
-const SaveFileButton: React.FC<SaveFileButtonProps> = ({ fileName, fileContent, children, style, beforeOnPress, afterOnPress }) => {
+const SaveFileButton: React.FC<SaveFileButtonProps> = ({
+  fileName,
+  fileContent,
+  fileEncoding = 'utf8',
+  children,
+  style,
+  beforeOnPress,
+  afterOnPress,
+}) => {
   const handlePressMenuItem = useCallback(
     async (actionId: string) => {
       if (beforeOnPress) {
@@ -25,16 +34,16 @@ const SaveFileButton: React.FC<SaveFileButtonProps> = ({ fileName, fileContent, 
       const action = actions.find(a => a.id === actionId);
 
       if (action?.id === 'save') {
-        await fs.writeFileAndExport(fileName, fileContent, false).finally(() => {
+        await fs.writeFileAndExport(fileName, fileContent, false, fileEncoding).finally(() => {
           afterOnPress?.();
         });
       } else if (action?.id === 'share') {
-        await fs.writeFileAndExport(fileName, fileContent, true).finally(() => {
+        await fs.writeFileAndExport(fileName, fileContent, true, fileEncoding).finally(() => {
           afterOnPress?.();
         });
       }
     },
-    [afterOnPress, beforeOnPress, fileContent, fileName],
+    [afterOnPress, beforeOnPress, fileContent, fileName, fileEncoding],
   );
 
   return (

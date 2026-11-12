@@ -131,13 +131,18 @@ const _shareOpen = async (filePath: string, showShareDialog: boolean = false) =>
  * or perhaps messaging app). Provided filename should be just a file name, NOT a path
  */
 
-export const writeFileAndExport = async function (fileName: string, contents: string, showShareDialog: boolean = true) {
+export const writeFileAndExport = async function (
+  fileName: string,
+  contents: string,
+  showShareDialog: boolean = true,
+  encoding: 'utf8' | 'base64' = 'utf8',
+) {
   const sanitizedFileName = _sanitizeFileName(fileName);
   try {
     if (!showShareDialog) {
       const sourceFilePath = _createTempExportPath(sanitizedFileName);
       try {
-        await RNFS.writeFile(sourceFilePath, contents);
+        await RNFS.writeFile(sourceFilePath, contents, encoding);
         const [savedFile] = await saveDocuments({
           sourceUris: [_toFileUri(sourceFilePath)],
           fileName: sanitizedFileName,
@@ -155,7 +160,7 @@ export const writeFileAndExport = async function (fileName: string, contents: st
     }
 
     const filePath = _createTempExportPath(sanitizedFileName);
-    await RNFS.writeFile(filePath, contents);
+    await RNFS.writeFile(filePath, contents, encoding);
     await _shareOpen(filePath, true);
   } catch (error: any) {
     if (isCancel(error)) {

@@ -330,6 +330,7 @@ const PsbtWithHardwareWallet = () => {
         </Text>
         {psbt && (
           <DynamicQRCode
+            hideControls={false}
             value={psbt.toHex()}
             ref={dynamicQRCode}
             walletID={walletID}
@@ -363,6 +364,7 @@ const PsbtWithHardwareWallet = () => {
           <SaveFileButton
             fileName={`${Date.now()}.psbt`}
             fileContent={psbt.toBase64()}
+            fileEncoding="base64"
             beforeOnPress={saveFileButtonBeforeOnPress}
             afterOnPress={saveFileButtonAfterOnPress}
           >
