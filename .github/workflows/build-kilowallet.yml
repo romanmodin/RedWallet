@@ -191,6 +191,8 @@ jobs:
         if: ${{ startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
         working-directory: app
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           ./scripts/fetch-lnd-engine.sh
