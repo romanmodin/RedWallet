@@ -6,6 +6,7 @@ on:
       - 'ios/BlueWallet/XBTLightningBridge.*'
       - 'screen/settings/XBTLightning.tsx'
       - 'screen/send/psbtWithHardwareWallet.tsx'
+      - 'screen/send/SendDetails.tsx'
       - 'class/wallet-import.ts'
       - 'components/TotalWalletsBalance.tsx'
       - 'components/Context/SettingsProvider.tsx'
