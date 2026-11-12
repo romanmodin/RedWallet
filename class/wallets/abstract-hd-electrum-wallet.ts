@@ -1162,6 +1162,9 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
     const keypairs: Record<number, ECPairInterface> = {};
     const values: Record<number, number> = {};
 
+    const masterFingerprintBuffer = Buffer.alloc(4);
+    masterFingerprintBuffer.writeUInt32LE(masterFingerprint || 0);
+
     inputs.forEach(input => {
       let keyPair;
       if (!skipSigning) {
@@ -1175,18 +1178,6 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
         // skiping signing related stuff
         if (!input.address || !this._getWifForAddress(input.address)) throw new Error('Internal error: no address or WIF to sign input');
       }
-
-      let masterFingerprintBuffer;
-      if (masterFingerprint) {
-        let masterFingerprintHex = Number(masterFingerprint).toString(16);
-        if (masterFingerprintHex.length < 8) masterFingerprintHex = '0' + masterFingerprintHex; // conversion without explicit zero might result in lost byte
-        const hexBuffer = hexToUint8Array(masterFingerprintHex);
-        masterFingerprintBuffer = hexBuffer.reverse();
-      } else {
-        masterFingerprintBuffer = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
-      }
-      // this is not correct fingerprint, as we dont know real fingerprint - we got zpub with 84/0, but fingerpting
-      // should be from root. basically, fingerprint should be provided from outside  by user when importing zpub
 
       psbt = this._addPsbtInput(psbt, input, sequence, masterFingerprintBuffer);
     });
@@ -1202,20 +1193,6 @@ export class AbstractHDElectrumWallet extends AbstractHDWallet {
 
       const path = this._getDerivationPathByAddress(String(output.address));
       const pubkey = this._getPubkeyByAddress(String(output.address));
-      let masterFingerprintBuffer;
-
-      if (masterFingerprint) {
-        let masterFingerprintHex = Number(masterFingerprint).toString(16);
-        if (masterFingerprintHex.length < 8) masterFingerprintHex = '0' + masterFingerprintHex; // conversion without explicit zero might result in lost byte
-        const hexBuffer = hexToUint8Array(masterFingerprintHex);
-        masterFingerprintBuffer = hexBuffer.reverse();
-      } else {
-        masterFingerprintBuffer = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
-      }
-
-      // this is not correct fingerprint, as we dont know realfingerprint - we got zpub with 84/0, but fingerpting
-      // should be from root. basically, fingerprint should be provided from outside  by user when importing zpub
-
       if (output.address?.startsWith('PM')) {
         // ok its BIP47 payment code, so we need to unwrap a joint address for the receiver and use it instead:
         output.address = this._getNextFreePaymentCodeAddressSend(output.address);
