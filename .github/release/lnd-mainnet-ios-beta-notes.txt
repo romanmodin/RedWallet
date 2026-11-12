@@ -1,24 +1,5 @@
-USDC send entry, wallet estimates, and Lightning history
+LND balance details stay where you scroll while balances and history refresh. Pull down to refresh manually.
 
-- LND balance details stay scrolled to where you left them during automatic refresh. Pull down to refresh manually.
-- On the XBT or SHA-256 on-chain Send screen, tap the unit to switch between coins, sats, and USDC. Enter a USDC amount to calculate the coin amount using the selected chain’s NeoxEX quote. The preview shows the rounded-down amount before review, with fees separate. Refresh the quote if it expires.
-- SHA-256 wallet details show the approximate USDC balance beneath the coin balance. Hidden balances also hide this estimate.
+On the XBT or SHA-256 Send screen, tap the amount unit to switch between coins, sats, and USDC. USDC entry uses the current NeoxEX quote for that chain. The preview shows the rounded-down coin amount with the fee shown separately.
 
-Hardware wallet compatibility update:
-
-- SHA-256 balances now show an approximate USDC value beside the main BTC subtotal and below the BTC amount on each wallet card. BTC and XBT use separate NeoxEX USDC markets. Hidden balances hide estimates too; an older trade is marked stale. Pull to refresh for an updated quote.
-- Imported BTC Native SegWit public accounts can use hardware signing. Enable Use with hardware wallet (BTC SHA-256) in wallet details, review the transaction, scan it with your signing device, then scan the signed QR back. RedWallet verifies the signatures, recipient/change and fee before offering Send. Verify those details on the device too. Your recovery phrase stays on the device. Physical Keystone compatibility remains part of this beta's device testing.
-- Keystone multi-account public QR exports now import supported XBT Native SegWit (BIP84) and Taproot (BIP86) watch-only accounts, preserving their derivation paths and fingerprints. The existing BTC public-account importer remains Native SegWit only. No recovery phrase is needed.
-- Hardware signing now exports binary .psbt files for tools that expect them. Clipboard copy remains base64 text. UR v2 and BBQr controls are visible beneath the transaction QR; switching formats restarts at the first frame.
-- Watch-only keys remain on the signing device. QR/file compatibility does not establish XBT signing support in a device firmware: RedWallet still requires valid XBT Unified signatures and verifies the returned transaction against the reviewed request. Stock Keystone and OneKey XBT signing compatibility is not claimed.
-- Watch-only cards stay gray with a red XBT corner coin or blue SHA-256 corner coin. Hot-wallet card colors are unchanged.
-- BTC SHA-256 has its own editable server settings and chain connection, separate from XBT. New XBT installations use Kilombino's certificate-verified SSL Fulcrum preset.
-- Add/remove channel funds now waits for iOS to return to the foreground after successful Face ID. Canceling authentication or leaving the app cancels the authorization without retrying. A finished resize is labeled completed, instead of locked.
-- Channel resize status shows the transaction's measured confirmations and each side's lock status. The peer's confirmation requirement is marked unavailable when the node does not report it. Funds become available after the resize locks; foreground refresh updates the balance without submitting another resize.
-- Long Lightning help paragraphs open initially, remember when you collapse them, and reopen from their heading. Informational and unavailable settings text is grey; the top status/result display keeps its colors. Available Add funds actions are green and Remove funds actions red, including confirmation controls.
-- Balance details separate available funds, pending funding/channels/resize, locked outputs and reserves. Lightning availability is an estimate; routing, limits and fees can reduce the amount you can pay. Hidden amounts stay masked.
-- Lightning payments show confirmed success or failure and retain unknown/pending results for status checks. No automatic payment retry. Outgoing payments are red and incoming payments green.
-- Total-balance display cycles units and hidden amounts and can be revealed again. Transaction history scrolls below the fixed dashboard; the green LED marks verified chain status. Settings headings and saved Dark Angel/Templar skins are retained.
-- New Lightning channels retain the 10,000,000-sat opening cap. Existing channel resizing keeps its separate amount and fee rules.
-
-Update the existing app in TestFlight; no reimport is required. SHA-256 server connections use the direct network. Tor covers the embedded Lightning paths and configured watchtowers; quote requests use direct HTTPS.
+SHA-256 wallet details show the approximate USDC balance below the coin balance.
