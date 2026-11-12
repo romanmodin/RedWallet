@@ -64,6 +64,7 @@ const charEntering = FadeIn.duration(CHAR_FADE_IN_DURATION_MS);
 const charExiting = FadeOut.duration(CHAR_FADE_OUT_DURATION_MS);
 
 type AmountInputProps = Omit<TextInputProps, 'onChangeText' | 'value'> & {
+  onPressUnit?: () => void;
   assetTicker?: 'BTC' | 'XBT';
   /**
    * Whether the input is in a loading state
@@ -113,6 +114,7 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
     onChangeText,
     unit: requestedUnit,
     onAmountUnitChange,
+    onPressUnit,
     disabled = false,
     isLoading = false,
     maxSendableAmount,
@@ -308,7 +310,9 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
     (event: TextInputSelectionChangeEvent) => {
       const { selection } = event.nativeEvent;
       if (selection.start !== selection.end || selection.start !== amount.length) {
-        textInputRef.current?.setNativeProps({ selection: { start: amount.length, end: amount.length } });
+        textInputRef.current?.setNativeProps({
+          selection: { start: amount.length, end: amount.length },
+        });
       }
     },
     [amount],
@@ -459,7 +463,7 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
               accessibilityLabel={loc._.change_input_currency}
               testID="changeAmountUnitButton"
               style={[styles.sideRail, styles.changeAmountUnit]}
-              onPress={changeAmountUnit}
+              onPress={onPressUnit || changeAmountUnit}
             >
               <Image source={require('../img/round-compare-arrows-24-px.png')} />
             </TouchableOpacity>
@@ -471,7 +475,11 @@ export const AmountInput: React.FC<AmountInputProps> = props => {
         <View style={styles.outdatedRateContainer}>
           <Badge badgeStyle={styles.warningBadge} />
           <View style={styles.spacing8} />
-          <BlueText>{loc.formatString(loc.send.outdated_rate, { date: dayjs(outdatedRefreshRate.LastUpdated).format('l LT') })}</BlueText>
+          <BlueText>
+            {loc.formatString(loc.send.outdated_rate, {
+              date: dayjs(outdatedRefreshRate.LastUpdated).format('l LT'),
+            })}
+          </BlueText>
           <View style={styles.spacing8} />
           <TouchableOpacity
             accessibilityRole="button"

@@ -19,6 +19,7 @@ import { useLocale } from '@react-navigation/native';
 import ActionSheet from '../screen/ActionSheet';
 import { normalizeXbtUnit, nextXbtUnit } from '../class/xbt/units';
 import XbtFiatEstimate from './XbtFiatEstimate';
+import BtcUsdcEstimate from './BtcUsdcEstimate';
 
 const HERO_BASE_BODY_MIN_HEIGHT = 120;
 const HERO_MIN_BODY_HEIGHT = Math.round(HERO_BASE_BODY_MIN_HEIGHT * 1.2);
@@ -216,7 +217,12 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
               </TouchableOpacity>
             )}
           </View>
-          {!hideBalance && !isBtcWallet(wallet) && <XbtFiatEstimate satoshis={currentBalance} style={styles.priceEstimate} />}
+          {!hideBalance &&
+            (isBtcWallet(wallet) ? (
+              <BtcUsdcEstimate satoshis={currentBalance} style={styles.priceEstimate} testID="WalletHeaderBtcUsdcEstimate" />
+            ) : (
+              <XbtFiatEstimate satoshis={currentBalance} style={styles.priceEstimate} />
+            ))}
           {(wallet.type === LightningCustodianWallet.type || wallet.type === LightningArkWallet.type) && allowOnchainAddress && (
             <TouchableOpacity style={styles.manageFundsButton} accessibilityRole="button" onPress={showManageFundsActionSheet}>
               <Text style={styles.manageFundsButtonText}>{loc.lnd.title}</Text>

@@ -1,3 +1,5 @@
+import SendAmountInput from '../../components/SendAmountInput';
+import { UsdcSendEntry, validateUsdcSendRecipient } from '../../blue_modules/send-usdc';
 import { isBtcWallet, walletElectrum, walletTicker, formatWalletBalance, selectWalletNetwork } from '../../blue_modules/wallet-network';
 import confirm from '../../helpers/confirm';
 import { updatePaymentRecipient } from '../../helpers/update-payment-recipient';
@@ -70,6 +72,8 @@ import { Measure } from '../../class/measure';
 import { isWatchOnlySegwitBech32 } from '../../util/isWatchOnlySegwitBech32';
 
 interface IPaymentDestinations {
+  usdcEntry?: UsdcSendEntry;
+  usdcRefreshing?: boolean;
   address: string; // btc address or payment code
   amountSats?: number | string;
   amount?: string | number | 'MAX';
@@ -183,14 +187,11 @@ const SendDetails = () => {
         const { address, amount, memo, payjoinUrl: pjUrl } = DeeplinkSchemaMatch.decodeBitcoinUri(routeParams.uri);
 
         setAddresses(addrs => {
-          addrs[scrollIndex.current].unit = BitcoinUnit.BTC;
-          return [...addrs];
-        });
-
-        setAddresses(addrs => {
           if (currentAddress) {
             currentAddress.address = address;
             if (Number(amount) > 0) {
+              currentAddress.unit = BitcoinUnit.BTC;
+              currentAddress.usdcEntry = undefined;
               currentAddress.amount = amount!;
               currentAddress.amountSats = btcToSatoshi(amount!);
             }
@@ -232,6 +233,7 @@ const SendDetails = () => {
         updatedAddresses[0] = {
           ...updatedAddresses[0],
           address: routeParams.address!,
+          usdcEntry: undefined,
           amount: 0,
           amountSats: 0,
         };
@@ -248,8 +250,10 @@ const SendDetails = () => {
           updatedAddresses[index] = {
             ...updatedAddresses[index],
             address,
+            usdcEntry: amount !== undefined ? undefined : updatedAddresses[index].usdcEntry,
             amount: amount ?? updatedAddresses[index].amount,
-            amountSats: amount ? btcToSatoshi(amount) : updatedAddresses[index].amountSats,
+            amountSats: amount !== undefined ? btcToSatoshi(amount) : updatedAddresses[index].amountSats,
+            unit: amount !== undefined ? BitcoinUnit.BTC : updatedAddresses[index].unit,
           };
         }
         return updatedAddresses;
@@ -319,6 +323,22 @@ const SendDetails = () => {
     const prevId = prevWalletIdForCoinResetRef.current;
     const currentId = wallet.getID();
     const walletActuallyChanged = prevId !== null && prevId !== currentId;
+    if (walletActuallyChanged) {
+      setAddresses(recipients =>
+        recipients.map(recipient =>
+          recipient.usdcEntry || recipient.usdcRefreshing
+            ? {
+                ...recipient,
+                amount: '',
+                amountSats: 0,
+                unit: BitcoinUnit.SATS,
+                usdcEntry: undefined,
+                usdcRefreshing: false,
+              }
+            : recipient,
+        ),
+      );
+    }
 
     setParams({
       ...(walletActuallyChanged ? { utxos: null } : {}),
@@ -548,12 +568,12 @@ const SendDetails = () => {
       if (wallet.isAddressValid(address)) {
         setAddresses(addrs => {
           addrs[scrollIndex.current].address = address;
-          addrs[scrollIndex.current].amount = options?.amount ?? 0;
-          addrs[scrollIndex.current].amountSats = new BigNumber(options?.amount ?? 0).multipliedBy(100000000).toNumber();
-          return [...addrs];
-        });
-        setAddresses(addrs => {
-          addrs[scrollIndex.current].unit = BitcoinUnit.BTC;
+          if (options?.amount !== undefined) {
+            addrs[scrollIndex.current].usdcEntry = undefined;
+            addrs[scrollIndex.current].amount = options.amount;
+            addrs[scrollIndex.current].amountSats = new BigNumber(options.amount).multipliedBy(100000000).toNumber();
+            addrs[scrollIndex.current].unit = BitcoinUnit.BTC;
+          }
           return [...addrs];
         });
         setParams({
@@ -605,6 +625,14 @@ const SendDetails = () => {
         if (address.startsWith('lnb') || address.startsWith('lightning:lnb')) {
           error = loc.send.provided_address_is_invoice;
           console.log('validation error');
+        }
+      }
+
+      if (!error) {
+        try {
+          validateUsdcSendRecipient(transaction, walletTicker(wallet));
+        } catch (err) {
+          error = (err as Error).message;
         }
       }
 
@@ -689,6 +717,8 @@ const SendDetails = () => {
     const lutxo: CreateTransactionUtxo[] = utxos || (wallet?.getUtxo() ?? []);
     console.log({ requestedSatPerByte, lutxo: lutxo.length });
 
+    // Rates and recipient bindings must still be valid after confirmation and change-address lookup.
+    addresses.forEach(recipient => validateUsdcSendRecipient(recipient, walletTicker(wallet)));
     const targets: CreateTransactionTarget[] = [];
     for (const transaction of addresses) {
       if (transaction.amount === BitcoinUnit.MAX) {
@@ -1195,6 +1225,7 @@ const SendDetails = () => {
       if (buttonIndex === 1) {
         Keyboard.dismiss();
         setAddresses(addrs => {
+          addrs[scrollIndex.current].usdcEntry = undefined;
           addrs[scrollIndex.current].amount = BitcoinUnit.MAX;
           addrs[scrollIndex.current].amountSats = BitcoinUnit.MAX;
           return [...addrs];
@@ -1451,7 +1482,13 @@ const SendDetails = () => {
 
   const renderCreateButton = () => {
     const totalWithFee = calculateTotalAmount();
-    const isDisabled = totalWithFee === 0 || totalWithFee > balance || balance === 0 || isLoading || addresses.length === 0;
+    const isDisabled =
+      totalWithFee === 0 ||
+      totalWithFee > balance ||
+      balance === 0 ||
+      isLoading ||
+      addresses.length === 0 ||
+      addresses.some(recipient => recipient.usdcRefreshing);
 
     return (
       <View style={styles.createButton}>
@@ -1521,13 +1558,33 @@ const SendDetails = () => {
     return (
       <View style={[styles.transactionItemContainer, { width: dimensions.width }]} testID={'Transaction' + index} collapsable={false}>
         <View style={styles.amountInputContainer}>
-          <AmountInput.AmountInput
+          <SendAmountInput
+            key={`${item.key}-${wallet?.getID()}`}
+            usdcEntry={item.usdcEntry}
+            onQuoteRefreshChange={refreshing =>
+              setAddresses(addrs =>
+                updatePaymentRecipient(addrs, item.key, current => {
+                  current.usdcRefreshing = refreshing;
+                }),
+              )
+            }
+            onSatsChange={(sats, btc, entry) =>
+              setAddresses(addrs =>
+                updatePaymentRecipient(addrs, item.key, current => {
+                  current.usdcEntry = entry;
+                  current.amount = btc ?? sats;
+                  current.amountSats = sats ? Number(sats) : 0;
+                  current.unit = btc === undefined ? BitcoinUnit.SATS : BitcoinUnit.BTC;
+                }),
+              )
+            }
             assetTicker={walletTicker(wallet)}
             isLoading={isLoading}
             amount={item.amount ? item.amount.toString() : undefined}
             onAmountUnitChange={(unit: BitcoinUnit) => {
               setAddresses(addrs => {
                 const addr = addrs[index];
+                addr.usdcEntry = undefined;
 
                 switch (unit) {
                   case BitcoinUnit.SATS:
@@ -1558,6 +1615,7 @@ const SendDetails = () => {
             onChangeText={(text: string) => {
               setAddresses(addrs =>
                 updatePaymentRecipient(addrs, item.key, current => {
+                  current.usdcEntry = undefined;
                   current.amount = text;
                   switch (current.unit || amountUnit) {
                     case BitcoinUnit.BTC:
@@ -1614,6 +1672,7 @@ const SendDetails = () => {
                 updatedItem.address = address || trimmedText;
 
                 if (hasPositiveAmount) {
+                  updatedItem.usdcEntry = undefined;
                   updatedItem.amount = amount;
                   updatedItem.amountSats = btcToSatoshi(amount!);
                   updatedItem.unit = BitcoinUnit.BTC;
