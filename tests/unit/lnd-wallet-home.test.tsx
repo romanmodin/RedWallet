@@ -493,3 +493,35 @@ test.each([false, true])('only a manual pull starts the native refresh indicator
   if (failure) expect(screen.getByText('Refresh failed. Showing last known data. Pull down to retry.')).toBeTruthy();
   screen.unmount();
 });
+
+test('keeps a queued pull visible through the refresh requested during a poll', async () => {
+  const interval = jest.spyOn(global, 'setInterval');
+  const wallet = new LndWallet();
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  const poll = interval.mock.calls.find(([, delay]) => delay === 15000)![0] as () => void;
+  const finishBalance: (() => void)[] = [];
+  const balanceFetch = jest.spyOn(wallet, 'fetchBalance').mockImplementation(
+    () =>
+      new Promise<void>(resolve => {
+        finishBalance.push(resolve);
+      }),
+  );
+  const control = () => screen.UNSAFE_getByType(RefreshControl);
+  await act(async () => {
+    poll();
+  });
+  expect(control().props.refreshing).toBe(false);
+  await act(async () => {
+    fireEvent(control(), 'refresh');
+    poll();
+  });
+  expect(balanceFetch).toHaveBeenCalledTimes(1);
+  expect(control().props.refreshing).toBe(true);
+  await act(async () => finishBalance[0]());
+  expect(balanceFetch).toHaveBeenCalledTimes(2);
+  expect(control().props.refreshing).toBe(true);
+  await act(async () => finishBalance[1]());
+  expect(control().props.refreshing).toBe(false);
+  screen.unmount();
+});
