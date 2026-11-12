@@ -7,11 +7,12 @@ import { useTheme } from './themes';
 
 interface Props {
   satoshis: number;
+  compact?: boolean;
   style?: StyleProp<TextStyle>;
 }
 
 /** A labeled display estimate; it does not change wallet amounts or spending units. */
-const XbtFiatEstimate = ({ satoshis, style }: Props) => {
+const XbtFiatEstimate = ({ satoshis, style, compact = false }: Props) => {
   const { xbtPriceQuote } = useSettings();
   const { colors } = useTheme();
   const now = useXbtPriceClock(xbtPriceQuote);
@@ -29,6 +30,12 @@ const XbtFiatEstimate = ({ satoshis, style }: Props) => {
     xbtPriceQuote.source === 'manual'
       ? `Manual · updated ${quoteTime}`
       : `NeoxEX · last trade ${quoteTime}${stale ? ' · stale quote' : ''}`;
+  if (compact)
+    return (
+      <Text style={[styles.amount, { color: colors.alternativeTextColor }, style]} numberOfLines={1} adjustsFontSizeToFit>
+        {'≈ ' + estimate + (stale ? ' · stale quote' : '')}
+      </Text>
+    );
   return (
     <View style={styles.container} testID="XbtPriceEstimate">
       <Text style={[styles.amount, { color: colors.alternativeTextColor }, style]}>{`≈ ${estimate}`}</Text>

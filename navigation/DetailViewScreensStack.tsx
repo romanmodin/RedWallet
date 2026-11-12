@@ -1,3 +1,4 @@
+import XbtAccountGroupScreen from '../screen/wallets/XbtAccountGroup';
 import WalletNetworkIndicator from '../components/WalletNetworkIndicator';
 import React, { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChainFreshness } from '../components/ChainFreshnessIndicator';
@@ -391,6 +392,11 @@ const DetailViewStackScreensStack = () => {
         }}
       >
         <DetailViewStack.Screen name="WalletsList" component={WalletsList} options={navigationStyle(walletListScreenOptions)(theme)} />
+        <DetailViewStack.Screen
+          name="XbtAccountGroup"
+          component={XbtAccountGroupScreen}
+          options={navigationStyle({ headerTitle: loc.xbt_accounts.title })(theme)}
+        />
         <DetailViewStack.Screen name="WalletTransactions" component={WalletTransactions} options={getWalletTransactionsOptions} />
         <DetailViewStack.Screen
           name="WalletDetails"

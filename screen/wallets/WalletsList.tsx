@@ -1,3 +1,4 @@
+import { getXbtAccountMembers, xbtGroupedCards } from '../../blue_modules/xbt-account-groups';
 import { selectWalletNetwork, isBtcWallet } from '../../blue_modules/wallet-network';
 import React, { useCallback, useContext, useEffect, useReducer, useRef, useMemo } from 'react';
 import ArtworkSkinSurface from '../../components/ArtworkSkinSurface';
@@ -124,6 +125,7 @@ const WalletsList: React.FC = () => {
   const isFocused = useIsFocused();
   const route = useRoute<RouteProps>();
   const dataSource = getTransactions(undefined, 10);
+  const grouped = useMemo(() => xbtGroupedCards(wallets), [wallets]);
   useFocusEffect(
     useCallback(() => {
       selectWalletNetwork(wallets[currentWalletIndex.current]);
@@ -262,6 +264,10 @@ const WalletsList: React.FC = () => {
       if (item?.getID) {
         selectWalletNetwork(item);
         const walletID = item.getID();
+        if (getXbtAccountMembers(item, wallets).length > 1) {
+          navigation.navigate('XbtAccountGroup', { walletID });
+          return;
+        }
         navigation.navigate('WalletTransactions', {
           walletID,
           walletType: item.type,
@@ -270,7 +276,7 @@ const WalletsList: React.FC = () => {
         navigation.navigate('AddWalletRoot');
       }
     },
-    [navigation],
+    [navigation, wallets],
   );
 
   const onSnapToItem = useCallback(
@@ -280,7 +286,9 @@ const WalletsList: React.FC = () => {
       const contentOffset = e.nativeEvent.contentOffset;
       const cardWidth = getWalletCarouselItemWidth(width);
       const snapStep = cardWidth; // keep in sync with WalletsCarousel snap interval
-      const index = Math.max(0, Math.round(contentOffset.x / snapStep));
+      const cardIndex = Math.max(0, Math.round(contentOffset.x / snapStep));
+      const card = grouped.wallets[cardIndex];
+      const index = card ? wallets.findIndex(w => w.getID() === card.getID()) : wallets.length;
 
       selectWalletNetwork(wallets[index]);
       if (currentWalletIndex.current !== index) {
@@ -292,7 +300,7 @@ const WalletsList: React.FC = () => {
         currentWalletIndex.current = index;
       }
     },
-    [isFocused, refreshWallets, wallets, width],
+    [isFocused, refreshWallets, wallets, grouped, width],
   );
 
   const renderListHeaderComponent = useCallback(() => {
@@ -332,8 +340,9 @@ const WalletsList: React.FC = () => {
     return (
       <>
         <WalletsCarousel
-          data={wallets}
-          extraData={[wallets]}
+          data={grouped.wallets}
+          groupCards={grouped.cards}
+          extraData={[wallets, grouped]}
           onPress={handleClick}
           handleLongPress={handleLongPress}
           onMomentumScrollEnd={onSnapToItem}
@@ -346,7 +355,7 @@ const WalletsList: React.FC = () => {
         />
       </>
     );
-  }, [handleClick, handleLongPress, isFocused, onSnapToItem, wallets]);
+  }, [handleClick, handleLongPress, isFocused, onSnapToItem, wallets, grouped]);
 
   const renderSectionItem = useCallback(
     ({ item }: { item: ExtendedTransaction }) => renderTransactionListsRow(item),

@@ -1,3 +1,5 @@
+import { XbtGroupCard } from '../blue_modules/xbt-account-groups';
+import XbtFiatEstimate from './XbtFiatEstimate';
 import BtcUsdcEstimate from './BtcUsdcEstimate';
 import { formatWalletBalance, isBtcWallet } from '../blue_modules/wallet-network';
 import { LndWallet } from '../class/wallets/lnd-wallet';
@@ -164,6 +166,7 @@ const NewWalletPanel: React.FC<NewWalletPanelProps> = ({ onPress }) => {
 };
 
 interface WalletCarouselItemProps {
+  groupCard?: XbtGroupCard;
   item: TWallet;
   lndDisplayUnit?: LndDisplayUnit;
   hideBalance: boolean;
@@ -297,6 +300,7 @@ const iStyles = StyleSheet.create({
 export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
   ({
     item,
+    groupCard,
     lndDisplayUnit,
     hideBalance,
     onPress,
@@ -316,7 +320,8 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
     dragActiveScale = 1.02,
     sizeVariant = 'default',
   }: WalletCarouselItemProps) => {
-    const walletLabel = item.getLabel ? item.getLabel() : '';
+    const walletLabel = groupCard?.label ?? (item.getLabel ? item.getLabel() : '');
+    hideBalance = groupCard?.hideBalance ?? hideBalance;
     const pressScale = useSharedValue(1.0);
     const dragScale = useSharedValue(isDraggingActive ? dragActiveScale : 1.0);
     const opacityValue = useSharedValue(isSelectedWallet === false ? 0.5 : 1.0);
@@ -360,7 +365,7 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
       !hideBalance &&
       (item.type === LndWallet.type
         ? formatLndAmount(item.getBalance(), lndDisplayUnit ?? (item as LndWallet).getDisplayUnit(), xbtPriceQuote)
-        : formatWalletBalance(item, Number(item.getBalance()), item.getPreferredBalanceUnit(), true));
+        : formatWalletBalance(item, groupCard?.balance ?? Number(item.getBalance()), item.getPreferredBalanceUnit(), true));
     const safeBalance = balance || undefined;
 
     const animatePressScale = useCallback(
@@ -492,6 +497,8 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
       latestTransactionText = transactionTimeToReadable(item.getLatestTransactionTime());
     }
 
+    if (groupCard) latestTransactionText = groupCard.pending ? loc.transactions.pending : transactionTimeToReadable(groupCard.latestTime);
+
     return (
       <Animated.View
         style={[
@@ -586,6 +593,7 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
                         </Animated.Text>
                       )}
                     </View>
+                    {groupCard && !hideBalance && <XbtFiatEstimate compact satoshis={groupCard.balance} style={cardTextStyle} />}
                     {isBtcWallet(item) && (
                       // Reserve the row while a quote loads or the amount is hidden.
                       <View style={scaledCardStyles.quoteRow}>
@@ -627,6 +635,7 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
 );
 
 interface WalletsCarouselProps extends Partial<FlatListProps<any>> {
+  groupCards?: Record<string, XbtGroupCard>;
   horizontal?: boolean;
   isFlatList?: boolean;
   selectedWallet?: string;
@@ -654,6 +663,7 @@ const ListHeaderSeparator = () => <View style={styles.listHeaderSeparator} />;
 const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((props, ref) => {
   const {
     horizontal = true,
+    groupCards,
     data,
     handleLongPress,
     onPress,
@@ -878,6 +888,7 @@ const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((p
         <WalletCarouselItem
           isSelectedWallet={!horizontal && selectedWallet ? selectedWallet === item.getID() : undefined}
           item={item}
+          groupCard={groupCards?.[item.getID()]}
           lndDisplayUnit={item.type === LndWallet.type ? (item as LndWallet).getDisplayUnit() : undefined}
           hideBalance={item.hideBalance}
           handleLongPress={handleLongPress}
@@ -900,6 +911,7 @@ const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((p
     },
     [
       horizontal,
+      groupCards,
       selectedWallet,
       handleLongPress,
       onPress,
@@ -947,6 +959,7 @@ const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((p
           <WalletCarouselItem
             isSelectedWallet={!horizontal && selectedWallet ? selectedWallet === item.getID() : undefined}
             item={item}
+            groupCard={groupCards?.[item.getID()]}
             lndDisplayUnit={item.type === LndWallet.type ? (item as LndWallet).getDisplayUnit() : undefined}
             hideBalance={item.hideBalance}
             handleLongPress={handleLongPress}
@@ -970,6 +983,7 @@ const WalletsCarousel = forwardRef<CarouselListRefType, WalletsCarouselProps>((p
   }, [
     data,
     horizontal,
+    groupCards,
     selectedWallet,
     handleLongPress,
     onPress,
