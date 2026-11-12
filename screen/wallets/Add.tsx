@@ -314,7 +314,7 @@ const WalletsAdd: React.FC = () => {
 
   const navigateToImportWallet = () => {
     navigate('ImportWallet', {
-      xbtFormat: selectedIndex === 1 ? 'taproot' : 'segwit',
+      xbtFormat: !btc && route.params?.selectedIndex === 1 ? 'taproot' : 'segwit',
       network: btc ? 'btc' : 'xbt',
     });
   };
