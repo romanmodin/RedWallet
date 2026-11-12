@@ -1,5 +1,6 @@
-USDC send entry and wallet estimates
+USDC send entry, wallet estimates, and Lightning history
 
+- LND balance details stay scrolled to where you left them during automatic refresh. Pull down to refresh manually.
 - On the XBT or SHA-256 on-chain Send screen, tap the unit to switch between coins, sats, and USDC. Enter a USDC amount to calculate the coin amount using the selected chain’s NeoxEX quote. The preview shows the rounded-down amount before review, with fees separate. Refresh the quote if it expires.
 - SHA-256 wallet details show the approximate USDC balance beneath the coin balance. Hidden balances also hide this estimate.
 
