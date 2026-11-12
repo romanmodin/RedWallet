@@ -99,13 +99,15 @@ export default function XbtAccountGroupScreen() {
   };
 
   const openAccount = (account: XbtAccount) => {
+    if (lock.current) return;
     selectWalletNetwork(account);
     navigation.navigate('WalletTransactions', {
       walletID: account.getID(),
       walletType: account.type,
     });
   };
-  const send = () =>
+  const send = () => {
+    if (lock.current) return;
     Alert.alert(loc.xbt_accounts.send_from, loc.xbt_accounts.choose_funds, [
       ...members
         .filter(w => w.allowSend())
@@ -121,6 +123,7 @@ export default function XbtAccountGroupScreen() {
         })),
       { text: loc._.cancel, style: 'cancel' },
     ]);
+  };
   const refresh = () =>
     change(async () => {
       for (const member of members) await fetchAndSaveWalletTransactions(member.getID());
@@ -143,6 +146,7 @@ export default function XbtAccountGroupScreen() {
             <Text style={[styles.balance, text]}>{amount(balance)}</Text>
             {!hideBalance && <XbtFiatEstimate satoshis={balance} />}
             <SettingsListItem
+              disabled={busy}
               title={showSettings ? loc.xbt_accounts.back : loc.xbt_accounts.settings}
               onPress={() => setShowSettings(!showSettings)}
             />
@@ -228,8 +232,9 @@ export default function XbtAccountGroupScreen() {
                   <Pressable
                     accessibilityRole="button"
                     style={styles.action}
+                    disabled={busy}
                     onPress={() => {
-                      if (receive) {
+                      if (receive && !lock.current) {
                         selectWalletNetwork(receive);
                         navigation.navigate('ReceiveDetails', {
                           walletID: receive.getID(),
@@ -241,7 +246,12 @@ export default function XbtAccountGroupScreen() {
                       {loc.xbt_accounts.receive} · {xbtAddressType(receive!) === 'taproot' ? 'TAPROOT' : 'SEGWIT'}
                     </Text>
                   </Pressable>
-                  <Pressable accessibilityRole="button" style={styles.action} disabled={!members.some(w => w.allowSend())} onPress={send}>
+                  <Pressable
+                    accessibilityRole="button"
+                    style={styles.action}
+                    disabled={busy || !members.some(w => w.allowSend())}
+                    onPress={send}
+                  >
                     <Text style={members.some(w => w.allowSend()) ? text : secondary}>{loc.xbt_accounts.send}</Text>
                   </Pressable>
                 </View>
