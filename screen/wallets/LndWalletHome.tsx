@@ -74,6 +74,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const [tab, setTab] = useState<'transactions' | 'funding'>('transactions');
   const [pages, setPages] = useState<Pages>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const [message, setMessage] = useState('Checking Lightning connection…');
   const [, redraw] = useState(0);
   const pending = useRef(false);
@@ -99,8 +100,11 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   }, [navigation, wallet, open]);
 
   const refresh = useCallback(
-    async (more = false) => {
+    async (more = false, pulled = false) => {
       if (!focused.current || ['background', 'inactive'].includes(AppState.currentState)) return;
+      // Starting the native pull indicator programmatically can change the scroll offset on iOS.
+      // Polls, foreground updates and pagination must leave it alone.
+      if (pulled) setPullRefreshing(true);
       if (pending.current) {
         if (!more) reload.current = true;
         return;
@@ -142,6 +146,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         pending.current = false;
         if (focused.current) {
           setRefreshing(false);
+          setPullRefreshing(false);
           redraw(value => value + 1);
         }
         if (reload.current && focused.current) {
@@ -407,7 +412,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         data={visibleRows}
         contentInsetAdjustmentBehavior="never"
         keyExtractor={row => row.direction + row.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refresh()} />}
+        refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => refresh(false, true)} />}
         contentContainerStyle={{ paddingBottom: 170 + insets.bottom }}
         ListHeaderComponent={
           <>
@@ -429,11 +434,9 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         }
         ListEmptyComponent={
           <Text style={[styles.empty, { color: colors.alternativeTextColor }]}>
-            {refreshing
-              ? 'Loading…'
-              : tab === 'transactions'
-                ? 'Lightning payments and invoices will appear here.'
-                : 'On-chain funding transactions will appear here.'}
+            {tab === 'transactions'
+              ? 'Lightning payments and invoices will appear here.'
+              : 'On-chain funding transactions will appear here.'}
           </Text>
         }
         renderItem={({ item }) =>
@@ -497,7 +500,9 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           {tab === 'funding' ? action('Receive on-chain', 'receive', true) : action('Receive (create invoice)', 'invoice')}
           {tab === 'funding' ? action('Send on-chain', 'send', true) : action('Pay (invoice)', 'pay')}
         </View>
-        {refreshing && <ActivityIndicator color={colors.foregroundColor} />}
+        <View testID="LndRefreshStatus" style={styles.refreshStatus}>
+          {refreshing && <ActivityIndicator color={colors.foregroundColor} />}
+        </View>
       </View>
     </View>
   );
@@ -511,6 +516,7 @@ const styles = StyleSheet.create({
   stackFront: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 6 },
   stackHint: { fontSize: 11, fontWeight: '600', marginTop: 4 },
   history: { flex: 1, minHeight: 0 },
+  refreshStatus: { height: 20, alignItems: 'center', justifyContent: 'center' },
   fundingHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   disabled: { opacity: 0.5 },
   selectedTab: { borderBottomWidth: 3 },

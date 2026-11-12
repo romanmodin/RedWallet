@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { Alert, NativeModules, View } from 'react-native';
+import { Alert, FlatList, NativeModules, RefreshControl, StyleSheet, View } from 'react-native';
 import { LndWallet, LndOverview } from '../../class/wallets/lnd-wallet';
 import { XbtPriceQuote, createNeoxexXbtPriceQuote } from '../../blue_modules/xbt-price';
 
@@ -431,5 +431,65 @@ test('a failed save keeps a previously hidden wallet hidden', async () => {
   expect(wallet.getDisplayUnit()).toBe('quote');
   expect(screen.getByTestId('LndWalletBalance').props.children).toBe('••••');
   expect(screen.queryByText('+0.000005 XBT')).toBeNull();
+  screen.unmount();
+});
+
+test.each(['Running', 'Stopped'])('repeated %s polls leave native pull-to-refresh and empty-list layout idle', async status => {
+  bridge.run.mockResolvedValue(status);
+  bridge.wallet.mockImplementation(async kind => (kind === 'overview' ? overview : { rows: [], next: '0', more: false }));
+  const interval = jest.spyOn(global, 'setInterval');
+  const wallet = new LndWallet();
+  wallet.overview = { ...overview };
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  const poll = interval.mock.calls.find(([, delay]) => delay === 15000)![0] as () => void;
+  const list = screen.UNSAFE_getByType(FlatList);
+  const emptyText = 'Lightning payments and invoices will appear here.';
+  let finishBalance!: () => void;
+  const balanceFetch = jest.spyOn(wallet, 'fetchBalance').mockImplementation(
+    () =>
+      new Promise<void>(resolve => {
+        finishBalance = resolve;
+      }),
+  );
+  for (let index = 0; index < 3; index++) {
+    await act(async () => {
+      poll();
+    });
+    expect(balanceFetch).toHaveBeenCalledTimes(index + 1);
+    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false);
+    expect(screen.getByText(emptyText)).toBeTruthy();
+    expect(screen.queryByText('Loading…')).toBeNull();
+    expect(StyleSheet.flatten(screen.getByTestId('LndRefreshStatus').props.style).height).toBe(20);
+    await act(async () => finishBalance());
+    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false);
+    expect(screen.getByText(emptyText)).toBeTruthy();
+    expect(screen.UNSAFE_getByType(FlatList)).toBe(list);
+    expect(StyleSheet.flatten(screen.getByTestId('LndRefreshStatus').props.style).height).toBe(20);
+  }
+  expect(bridge.manage).not.toHaveBeenCalled();
+  expect(bridge.invoice).not.toHaveBeenCalled();
+  screen.unmount();
+});
+
+test.each([false, true])('only a manual pull starts the native refresh indicator and clears it (failure: %s)', async failure => {
+  const wallet = new LndWallet();
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  let finishBalance!: () => void;
+  jest.spyOn(wallet, 'fetchBalance').mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        finishBalance = () => (failure ? reject(new Error('Offline')) : resolve());
+      }),
+  );
+  expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false);
+  await act(async () => {
+    fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+  });
+  expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
+  await act(async () => finishBalance());
+  expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false);
+  if (failure) expect(screen.getByText('Refresh failed. Showing last known data. Pull down to retry.')).toBeTruthy();
   screen.unmount();
 });
