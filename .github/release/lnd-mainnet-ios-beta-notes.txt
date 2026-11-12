@@ -1,3 +1,8 @@
+USDC send entry and wallet estimates
+
+- On the XBT or SHA-256 on-chain Send screen, tap the unit to switch between coins, sats, and USDC. Enter a USDC amount to calculate the coin amount using the selected chain’s NeoxEX quote. The preview shows the rounded-down amount before review, with fees separate. Refresh the quote if it expires.
+- SHA-256 wallet details show the approximate USDC balance beneath the coin balance. Hidden balances also hide this estimate.
+
 Hardware wallet compatibility update:
 
 - SHA-256 balances now show an approximate USDC value beside the main BTC subtotal and below the BTC amount on each wallet card. BTC and XBT use separate NeoxEX USDC markets. Hidden balances hide estimates too; an older trade is marked stale. Pull to refresh for an updated quote.
