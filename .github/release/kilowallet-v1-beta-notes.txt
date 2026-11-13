@@ -1,4 +1,4 @@
-Kilowallet 1.0.0 (10) — RC4 publisher candidate
+Kilowallet 1.0.0 (15) — RC5 publisher candidate
 
 On-chain wallet with Taproot, PSBT signing, coin controls and fee bumping; Kilojoin pools; Ark; on-device Lightning; built-in Tor; encrypted .kab backups and node-move files.
 
@@ -10,4 +10,4 @@ Lightning uses Tor by default. The optional cross-network bridge in this publish
 
 Native CI, migration checks, simulator visuals and live empty-wallet engine probes passed. Real-iPhone reliability, funded-channel recovery and live pool completion have not been established by those checks. Use synthetic wallets only during this qualification. Keep secure backups; .kab and node-move files may contain recovery material or live channel state and require protected storage and passwords.
 
-Build 10 fixes incomplete text rendering in wallet creation and Lightning screens, including screen re-entry.
+Build 15 includes the RC5 signing-time reservation check: a send is refused if a selected coin becomes reserved by a closing/signing Kilojoin round while review is open. Transaction details follow live confirmations. Wallet creation, Receive, Settings and Lightning re-entry rendering were verified with synthetic wallets.
