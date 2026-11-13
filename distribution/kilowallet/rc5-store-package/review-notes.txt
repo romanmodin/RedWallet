@@ -1,0 +1,17 @@
+This submission updates Kilowallet 1.0.0 from build 10 to RC5 build 15, bundle com.kilombino.kilowallet.
+
+No app account or sign-in is required. Create a new empty wallet to inspect the on-chain, Kilojoin, Lightning and Ark views. Do not enter recovery words belonging to a funded wallet. Reviewers need not fund a wallet or make a payment to inspect the interface. Network operations require connectivity; payments and channel operations also require compatible funds and liquidity.
+
+Kilowallet operates on the Bitcoin BLAKE2b (XBT) chain. Its on-chain balance is separate from SHA-256 Bitcoin. The optional operator-run bridge can pay a SHA-256 Lightning invoice using XBT after the user reviews a quote. The app does not sell cryptocurrency or provide custodial accounts.
+
+The Lightning view runs an embedded LND node. Ark is an optional service operated independently by Paperclip Holdings LLC, with its own terms, privacy practices and recovery requirements. The bridge uses HTTPS through Cloudflare even when node Tor is enabled. Electrum, relay, bridge, watchtower and Ark services have distinct data handling described in the privacy policy.
+
+Kilojoin supports persisted asynchronous v6 participation. Signing requires explicit user approval and local authorization; a saved round snapshot does not authorize signing. Users must reopen the app and respond before deadlines. The app does not provide a continuously running iOS background round service. A pool created on the iPhone requires the app to remain open. Signed inputs remain reserved until the round is resolved; a timeout alone does not release them. Completion or conflicting-spend resolution requires six confirmations. CoinJoin is experimental and does not guarantee anonymity.
+
+Camera access scans QR codes locally. Local notifications and background refresh operate only where iOS permits. Recovery secrets are stored in the iOS Keychain. Password-protected .kab backups can contain wallet recovery material, Ark data and a static Lightning channel backup; Lightning move files contain live channel state. User-exported files leave the app's control.
+
+Created by Kilombino; this iOS distribution is maintained by romanmodin with the author's permission. Source and license: https://github.com/romanmodin/kilowallet-ios
+
+Qualified source: 68148c8c5741c7b84b37f33322e67273f7208a19. Validation includes automated tests and native simulator inspection; physical-phone funded recovery is not claimed.
+
+RC5 rechecks reserved coins at signing time: if a Kilojoin round closes while the send review is open, the app refuses to sign those coins. Transaction details follow live confirmation state. Both intended TestFlight groups have been verified able to install this build; a physical-phone installation is not claimed.
