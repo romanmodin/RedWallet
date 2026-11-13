@@ -7,11 +7,11 @@ import { signUnifiedP2wpkhInput, finalizeUnifiedP2wpkhInput } from '../../class/
 
 const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const ECPair = ECPairFactory(ecc);
-function fixture() {
+function fixture(fingerprint?: string) {
   const cold = new XbtSegwitBech32Wallet();
   cold.setSecret(mnemonic);
   const watch = new WatchOnlyWallet();
-  watch.setSecret(cold.getXpub());
+  watch.setSecret(fingerprint ? '[' + fingerprint + "/84'/0'/0']" + cold.getXpub() : cold.getXpub());
   watch.init();
   watch.setUseWithHardwareWalletEnabled(true);
   const address = watch._getExternalAddressByIndex(0);
@@ -40,6 +40,15 @@ function fixture() {
 }
 
 describe('XBT external signing', () => {
+  it('retains all four master fingerprint bytes on the input and change output', () => {
+    const fingerprint = 'd1230000';
+    const { request } = fixture(fingerprint);
+    expect(Buffer.from(request.data.inputs[0].bip32Derivation![0].masterFingerprint).toString('hex')).toBe(fingerprint);
+    const change = request.data.outputs.find(output => output.bip32Derivation?.length);
+    expect(Buffer.from(change!.bip32Derivation![0].masterFingerprint).toString('hex')).toBe(fingerprint);
+    expect(request.data.inputs[0].sighashType).toBe(0x21);
+  });
+
   it('requires explicit enrollment; legacy hardware flags do not enable spending', () => {
     const { watch } = fixture();
     watch.xbt_signer_enabled = false;
