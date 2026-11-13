@@ -1,6 +1,6 @@
 import json,re,hashlib,sys
 from pathlib import Path
-SOURCE="5ac15b5eeb26296d69008a39e7ff1b4e23d4f8c5"
+SOURCE="68148c8c5741c7b84b37f33322e67273f7208a19"
 FRAMES=["55-ln-live.png"]+[f"55-lnd-followup-{n}.png" for n in range(1,4)]+[f"55-lnd-reentry-{n}.png" for n in range(1,4)]
 def validate(v):
  assert v["source"]==SOURCE
@@ -14,7 +14,7 @@ def validate(v):
   x=v["frameChecks"][f];assert x["exists"] is True and x["passed"] is True and x["phrases"]=={"Lightning":True,"EXPORT SCB":True}
  settings=v["settingsReadiness"]
  assert settings["ready"] is True and settings["limitSeconds"]==60 and settings["analysisTimeoutPerPhraseSeconds"]==60
- assert settings["attempts"][-1]["check"]["phrases"]=={"Settings":True}
+ assert settings["attempts"][-1]["check"]["phrases"]=={"Settings":True,"General":True,"Accessibility":True}
  assert settings["attempts"][-1]["captureExit"]==0 and settings["attempts"][-1]["check"]["passed"] is True
  assert 0<settings["attempts"][-1]["captureElapsedSeconds"]<=60
  assert settings["attempts"][-1]["captureElapsedSeconds"]<=settings["attempts"][-1]["elapsedSeconds"]<=settings["elapsedSeconds"]

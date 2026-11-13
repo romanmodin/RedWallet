@@ -15,10 +15,10 @@ permissions:
   contents: read
   actions: read
 env:
-  KILOWALLET_SOURCE_COMMIT: 5ac15b5eeb26296d69008a39e7ff1b4e23d4f8c5
+  KILOWALLET_SOURCE_COMMIT: 68148c8c5741c7b84b37f33322e67273f7208a19
   KILOWALLET_MARKETING_VERSION: '1.0.0'
-  KILOWALLET_IOS_RUN_ID: '42182220263'
-  KILOWALLET_SCREENSHOT_RUN_ID: '42188560912'
+  KILOWALLET_IOS_RUN_ID: '43260800743'
+  KILOWALLET_SCREENSHOT_RUN_ID: '43227801950'
 
 concurrency:
   group: kilowallet-apple-upload
@@ -191,6 +191,8 @@ jobs:
         if: ${{ startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
         working-directory: app
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           ./scripts/fetch-lnd-engine.sh
