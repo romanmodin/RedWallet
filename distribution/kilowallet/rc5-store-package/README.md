@@ -7,3 +7,7 @@ This package updates review notes to the qualified RC5 build 15 and source, and 
 The Apple privacy questionnaire has **not** been verified. The cloud browser reached Apple sign-in, not the privacy page. Keep the existing review in place until the questionnaire and current review identity are verified. Never reuse the RedWallet replacement script: it is bound to a different app. No Apple writes were performed when preparing this package. No new legal determination or agreement acceptance is included.
 
 Before applying, revalidate immutable signed/upload/TestFlight receipts and live candidate readiness, review identity and state. Preserve contact details, existing listing text and USA-only availability. Upload and verify the new screenshot before removing its superseded screenshot; this does not authorize deleting any public app version. Apply the pinned candidate build, notes and policy URL only within the authorized Kilowallet replacement, then read back every change and review submission state.
+
+## Offline integrity check
+
+Run `python3 distribution/kilowallet/rc5-store-package/verify-package.py` and `python3 distribution/kilowallet/rc5-store-package/test-package.py`. The validator pins the qualified candidate, app/version/review identity, notes and PNG bytes; it rejects other apps, changed candidates, tampering and unsupported privacy confirmation. Its successful result explicitly does not authorize Apple writes. This is package integrity, not a substitute for live Apple qualification or authenticated privacy inspection.
