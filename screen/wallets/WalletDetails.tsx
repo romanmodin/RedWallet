@@ -320,8 +320,12 @@ const WalletDetails: React.FC = () => {
       if (isMasterFingerPrintVisible && wallet.allowMasterFingerprint && wallet.allowMasterFingerprint()) {
         // @ts-expect-error: Need to fix later
         if (wallet.getMasterFingerprintHex && !cancelled) {
-          // @ts-expect-error: Need to fix later
-          setMasterFingerprint(wallet.getMasterFingerprintHex());
+          if (wallet instanceof WatchOnlyWallet && !wallet.hasMasterFingerprint()) {
+            setMasterFingerprint(loc.wallets.details_master_fingerprint_missing);
+          } else {
+            // @ts-expect-error: Need to fix later
+            setMasterFingerprint(wallet.getMasterFingerprintHex());
+          }
         }
       } else {
         setMasterFingerprint(undefined);

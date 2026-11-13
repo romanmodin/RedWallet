@@ -437,6 +437,7 @@
     "details_export_backup": "Экспорт/резервное копирование",
     "details_export_history": "Экспортировать историю в CSV",
     "details_master_fingerprint": "Отпечаток мастер-ключа",
+    "details_master_fingerprint_missing": "Отсутствует",
     "details_multisig_type": "мультисиг",
     "details_options": "Опции",
     "details_show_xpub": "Показать XPUB",

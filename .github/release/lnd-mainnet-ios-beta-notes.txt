@@ -1,5 +1,5 @@
-LND balance details stay where you scroll while balances and history refresh. Pull down to refresh manually.
+Watch-only wallet export and hardware signer fingerprint
 
-On the XBT or SHA-256 Send screen, tap the amount unit to switch between coins, sats, and USDC. USDC entry uses the current NeoxEX quote for that chain. The preview shows the rounded-down coin amount with the fee shown separately.
-
-SHA-256 wallet details show the approximate USDC balance below the coin balance.
+- To restore a missing master fingerprint, scan the original hardware wallet public account QR again and select the matching account. Your existing wallet and its history are retained.
+- Wallet Export keeps the fingerprint and derivation path with Native SegWit public accounts. Copy confirms success and the public export remains pasteable after switching apps.
+- XBT Native SegWit PSBTs include the complete signer fingerprint. XBT external signing requires firmware that supports XBT Unified signatures.

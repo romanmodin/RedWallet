@@ -8,6 +8,7 @@ on:
       - 'screen/send/psbtWithHardwareWallet.tsx'
       - 'screen/send/SendDetails.tsx'
       - 'class/wallet-import.ts'
+      - 'class/wallets/abstract-hd-electrum-wallet.ts'
       - 'components/TotalWalletsBalance.tsx'
       - 'components/Context/SettingsProvider.tsx'
       - 'components/TransactionListItem.tsx'
