@@ -38,3 +38,5 @@ The explorer adapter maps requests to the isolated Core node and translates regt
 Reproduction: set `REDWALLET_BTC_REGTEST_BITCOIND` and `REDWALLET_XBT_REGTEST_BITCOIND` to verified test binaries, then run `node_modules/.bin/jest --runInBand tests/integration/xbt-standard-hardware-regtest.test.ts`. A successful run writes `artifacts/standard-hardware-regtest/receipt.json` after both nodes stop and temporary data is removed. CI downloads checksum-pinned binaries and runs the same test.
 
 The proof-service request budget now scales with the bounded funding-input count instead of a fixed 128 requests. Regression cases cover 13 and 64 distinct funding parents and a conflict found only after scanning 64 candidate inputs. Deadlines and body-size limits remain. HTTP cache-control headers replace the unsupported React Native `RequestInit.cache` option that failed the previous CI type check.
+
+Node receipt: `docs/evidence/standard-hardware-regtest-20261114.json`, tested source `37eed460234dfb1d571e9ef79aa3ba21981e214a`. Final local validation: 83 focused tests plus the real-node scenario, TypeScript no-emit, changed-file ESLint and diff checks passed.
