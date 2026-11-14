@@ -102,3 +102,11 @@ The remaining Merkle-root comparison now normalizes the header slice to Buffer b
 The release switch remains false. A fresh native simulator run and physical Keystone qualification are still required.
 
 Validation: 91 tests in eight suites passed, including both isolated Core/Knots/Fulcrum integration scenarios. TypeScript no-emit, changed-file ESLint and diff checks passed.
+
+### November 14 native PSBT preparation and export control
+
+Run 43592270176 passed the prior Buffer failure and displayed the unsigned PSBT QR with the standard-signing notice. It then stopped because the CopyUnsignedPsbtButton could not become visible after scrolling; the failure screenshot shows QR, scan/open and file-export controls, but no visible Copy action. The clipboard/signature/broadcast assertions have not passed.
+
+Copy unsigned PSBT is now a full-size themed action immediately below the explanation and above the QR. It copies the same Base64 PSBT through the existing native clipboard API, with haptic feedback. It no longer depends on reaching a small text link beneath all QR controls. The native test still requires actual button visibility and reads the clipboard to parse the request. The release flag remains false and a fresh simulator run is required.
+
+Gitar approved the 70ab5f0 code review with six findings closed and none open. The ordinary iOS UI/TLS workflow passed. Separate Android window-focus and LND estimate-changed failures remain under triage; neither is treated as a passing qualification.

@@ -9,7 +9,6 @@ import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/h
 import BlueCard from '../../components/BlueCard';
 import BlueText from '../../components/BlueText';
 import presentAlert from '../../components/Alert';
-import CopyToClipboardButton from '../../components/CopyToClipboardButton';
 import { DynamicQRCode } from '../../components/DynamicQRCode';
 import SaveFileButton from '../../components/SaveFileButton';
 import { SecondButton } from '../../components/SecondButton';
@@ -340,6 +339,20 @@ const PsbtWithHardwareWallet = () => {
         {wallet instanceof BtcWatchOnlyWallet && psbt && <BlueText testID="BtcHardwareTransactionReview">{btcReview}</BlueText>}
         <BlueText testID="TextHelperForPSBT">{loc.send.psbt_this_is_psbt}</BlueText>
         <BlueSpacing20 />
+        {psbt && (
+          <>
+            <SecondButton
+              testID="CopyUnsignedPsbtButton"
+              icon={{ name: 'copy', type: 'font-awesome', color: colors.secondButtonTextColor }}
+              title={loc.send.psbt_clipboard}
+              onPress={() => {
+                Clipboard.setString(psbt.toBase64());
+                triggerHapticFeedback(HapticFeedbackTypes.Selection);
+              }}
+            />
+            <BlueSpacing20 />
+          </>
+        )}
         <Text testID="PSBTHex" style={styles.hidden}>
           {psbt?.toHex()}
         </Text>
@@ -394,15 +407,6 @@ const PsbtWithHardwareWallet = () => {
           </SaveFileButton>
         )}
         <BlueSpacing20 />
-        {psbt && (
-          <View style={styles.copyToClipboard}>
-            <CopyToClipboardButton
-              testID="CopyUnsignedPsbtButton"
-              stringToCopy={typeof psbt === 'string' ? psbt : psbt.toBase64()}
-              displayText={loc.send.psbt_clipboard}
-            />
-          </View>
-        )}
       </BlueCard>
     </View>
   );
@@ -465,11 +469,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     alignSelf: 'center',
-  },
-  copyToClipboard: {
-    marginVertical: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   hidden: {
     width: 0,
