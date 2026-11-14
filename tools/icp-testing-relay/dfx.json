@@ -1,0 +1,8 @@
+{
+  "canisters": {
+    "lease": {
+      "type": "motoko",
+      "main": "lease.mo"
+    }
+  }
+}

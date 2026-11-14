@@ -1,0 +1,11 @@
+{
+  "name": "redwallet-icp-testing-relay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test relay.test.mjs canister.test.mjs"
+  },
+  "devDependencies": {
+    "motoko": "4.14.0"
+  }
+}
