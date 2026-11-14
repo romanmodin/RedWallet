@@ -1210,7 +1210,11 @@ const SendDetails = () => {
 
   const onUseAllPressed = useCallback(() => {
     triggerHapticFeedback(HapticFeedbackTypes.NotificationWarning);
-    const message = frozenBalance > 0 ? loc.send.details_adv_full_sure_frozen : loc.send.details_adv_full_sure;
+    const message = utxos
+      ? loc.formatString(loc.send.details_adv_full_sure_selected, { number: utxos.length })
+      : frozenBalance > 0
+        ? loc.send.details_adv_full_sure_frozen
+        : loc.send.details_adv_full_sure;
 
     const anchor = findNodeHandle(scrollView.current);
     const options = {
@@ -1236,7 +1240,7 @@ const SendDetails = () => {
         });
       }
     });
-  }, [frozenBalance]);
+  }, [frozenBalance, utxos]);
   // Header Right Button
 
   const headerRightOnPress = useCallback(
@@ -1644,6 +1648,26 @@ const SendDetails = () => {
             maxSendableAmount={index === scrollIndex.current ? maxSendableAmount : null}
             isMaxAmountEstimate={!(item.address && wallet?.isAddressValid(item.address))}
           />
+          {addresses.length === 1 && isEditable && (
+            <Pressable
+              testID="SendMaxButton"
+              accessibilityRole="button"
+              accessibilityLabel={utxos ? loc.send.max_selected_accessibility : loc.send.max_accessibility}
+              disabled={isLoading || balance <= 0 || item.amount === BitcoinUnit.MAX || !!item.usdcRefreshing}
+              onPress={onUseAllPressed}
+              style={({ pressed }) => [
+                {
+                  alignSelf: 'center',
+                  minHeight: 44,
+                  paddingHorizontal: 20,
+                  justifyContent: 'center',
+                },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.selectLabel, stylesHook.selectLabel]}>{item.amount === BitcoinUnit.MAX ? loc.send.max_selected : loc.send.max}</Text>
+            </Pressable>
+          )}
         </View>
 
         {frozenBalance > 0 && (
