@@ -25,6 +25,7 @@ import { assertSignedUnifiedTransactionMatchesPsbt, finalizeUnifiedP2wpkhInput, 
 
 const bip32 = BIP32Factory(ecc);
 const pendingSigningRequests = new WeakMap<WatchOnlyWallet, string>();
+const standardBroadcastsInFlight = new WeakSet<WatchOnlyWallet>();
 const proofGeneration = new WeakMap<WatchOnlyWallet, object>();
 const standardFunding = new WeakMap<WatchOnlyWallet, FundingProof>();
 const approvedExternalTransactions = new WeakMap<WatchOnlyWallet, string>();
@@ -73,7 +74,7 @@ export class WatchOnlyWallet extends LegacyWallet {
     const proof = await verifyStandardHardwareFunding(inputs, {
       raw: ids => BlueElectrum.multiGetTransactionByTxid(ids, false),
       history: addresses => BlueElectrum.multiGetHistoryByAddress(addresses),
-      tip: () => BlueElectrum.getReportedBlockTip(),
+      tip: () => BlueElectrum.getReportedBlockTip(true),
       separation: parents =>
         verifyPublicFundingSeparation(parents, () => {
           if (proofGeneration.get(this) !== generation || this.getHardwareSigningMode() !== 'standard' || !this.allowSend())
@@ -390,23 +391,30 @@ export class WatchOnlyWallet extends LegacyWallet {
     if (approvedExternalTransactions.get(this) !== _args[0])
       throw new Error('External transaction must match the verified signing request');
     if (this.getHardwareSigningMode() === 'standard') {
-      const encoded = pendingSigningRequests.get(this);
-      if (!encoded) throw new Error('Review the transaction again');
-      const request = bitcoin.Psbt.fromBase64(encoded);
-      this.requireStandardProof(request, false);
-      const tx = assertStandardHardwareResult(_args[0], request);
-      const result = await BlueElectrum.broadcastStandardHardware(_args[0], request, () => {
-        if (
-          !this.allowSend() ||
-          this.getHardwareSigningMode() !== 'standard' ||
-          pendingSigningRequests.get(this) !== encoded ||
-          approvedExternalTransactions.get(this) !== _args[0]
-        )
-          throw new Error('Signing request changed during protection verification');
-      });
-      if (result !== tx.getId()) throw new Error('Unexpected XBT broadcast response');
-      approvedExternalTransactions.delete(this);
-      return true;
+      if (standardBroadcastsInFlight.has(this)) throw new Error('This transaction is already being submitted');
+      standardBroadcastsInFlight.add(this);
+      try {
+        const encoded = pendingSigningRequests.get(this);
+        if (!encoded) throw new Error('Review the transaction again');
+        const request = bitcoin.Psbt.fromBase64(encoded);
+        this.requireStandardProof(request, false);
+        const tx = assertStandardHardwareResult(_args[0], request);
+        const result = await BlueElectrum.broadcastStandardHardware(_args[0], request, () => {
+          if (
+            !this.allowSend() ||
+            this.getHardwareSigningMode() !== 'standard' ||
+            pendingSigningRequests.get(this) !== encoded ||
+            approvedExternalTransactions.get(this) !== _args[0]
+          )
+            throw new Error('Signing request changed during protection verification');
+        });
+        if (result !== tx.getId()) throw new Error('Unexpected XBT broadcast response');
+        if (approvedExternalTransactions.get(this) === _args[0] && pendingSigningRequests.get(this) === encoded)
+          approvedExternalTransactions.delete(this);
+        return true;
+      } finally {
+        standardBroadcastsInFlight.delete(this);
+      }
     }
     return this._hdWalletInstance.broadcastTx(_args[0]);
   }

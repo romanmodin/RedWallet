@@ -40,3 +40,11 @@ Reproduction: set `REDWALLET_BTC_REGTEST_BITCOIND` and `REDWALLET_XBT_REGTEST_BI
 The proof-service request budget now scales with the bounded funding-input count instead of a fixed 128 requests. Regression cases cover 13 and 64 distinct funding parents and a conflict found only after scanning 64 candidate inputs. Deadlines and body-size limits remain. HTTP cache-control headers replace the unsupported React Native `RequestInit.cache` option that failed the previous CI type check.
 
 Node receipt: `docs/evidence/standard-hardware-regtest-20261114.json`, tested source `37eed460234dfb1d571e9ef79aa3ba21981e214a`. Final local validation: 83 focused tests plus the real-node scenario, TypeScript no-emit, changed-file ESLint and diff checks passed.
+
+### Broadcast boundary regression qualification
+
+The production wallet and BlueElectrum broadcast functions are now exercised together with mocked Electrum client and HTTPS edges. Fourteen new regression cases cover fresh XBT confirmation checks, unavailable/malformed/insufficient tips, public-proof outages after signing, signer enrollment changes, connection replacement, altered signed bytes, unexpected returned transaction IDs, slow hardware review, concurrent submissions and explicit retries.
+
+These tests initially exposed two submission defects: a failed fresh-tip request could reuse a cached mature height, and a reconnect during proof collection could switch the broadcast client. Spend authorization now requires a successful fresh tip and binds all proof reads and submission to the same client/disconnect generation. Display-only callers retain their existing cached-tip behavior. A per-wallet in-flight guard prevents concurrent duplicate submissions; a failed submission may be retried explicitly, with fresh evidence checks.
+
+Local validation on November 14, 2026: 146 focused tests in seven suites, the isolated shared-history Core/Knots scenario, TypeScript no-emit, changed-file ESLint and diff checks passed. The new boundary tests use synthetic public fixtures and mocked transport edges; they do not qualify real Electrum sockets, a physical Keystone or native UI. Runtime release remains disabled.
