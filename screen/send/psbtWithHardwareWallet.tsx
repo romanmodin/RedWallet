@@ -325,8 +325,8 @@ const PsbtWithHardwareWallet = () => {
         <BlueCard>
           <BlueText>XBT · Standard hardware signing (0x01)</BlueText>
           <BlueText>
-            Funding checked: directly received from confirmed Unified transactions. RedWallet checks this again before broadcast. This new
-            signature is standard, not Unified.
+            Coin separation checked against Blockstream and mempool.space. Sending depends on those services agreeing on the SHA-256 chain.
+            RedWallet checks again before broadcast. Your device produces a standard signature, not Unified protection.
           </BlueText>
         </BlueCard>
       )}

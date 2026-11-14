@@ -9,11 +9,12 @@ export type FundingSource = {
   raw: (ids: string[]) => Promise<Record<string, string>>;
   history: (addresses: string[]) => Promise<Record<string, { tx_hash: string; height: number }[]>>;
   tip: () => Promise<number | null>;
+  separation?: (parents: Transaction[]) => Promise<void>;
 };
 export type FundingProof = { checkedAt: number; parents: Record<string, string> };
 // Release gate: direct Unified funding is not sufficient cross-chain separation proof.
-// A standard-signed witness for the same body has the same txid. Keep disabled until
-// a confirmed conflict/chain-exclusive ancestor proof is integrated and rechecked.
+// The confirmed-conflict service is integrated. Keep disabled until its trust
+// model and complete node/hardware/native round trip have been qualified.
 export const STANDARD_HARDWARE_RELEASE_ENABLED: boolean = false;
 export function assertStandardHardwareReleased(): void {
   if (!STANDARD_HARDWARE_RELEASE_ENABLED) throw new Error('Standard hardware signing is unavailable until coin separation can be verified');
@@ -23,7 +24,7 @@ const MAX_INPUTS = 64;
 
 /** Conservative first version: direct, six-confirmation P2WPKH Unified funding only.
  * This verifies the funding signatures, not a mere trailing flag or server label.
- * It assumes the owner has not separately signed an identical funding tx for BTC.
+ * Confirmed conflicting BTC spends must additionally be independently verified.
  * Descendant tracing, coinbase and mixed/Taproot funding are deliberately rejected.
  */
 export async function verifyStandardHardwareFunding(inputs: FundingInput[], source: FundingSource): Promise<FundingProof> {
@@ -76,6 +77,8 @@ export async function verifyStandardHardwareFunding(inputs: FundingInput[], sour
     )
       throw new Error('Protection unverified: Unified funding needs six XBT confirmations');
   });
+  if (!source.separation) throw new Error('Protection unverified: separation verifier unavailable');
+  await source.separation([...transactions.values()]);
   return { checkedAt: Date.now(), parents };
 }
 

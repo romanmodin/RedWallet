@@ -739,23 +739,15 @@ const SendDetails = () => {
       }
     }
 
-    if (wallet instanceof WatchOnlyWallet && wallet.getHardwareSigningMode() === 'standard') {
-      await wallet.prepareStandardHardwareSigning(lutxo);
-    }
-
     const targetsOrig = JSON.parse(JSON.stringify(targets));
     // preserving original since it will be mutated
 
     // without forcing `HDSegwitBech32Wallet` i had a weird ts error, complaining about last argument (fp)
-    const { tx, outputs, psbt, fee } = (wallet as HDSegwitBech32Wallet)?.createTransaction(
-      lutxo,
-      targets,
-      requestedSatPerByte,
-      change,
-      isTransactionReplaceable ? HDSegwitBech32Wallet.defaultRBFSequence : HDSegwitBech32Wallet.finalRBFSequence,
-      false,
-      0,
-    );
+    const sequence = isTransactionReplaceable ? HDSegwitBech32Wallet.defaultRBFSequence : HDSegwitBech32Wallet.finalRBFSequence;
+    const { tx, outputs, psbt, fee } =
+      wallet instanceof WatchOnlyWallet && wallet.getHardwareSigningMode() === 'standard'
+        ? await wallet.createStandardHardwareTransaction(lutxo, targets, requestedSatPerByte, change, sequence)
+        : (wallet as HDSegwitBech32Wallet).createTransaction(lutxo, targets, requestedSatPerByte, change, sequence, false, 0);
 
     if (tx && routeParams.launchedBy && psbt) {
       console.warn('navigating back to ', routeParams.launchedBy);

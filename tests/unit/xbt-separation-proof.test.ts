@@ -10,7 +10,12 @@ function fixture() {
   const sibling = Buffer.alloc(32, 3);
   const header = Buffer.alloc(80);
   Buffer.from(crypto.hash256(Buffer.concat([sibling, conflict.getHash()]))).copy(header, 36);
-  const anchor = { height: 1000000, tipHeight: 1000005, blockHash: Buffer.from(crypto.hash256(header)).reverse().toString('hex') };
+  const anchor = {
+    height: 1000000,
+    tipHeight: 1000005,
+    txCount: 2,
+    blockHash: Buffer.from(crypto.hash256(header)).reverse().toString('hex'),
+  };
   const proof = {
     rawTransaction: conflict.toHex(),
     header: header.toString('hex'),
@@ -53,4 +58,26 @@ it('rejects malformed hashes and excessive branches', () => {
   const f = fixture();
   expect(() => verifyFundingConflict(f.funding, { ...f.proof, merkle: ['zz'.repeat(32)] }, f.anchor)).toThrow();
   expect(() => verifyFundingConflict(f.funding, { ...f.proof, merkle: Array(33).fill('00'.repeat(32)) }, f.anchor)).toThrow();
+});
+
+it('accepts the duplicated last leaf at an odd-width level with anchored tree size', () => {
+  const f = fixture();
+  const leaf = Buffer.from(f.conflict.getHash());
+  const left = Buffer.alloc(32, 8);
+  const right = Buffer.from(crypto.hash256(Buffer.concat([leaf, leaf])));
+  const header = Buffer.alloc(80);
+  Buffer.from(crypto.hash256(Buffer.concat([left, right]))).copy(header, 36);
+  const anchor = { ...f.anchor, txCount: 3, blockHash: Buffer.from(crypto.hash256(header)).reverse().toString('hex') };
+  const proof = {
+    ...f.proof,
+    position: 2,
+    header: header.toString('hex'),
+    merkle: [Buffer.from(leaf).reverse().toString('hex'), Buffer.from(left).reverse().toString('hex')],
+  };
+  expect(verifyFundingConflict(f.funding, proof, anchor)).toBe(f.conflict.getId());
+  expect(() => verifyFundingConflict(f.funding, proof, { ...anchor, txCount: 4 })).toThrow();
+});
+it('rejects proofs at a different tree depth from the independent anchor', () => {
+  const f = fixture();
+  expect(() => verifyFundingConflict(f.funding, f.proof, { ...f.anchor, txCount: 5 })).toThrow();
 });

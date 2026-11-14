@@ -1,9 +1,9 @@
 import { Transaction, crypto } from 'bitcoinjs-lib';
 
-/** Supplied by a separately authenticated current BTC chain view, never copied
- * from the proof provider itself. This verifier does not authenticate headers.
+/** Supplied by a trusted current BTC chain view separate from the proof source.
+ * Production cross-checks two HTTPS explorers; this is not local chain validation.
  */
-export type BtcChainAnchor = { height: number; blockHash: string; tipHeight: number };
+export type BtcChainAnchor = { height: number; blockHash: string; tipHeight: number; txCount: number };
 export type ConflictProof = { rawTransaction: string; header: string; position: number; merkle: string[] };
 const HASH = /^[0-9a-f]{64}$/i;
 const fail = (): never => {
@@ -22,10 +22,14 @@ export function verifyFundingConflict(funding: Transaction, proof: ConflictProof
     anchor.tipHeight - anchor.height + 1 < 6 ||
     !HASH.test(anchor.blockHash) ||
     !/^[0-9a-f]{160}$/i.test(proof.header) ||
+    !Number.isSafeInteger(anchor.txCount) ||
+    anchor.txCount < 2 ||
+    anchor.txCount > 1000000 ||
     !Number.isSafeInteger(proof.position) ||
-    proof.position < 0 ||
+    proof.position < 1 ||
+    proof.position >= anchor.txCount ||
     !Array.isArray(proof.merkle) ||
-    proof.merkle.length > 32 ||
+    proof.merkle.length !== Math.ceil(Math.log2(anchor.txCount)) ||
     proof.merkle.some(hash => !HASH.test(hash)) ||
     proof.rawTransaction.length > 2_000_000 ||
     !/^(?:[0-9a-f]{2})+$/i.test(proof.rawTransaction)
@@ -40,12 +44,16 @@ export function verifyFundingConflict(funding: Transaction, proof: ConflictProof
     fail();
   let hash = Buffer.from(conflict.getHash());
   let position = proof.position;
+  let width = anchor.txCount;
   for (const sibling of proof.merkle) {
     const other = Buffer.from(sibling, 'hex').reverse();
-    // Reject duplicate branches rather than accepting a mutated merkle tree.
-    if (hash.equals(other)) fail();
+    // Bitcoin duplicates the last node only at odd-width levels. Count is
+    // obtained from the independent anchor source, not from this proof.
+    const duplicatedLast = width % 2 === 1 && position === width - 1;
+    if (hash.equals(other) !== duplicatedLast) fail();
     hash = Buffer.from(crypto.hash256(position % 2 ? Buffer.concat([other, hash]) : Buffer.concat([hash, other])));
     position = Math.floor(position / 2);
+    width = Math.ceil(width / 2);
   }
   if (position !== 0 || !hash.equals(header.subarray(36, 68))) fail();
   return conflict.getId();

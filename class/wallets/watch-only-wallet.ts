@@ -1,3 +1,4 @@
+import { verifyPublicFundingSeparation } from '../xbt/separation-service';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import {
   assertStandardHardwareReleased,
@@ -73,16 +74,21 @@ export class WatchOnlyWallet extends LegacyWallet {
       raw: ids => BlueElectrum.multiGetTransactionByTxid(ids, false),
       history: addresses => BlueElectrum.multiGetHistoryByAddress(addresses),
       tip: () => BlueElectrum.getReportedBlockTip(),
+      separation: parents =>
+        verifyPublicFundingSeparation(parents, () => {
+          if (proofGeneration.get(this) !== generation || this.getHardwareSigningMode() !== 'standard' || !this.allowSend())
+            throw new Error('Signing mode changed; review again');
+        }),
     });
     if (proofGeneration.get(this) !== generation || this.getHardwareSigningMode() !== 'standard' || !this.allowSend())
       throw new Error('Signing mode changed; review again');
     standardFunding.set(this, proof);
   }
 
-  private requireStandardProof(request: bitcoin.Psbt) {
+  private requireStandardProof(request: bitcoin.Psbt, requireFresh = true) {
     assertStandardHardwareReleased();
     const proof = standardFunding.get(this);
-    if (!proof || Date.now() < proof.checkedAt || Date.now() - proof.checkedAt > 300000)
+    if (!proof || (requireFresh && (Date.now() < proof.checkedAt || Date.now() - proof.checkedAt > 300000)))
       throw new Error('Protection unverified: refresh and review the selected coins again');
     requestFundingInputs(request).forEach(input => {
       const raw = proof.parents[input.txid];
@@ -320,7 +326,7 @@ export class WatchOnlyWallet extends LegacyWallet {
       if (!(this._hdWalletInstance instanceof XbtSegwitBech32Wallet)) throw new Error('Standard mode requires Native SegWit');
       if (pendingSigningRequests.get(this) !== expected.toBase64())
         throw new Error('PSBT does not match the current reviewed signing request');
-      this.requireStandardProof(expected);
+      this.requireStandardProof(expected, false);
       const signed = typeof two === 'string' ? bitcoin.Psbt.fromBase64(two) : two.clone();
       const combined = expected.clone().combine(signed);
       combined.data.inputs.forEach((input, index) => {
@@ -387,7 +393,7 @@ export class WatchOnlyWallet extends LegacyWallet {
       const encoded = pendingSigningRequests.get(this);
       if (!encoded) throw new Error('Review the transaction again');
       const request = bitcoin.Psbt.fromBase64(encoded);
-      this.requireStandardProof(request);
+      this.requireStandardProof(request, false);
       const tx = assertStandardHardwareResult(_args[0], request);
       const result = await BlueElectrum.broadcastStandardHardware(_args[0], request, () => {
         if (
@@ -435,6 +441,37 @@ export class WatchOnlyWallet extends LegacyWallet {
         });
       });
     }
+    pendingSigningRequests.set(this, result.psbt.toBase64());
+    return result;
+  }
+
+  /** Select inputs once, then verify exactly that unsigned request. */
+  async createStandardHardwareTransaction(...args: Parameters<THDWalletForWatchOnly['createTransaction']>) {
+    assertStandardHardwareReleased();
+    approvedExternalTransactions.delete(this);
+    pendingSigningRequests.delete(this);
+    standardFunding.delete(this);
+    proofGeneration.set(this, {});
+    if (!this.allowSend() || this.getHardwareSigningMode() !== 'standard' || !this._hdWalletInstance)
+      throw new Error('Enable standard hardware signing first');
+    const [utxos, targets, feeRate, changeAddress, sequence] = args;
+    const result = this._hdWalletInstance.createTransaction(
+      utxos,
+      targets,
+      feeRate,
+      changeAddress,
+      sequence,
+      true,
+      this.getMasterFingerprint(),
+    );
+    await this.prepareStandardHardwareSigning(requestFundingInputs(result.psbt));
+    const proof = this.requireStandardProof(result.psbt);
+    result.psbt.txInputs.forEach((input, index) => {
+      result.psbt.data.inputs[index].sighashType = bitcoin.Transaction.SIGHASH_ALL;
+      result.psbt.updateInput(index, {
+        nonWitnessUtxo: Buffer.from(proof.parents[Buffer.from(input.hash).reverse().toString('hex')], 'hex'),
+      });
+    });
     pendingSigningRequests.set(this, result.psbt.toBase64());
     return result;
   }

@@ -6,6 +6,7 @@ import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
 import { signUnifiedP2wpkhInput, finalizeUnifiedP2wpkhInput } from '../../class/xbt/unified-psbt';
 import { verifyStandardHardwareFunding, assertStandardHardwareResult } from '../../class/xbt/standard-hardware';
+jest.mock('../../class/xbt/separation-service', () => ({ verifyPublicFundingSeparation: jest.fn(async (_parents, check) => check()) }));
 jest.mock('../../class/xbt/standard-hardware', () => ({
   ...jest.requireActual('../../class/xbt/standard-hardware'),
   assertStandardHardwareReleased: jest.fn(),
@@ -38,6 +39,7 @@ function fixture() {
     raw: async (ids: string[]) => Object.fromEntries(ids.map(id => [id, raws[id]])),
     history: async () => histories,
     tip: async () => 1000009,
+    separation: async () => {},
   };
   jest
     .spyOn(watch._hdWalletInstance!, 'getTransactions')
@@ -114,11 +116,12 @@ it('retains Unified default and refuses unverified standard requests', () => {
   f.watch.setHardwareSigningMode('standard');
   expect(() => f.watch.createTransaction(f.coins, f.targets, 1, f.change)).toThrow('Protection unverified');
 });
-it('expires proof and invalidates pending signatures on a mode change', async () => {
+it('allows slow hardware review but invalidates signatures on a mode change', async () => {
   const f = await ready();
   const now = Date.now();
   jest.spyOn(Date, 'now').mockReturnValue(now + 300001);
-  expect(() => f.watch.combinePsbt(f.request, f.signed)).toThrow('Protection unverified');
+  expect(() => f.watch.combinePsbt(f.request, f.signed)).not.toThrow();
+  expect(() => f.watch.createTransaction(f.coins, f.targets, 1, f.change)).toThrow('Protection unverified');
   jest.restoreAllMocks();
   f.watch.setHardwareSigningMode('unified');
   f.watch.setHardwareSigningMode('standard');
@@ -193,4 +196,36 @@ it('cannot treat a Unified witness as proof of a chain-exclusive txid', () => {
   const tx = standard.extractTransaction();
   expect(tx.getId()).toBe(f.parent.getId());
   expect(tx.toHex()).not.toBe(f.parent.toHex());
+});
+
+it('requires a separation verifier even after Unified funding checks pass', async () => {
+  const f = fixture();
+  await expect(verifyStandardHardwareFunding(f.coins, { ...f.source, separation: undefined })).rejects.toThrow('separation verifier');
+  await expect(
+    verifyStandardHardwareFunding(f.coins, {
+      ...f.source,
+      separation: async () => {
+        throw new Error('conflict not confirmed');
+      },
+    }),
+  ).rejects.toThrow('conflict not confirmed');
+});
+
+it('checks only selected inputs when constructing a standard request', async () => {
+  const f = fixture();
+  f.watch.setHardwareSigningMode('standard');
+  const raw = jest.spyOn(BlueElectrum, 'multiGetTransactionByTxid').mockImplementation(f.source.raw as any);
+  jest.spyOn(BlueElectrum, 'multiGetHistoryByAddress').mockImplementation(f.source.history as any);
+  jest.spyOn(BlueElectrum, 'getReportedBlockTip').mockImplementation(f.source.tip);
+  const extraTx = f.parent.clone();
+  extraTx.outs[0].value = 100n;
+  const extra = { ...f.coins[0], txid: extraTx.getId(), value: 100, confirmations: 1 };
+  jest.spyOn(f.watch._hdWalletInstance!, 'getTransactions').mockReturnValue([
+    { txid: f.parent.getId(), rawHex: f.parent.toHex(), confirmations: 10 },
+    { txid: extraTx.getId(), rawHex: extraTx.toHex(), confirmations: 1 },
+  ] as any);
+  const request = await f.watch.createStandardHardwareTransaction([...f.coins, extra], f.targets, 1, f.change);
+  expect(request.psbt.txInputs).toHaveLength(1);
+  expect(raw.mock.calls.flat(2)).not.toContain(extra.txid);
+  expect(request.psbt.data.inputs[0].sighashType).toBe(1);
 });

@@ -719,7 +719,7 @@ const WalletDetails: React.FC = () => {
                         !(await confirm(
                           'Enable XBT external signing',
                           hardwareMode === 'standard'
-                            ? 'Use standard Native SegWit signing. Only coins received directly from verified, confirmed Unified transactions can be used. Your recovery phrase stays on the device.'
+                            ? 'Use standard Native SegWit signing. Only coins with verified separation can be used. Your recovery phrase stays on the device.'
                             : 'Your signing device must support this account’s Native SegWit or Taproot PSBTs with Unified Sighash 0x21. Ordinary BTC signatures will be rejected. Confirm that your device has compatible XBT firmware.',
                         ))
                       )
@@ -739,10 +739,10 @@ const WalletDetails: React.FC = () => {
               {STANDARD_HARDWARE_RELEASE_ENABLED &&
                 wallet instanceof WatchOnlyWallet &&
                 wallet.type === WatchOnlyWallet.type &&
-                wallet.isXbtSigningCompatible() && (
+                wallet._hdWalletInstance instanceof XbtSegwitBech32Wallet && (
                   <SettingsListItem
                     title="Standard hardware signing (Keystone)"
-                    subtitle="Native SegWit only · requires confirmed Unified funding"
+                    subtitle="Native SegWit only · verified coin separation required"
                     switch={{
                       value: hardwareMode === 'standard',
                       testID: 'XbtStandardHardwareSwitch',
@@ -751,7 +751,7 @@ const WalletDetails: React.FC = () => {
                           enabled &&
                           !(await confirm(
                             'Standard hardware signing',
-                            'Your device will sign with 0x01. RedWallet requires six confirmations on directly received Unified funding and checks its signatures before creating the request and again before broadcast. Ordinary or unverified funding remains blocked. Do not use funding transactions you separately signed for the SHA-256 chain. Taproot and replacement sends are not supported in this mode.',
+                            'Your device will sign with 0x01. RedWallet checks confirmed Unified funding and a conflicting SHA-256 spend before signing and again before broadcast. This uses Blockstream and mempool.space over HTTPS and reveals public transaction IDs and your IP to those services. Their agreement is trusted for the current SHA-256 chain; RedWallet does not validate that chain locally. Missing evidence or unavailable services will block sending. Taproot and replacement sends are not supported in this mode.',
                           ))
                         )
                           return;

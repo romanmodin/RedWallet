@@ -1,3 +1,4 @@
+import { verifyPublicFundingSeparation } from '../class/xbt/separation-service';
 import {
   assertStandardHardwareReleased,
   assertStandardHardwareResult,
@@ -1931,6 +1932,7 @@ export async function broadcastStandardHardware(hex: string, request: Psbt, asse
     raw: ids => multiGetTransactionByTxid(ids, false),
     history: addresses => multiGetHistoryByAddress(addresses),
     tip: () => getReportedBlockTip(),
+    separation: parents => verifyPublicFundingSeparation(parents, assertStillAuthorized),
   });
   assertStillAuthorized();
   if (!mainClient) throw new Error('Electrum client is not connected');
