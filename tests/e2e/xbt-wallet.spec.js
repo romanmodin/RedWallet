@@ -156,6 +156,17 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForId(walletLabel);
     await openReceive(walletLabel);
     await waitForLabel(expectedAddress);
+
+    // Exercise the native radio controls and keyed QR/address replacement using
+    // published BIP84/BIP86 vectors. No signing, funds or network are involved.
+    await waitForId('ReceiveAddressType-segwit');
+    await waitForId('ReceiveAddressType-taproot');
+    await element(by.id('ReceiveAddressType-taproot')).tap();
+    await waitForLabel('bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr');
+    await expect(element(by.label(expectedAddress))).not.toExist();
+    await element(by.id('ReceiveAddressType-segwit')).tap();
+    await waitForLabel(expectedAddress);
+    await expect(element(by.label('bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr'))).not.toExist();
   });
 
   it('creates a Taproot wallet and reloads it after restart', async () => {
