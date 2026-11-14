@@ -74,7 +74,7 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForId('WalletNameInput');
 
     await expect(element(by.id('ActivateBitcoinButton'))).toBeVisible();
-    await expect(element(by.id('XbtWalletFormat'))).toHaveText('Taproot (BIP86)');
+    await expect(element(by.id('XbtWalletFormat'))).toHaveText('Native SegWit (BIP84)');
     await expect(element(by.id('ActivateVaultButton'))).not.toExist();
     await expect(element(by.id('ActivateLightningButton'))).not.toExist();
   });
@@ -87,7 +87,7 @@ describe('RedWallet XBT-only release UI', () => {
     await expect(element(by.id('AddXBTLightningRegtest'))).not.toExist();
     await element(by.id('ActivateBitcoinButton')).tap();
     await waitForId('ToggleXbtWalletFormat');
-    await expect(element(by.id('XbtWalletFormat'))).toHaveText('Taproot (BIP86)');
+    await expect(element(by.id('XbtWalletFormat'))).toHaveText('Native SegWit (BIP84)');
   });
 
   it('creates a BTC wallet, restores it after restart, and labels receive amounts BTC', async () => {

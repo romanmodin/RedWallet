@@ -745,6 +745,8 @@
     "internal": "Between accounts",
     "received": "Received",
     "sent": "Sent",
-    "pending": "Pending"
+    "pending": "Pending",
+    "receive_type": "RECEIVE ADDRESS TYPE",
+    "receive_type_unavailable": "To use the other type, add or link its account in wallet options. Watch-only wallets need its public account imported from the signing device."
   }
 }

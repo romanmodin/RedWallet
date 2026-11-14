@@ -79,7 +79,7 @@ const index2walletType: Record<number, { text: string; subtitle: string; walletT
 const initialState: State = {
   isLoading: true,
   walletBaseURI: '',
-  selectedIndex: 1,
+  selectedIndex: 0,
   label: '',
   selectedWalletType: ButtonSelected.ONCHAIN,
 };
@@ -124,7 +124,7 @@ const WalletsAdd: React.FC = () => {
   const route = useRoute<RouteProps>();
   const { entropy: entropyHex } = route.params || {};
   const btc = route.params?.network === 'btc';
-  const selectedIndex = !btc && route.params?.selectedIndex !== 0 ? 1 : 0;
+  const selectedIndex = !btc && route.params?.selectedIndex === 1 ? 1 : 0;
   const selectedWalletType = state.selectedWalletType;
   const entropy = entropyHex ? hexToUint8Array(entropyHex) : undefined;
   const { navigate, goBack, setParams } = useExtendedNavigation<NavigationProps>();

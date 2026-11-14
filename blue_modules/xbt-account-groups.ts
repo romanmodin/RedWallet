@@ -63,7 +63,7 @@ export function linkXbtAccounts(a: XbtAccount, b: XbtAccount, label = a.getLabel
   const group = {
     id,
     label: label.trim() || 'XBT wallet',
-    receiveWalletID: (xbtAddressType(a) === 'taproot' ? a : b).getID(),
+    receiveWalletID: (xbtAddressType(a) === 'segwit' ? a : b).getID(),
   };
   a.xbtAccountGroup = { ...group };
   b.xbtAccountGroup = { ...group };
@@ -83,6 +83,10 @@ export function setXbtReceiveAccount(members: XbtAccount[], selectedID: string):
         receiveWalletID: selectedID,
       };
   }
+}
+
+export function canCreateHotXbtSibling(wallet: TWallet): wallet is XbtSegwitBech32Wallet | XbtTaprootWallet {
+  return isXbtAccount(wallet) && !(wallet instanceof WatchOnlyWallet) && !!accountSuffix(wallet) && wallet.validateMnemonic();
 }
 
 /** Creates a sibling from an already-hot wallet only. Never changes the original derivation. */

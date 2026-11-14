@@ -81,13 +81,13 @@ test.each([
   ['hot', true],
   ['watch-only', false],
   ['watch-only', true],
-])('new %s groups default to Taproot regardless of pairing order (reversed: %s)', (custody, reverse) => {
+])('new %s groups default to Native SegWit regardless of pairing order (reversed: %s)', (custody, reverse) => {
   const segwit = custody === 'hot' ? hot() : watch();
   const taproot = custody === 'hot' ? createHotXbtSibling(segwit) : watch(true);
   if (reverse) linkXbtAccounts(taproot, segwit);
   else linkXbtAccounts(segwit, taproot);
-  expect(getXbtReceiveAccount(segwit, [segwit, taproot])).toBe(taproot);
-  expect(getXbtReceiveAccount(taproot, [taproot, segwit])).toBe(taproot);
+  expect(getXbtReceiveAccount(segwit, [segwit, taproot])).toBe(segwit);
+  expect(getXbtReceiveAccount(taproot, [taproot, segwit])).toBe(segwit);
 });
 
 test('rejects cross-chain, mixed custody, duplicate type, missing fingerprint and different account pairing', () => {
@@ -133,11 +133,11 @@ test('selected receive type survives serialization while IDs and existing accoun
   const a = hot(),
     b = createHotXbtSibling(a);
   linkXbtAccounts(a, b);
-  expect(getXbtReceiveAccount(a, [a, b])).toBe(b);
-  setXbtReceiveAccount([a, b], a.getID());
+  expect(getXbtReceiveAccount(a, [a, b])).toBe(a);
+  setXbtReceiveAccount([a, b], b.getID());
   const restoredA = XbtSegwitBech32Wallet.fromJson(JSON.stringify(a)) as unknown as XbtSegwitBech32Wallet;
   const restoredB = XbtTaprootWallet.fromJson(JSON.stringify(b)) as unknown as XbtTaprootWallet;
-  expect(getXbtReceiveAccount(restoredA, [restoredA, restoredB])).toBe(restoredA);
+  expect(getXbtReceiveAccount(restoredA, [restoredA, restoredB])).toBe(restoredB);
   expect(() => setXbtReceiveAccount([a, b], 'missing')).toThrow();
   expect(restoredA.getID()).toBe(a.getID());
 });

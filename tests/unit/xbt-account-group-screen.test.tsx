@@ -58,21 +58,13 @@ function setup(group = true) {
 }
 beforeEach(() => jest.clearAllMocks());
 
-test('SegWit remains selectable and Receive routes to that actual wallet', async () => {
-  const { a, storage, navigate } = setup();
+test('settings selection saves the receive account and Receive routes to that actual wallet', async () => {
+  const { a, b, storage, navigate } = setup();
   const view = render(<Screen />);
-  fireEvent.press(view.getByTestId('ReceiveType-segwit'));
+  fireEvent.press(view.getByTestId('ReceiveType-taproot'));
   await waitFor(() => expect(storage.saveToDisk).toHaveBeenCalledWith(false, true));
-  expect(a.xbtAccountGroup?.receiveWalletID).toBe(a.getID());
+  expect(a.xbtAccountGroup?.receiveWalletID).toBe(b.getID());
   view.rerender(<Screen />);
-  fireEvent.press(view.getByText('BACK TO WALLET'));
-  fireEvent.press(view.getByText('RECEIVE · SEGWIT'));
-  expect(navigate).toHaveBeenCalledWith('ReceiveDetails', { walletID: a.getID() });
-});
-
-test('Receive uses Taproot immediately after grouping without a settings change', () => {
-  const { b, navigate } = setup();
-  const view = render(<Screen />);
   fireEvent.press(view.getByText('BACK TO WALLET'));
   fireEvent.press(view.getByText('RECEIVE · TAPROOT'));
   expect(navigate).toHaveBeenCalledWith('ReceiveDetails', { walletID: b.getID() });
@@ -83,10 +75,10 @@ test('failed persistence restores both default-receive settings', async () => {
   storage.saveToDisk.mockRejectedValueOnce(new Error('Disk unavailable'));
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   const view = render(<Screen />);
-  fireEvent.press(view.getByTestId('ReceiveType-segwit'));
+  fireEvent.press(view.getByTestId('ReceiveType-taproot'));
   await waitFor(() => expect(alert).toHaveBeenCalled());
-  expect(a.xbtAccountGroup?.receiveWalletID).toBe(b.getID());
-  expect(b.xbtAccountGroup?.receiveWalletID).toBe(b.getID());
+  expect(a.xbtAccountGroup?.receiveWalletID).toBe(a.getID());
+  expect(b.xbtAccountGroup?.receiveWalletID).toBe(a.getID());
   alert.mockRestore();
 });
 
@@ -156,7 +148,6 @@ test('adding the other hot address type saves both accounts without constructing
   expect(sibling.getDerivationPath()).toBe("m/86'/0'/0'");
   expect(storage.saveToDisk).toHaveBeenCalledWith(false, true);
   expect(a.xbtAccountGroup?.id).toBe(sibling.xbtAccountGroup.id);
-  expect(a.xbtAccountGroup?.receiveWalletID).toBe(sibling.getID());
   expect(navigate).not.toHaveBeenCalled();
 });
 

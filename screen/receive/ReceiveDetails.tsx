@@ -1,5 +1,5 @@
 import { walletElectrum, isBtcWallet, walletTicker, formatWalletBalance } from '../../blue_modules/wallet-network';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BackHandler, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
@@ -33,6 +33,20 @@ import { BlueLoading } from '../../components/BlueLoading';
 import SafeAreaScrollView from '../../components/SafeAreaScrollView';
 import { XBT_PROFILE } from '../../class/xbt/profile';
 import { normalizeXbtUnit } from '../../class/xbt/units';
+import {
+  getXbtAccountMembers,
+  setXbtReceiveAccount,
+  xbtAddressType,
+  XbtAccount,
+  canCreateHotXbtSibling,
+  createHotXbtSibling,
+  canGroupXbtAccounts,
+  isXbtAccount,
+  linkXbtAccounts,
+  XbtAddressType,
+} from '../../blue_modules/xbt-account-groups';
+import ReceiveAddressType from './ReceiveAddressType';
+import { unlockWithBiometrics, useBiometrics } from '../../hooks/useBiometrics';
 
 const segmentControlValues = [loc.wallets.details_address, loc.bip47.payment_code];
 
@@ -90,7 +104,13 @@ const QrRevealTile: React.FC<QrRevealTileProps> = ({ width, height, left, top, m
   const opacity = useSharedValue(1);
   useEffect(() => {
     opacity.value = 1;
-    opacity.value = withDelay(delayMs, withTiming(0, { duration: QR_STAGGER_TILE_DURATION_MS, easing: Easing.out(Easing.quad) }));
+    opacity.value = withDelay(
+      delayMs,
+      withTiming(0, {
+        duration: QR_STAGGER_TILE_DURATION_MS,
+        easing: Easing.out(Easing.quad),
+      }),
+    );
   }, [runKey, delayMs, opacity]);
   const tileStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
@@ -149,8 +169,9 @@ type RouteProps = RouteProp<ReceiveDetailsStackParamList, 'ReceiveDetails'>;
 const ReceiveDetails = () => {
   const route = useRoute<RouteProps>();
   const { walletID, address } = route.params;
-  const { wallets, saveToDisk, sleep, fetchAndSaveWalletTransactions } = useStorage();
+  const { wallets, saveToDisk, addWallet, deleteWallet, sleep, fetchAndSaveWalletTransactions } = useStorage();
   const { isElectrumDisabled } = useSettings();
+  const { isBiometricUseCapableAndEnabled } = useBiometrics();
   const { colors } = useTheme();
   const isDarkTheme = useColorScheme() === 'dark';
   const [customLabel, setCustomLabel] = useState('');
@@ -170,8 +191,112 @@ const ReceiveDetails = () => {
   const [displayBalance, setDisplayBalance] = useState('');
   const [qrCodeSize, setQRCodeSize] = useState(90);
 
+  const mounted = useRef(true);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  // Explicit address/history routes stay on the requested address.
+  const canSwitchAddressType = useRef(!address || route.params.allowAddressTypeSwitch === true).current;
+  const selectingType = useRef(false);
+  const [isSelectingType, setIsSelectingType] = useState(false);
+
   const wallet = walletID ? wallets.find(w => w.getID() === walletID) : undefined;
   const isBIP47Enabled = wallet?.isBIP47Enabled();
+  const receiveAccounts = wallet ? getXbtAccountMembers(wallet, wallets) : [];
+
+  const canAddType = !!wallet && receiveAccounts.length === 1 && canCreateHotXbtSibling(wallet);
+  const selectAddressType = async (type: XbtAddressType) => {
+    if (selectingType.current || !wallet || xbtAddressType(wallet) === type) return;
+    let account = receiveAccounts.find(member => xbtAddressType(member) === type);
+    if (!account && !canAddType) return;
+    let added: XbtAccount | undefined;
+    let addedToStorage = false;
+    let saved = false;
+    selectingType.current = true;
+    setIsSelectingType(true);
+    const before = wallets.map(member => ({
+      member,
+      group: member.xbtAccountGroup,
+    }));
+    try {
+      if (!account) {
+        if (!canCreateHotXbtSibling(wallet)) return;
+        if ((await isBiometricUseCapableAndEnabled()) && !(await unlockWithBiometrics())) return;
+        if (!mounted.current) return;
+        const sibling = createHotXbtSibling(wallet);
+        const existing = wallets.find(candidate => candidate.getID() === sibling.getID());
+        if (existing) {
+          if (!isXbtAccount(existing) || existing.xbtAccountGroup || !canGroupXbtAccounts(wallet, existing))
+            throw new Error(loc.xbt_accounts.exists);
+          account = existing;
+        } else {
+          account = sibling;
+          added = sibling;
+        }
+      }
+      let nextAddress: string | undefined;
+      if (!isElectrumDisabled) {
+        try {
+          nextAddress = (await Promise.race([account.getAddressAsync(), sleep(1000)])) || undefined;
+        } catch {
+          // Offline Receive can use the account's locally derived unused address.
+        }
+      }
+      nextAddress ||= account._getExternalAddressByIndex(account.getNextFreeAddressIndex());
+      if (!nextAddress) throw new Error(loc.receive.address_not_found);
+      if (!mounted.current) return;
+      const nextUri = DeeplinkSchemaMatch.bip21encode(
+        nextAddress,
+        isCustom && bip21encoded ? { ...DeeplinkSchemaMatch.bip21decode(bip21encoded).options } : undefined,
+      );
+      let members = receiveAccounts;
+      if (!members.includes(account)) {
+        if (!isXbtAccount(wallet)) return;
+        linkXbtAccounts(wallet, account);
+        members = [wallet, account];
+        if (added) {
+          addWallet(added);
+          addedToStorage = true;
+        }
+      }
+      setXbtReceiveAccount(members, account.getID());
+      await saveToDisk(false, true);
+      saved = true; // Durable before navigation; do not roll back on later UI work.
+      if (!mounted.current) return;
+      // A keyed remount changes QR, copy/share payload and balance monitoring together.
+      setParams({
+        walletID: account.getID(),
+        address: nextAddress,
+        allowAddressTypeSwitch: true,
+        allowBIP47: false,
+        isBIP47Enabled: false,
+        toggleBIP47RequestedAt: undefined,
+        customLabel: isCustom ? customLabel : undefined,
+        customAmount: isCustom ? customAmount : undefined,
+        customUnit: isCustom ? customUnit : undefined,
+        bip21encoded: isCustom ? nextUri : undefined,
+        isCustom: isCustom || undefined,
+      });
+    } catch (error) {
+      if (!saved) {
+        if (added && addedToStorage) deleteWallet(added);
+        before.forEach(({ member, group }) => {
+          member.xbtAccountGroup = group;
+        });
+      }
+      if (mounted.current)
+        presentAlert({
+          title: loc.xbt_accounts.error_title,
+          message: (error as Error).message,
+        });
+    } finally {
+      selectingType.current = false;
+      if (mounted.current) setIsSelectingType(false);
+    }
+  };
 
   const paymentCodeString = useMemo(() => (wallet && 'getBIP47PaymentCode' in wallet && wallet.getBIP47PaymentCode()) || '', [wallet]);
 
@@ -210,10 +335,16 @@ const ReceiveDetails = () => {
     transform: [{ scale: pressScale.value }],
   }));
   const handlePressIn = useCallback(() => {
-    pressScale.value = withTiming(0.97, { duration: 110, easing: Easing.out(Easing.quad) });
+    pressScale.value = withTiming(0.97, {
+      duration: 110,
+      easing: Easing.out(Easing.quad),
+    });
   }, [pressScale]);
   const handlePressOut = useCallback(() => {
-    pressScale.value = withTiming(1, { duration: 140, easing: Easing.out(Easing.quad) });
+    pressScale.value = withTiming(1, {
+      duration: 140,
+      easing: Easing.out(Easing.quad),
+    });
   }, [pressScale]);
   const handleCardPress = useCallback(() => {
     triggerHapticFeedback(HapticFeedbackTypes.ImpactLight);
@@ -222,6 +353,7 @@ const ReceiveDetails = () => {
 
   const setAddressBIP21Encoded = useCallback(
     (addr: string) => {
+      if (!mounted.current) return;
       const newBip21encoded = DeeplinkSchemaMatch.bip21encode(addr);
       setParams({ address: addr });
       setBip21encoded(newBip21encoded);
@@ -278,8 +410,12 @@ const ReceiveDetails = () => {
       }
     }
 
+    if (!mounted.current) return;
     if (!newAddress) {
-      presentAlert({ title: loc.errors.error, message: loc.receive.address_not_found });
+      presentAlert({
+        title: loc.errors.error,
+        message: loc.receive.address_not_found,
+      });
       return;
     }
 
@@ -345,6 +481,7 @@ const ReceiveDetails = () => {
 
         console.debug('checking address', addressToUse, 'for balance...');
         const balance = await walletElectrum(wallet).getBalanceByAddress(addressToUse);
+        if (!mounted.current) return;
         console.debug('...got', balance);
 
         if (balance.unconfirmed > 0) {
@@ -356,12 +493,15 @@ const ReceiveDetails = () => {
           }
 
           const txs = await walletElectrum(wallet).getMempoolTransactionsByAddress(addressToUse);
+          if (!mounted.current) return;
           const tx = txs.pop();
           if (tx) {
             const rez = await walletElectrum(wallet).multiGetTransactionByTxid([tx.tx_hash], true, 10);
+            if (!mounted.current) return;
             if (rez[tx.tx_hash] && rez[tx.tx_hash].vsize) {
               const satPerVbyte = Math.round(tx.fee / rez[tx.tx_hash].vsize);
               const fees = await walletElectrum(wallet).estimateFees();
+              if (!mounted.current) return;
               if (satPerVbyte >= fees.fast) {
                 setEta(loc.formatString(loc.transactions.eta_10m));
               } else if (satPerVbyte >= fees.medium) {
@@ -715,7 +855,13 @@ const ReceiveDetails = () => {
       setShowConfirmedBalance(false);
     }
 
-    setParams({ customLabel: undefined, customAmount: undefined, customUnit: undefined, bip21encoded: undefined, isCustom: undefined });
+    setParams({
+      customLabel: undefined,
+      customAmount: undefined,
+      customUnit: undefined,
+      bip21encoded: undefined,
+      isCustom: undefined,
+    });
   }, [address, route.params, setParams, wallet]);
 
   /**
@@ -763,6 +909,15 @@ const ReceiveDetails = () => {
         keyboardShouldPersistTaps="always"
         onLayout={onScrollViewLayout}
       >
+        {canSwitchAddressType && wallet && xbtAddressType(wallet) && !showPendingBalance && !showConfirmedBalance && (
+          <ReceiveAddressType
+            selected={xbtAddressType(wallet)!}
+            accounts={receiveAccounts}
+            canAddType={canAddType}
+            disabled={isSelectingType}
+            onSelect={selectAddressType}
+          />
+        )}
         {showAddress && renderReceiveCard()}
         {showReceiveSkeleton && renderReceiveSkeleton()}
         {showAddress && address !== undefined && (
@@ -900,4 +1055,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ReceiveDetails;
+export default function ReceiveDetailsScreen() {
+  const route = useRoute<RouteProps>();
+  return <ReceiveDetails key={route.params.walletID ?? 'address'} />;
+}
