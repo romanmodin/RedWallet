@@ -193,7 +193,8 @@ suite('Standard hardware iOS qualification', () => {
         step('exporting PSBT through the app clipboard');
         fixture.proof = 'valid';
         await prepare();
-        await waitForId('TextHelperForPSBT', 60000);
+        await waitForId('StandardHardwareSigningNotice', 60000);
+        await visible('TextHelperForPSBT', 'PsbtWithHardwareScrollView');
         await visible('CopyUnsignedPsbtButton', 'PsbtWithHardwareScrollView');
         await element(by.id('CopyUnsignedPsbtButton')).tap();
         const encoded = execFileSync('xcrun', ['simctl', 'pbpaste', device.id], {

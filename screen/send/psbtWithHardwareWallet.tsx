@@ -244,7 +244,13 @@ const PsbtWithHardwareWallet = () => {
             <BlueText testID="BtcSignedTransactionReview">{'Signature verified\n\n' + btcReview}</BlueText>
           )}
           <BlueText style={[styles.hexLabel, stylesHook.hexLabel]}>{loc.send.create_this_is_hex}</BlueText>
-          <TextInput style={[styles.hexInput, stylesHook.hexInput]} multiline editable={false} value={txHex} />
+          <TextInput
+            testID="SignedTransactionHex"
+            style={[styles.hexInput, stylesHook.hexInput]}
+            multiline
+            editable={false}
+            value={txHex}
+          />
 
           <TouchableOpacity accessibilityRole="button" style={styles.hexTouch} onPress={copyHexToClipboard}>
             <Text style={[styles.hexText, stylesHook.hexText]}>{loc.send.create_copy}</Text>
@@ -323,7 +329,7 @@ const PsbtWithHardwareWallet = () => {
     <View style={styles.container}>
       {wallet.type === WatchOnlyWallet.type && wallet.getHardwareSigningMode() === 'standard' && (
         <BlueCard>
-          <BlueText>XBT · Standard hardware signing (0x01)</BlueText>
+          <BlueText testID="StandardHardwareSigningNotice">XBT · Standard hardware signing (0x01)</BlueText>
           <BlueText>
             Coin separation checked against Blockstream and mempool.space. Sending depends on those services agreeing on the SHA-256 chain.
             RedWallet checks again before broadcast. Your device produces a standard signature, not Unified protection.
@@ -423,8 +429,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   container: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    // Keep the standard-signing notice above the QR/actions on narrow screens.
+    flexDirection: 'column',
     paddingTop: 16,
     paddingBottom: 16,
   },

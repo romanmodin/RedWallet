@@ -40,7 +40,11 @@ export function verifyFundingConflict(funding: Transaction, proof: ConflictProof
   if (headerHash !== anchor.blockHash.toLowerCase()) fail();
   const conflict = Transaction.fromHex(proof.rawTransaction);
   if (funding.isCoinbase() || conflict.isCoinbase() || conflict.getId() === funding.getId()) fail();
-  if (!conflict.ins.some(input => funding.ins.some(other => input.index === other.index && Buffer.from(input.hash).equals(other.hash))))
+  if (
+    !conflict.ins.some(input =>
+      funding.ins.some(other => input.index === other.index && Buffer.from(input.hash).equals(Buffer.from(other.hash))),
+    )
+  )
     fail();
   let hash = Buffer.from(conflict.getHash());
   let position = proof.position;

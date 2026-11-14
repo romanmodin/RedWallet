@@ -81,3 +81,22 @@ it('rejects proofs at a different tree depth from the independent anchor', () =>
   const f = fixture();
   expect(() => verifyFundingConflict(f.funding, f.proof, { ...f.anchor, txCount: 5 })).toThrow();
 });
+
+it('verifies parsed transaction inputs with the mobile Buffer implementation', () => {
+  const f = fixture();
+  // bitcoinjs v7 parses hashes as Uint8Array. Node Buffer accepts these in
+  // equals(), but the Buffer polyfill used by the mobile app requires a Buffer.
+  const funding = Transaction.fromHex(f.funding.toHex());
+  expect(Buffer.isBuffer(funding.ins[0].hash)).toBe(false);
+  const nodeBuffer = global.Buffer;
+  const mobileBuffer = require('buffer/').Buffer;
+  try {
+    global.Buffer = mobileBuffer;
+    expect(verifyFundingConflict(funding, f.proof, f.anchor)).toBe(f.conflict.getId());
+    // A different hash with the same output index is still unrelated.
+    funding.ins[0].hash[0] = (funding.ins[0].hash[0] + 1) % 256;
+    expect(() => verifyFundingConflict(funding, f.proof, f.anchor)).toThrow('Coin separation proof is invalid or insufficiently confirmed');
+  } finally {
+    global.Buffer = nodeBuffer;
+  }
+});
