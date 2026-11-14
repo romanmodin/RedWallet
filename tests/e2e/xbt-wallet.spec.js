@@ -98,7 +98,12 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForWalletsList();
     await openReceive('btc-created', true);
     await waitForId('CopyTextToClipboard');
+    await waitFor(element(by.id('SetCustomAmountButton')))
+      .toBeVisible()
+      .whileElement(by.id('ReceiveDetailsScrollView'))
+      .scroll(150, 'down');
     await element(by.id('SetCustomAmountButton')).tap();
+    await waitForId('BitcoinAmountInput');
     await element(by.id('BitcoinAmountInput')).replaceText('1');
     await element(by.id('changeAmountUnitButton')).tap();
     await expect(element(by.id('BitcoinAmountInput'))).toHaveText('100000000');
@@ -117,7 +122,12 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForWalletsList();
     await openReceive('xbt-created', true);
     await waitForId('CopyTextToClipboard');
+    await waitFor(element(by.id('SetCustomAmountButton')))
+      .toBeVisible()
+      .whileElement(by.id('ReceiveDetailsScrollView'))
+      .scroll(150, 'down');
     await element(by.id('SetCustomAmountButton')).tap();
+    await waitForId('BitcoinAmountInput');
     await element(by.id('BitcoinAmountInput')).replaceText('1');
     await element(by.id('changeAmountUnitButton')).tap();
     await expect(element(by.id('BitcoinAmountInput'))).toHaveText('100000000');
