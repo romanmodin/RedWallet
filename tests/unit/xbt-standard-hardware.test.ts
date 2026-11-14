@@ -229,3 +229,21 @@ it('checks only selected inputs when constructing a standard request', async () 
   expect(raw.mock.calls.flat(2)).not.toContain(extra.txid);
   expect(request.psbt.data.inputs[0].sighashType).toBe(1);
 });
+
+it('prepares and combines a standard request with the mobile Buffer implementation', async () => {
+  const nodeBuffer = global.Buffer;
+  const mobileBuffer = require('buffer/').Buffer;
+  const species = Object.getOwnPropertyDescriptor(mobileBuffer, Symbol.species);
+  Object.defineProperty(mobileBuffer, Symbol.species, { value: Uint8Array, configurable: true });
+  try {
+    global.Buffer = mobileBuffer;
+    const f = await ready();
+    expect(f.request.data.inputs[0].sighashType).toBe(1);
+    const tx = f.watch.combinePsbt(f.request, f.signed);
+    expect(tx.ins[0].witness[0].at(-1)).toBe(1);
+  } finally {
+    global.Buffer = nodeBuffer;
+    if (species) Object.defineProperty(mobileBuffer, Symbol.species, species);
+    else delete mobileBuffer[Symbol.species];
+  }
+});

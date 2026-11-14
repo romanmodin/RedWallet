@@ -92,3 +92,13 @@ Validation for the mobile Buffer correction: 90 tests in eight suites passed, in
 Native run 43584902289 built successfully but stopped after cancelling the standard-signing opt-in: Detox reported that a UITransitionView intercepted the next switch tap. Its failure screenshot shows the underlying switch visible and still off. The scenario did not reach PSBT creation, so it neither verifies nor disproves the mobile Buffer fix.
 
 The test now retries only Detox's specific pre-touch UITransitionView hit-test rejection, with a bounded wait. Successful taps and ambiguous errors are never retried; cancellation and persistence assertions remain. Five helper regression cases cover successful retry, unrelated failures and bounded obstruction. Gitar's six code findings are closed and its code review is approved; native simulator and physical Keystone qualification remain release gates.
+
+### November 14 Merkle-root byte-view correction
+
+Native run 43588265357 passed enrollment cancellation/persistence and missing-proof rejection, then displayed “Argument must be a Buffer” during valid-proof preparation. Its receipt records missingProofBlocked=true, passed=false and cleanupComplete=true. No PSBT round trip or broadcast completed.
+
+The remaining Merkle-root comparison now normalizes the header slice to Buffer before calling equals. A regression forces the mobile Buffer package's typed-array views to return Uint8Array: the previous comparison reproduces that exact error, while the corrected comparison accepts the valid proof and rejects an incorrect root. The standard-request preparation/signature-combination test also exercises this byte-view behavior. This is a local reproduction, not a direct Hermes execution.
+
+The release switch remains false. A fresh native simulator run and physical Keystone qualification are still required.
+
+Validation: 91 tests in eight suites passed, including both isolated Core/Knots/Fulcrum integration scenarios. TypeScript no-emit, changed-file ESLint and diff checks passed.

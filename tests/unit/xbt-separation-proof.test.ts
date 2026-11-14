@@ -90,13 +90,28 @@ it('verifies parsed transaction inputs with the mobile Buffer implementation', (
   expect(Buffer.isBuffer(funding.ins[0].hash)).toBe(false);
   const nodeBuffer = global.Buffer;
   const mobileBuffer = require('buffer/').Buffer;
+  const species = Object.getOwnPropertyDescriptor(mobileBuffer, Symbol.species);
+  // Exercise engines that return a plain Uint8Array from a typed-array view.
+  Object.defineProperty(mobileBuffer, Symbol.species, { value: Uint8Array, configurable: true });
+  expect(mobileBuffer.isBuffer(mobileBuffer.alloc(80).subarray(36, 68))).toBe(false);
   try {
     global.Buffer = mobileBuffer;
     expect(verifyFundingConflict(funding, f.proof, f.anchor)).toBe(f.conflict.getId());
+    const badHeader = Buffer.from(f.proof.header, 'hex');
+    badHeader[36] = (badHeader[36] + 1) % 256;
+    expect(() =>
+      verifyFundingConflict(
+        funding,
+        { ...f.proof, header: badHeader.toString('hex') },
+        { ...f.anchor, blockHash: Buffer.from(crypto.hash256(badHeader)).reverse().toString('hex') },
+      ),
+    ).toThrow('Coin separation proof is invalid or insufficiently confirmed');
     // A different hash with the same output index is still unrelated.
     funding.ins[0].hash[0] = (funding.ins[0].hash[0] + 1) % 256;
     expect(() => verifyFundingConflict(funding, f.proof, f.anchor)).toThrow('Coin separation proof is invalid or insufficiently confirmed');
   } finally {
     global.Buffer = nodeBuffer;
+    if (species) Object.defineProperty(mobileBuffer, Symbol.species, species);
+    else delete mobileBuffer[Symbol.species];
   }
 });

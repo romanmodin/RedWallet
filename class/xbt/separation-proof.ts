@@ -59,6 +59,6 @@ export function verifyFundingConflict(funding: Transaction, proof: ConflictProof
     position = Math.floor(position / 2);
     width = Math.ceil(width / 2);
   }
-  if (position !== 0 || !hash.equals(header.subarray(36, 68))) fail();
+  if (position !== 0 || !hash.equals(Buffer.from(header.subarray(36, 68)))) fail();
   return conflict.getId();
 }
