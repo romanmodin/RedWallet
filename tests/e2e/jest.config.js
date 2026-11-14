@@ -14,6 +14,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/e2e/setup.js'],
   rootDir: '..',
   testMatch: ['<rootDir>/e2e/**/*.spec.{js,ts}'],
+  // Native signing fixtures use the same ESM crypto package as the app.
+  transformIgnorePatterns: ['/node_modules/(?!@noble/)'],
   transform: {
     '\\.[jt]sx?$': ['ts-jest'],
   },
