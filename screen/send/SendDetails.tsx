@@ -739,6 +739,10 @@ const SendDetails = () => {
       }
     }
 
+    if (wallet instanceof WatchOnlyWallet && wallet.getHardwareSigningMode() === 'standard') {
+      await wallet.prepareStandardHardwareSigning(lutxo);
+    }
+
     const targetsOrig = JSON.parse(JSON.stringify(targets));
     // preserving original since it will be mutated
 

@@ -1,3 +1,10 @@
+import {
+  assertStandardHardwareReleased,
+  assertStandardHardwareResult,
+  requestFundingInputs,
+  verifyStandardHardwareFunding,
+} from '../class/xbt/standard-hardware';
+import { Psbt } from 'bitcoinjs-lib';
 import { validateBackupServers, serverKey } from '../class/xbt/server-backups';
 import BigNumber from 'bignumber.js';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -1915,3 +1922,17 @@ const semVerToInt = function (semver: string): number {
 
   return ret;
 };
+
+/** Separate, proof-gated transport; existing Unified-only callers remain unchanged. */
+export async function broadcastStandardHardware(hex: string, request: Psbt, assertStillAuthorized: () => void): Promise<string> {
+  assertStandardHardwareReleased();
+  assertStandardHardwareResult(hex, request);
+  await verifyStandardHardwareFunding(requestFundingInputs(request), {
+    raw: ids => multiGetTransactionByTxid(ids, false),
+    history: addresses => multiGetHistoryByAddress(addresses),
+    tip: () => getReportedBlockTip(),
+  });
+  assertStillAuthorized();
+  if (!mainClient) throw new Error('Electrum client is not connected');
+  return mainClient.blockchainTransaction_broadcast(hex);
+}

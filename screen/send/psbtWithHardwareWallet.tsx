@@ -321,6 +321,15 @@ const PsbtWithHardwareWallet = () => {
     <ActivityIndicator />
   ) : (
     <View style={styles.container}>
+      {wallet.type === WatchOnlyWallet.type && wallet.getHardwareSigningMode() === 'standard' && (
+        <BlueCard>
+          <BlueText>XBT · Standard hardware signing (0x01)</BlueText>
+          <BlueText>
+            Funding checked: directly received from confirmed Unified transactions. RedWallet checks this again before broadcast. This new
+            signature is standard, not Unified.
+          </BlueText>
+        </BlueCard>
+      )}
       <BlueCard>
         {wallet instanceof BtcWatchOnlyWallet && psbt && <BlueText testID="BtcHardwareTransactionReview">{btcReview}</BlueText>}
         <BlueText testID="TextHelperForPSBT">{loc.send.psbt_this_is_psbt}</BlueText>

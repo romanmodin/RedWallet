@@ -1,3 +1,12 @@
+import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import {
+  assertStandardHardwareReleased,
+  FundingInput,
+  FundingProof,
+  verifyStandardHardwareFunding,
+  assertStandardHardwareResult,
+  requestFundingInputs,
+} from '../xbt/standard-hardware';
 import BIP32Factory from 'bip32';
 import * as bitcoin from 'bitcoinjs-lib';
 import ecc from '../../blue_modules/noble_ecc';
@@ -15,6 +24,8 @@ import { assertSignedUnifiedTransactionMatchesPsbt, finalizeUnifiedP2wpkhInput, 
 
 const bip32 = BIP32Factory(ecc);
 const pendingSigningRequests = new WeakMap<WatchOnlyWallet, string>();
+const proofGeneration = new WeakMap<WatchOnlyWallet, object>();
+const standardFunding = new WeakMap<WatchOnlyWallet, FundingProof>();
 const approvedExternalTransactions = new WeakMap<WatchOnlyWallet, string>();
 
 export class WatchOnlyWallet extends LegacyWallet {
@@ -31,11 +42,64 @@ export class WatchOnlyWallet extends LegacyWallet {
   xbt_network = false;
   xbt_signer_enabled = false;
   masterFingerprint: number = 0;
+  xbt_hardware_signing_mode: 'unified' | 'standard' = 'unified';
+
+  getHardwareSigningMode() {
+    return this.xbt_hardware_signing_mode === 'standard' ? 'standard' : 'unified';
+  }
+
+  setHardwareSigningMode(mode: 'unified' | 'standard') {
+    if (mode === 'standard') assertStandardHardwareReleased();
+    if (mode !== 'unified' && mode !== 'standard') throw new Error('Unknown signing mode');
+    if (mode === 'standard' && (this.type !== WatchOnlyWallet.type || !(this._hdWalletInstance instanceof HDSegwitBech32Wallet)))
+      throw new Error('Standard XBT hardware signing currently requires Native SegWit');
+    this.xbt_hardware_signing_mode = mode;
+    proofGeneration.set(this, {});
+    standardFunding.delete(this);
+    pendingSigningRequests.delete(this);
+    approvedExternalTransactions.delete(this);
+  }
+
+  async prepareStandardHardwareSigning(inputs: FundingInput[]) {
+    proofGeneration.set(this, {});
+    standardFunding.delete(this);
+    pendingSigningRequests.delete(this);
+    approvedExternalTransactions.delete(this);
+    if (this.getHardwareSigningMode() !== 'standard') return;
+    assertStandardHardwareReleased();
+    if (!this.allowSend()) throw new Error('Enable hardware signing first');
+    const generation = proofGeneration.get(this);
+    const proof = await verifyStandardHardwareFunding(inputs, {
+      raw: ids => BlueElectrum.multiGetTransactionByTxid(ids, false),
+      history: addresses => BlueElectrum.multiGetHistoryByAddress(addresses),
+      tip: () => BlueElectrum.getReportedBlockTip(),
+    });
+    if (proofGeneration.get(this) !== generation || this.getHardwareSigningMode() !== 'standard' || !this.allowSend())
+      throw new Error('Signing mode changed; review again');
+    standardFunding.set(this, proof);
+  }
+
+  private requireStandardProof(request: bitcoin.Psbt) {
+    assertStandardHardwareReleased();
+    const proof = standardFunding.get(this);
+    if (!proof || Date.now() < proof.checkedAt || Date.now() - proof.checkedAt > 300000)
+      throw new Error('Protection unverified: refresh and review the selected coins again');
+    requestFundingInputs(request).forEach(input => {
+      const raw = proof.parents[input.txid];
+      if (!raw) throw new Error('Protection unverified for selected coin');
+      const output = bitcoin.Transaction.fromHex(raw).outs[input.vout];
+      if (!output || output.value !== BigInt(input.value) || bitcoin.address.fromOutputScript(output.script) !== input.address)
+        throw new Error('Protection proof does not match selected coin');
+    });
+    return proof;
+  }
 
   /**
    * @inheritDoc
    */
   setSecret(secret: string): this {
+    proofGeneration.set(this, {});
+    standardFunding.delete(this);
     approvedExternalTransactions.delete(this);
     pendingSigningRequests.delete(this);
     if (
@@ -67,12 +131,13 @@ export class WatchOnlyWallet extends LegacyWallet {
   allowSend() {
     return (
       this.useWithHardwareWalletEnabled() &&
+      (this.getHardwareSigningMode() !== 'standard' || this._hdWalletInstance instanceof XbtSegwitBech32Wallet) &&
       (this._hdWalletInstance instanceof XbtSegwitBech32Wallet || this._hdWalletInstance instanceof XbtTaprootWallet)
     );
   }
 
   allowRBF() {
-    return this.allowSend() && this._hdWalletInstance instanceof XbtTaprootWallet;
+    return this.getHardwareSigningMode() === 'unified' && this.allowSend() && this._hdWalletInstance instanceof XbtTaprootWallet;
   }
 
   allowSignVerifyMessage() {
@@ -251,6 +316,20 @@ export class WatchOnlyWallet extends LegacyWallet {
     approvedExternalTransactions.delete(this);
     const [one, two] = _args;
     const expected = typeof one === 'string' ? bitcoin.Psbt.fromBase64(one) : one.clone();
+    if (this.getHardwareSigningMode() === 'standard') {
+      if (!(this._hdWalletInstance instanceof XbtSegwitBech32Wallet)) throw new Error('Standard mode requires Native SegWit');
+      if (pendingSigningRequests.get(this) !== expected.toBase64())
+        throw new Error('PSBT does not match the current reviewed signing request');
+      this.requireStandardProof(expected);
+      const signed = typeof two === 'string' ? bitcoin.Psbt.fromBase64(two) : two.clone();
+      const combined = expected.clone().combine(signed);
+      combined.data.inputs.forEach((input, index) => {
+        if (!input.finalScriptWitness) combined.finalizeInput(index);
+      });
+      const tx = assertStandardHardwareResult(combined.extractTransaction().toHex(), expected);
+      approvedExternalTransactions.set(this, tx.toHex());
+      return tx;
+    }
     if (expected.data.inputs.some(input => input.sighashType !== SIGHASH_ALL_UNIFIED)) {
       throw new Error('Reviewed PSBT does not declare XBT Unified Sighash on every input');
     }
@@ -304,6 +383,25 @@ export class WatchOnlyWallet extends LegacyWallet {
     if (!this.allowSend() || !this._hdWalletInstance) throw new Error('Enable an XBT-compatible external signer first');
     if (approvedExternalTransactions.get(this) !== _args[0])
       throw new Error('External transaction must match the verified signing request');
+    if (this.getHardwareSigningMode() === 'standard') {
+      const encoded = pendingSigningRequests.get(this);
+      if (!encoded) throw new Error('Review the transaction again');
+      const request = bitcoin.Psbt.fromBase64(encoded);
+      this.requireStandardProof(request);
+      const tx = assertStandardHardwareResult(_args[0], request);
+      const result = await BlueElectrum.broadcastStandardHardware(_args[0], request, () => {
+        if (
+          !this.allowSend() ||
+          this.getHardwareSigningMode() !== 'standard' ||
+          pendingSigningRequests.get(this) !== encoded ||
+          approvedExternalTransactions.get(this) !== _args[0]
+        )
+          throw new Error('Signing request changed during protection verification');
+      });
+      if (result !== tx.getId()) throw new Error('Unexpected XBT broadcast response');
+      approvedExternalTransactions.delete(this);
+      return true;
+    }
     return this._hdWalletInstance.broadcastTx(_args[0]);
   }
 
@@ -327,12 +425,23 @@ export class WatchOnlyWallet extends LegacyWallet {
       true,
       this.getMasterFingerprint(),
     );
+    if (this.getHardwareSigningMode() === 'standard') {
+      const proof = this.requireStandardProof(result.psbt);
+      result.psbt.txInputs.forEach((input, index) => {
+        // Unsigned request only: never relabel a signature.
+        result.psbt.data.inputs[index].sighashType = bitcoin.Transaction.SIGHASH_ALL;
+        result.psbt.updateInput(index, {
+          nonWitnessUtxo: Buffer.from(proof.parents[Buffer.from(input.hash).reverse().toString('hex')], 'hex'),
+        });
+      });
+    }
     pendingSigningRequests.set(this, result.psbt.toBase64());
     return result;
   }
 
   /** Staged BIP84 builder: fee-action UI remains disabled pending native/node qualification. */
   createAuthenticatedRBFTransaction(txid: string, feeRate: number) {
+    if (this.getHardwareSigningMode() === 'standard') throw new Error('Compatibility mode replacement is not supported');
     approvedExternalTransactions.delete(this);
     pendingSigningRequests.delete(this);
     if (!this.allowSend() || !(this._hdWalletInstance instanceof XbtSegwitBech32Wallet)) {
@@ -344,6 +453,7 @@ export class WatchOnlyWallet extends LegacyWallet {
   }
 
   createRBFTransaction(...args: Parameters<XbtTaprootWallet['createRBFTransaction']>) {
+    if (this.getHardwareSigningMode() === 'standard') throw new Error('Compatibility mode replacement is not supported');
     approvedExternalTransactions.delete(this);
     pendingSigningRequests.delete(this);
     if (!this.allowSend() || !(this._hdWalletInstance instanceof XbtTaprootWallet)) {
@@ -363,6 +473,8 @@ export class WatchOnlyWallet extends LegacyWallet {
   }
 
   setMasterFingerprint(fingerprint: number) {
+    proofGeneration.set(this, {});
+    standardFunding.delete(this);
     approvedExternalTransactions.delete(this);
     pendingSigningRequests.delete(this);
     this.masterFingerprint = fingerprint;
@@ -418,6 +530,8 @@ export class WatchOnlyWallet extends LegacyWallet {
   }
 
   setUseWithHardwareWalletEnabled(enabled: boolean) {
+    proofGeneration.set(this, {});
+    standardFunding.delete(this);
     approvedExternalTransactions.delete(this);
     pendingSigningRequests.delete(this);
     if (enabled && !this.isXbtSigningCompatible())
