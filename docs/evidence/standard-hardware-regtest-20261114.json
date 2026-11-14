@@ -1,0 +1,63 @@
+{
+  "sourceCommit": "37eed460234dfb1d571e9ef79aa3ba21981e214a",
+  "harnessSha256": "f7a941c297fce3ee01ff72065f1c94f6a48069affca5638993ff4059bbe217d0",
+  "versions": {
+    "core": "Bitcoin Core daemon version v29.0.0",
+    "knots": "Bitcoin Knots daemon version v29.4.2.knots20260508"
+  },
+  "binarySha256": {
+    "core": "e91640d84f5dbaaa0934831dc21e9e72434cec57359cb83cb75b877a81bf2794",
+    "knots": "d04cd8211e711af989a7a62d0b8b55a8cfe496694392518da0ccb848469b3799"
+  },
+  "sharedPreForkHeight": 149,
+  "sharedTip": "72c2c598fb492a1b8b26dd4bb5e15af54b8fe82aedc52a085cbe27f9ce56f0ca",
+  "xbtActivationHeight": 150,
+  "fundingTxid": "66e700488e5114e6f8bd2efe46160d32d4b272bca8d1ff86ece254680467a143",
+  "conflictTxid": "978f853935763a27dc78f11b0b233be7c0414266547307f85df1d3c4a0895fa2",
+  "signedTxid": "841096b097f0bdd1827c9f5634454cc83e2551836682f3f97d0b51bcba7bf1b6",
+  "confirmedConflictHeight": 157,
+  "confirmations": 2,
+  "providerCalls": 42,
+  "coreUnified": {
+    "txid": "66e700488e5114e6f8bd2efe46160d32d4b272bca8d1ff86ece254680467a143",
+    "wtxid": "b8c853445a1cbc3c588286e267cd3339cab0e09529640b2f3f747af69d0e629a",
+    "allowed": false,
+    "reject-reason": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
+    "reject-details": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of 66e700488e5114e6f8bd2efe46160d32d4b272bca8d1ff86ece254680467a143 (wtxid b8c853445a1cbc3c588286e267cd3339cab0e09529640b2f3f747af69d0e629a), spending b15494607c590e8729e68a44e7f99a6ba5b941c3523c0fa9447d01c9303404ba:0"
+  },
+  "xbtAcceptance": {
+    "txid": "841096b097f0bdd1827c9f5634454cc83e2551836682f3f97d0b51bcba7bf1b6",
+    "wtxid": "decfeb6e457f4c16f7238b0633432b8d35993c96892f7118717319365463af65",
+    "usage": 656,
+    "allowed": true,
+    "vsize": 141,
+    "fees": {
+      "base": 0.00000292,
+      "effective-feerate": 0.0000207,
+      "effective-includes": [
+        "decfeb6e457f4c16f7238b0633432b8d35993c96892f7118717319365463af65"
+      ]
+    }
+  },
+  "btcRejection": {
+    "txid": "841096b097f0bdd1827c9f5634454cc83e2551836682f3f97d0b51bcba7bf1b6",
+    "wtxid": "decfeb6e457f4c16f7238b0633432b8d35993c96892f7118717319365463af65",
+    "allowed": false,
+    "reject-reason": "missing-inputs"
+  },
+  "parentReplayRejection": {
+    "txid": "66e700488e5114e6f8bd2efe46160d32d4b272bca8d1ff86ece254680467a143",
+    "wtxid": "f3b9cbd61971953e8d7493b69195ea6c81a00084d8fbf3cd0ee738ca37d41ce6",
+    "allowed": false,
+    "reject-reason": "missing-inputs"
+  },
+  "unseparatedFundingBlocked": true,
+  "reorgBeforeBroadcastBlocked": true,
+  "sameBodyStandardAcceptedBeforeConflict": true,
+  "unifiedFlagCannotBeAppended": true,
+  "alteredAmountRejected": true,
+  "qrRoundTrip": "URv2, reordered",
+  "limitations": "Simulated hardware with public test seed. Explorer URLs adapted to one local Core node with height offset; no TLS/independent provider qualification. No native UI, physical Keystone, mainnet broadcast, or production Electrum transport tested.",
+  "observedAt": "2026-11-14T04:37:44.496Z",
+  "cleanupComplete": true
+}

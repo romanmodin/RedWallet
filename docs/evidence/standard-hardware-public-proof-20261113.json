@@ -1,0 +1,8 @@
+{
+  "observedAt": "2026-11-14T03:47:44.581Z",
+  "purpose": "public read-only explorer proof integration; NOT an XBT wallet or node acceptance test",
+  "height": 975731,
+  "block": "000000000000000000010588b24d2544aaa96a2168c067cee7287350d15a2e4b",
+  "conflictTxid": "30fa0eb101c76655c57eeb7910f0dbc6e25ed61bbb87011b59b9abb61c39e9ec",
+  "result": "passed"
+}

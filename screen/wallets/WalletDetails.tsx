@@ -1,3 +1,4 @@
+import { STANDARD_HARDWARE_RELEASE_ENABLED } from '../../class/xbt/standard-hardware';
 import { BtcWatchOnlyWallet } from '../../class/wallets/btc-watch-only-wallet';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -69,6 +70,7 @@ const WalletDetails: React.FC = () => {
   const [externalSignerEnabled, setExternalSignerEnabled] = useState(
     wallet instanceof WatchOnlyWallet && wallet.useWithHardwareWalletEnabled(),
   );
+  const [hardwareMode, setHardwareMode] = useState(wallet instanceof WatchOnlyWallet ? wallet.getHardwareSigningMode() : 'unified');
   const [isBIP47Enabled, setIsBIP47Enabled] = useState<boolean>(wallet.isBIP47Enabled ? wallet.isBIP47Enabled() : false);
 
   const [isContactsVisible, setIsContactsVisible] = useState<boolean>(
@@ -707,7 +709,7 @@ const WalletDetails: React.FC = () => {
               )}
               {wallet instanceof WatchOnlyWallet && wallet.isXbtSigningCompatible() && (
                 <SettingsListItem
-                  title={`${loc.wallets.details_use_with_hardware_wallet} (XBT Unified)`}
+                  title={`${loc.wallets.details_use_with_hardware_wallet} (XBT ${hardwareMode === 'standard' ? 'Standard' : 'Unified'})`}
                   switch={{
                     value: externalSignerEnabled,
                     testID: 'XbtExternalSignerSwitch',
@@ -716,7 +718,9 @@ const WalletDetails: React.FC = () => {
                         enabled &&
                         !(await confirm(
                           'Enable XBT external signing',
-                          'Your signing device must support this account’s Native SegWit or Taproot PSBTs with Unified Sighash 0x21. Ordinary BTC signatures will be rejected. Confirm that your device has compatible XBT firmware.',
+                          hardwareMode === 'standard'
+                            ? 'Use standard Native SegWit signing. Only coins with verified separation can be used. Your recovery phrase stays on the device.'
+                            : 'Your signing device must support this account’s Native SegWit or Taproot PSBTs with Unified Sighash 0x21. Ordinary BTC signatures will be rejected. Confirm that your device has compatible XBT firmware.',
                         ))
                       )
                         return;
@@ -732,6 +736,39 @@ const WalletDetails: React.FC = () => {
                   bottomDivider
                 />
               )}
+              {STANDARD_HARDWARE_RELEASE_ENABLED &&
+                wallet instanceof WatchOnlyWallet &&
+                wallet.type === WatchOnlyWallet.type &&
+                wallet._hdWalletInstance instanceof XbtSegwitBech32Wallet && (
+                  <SettingsListItem
+                    title="Standard hardware signing (Keystone)"
+                    subtitle="Native SegWit only · verified coin separation required"
+                    switch={{
+                      value: hardwareMode === 'standard',
+                      testID: 'XbtStandardHardwareSwitch',
+                      onValueChange: async (enabled: boolean) => {
+                        if (
+                          enabled &&
+                          !(await confirm(
+                            'Standard hardware signing',
+                            'Your device will sign with 0x01. RedWallet checks confirmed Unified funding and a conflicting SHA-256 spend before signing and again before broadcast. This uses Blockstream and mempool.space over HTTPS and reveals public transaction IDs and your IP to those services. Their agreement is trusted for the current SHA-256 chain; RedWallet does not validate that chain locally. Missing evidence or unavailable services will block sending. Taproot and replacement sends are not supported in this mode.',
+                          ))
+                        )
+                          return;
+                        const previous = wallet.getHardwareSigningMode();
+                        try {
+                          wallet.setHardwareSigningMode(enabled ? 'standard' : 'unified');
+                          await saveToDisk(false, true);
+                          setHardwareMode(wallet.getHardwareSigningMode());
+                        } catch (error: any) {
+                          wallet.setHardwareSigningMode(previous);
+                          presentAlert({ message: error.message });
+                        }
+                      },
+                    }}
+                    bottomDivider
+                  />
+                )}
               <Text onPress={exportInternals} style={[styles.textLabel2, stylesHook.textLabel2, styles.optionsSubheader]}>
                 {loc.transactions.list_title}
               </Text>

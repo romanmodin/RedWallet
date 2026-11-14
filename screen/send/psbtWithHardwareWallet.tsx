@@ -9,7 +9,6 @@ import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/h
 import BlueCard from '../../components/BlueCard';
 import BlueText from '../../components/BlueText';
 import presentAlert from '../../components/Alert';
-import CopyToClipboardButton from '../../components/CopyToClipboardButton';
 import { DynamicQRCode } from '../../components/DynamicQRCode';
 import SaveFileButton from '../../components/SaveFileButton';
 import { SecondButton } from '../../components/SecondButton';
@@ -244,7 +243,13 @@ const PsbtWithHardwareWallet = () => {
             <BlueText testID="BtcSignedTransactionReview">{'Signature verified\n\n' + btcReview}</BlueText>
           )}
           <BlueText style={[styles.hexLabel, stylesHook.hexLabel]}>{loc.send.create_this_is_hex}</BlueText>
-          <TextInput style={[styles.hexInput, stylesHook.hexInput]} multiline editable={false} value={txHex} />
+          <TextInput
+            testID="SignedTransactionHex"
+            style={[styles.hexInput, stylesHook.hexInput]}
+            multiline
+            editable={false}
+            value={txHex}
+          />
 
           <TouchableOpacity accessibilityRole="button" style={styles.hexTouch} onPress={copyHexToClipboard}>
             <Text style={[styles.hexText, stylesHook.hexText]}>{loc.send.create_copy}</Text>
@@ -311,7 +316,7 @@ const PsbtWithHardwareWallet = () => {
 
   if (txHex) {
     return (
-      <ScrollView style={stylesHook.scrollViewContent} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView testID="SignedTransactionScroll" style={stylesHook.scrollViewContent} contentInsetAdjustmentBehavior="automatic">
         {_renderBroadcastHex()}
       </ScrollView>
     );
@@ -321,10 +326,33 @@ const PsbtWithHardwareWallet = () => {
     <ActivityIndicator />
   ) : (
     <View style={styles.container}>
+      {wallet.type === WatchOnlyWallet.type && wallet.getHardwareSigningMode() === 'standard' && (
+        <BlueCard>
+          <BlueText testID="StandardHardwareSigningNotice">XBT · Standard hardware signing (0x01)</BlueText>
+          <BlueText>
+            Coin separation checked against Blockstream and mempool.space. Sending depends on those services agreeing on the SHA-256 chain.
+            RedWallet checks again before broadcast. Your device produces a standard signature, not Unified protection.
+          </BlueText>
+        </BlueCard>
+      )}
       <BlueCard>
         {wallet instanceof BtcWatchOnlyWallet && psbt && <BlueText testID="BtcHardwareTransactionReview">{btcReview}</BlueText>}
         <BlueText testID="TextHelperForPSBT">{loc.send.psbt_this_is_psbt}</BlueText>
         <BlueSpacing20 />
+        {psbt && (
+          <>
+            <SecondButton
+              testID="CopyUnsignedPsbtButton"
+              icon={{ name: 'copy', type: 'font-awesome', color: colors.secondButtonTextColor }}
+              title={loc.send.psbt_clipboard}
+              onPress={() => {
+                Clipboard.setString(psbt.toBase64());
+                triggerHapticFeedback(HapticFeedbackTypes.Selection);
+              }}
+            />
+            <BlueSpacing20 />
+          </>
+        )}
         <Text testID="PSBTHex" style={styles.hidden}>
           {psbt?.toHex()}
         </Text>
@@ -379,11 +407,6 @@ const PsbtWithHardwareWallet = () => {
           </SaveFileButton>
         )}
         <BlueSpacing20 />
-        {psbt && (
-          <View style={styles.copyToClipboard}>
-            <CopyToClipboardButton stringToCopy={typeof psbt === 'string' ? psbt : psbt.toBase64()} displayText={loc.send.psbt_clipboard} />
-          </View>
-        )}
       </BlueCard>
     </View>
   );
@@ -410,8 +433,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   container: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    // Keep the standard-signing notice above the QR/actions on narrow screens.
+    flexDirection: 'column',
     paddingTop: 16,
     paddingBottom: 16,
   },
@@ -446,11 +469,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     alignSelf: 'center',
-  },
-  copyToClipboard: {
-    marginVertical: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   hidden: {
     width: 0,
