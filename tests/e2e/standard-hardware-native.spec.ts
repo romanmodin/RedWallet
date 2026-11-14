@@ -29,6 +29,7 @@ import english from '../../loc/en.json';
 import { XBT_ELECTRUM_PRESETS } from '../../class/xbt/electrum-presets';
 import { runWithNativeReceipt } from '../native/native-test-receipt';
 import { settleIosHostKeyboard } from './tls-host-keyboard';
+import { tapAfterTransition } from '../native/tap-after-transition';
 import { eventually } from '../native/knots-fulcrum-harness';
 
 const enabled = process.env.REDWALLET_STANDARD_NATIVE === '1';
@@ -58,7 +59,7 @@ async function openSettings() {
 }
 async function prepare() {
   await waitForId('CreateTransactionButton');
-  await element(by.id('CreateTransactionButton')).tap();
+  await tapAfterTransition(() => element(by.id('CreateTransactionButton')).tap());
   await confirmDialog('Confirm XBT payment', true);
 }
 
@@ -151,10 +152,10 @@ suite('Standard hardware iOS qualification', () => {
         step('checking opt-in cancellation and persistence');
         await openSettings();
         await waitForSwitchValue('XbtStandardHardwareSwitch', false);
-        await element(by.id('XbtStandardHardwareSwitch')).tap();
+        await tapAfterTransition(() => element(by.id('XbtStandardHardwareSwitch')).tap());
         await confirmDialog('Standard hardware signing', false);
         await waitForSwitchValue('XbtStandardHardwareSwitch', false);
-        await element(by.id('XbtStandardHardwareSwitch')).tap();
+        await tapAfterTransition(() => element(by.id('XbtStandardHardwareSwitch')).tap());
         await confirmDialog('Standard hardware signing', true);
         await waitForSwitchValue('XbtStandardHardwareSwitch', true);
         await element(by.id('WalletDetailsScroll')).scrollTo('top');

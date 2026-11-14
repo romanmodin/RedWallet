@@ -86,3 +86,9 @@ The error was reproduced locally with the actual mobile Buffer package: bitcoinj
 The PSBT screen now stacks the standard-signing disclosure above the QR/actions rather than placing two cards in one horizontal row. A missing native identifier was added to the existing read-only signed-transaction field so the native test can inspect the returned bytes. The simulator test explicitly checks the disclosure and scrolls to the PSBT controls. The release flag remains false; a new simulator run and physical Keystone qualification are still required.
 
 Validation for the mobile Buffer correction: 90 tests in eight suites passed, including both real isolated Core/Knots/Fulcrum integration scenarios and the mobile Buffer regression. TypeScript no-emit, changed-file ESLint and diff checks passed. This does not substitute for the pending native simulator rerun or physical device test.
+
+### November 14 alert transition retry
+
+Native run 43584902289 built successfully but stopped after cancelling the standard-signing opt-in: Detox reported that a UITransitionView intercepted the next switch tap. Its failure screenshot shows the underlying switch visible and still off. The scenario did not reach PSBT creation, so it neither verifies nor disproves the mobile Buffer fix.
+
+The test now retries only Detox's specific pre-touch UITransitionView hit-test rejection, with a bounded wait. Successful taps and ambiguous errors are never retried; cancellation and persistence assertions remain. Five helper regression cases cover successful retry, unrelated failures and bounded obstruction. Gitar's six code findings are closed and its code review is approved; native simulator and physical Keystone qualification remain release gates.
