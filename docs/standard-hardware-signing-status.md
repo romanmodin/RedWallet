@@ -60,3 +60,13 @@ The receipt records actual protocol method counts, source and installed client h
 This qualifies Node TLS sockets through the production JavaScript transport. It does not qualify React Native's socket implementation, device approval/screens, public explorer independence, or a physical Keystone. The release switch remains false.
 
 Socket/consensus receipt: `docs/evidence/standard-hardware-electrum-20261114.json`, clean tested source `445a4501ac0f0bb6b778a920c5bd72945ac457b7`. It records two authenticated connections, seven header requests, twelve transaction reads, six history requests and exactly one broadcast. TypeScript, changed-file ESLint and workflow YAML/wiring checks passed.
+
+### Native iOS qualification added (not yet passed)
+
+A dedicated simulator-only workflow now builds the watch-only signing screens with an explicit CI source overlay. The checked-in release switch remains false. The overlay only enables the staged mode and redirects the two explorer base URLs to a loopback HTTPS fixture. It records source/overlay hashes, labels the app **RedWallet TEST ONLY**, and publishes a uniquely named simulator artifact that is not consumed by ordinary app build/release jobs.
+
+The new native case imports a public BIP84 account without importing its seed, checks cancellation and persistence of signer enrollment, prepares the send through the real UI, copies the PSBT through the iOS clipboard, and returns a host-simulated cold signature through the existing scanner test input. It requires missing proof to block preparation, an actual Core reorg to block the signed transaction, and an explicit retry to broadcast the unchanged bytes exactly once through native TLS/Fulcrum. Knots confirmation and Core replay rejection are checked afterwards.
+
+The isolated shared-chain fixture uses real Core, Knots and Fulcrum with a private test CA. Its separate Linux qualification passed: untrusted HTTPS is rejected; missing/disagreeing/unavailable evidence and a real reorg block proof; restored proof permits a test signature that Knots confirms and Core rejects. The production Node TLS integration also passed after extracting the shared node helper. Pinned Core macOS assets are included for simulator runners.
+
+Native iOS completion is pending the dedicated CI run. These tests do not qualify physical Keystone, camera optics or independent public explorer operation. Stock-hardware mode remains disabled in release builds.

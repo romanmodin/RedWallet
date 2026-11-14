@@ -311,7 +311,7 @@ const PsbtWithHardwareWallet = () => {
 
   if (txHex) {
     return (
-      <ScrollView style={stylesHook.scrollViewContent} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView testID="SignedTransactionScroll" style={stylesHook.scrollViewContent} contentInsetAdjustmentBehavior="automatic">
         {_renderBroadcastHex()}
       </ScrollView>
     );
@@ -390,7 +390,11 @@ const PsbtWithHardwareWallet = () => {
         <BlueSpacing20 />
         {psbt && (
           <View style={styles.copyToClipboard}>
-            <CopyToClipboardButton stringToCopy={typeof psbt === 'string' ? psbt : psbt.toBase64()} displayText={loc.send.psbt_clipboard} />
+            <CopyToClipboardButton
+              testID="CopyUnsignedPsbtButton"
+              stringToCopy={typeof psbt === 'string' ? psbt : psbt.toBase64()}
+              displayText={loc.send.psbt_clipboard}
+            />
           </View>
         )}
       </BlueCard>

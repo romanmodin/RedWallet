@@ -111,7 +111,7 @@ jobs:
         REDWALLET_XBT_REGTEST_BITCOIND: ${{ runner.temp }}/xbt-knots/bitcoin-29.4.2.knots20260508/bin/bitcoind
         REDWALLET_XBT_REGTEST_FULCRUM: ${{ runner.temp }}/xbt-fulcrum/Fulcrum-2.1.3-blake-x86_64-linux/Fulcrum
       run: |
-        node_modules/.bin/jest --runInBand tests/integration/xbt-standard-hardware-regtest.test.ts
+        node_modules/.bin/jest --runInBand tests/integration/xbt-standard-hardware-regtest.test.ts tests/integration/standard-hardware-native-fixture.test.ts
         node -e "const r = require('./artifacts/standard-hardware-regtest/receipt.json'); if (r.cleanupComplete !== true || r.confirmations !== 2 || r.unseparatedFundingBlocked !== true || r.reorgBeforeBroadcastBlocked !== true || r.unifiedFlagCannotBeAppended !== true || r.alteredAmountRejected !== true || r.xbtAcceptance.allowed !== true || r.btcRejection.allowed !== false || r.parentReplayRejection.allowed !== false || r.productionElectrumTransport?.broadcastCount !== 1 || r.productionElectrumTransport?.tlsAuthenticated !== true || r.productionElectrumTransport?.untrustedCertificateRejectedBeforeQueries !== true || r.productionElectrumTransport?.freshTipFailureBlocked !== true || r.productionElectrumTransport?.replacedConnectionBlocked !== true || r.productionElectrumTransport?.duplicateSubmissionBlocked !== true) throw new Error('Standard hardware consensus/transport receipt missing or incomplete');"
 
     - name: Save standard hardware consensus-test receipt

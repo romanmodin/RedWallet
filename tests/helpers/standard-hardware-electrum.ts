@@ -4,6 +4,7 @@
  * Transaction bytes and broadcast requests pass unchanged to the real indexer.
  */
 import assert from 'assert';
+import * as bitcoin from 'bitcoinjs-lib';
 import { ChildProcess, spawn } from 'child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import net from 'net';
@@ -43,7 +44,14 @@ export class StandardHardwareElectrumFixture {
     this.offset = offset;
   }
 
-  async start(binary: string, node: { directory: string; port: number; rpc(method: string): Promise<any> }) {
+  async start(
+    binary: string,
+    node: {
+      directory: string;
+      port: number;
+      rpc(method: string): Promise<any>;
+    },
+  ) {
     this.fulcrumPort = await freePort();
     const config = path.join(this.directory, 'fulcrum.conf');
     mkdirSync(path.join(this.directory, 'db'));
@@ -120,9 +128,19 @@ export class StandardHardwareElectrumFixture {
             if (typeof request.method !== 'string' || !Array.isArray(request.params)) throw new Error('Invalid fixture request');
             if (request.method === 'blockchain.block.header' && request.params[0] === 961640) {
               this.checkpointRequests++;
-              socket.write(JSON.stringify({ id: request.id, result: XBT_MAINNET_CHECKPOINT_HEADER }) + '\n');
+              socket.write(
+                JSON.stringify({
+                  id: request.id,
+                  result: XBT_MAINNET_CHECKPOINT_HEADER,
+                }) + '\n',
+              );
             } else if (this.tipFailure && request.method === 'blockchain.headers.subscribe') {
-              socket.write(JSON.stringify({ id: request.id, error: { code: 1, message: 'fixture tip unavailable' } }) + '\n');
+              socket.write(
+                JSON.stringify({
+                  id: request.id,
+                  error: { code: 1, message: 'fixture tip unavailable' },
+                }) + '\n',
+              );
             } else {
               this.counts[request.method] = (this.counts[request.method] || 0) + 1;
               if (request.method === 'blockchain.transaction.broadcast') this.broadcasts.push(request.params[0]);
@@ -134,6 +152,16 @@ export class StandardHardwareElectrumFixture {
         consume(upstream, message => {
           const translate = (value: any): void => {
             if (!value || typeof value !== 'object') return;
+            // Native wallet discovery receives verbose transactions from regtest.
+            // Adapt only displayed addresses, never the raw transaction or scripts.
+            if (typeof value.address === 'string' && value.address.startsWith('bcrt1')) {
+              value.address = bitcoin.address.fromOutputScript(bitcoin.address.toOutputScript(value.address, bitcoin.networks.regtest));
+            }
+            if (Array.isArray(value.addresses)) {
+              value.addresses = value.addresses.map((a: string) =>
+                a.startsWith('bcrt1') ? bitcoin.address.fromOutputScript(bitcoin.address.toOutputScript(a, bitcoin.networks.regtest)) : a,
+              );
+            }
             if (Number.isSafeInteger(value.height) && value.height > 0) value.height += this.offset;
             for (const child of Object.values(value)) translate(child);
           };
