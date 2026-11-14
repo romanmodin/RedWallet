@@ -21,6 +21,22 @@ import { verifyFundingConflict } from '../../class/xbt/separation-proof';
 import { verifyPublicFundingSeparation } from '../../class/xbt/separation-service';
 import { assertStandardHardwareResult } from '../../class/xbt/standard-hardware';
 import { BlueURDecoder, encodeUR } from '../../blue_modules/ur';
+import { StandardHardwareElectrumFixture } from '../helpers/standard-hardware-electrum';
+
+const mockPreferences = new Map<string, string>();
+jest.mock('react-native-default-preference', () => ({
+  __esModule: true,
+  default: {
+    setName: jest.fn(),
+    get: jest.fn(async (key: string) => mockPreferences.get(key)),
+    set: jest.fn(async (key: string, value: string) => {
+      mockPreferences.set(key, value);
+    }),
+    clear: jest.fn(async (key: string) => {
+      mockPreferences.delete(key);
+    }),
+  },
+}));
 
 // Only the runtime release switch is bypassed in this opt-in test.
 jest.mock('../../class/xbt/standard-hardware', () => ({
@@ -30,7 +46,8 @@ jest.mock('../../class/xbt/standard-hardware', () => ({
 
 const coreBinary = process.env.REDWALLET_BTC_REGTEST_BITCOIND;
 const knotsBinary = process.env.REDWALLET_XBT_REGTEST_BITCOIND;
-const real = coreBinary && knotsBinary ? test : test.skip;
+const fulcrumBinary = process.env.REDWALLET_XBT_REGTEST_FULCRUM;
+const real = coreBinary && knotsBinary && fulcrumBinary ? test : test.skip;
 const seed = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const originalFetch = global.fetch;
 const offset = 961640 - 150;
@@ -148,6 +165,7 @@ real(
   async () => {
     const core = new DisposableNode();
     const knots = new DisposableNode();
+    const transport = new StandardHardwareElectrumFixture(offset);
     let receipt: Record<string, unknown> | undefined;
     try {
       await core.start(coreBinary!, false);
@@ -211,6 +229,20 @@ real(
       const confirmed = await knots.rpc('getrawtransaction', [funding.getId(), true, xbtBlocks[0]]);
       expect(confirmed.confirmations).toBe(6);
 
+      await transport.start(fulcrumBinary!, knots);
+      // Real TLS authentication must precede all wallet queries.
+      expect(await BlueElectrum.testConnection('127.0.0.1', undefined, transport.port)).toBe(false);
+      expect(transport.tlsConnections).toBe(0);
+      expect(transport.counts).toEqual({});
+      mockPreferences.set(BlueElectrum.ELECTRUM_HOST, '127.0.0.1');
+      mockPreferences.set(BlueElectrum.ELECTRUM_SSL_PORT, String(transport.port));
+      mockPreferences.set(BlueElectrum.ELECTRUM_TLS_CA, transport.ca);
+      mockPreferences.set('electrum_default_server_declined', '1');
+      await BlueElectrum.setDisabled(false);
+      expect(await BlueElectrum.ensureConnected()).toBe(true);
+      expect(transport.tlsConnections).toBeGreaterThan(0);
+      expect(transport.checkpointRequests).toBeGreaterThan(0);
+
       const watch = new WatchOnlyWallet();
       watch.setSecret('[73c5da0a/84h/0h/0h]' + cold.getXpub());
       watch.init();
@@ -233,21 +265,9 @@ real(
         },
       ];
       const targets = [{ address: cold._getExternalAddressByIndex(1), value: 100000 }];
-      jest
-        .spyOn(BlueElectrum, 'multiGetTransactionByTxid')
-        .mockImplementation(
-          async (ids: string[]): Promise<Record<string, string>> =>
-            Object.fromEntries(await Promise.all(ids.map(async (id: string) => [id, await knots.rpc('getrawtransaction', [id])]))),
-        );
-      // Only heights are translated to exercise unchanged mainnet gates at a
-      // practical regtest height. Transaction/header/proof bytes are real.
-      jest.spyOn(BlueElectrum, 'getReportedBlockTip').mockImplementation(async () => (await knots.rpc('getblockcount')) + offset);
-      jest.spyOn(BlueElectrum, 'multiGetHistoryByAddress').mockImplementation(
-        async () =>
-          ({
-            [receive]: [{ tx_hash: funding.getId(), height: 151 + offset }],
-          }) as any,
-      );
+      // Production Electrum readers, verifier and broadcast are unmocked.
+      // The TLS adapter only presents mainnet checkpoint/height labels while
+      // forwarding history, raw transactions and submission to real Fulcrum.
 
       let conflictBlock: any = null;
       let conflict: bitcoin.Transaction | null = null;
@@ -357,10 +377,37 @@ real(
       // Exercise the production separation recheck after signing, with an
       // actual node reorg removing the confirmed conflicting spend.
       await core.rpc('invalidateblock', [conflictBlocks[0]]);
-      await expect(verifyPublicFundingSeparation([funding], () => {})).rejects.toThrow('separation');
+      await expect(watch.broadcastTx(hex)).rejects.toThrow('separation');
+      expect(transport.broadcasts).toEqual([]);
       await core.rpc('reconsiderblock', [conflictBlocks[0]]);
       await verifyPublicFundingSeparation([funding], () => {});
-      await knots.rpc('sendrawtransaction', [hex]);
+      // A failed fresh tip must not authorize using a cached mature height.
+      transport.tipFailure = true;
+      await expect(watch.broadcastTx(hex)).rejects.toMatchObject({ message: 'fixture tip unavailable' });
+      expect(transport.broadcasts).toEqual([]);
+      transport.tipFailure = false;
+
+      // Replace the real TLS connection during proof work: the approved body
+      // must not be submitted on either the old or replacement connection.
+      const explorer = global.fetch as jest.Mock;
+      const localExplorer = explorer.getMockImplementation()!;
+      let reconnected: Promise<boolean> | undefined;
+      explorer.mockImplementationOnce(async (...args: any[]) => {
+        BlueElectrum.forceDisconnect();
+        transport.disconnect();
+        reconnected = BlueElectrum.ensureConnected();
+        expect(await reconnected).toBe(true);
+        return localExplorer(...args);
+      });
+      await expect(watch.broadcastTx(hex)).rejects.toThrow('connection changed');
+      expect(await reconnected).toBe(true);
+      expect(transport.broadcasts).toEqual([]);
+
+      // Retry uses current proof and the unchanged reviewed bytes over real TLS.
+      await expect(watch.broadcastTx(hex)).resolves.toBe(true);
+      expect(transport.broadcasts).toEqual([hex]);
+      await expect(watch.broadcastTx(hex)).rejects.toThrow('verified signing request');
+      expect(transport.broadcasts).toHaveLength(1);
       const settled = await knots.rpc('generatetoaddress', [2, xbtMiner]);
       const final = await knots.rpc('getrawtransaction', [signed.getId(), true, settled[0]]);
       expect(final.confirmations).toBe(2);
@@ -370,11 +417,26 @@ real(
           encoding: 'utf8',
         }).trim(),
         harnessSha256: createHash('sha256').update(readFileSync(__filename)).digest('hex'),
+        trackedChangesPresent: execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim() !== '',
+        sourceFilesSha256: Object.fromEntries(
+          [
+            'tests/integration/xbt-standard-hardware-regtest.test.ts',
+            'tests/helpers/standard-hardware-electrum.ts',
+            'blue_modules/BlueElectrum.ts',
+            'class/wallets/watch-only-wallet.ts',
+            'class/xbt/standard-hardware.ts',
+            'class/xbt/separation-proof.ts',
+            'class/xbt/separation-service.ts',
+            'node_modules/electrum-client/index.js',
+            'node_modules/electrum-client/lib/client.js',
+          ].map(file => [file, createHash('sha256').update(readFileSync(file)).digest('hex')]),
+        ),
         versions: { core: core.version, knots: knots.version },
         binarySha256: Object.fromEntries(
           [
             ['core', coreBinary!],
             ['knots', knotsBinary!],
+            ['fulcrum', fulcrumBinary!],
           ].map(([label, binary]) => [label, createHash('sha256').update(readFileSync(binary)).digest('hex')]),
         ),
         sharedPreForkHeight: 149,
@@ -396,14 +458,29 @@ real(
         unifiedFlagCannotBeAppended: true,
         alteredAmountRejected: true,
         qrRoundTrip: 'URv2, reordered',
+        productionElectrumTransport: {
+          tlsAuthenticated: true,
+          untrustedCertificateRejectedBeforeQueries: true,
+          freshTipFailureBlocked: true,
+          replacedConnectionBlocked: true,
+          duplicateSubmissionBlocked: true,
+          broadcastCount: transport.broadcasts.length,
+          tlsConnections: transport.tlsConnections,
+          checkpointRequests: transport.checkpointRequests,
+          methods: transport.counts,
+          adapter: 'Loopback TLS to real Fulcrum; mainnet checkpoint and height labels adapted, transaction bytes unchanged',
+        },
         limitations:
-          'Simulated hardware with public test seed. Explorer URLs adapted to one local Core node with height offset; no TLS/independent provider qualification. No native UI, physical Keystone, mainnet broadcast, or production Electrum transport tested.',
+          'Simulated hardware with public test seed. Explorer URLs adapted to one local Core node with height offset; no independent explorer/TLS provider qualification. Electrum uses real Node TLS sockets, not the native mobile socket implementation. No native UI, physical Keystone or mainnet broadcast tested.',
         observedAt: new Date().toISOString(),
       };
     } finally {
       global.fetch = originalFetch;
+      BlueElectrum.forceDisconnect();
+      await BlueElectrum.setDisabled(true);
       jest.restoreAllMocks();
-      const cleanup = await Promise.allSettled([core.stop(), knots.stop()]);
+      const cleanup = await Promise.allSettled([transport.stop(), core.stop(), knots.stop()]);
+      expect(transport.cleanupComplete).toBe(true);
       expect(cleanup.filter(result => result.status === 'rejected')).toEqual([]);
       if (receipt) {
         const destination = process.env.REDWALLET_STANDARD_REGTEST_ARTIFACT_DIR || 'artifacts/standard-hardware-regtest';

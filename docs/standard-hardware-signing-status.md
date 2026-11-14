@@ -18,7 +18,7 @@ Evidence is freshly collected before request creation and again before XBT broad
 
 - Coin selection runs once; only selected inputs undergo separation verification. Existing base-wallet UTXO integrity/maturity checks remain intact.
 - Initial support is direct Unified P2WPKH funding. Descendants (including standard-send change), coinbase, mixed/Taproot funding and RBF remain unsupported and block if selected. No automatic coin splitting is performed.
-- Physical Keystone 3.0.2 signing, production Electrum transport, native UI and independent review remain release requirements. Isolated Knots acceptance/replay qualification now passes (details below).
+- Physical Keystone 3.0.2 signing, the native mobile socket implementation/UI and independent review remain release requirements. Production BlueElectrum with real Node TLS sockets and Fulcrum now passes alongside isolated Knots acceptance/replay qualification (details below).
 - Umbrel Docker inspection was unavailable without sudo authentication; no node settings or funds were changed.
 
 ## Validation
@@ -33,13 +33,13 @@ The opt-in integration test starts independently verified Bitcoin Core 29.0 and 
 
 It demonstrates that the Unified parent is accepted by Knots and rejected by Core, while a freshly signed standard variant with the same transaction ID can be accepted by Core before a conflicting spend. Simply changing the standard signature flag to 0x21 is rejected by Knots. The wallet blocks standard signing until a different conflicting Core spend confirms. After six confirmations, the production watch-only builder preserves fingerprint/path, exports a standard request, accepts the simulated cold signer's URv2 return, and rejects changed signed amounts. Knots accepts and confirms the resulting transaction; Core rejects both that transaction and the alternative parent after the conflict. An actual Core reorg removing the conflict also causes the production separation recheck to block.
 
-The explorer adapter maps requests to the isolated Core node and translates regtest heights to exercise unchanged mainnet thresholds. This does not qualify provider independence, TLS, the production Electrum broadcast transport, native UI, or a physical Keystone. The separately recorded public-chain diagnostic covers live explorer transport. Runtime release remains disabled.
+The explorer adapter maps requests to the isolated Core node and translates regtest heights to exercise unchanged mainnet thresholds. This does not qualify independent public explorer chain views, public explorer TLS, native mobile sockets/UI, or a physical Keystone. The Electrum side now uses a real authenticated Node TLS connection and actual Fulcrum indexer, with only checkpoint/height presentation adapted. The separately recorded public-chain diagnostic covers live explorer transport. Runtime release remains disabled.
 
-Reproduction: set `REDWALLET_BTC_REGTEST_BITCOIND` and `REDWALLET_XBT_REGTEST_BITCOIND` to verified test binaries, then run `node_modules/.bin/jest --runInBand tests/integration/xbt-standard-hardware-regtest.test.ts`. A successful run writes `artifacts/standard-hardware-regtest/receipt.json` after both nodes stop and temporary data is removed. CI downloads checksum-pinned binaries and runs the same test.
+Reproduction: set `REDWALLET_BTC_REGTEST_BITCOIND`, `REDWALLET_XBT_REGTEST_BITCOIND` and `REDWALLET_XBT_REGTEST_FULCRUM` to verified test binaries, then run `node_modules/.bin/jest --runInBand tests/integration/xbt-standard-hardware-regtest.test.ts`. A successful run writes `artifacts/standard-hardware-regtest/receipt.json` after both nodes stop and temporary data is removed. CI downloads checksum-pinned binaries and runs the same test.
 
 The proof-service request budget now scales with the bounded funding-input count instead of a fixed 128 requests. Regression cases cover 13 and 64 distinct funding parents and a conflict found only after scanning 64 candidate inputs. Deadlines and body-size limits remain. HTTP cache-control headers replace the unsupported React Native `RequestInit.cache` option that failed the previous CI type check.
 
-Node receipt: `docs/evidence/standard-hardware-regtest-20261114.json`, tested source `37eed460234dfb1d571e9ef79aa3ba21981e214a`. Final local validation: 83 focused tests plus the real-node scenario, TypeScript no-emit, changed-file ESLint and diff checks passed.
+Earlier RPC-adapter node receipt: `docs/evidence/standard-hardware-regtest-20261114.json`, tested source `37eed460234dfb1d571e9ef79aa3ba21981e214a`. Final local validation: 83 focused tests plus the real-node scenario, TypeScript no-emit, changed-file ESLint and diff checks passed.
 
 ### Broadcast boundary regression qualification
 
@@ -48,3 +48,13 @@ The production wallet and BlueElectrum broadcast functions are now exercised tog
 These tests initially exposed two submission defects: a failed fresh-tip request could reuse a cached mature height, and a reconnect during proof collection could switch the broadcast client. Spend authorization now requires a successful fresh tip and binds all proof reads and submission to the same client/disconnect generation. Display-only callers retain their existing cached-tip behavior. A per-wallet in-flight guard prevents concurrent duplicate submissions; a failed submission may be retried explicitly, with fresh evidence checks.
 
 Local validation on November 14, 2026: 146 focused tests in seven suites, the isolated shared-history Core/Knots scenario, TypeScript no-emit, changed-file ESLint and diff checks passed. The new boundary tests use synthetic public fixtures and mocked transport edges; they do not qualify real Electrum sockets, a physical Keystone or native UI. Runtime release remains disabled.
+
+### Real Electrum socket qualification
+
+The shared-history test now removes all BlueElectrum reader mocks and starts checksum-pinned Fulcrum 2.1.3-blake against the disposable Knots node. The production Electrum client and BlueElectrum functions connect through authenticated Node TLS. The loopback TLS adapter substitutes the fixed mainnet checkpoint and offsets low regtest heights; funding/history data comes from Fulcrum, and raw transaction bytes are forwarded unchanged.
+
+The test rejects an untrusted certificate before any wallet query, then connects with the fixture CA. The real Core reorg blocks submission at the production wallet broadcast boundary. An explicit tip RPC error also blocks despite a prior mature tip. Replacing the real TLS connection during public-proof work blocks both old/new connections from submitting; an explicit retry then submits exactly the reviewed bytes once. Knots confirms that transaction, Core rejects it, and a repeated approved-send attempt is blocked.
+
+The receipt records actual protocol method counts, source and installed client hashes, node/indexer binary hashes, connection/broadcast counts and cleanup. CI requires these outcomes and downloads the manifest-pinned Fulcrum binary. The first test attempts needed two harness corrections: Electrum rejects with a JSON-RPC error object rather than an Error instance, and the reconnect probe must await the new connection after the original verification rejects. Neither required changing production signing code.
+
+This qualifies Node TLS sockets through the production JavaScript transport. It does not qualify React Native's socket implementation, device approval/screens, public explorer independence, or a physical Keystone. The release switch remains false.
