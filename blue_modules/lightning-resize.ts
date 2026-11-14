@@ -15,6 +15,7 @@ export function resizeProgressText(splice: LightningResize): string {
   const rpcCount = /^\d+$/.test(splice.confirmations) && Number(splice.confirmations) > 0;
   const count = measured ? Number(chainCount) : rpcCount ? Number(splice.confirmations) : undefined;
   const completed = splice.progress === 'locked';
+  const failed = ['aborted', 'dead'].includes(splice.progress) || (count !== undefined && count < 0);
   const phase =
     count !== undefined && count < 0
       ? 'transaction conflicted'
@@ -29,10 +30,14 @@ export function resizeProgressText(splice: LightningResize): string {
   if (count !== undefined)
     lines.push(count < 0 ? 'On-chain transaction conflicted. Check node history.' : 'On-chain confirmations: ' + count);
   else if (splice.txid) lines.push('On-chain confirmation count unavailable.');
-  if (splice.lockDepth !== '0') lines.push('Local confirmation requirement: ' + splice.lockDepth);
-  const state = (locked?: boolean) => (locked === undefined ? 'not reported' : locked ? 'locked' : 'waiting');
-  lines.push('Our side: ' + state(splice.weLocked), 'Peer: ' + state(splice.peerLocked));
-  if (!completed) lines.push('The peer’s required depth is not reported. Funds update after both sides lock.');
+  if (failed) {
+    lines.push('This resize did not complete. Check node history before trying again.');
+  } else {
+    if (splice.lockDepth !== '0') lines.push('Local confirmation requirement: ' + splice.lockDepth);
+    const state = (locked?: boolean) => (locked === undefined ? 'not reported' : locked ? 'locked' : 'waiting');
+    lines.push('Our side: ' + state(splice.weLocked), 'Peer: ' + state(splice.peerLocked));
+    if (!completed) lines.push('The peer’s required depth is not reported. Funds update after both sides lock.');
+  }
   if (splice.txid) lines.push('Transaction: ' + splice.txid);
   return lines.join('\n');
 }

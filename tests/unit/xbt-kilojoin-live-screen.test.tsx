@@ -991,6 +991,11 @@ test.each(['review', 'joined', 'complete', 'aborted'])('never auto-confirms a %s
 });
 
 test('selecting a wallet after restart automatically verifies saved rounds and keeps the frozen-output notice', async () => {
+  let foreground!: (state: AppStateStatus) => void;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    foreground = listener;
+    return { remove: jest.fn() };
+  });
   jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
   jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([]);
   mockRecoverRounds.mockResolvedValueOnce([{ phase: 'uncertain', poolId: 'saved', reviewedId: 'aa'.repeat(32) }]);
@@ -999,6 +1004,11 @@ test('selecting a wallet after restart automatically verifies saved rounds and k
   expect(mockConfirmRecovered).not.toHaveBeenCalled();
   await act(async () => fireEvent.press(screen.getByText('○ Test wallet')));
   expect(mockConfirmRecovered).toHaveBeenCalledWith(mockWallet, 'saved');
+  const reads = mockRecoverRounds.mock.calls.length;
+  const utxoReads = (mockWallet.fetchUtxo as jest.Mock).mock.calls.length;
+  await act(async () => foreground('active'));
+  expect(mockRecoverRounds).toHaveBeenCalledTimes(reads);
+  expect(mockWallet.fetchUtxo).toHaveBeenCalledTimes(utxoReads);
   expect(screen.getByTestId('CoinjoinConfirmationNotice')).toHaveTextContent(/Recovered outputs remain frozen for review in Coin Control/);
   expect(mockApprove).not.toHaveBeenCalled();
   expect(mockJoin).not.toHaveBeenCalled();
@@ -1090,4 +1100,25 @@ test('the one-tap consent shows round limits, arms the same attempt and leaves t
   expect(nav.goBack).toHaveBeenCalledTimes(1);
   expect(activePool.snapshot()?.automatic).toBe(true);
   expect(mockClose).not.toHaveBeenCalled();
+});
+
+test('an automatic confirmation refresh preserves an unrelated discovery error', async () => {
+  jest.spyOn(mockWallet, 'fetchUtxo').mockResolvedValue(undefined);
+  jest.spyOn(mockWallet, 'getUtxo').mockReturnValue([]);
+  mockRecoverRounds.mockResolvedValue([{ phase: 'uncertain', poolId: 'saved', reviewedId: 'aa'.repeat(32) }]);
+  mockConfirmRecovered.mockResolvedValue(false);
+  let foreground!: (state: AppStateStatus) => void;
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    foreground = listener;
+    return { remove: jest.fn() };
+  });
+  const screen = render(<CoinjoinLive experimentalAcknowledged />);
+  await act(async () => fireEvent.press(screen.getByText('○ Test wallet')));
+  mockSearchMode = 'error';
+  await act(async () => fireEvent.press(screen.getByText('Find pools')));
+  expect(screen.getByText('Relay rejected the subscription')).toBeTruthy();
+  await act(async () => foreground('active'));
+  expect(mockConfirmRecovered).toHaveBeenCalledTimes(2);
+  expect(screen.getByText('Relay rejected the subscription')).toBeTruthy();
+  expect(screen.getByTestId('CoinjoinConfirmationNotice')).toHaveTextContent(/Coins remain reserved/);
 });

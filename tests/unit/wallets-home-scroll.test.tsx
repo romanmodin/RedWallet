@@ -91,6 +91,8 @@ test.each(['off', 'helmet', 'armour'])('transaction scrolling leaves the %s dash
   const list = s.getByTestId('Wallets');
   const header = s.getByTestId('WalletsPinnedHeader');
   expect(within(header).getByTestId('HomeTotalBalance')).toBeTruthy();
+  expect(within(s.getByTestId('WalletsHeaderOverflow')).getByText(/Transactions/)).toBeTruthy();
+  expect(StyleSheet.flatten(header.props.style).maxHeight).toBe('60%');
   expect(within(header).getByTestId('WalletsList')).toBeTruthy();
   expect(within(list).queryByTestId('HomeTotalBalance')).toBeNull();
   expect(within(list).queryByTestId('WalletsList')).toBeNull();

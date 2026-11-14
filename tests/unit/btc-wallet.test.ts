@@ -1,5 +1,5 @@
+import { walletElectrum, isBtcWallet, formatWalletBalance } from '../../blue_modules/wallet-network';
 import { BtcWatchOnlyWallet } from '../../class/wallets/btc-watch-only-wallet';
-import { isBtcWallet, formatWalletBalance } from '../../blue_modules/wallet-network';
 import * as bitcoin from 'bitcoinjs-lib';
 import ecc from 'tiny-secp256k1';
 import { BtcSegwitBech32Wallet } from '../../class/wallets/btc-segwit-bech32-wallet';
@@ -213,7 +213,15 @@ test('accepts Sparrow single-key JSON and routes the public account through its 
   expect(wallet._getExternalAddressByIndex(0)).toBe(signer._getExternalAddressByIndex(0));
   const backend = jest.spyOn(require('../../blue_modules/BtcElectrum'), 'forWallet');
   wallet._hdWalletInstance!.getElectrum();
-  expect(backend).toHaveBeenLastCalledWith(wallet.getID());
+  walletElectrum(wallet); // Transaction Status and Receive must retain the owned-address provider too.
+  expect(backend).toHaveBeenLastCalledWith(wallet.getID(), expect.any(Function));
+  const ownedAddresses = backend.mock.calls.at(-1)![1] as () => string[];
+  expect(ownedAddresses()).toEqual(
+    expect.arrayContaining([
+      wallet._hdWalletInstance!._getExternalAddressByIndex(0),
+      wallet._hdWalletInstance!._getInternalAddressByIndex(0),
+    ]),
+  );
   backend.mockRestore();
   expect(wallet.allowSend()).toBe(false);
   wallet.setUseWithHardwareWalletEnabled(true);

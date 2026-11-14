@@ -151,6 +151,7 @@ const ElectrumSettings: React.FC = () => {
     setServerHistory(filteredServerHistory);
 
     setConfig(await BlueElectrum.getConfig());
+    if (configIntervalRef.current) clearInterval(configIntervalRef.current);
     configIntervalRef.current = setInterval(async () => {
       setConfig(await BlueElectrum.getConfig());
     }, 500);
@@ -247,6 +248,7 @@ const ElectrumSettings: React.FC = () => {
           await DefaultPreference.set(BlueElectrum.ELECTRUM_TCP_PORT, serverPort);
           await DefaultPreference.set(BlueElectrum.ELECTRUM_SSL_PORT, serverSslPort);
           if (serverTlsCa) await DefaultPreference.set(BlueElectrum.ELECTRUM_TLS_CA, serverTlsCa);
+          await DefaultPreference.clear(BlueElectrum.DEFAULT_SERVER_DECLINED);
 
           const serverExistsInHistory = Array.from(serverHistory).some(
             s =>
@@ -359,6 +361,25 @@ const ElectrumSettings: React.FC = () => {
         presentSelectServerAlert(rawServer);
       } else {
         switch (id) {
+          case 'remove_server':
+            Alert.alert('Remove server?', 'Disconnect and stay offline until you save a server or reset to defaults.', [
+              { text: loc._.cancel, style: 'cancel' },
+              {
+                text: 'Remove server',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    await BlueElectrum.removePreferredServer();
+                    await fetchData();
+                  } catch (e) {
+                    presentAlert({
+                      message: e instanceof Error ? e.message : 'Could not remove server.',
+                    });
+                  }
+                },
+              },
+            ]);
+            break;
           case CommonToolTipActions.ResetToDefault.id:
             presentResetToDefaultsAlert().then(reset => {
               if (reset) {
@@ -479,7 +500,7 @@ const ElectrumSettings: React.FC = () => {
     }
 
     const resetToDefaults = { ...CommonToolTipActions.ResetToDefault };
-    resetToDefaults.hidden = !host && serverHistory.size === 0;
+    actions.push({ id: 'remove_server', text: 'Remove server', hidden: !host });
     actions.push(resetToDefaults);
 
     return actions;

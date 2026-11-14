@@ -515,9 +515,9 @@ const WalletsList: React.FC = () => {
             >
               {renderSectionHeader({ section: { key: WalletsListSections.CAROUSEL } })}
               {renderWalletsCarousel()}
+              {renderListHeaderComponent()}
             </ScrollView>
           </View>
-          <View style={stylesHook.safeHorizontal}>{renderListHeaderComponent()}</View>
         </>
       )}
       <View testID="WalletsTransactionViewport" style={styles.transactionViewport}>

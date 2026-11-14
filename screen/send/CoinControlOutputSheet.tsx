@@ -4,6 +4,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import debounce from '../../blue_modules/debounce';
 import Avatar from '../../components/Avatar';
+import presentAlert from '../../components/Alert';
+import { availableCoinSelection } from '../../blue_modules/coin-control-selection';
 import ListItem from '../../components/ListItem';
 import { BlueSpacing10 } from '../../components/BlueSpacing';
 import Button from '../../components/Button';
@@ -82,8 +84,14 @@ const CoinControlOutputSheet: React.FC = () => {
     if (!wallet) return;
     debouncedSaveMemo.current.cancel();
     wallet.setUTXOMetadata(utxo.txid, utxo.vout, { memo });
-    await saveToDisk();
-    goFromCoinControlToSendDetails(navigation, walletID, [utxo]);
+    try {
+      await saveToDisk();
+      goFromCoinControlToSendDetails(navigation, walletID, availableCoinSelection(wallet, [utxo]));
+    } catch (e) {
+      presentAlert({
+        message: e instanceof Error ? e.message : 'Could not use this coin.',
+      });
+    }
   }, [memo, navigation, saveToDisk, utxo, wallet, walletID]);
 
   const applyChangesAndClose = useCallback(async () => {

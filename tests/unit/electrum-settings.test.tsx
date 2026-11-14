@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import DefaultPreference from 'react-native-default-preference';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
@@ -52,6 +53,8 @@ jest.mock('../../components/SettingsSection', () => {
 jest.mock('../../blue_modules/BlueElectrum', () => ({
   suggestedServers: require('../../class/xbt/electrum-presets').XBT_ELECTRUM_PRESETS,
   hardcodedPeers: [],
+  DEFAULT_SERVER_DECLINED: 'electrum_default_server_declined',
+  removePreferredServer: jest.fn(async () => {}),
   ELECTRUM_HOST: 'electrum_host',
   ELECTRUM_TCP_PORT: 'electrum_tcp_port',
   ELECTRUM_SSL_PORT: 'electrum_ssl_port',
@@ -137,6 +140,7 @@ test('saving a verified preset persists its TLS endpoint and removes only the ol
   expect(DefaultPreference.set).toHaveBeenCalledWith('electrum_ssl_port', '17717');
   expect(DefaultPreference.set).toHaveBeenCalledWith('electrum_tcp_port', '');
   expect(DefaultPreference.clear).toHaveBeenCalledWith('electrum_tls_ca');
+  expect(DefaultPreference.clear).toHaveBeenCalledWith('electrum_default_server_declined');
 });
 
 test('history retains an explicitly trusted certificate for the same host and port as the preset', async () => {
@@ -148,4 +152,21 @@ test('history retains an explicitly trusted certificate for the same host and po
   const history = menu.props.actions.find((action: any) => action.id === 'server_history');
   expect(history.subactions).toHaveLength(1);
   expect(JSON.parse(history.subactions[0].id.replace('set_preferred_', '')).tlsCa).toBe(pem);
+});
+
+test('the Remove server menu invokes persistent removal only after the user confirms', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const screen = render(<ElectrumSettings />);
+  await act(async () => {});
+  const menu = mockNavigation.setOptions.mock.calls.at(-1)![0].headerRight();
+  expect(menu.props.actions.find((action: any) => action.id === 'remove_server').hidden).toBe(false);
+  act(() => menu.props.onPressMenuItem('remove_server'));
+  expect(BlueElectrum.removePreferredServer).not.toHaveBeenCalled();
+  (BlueElectrum.getPreferredServer as jest.Mock).mockResolvedValue(undefined);
+  const buttons = alert.mock.calls[0][2]!;
+  await act(async () => buttons.find(button => button.style === 'destructive')!.onPress!());
+  expect(BlueElectrum.removePreferredServer).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId('HostInput').props.value).toBe('');
+  expect(BlueElectrum.testConnectionDetailed).not.toHaveBeenCalled();
+  alert.mockRestore();
 });

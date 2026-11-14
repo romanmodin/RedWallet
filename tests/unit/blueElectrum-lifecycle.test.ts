@@ -38,6 +38,10 @@ jest.mock('react-native-default-preference', () => ({
   },
 }));
 
+jest.mock('../../blue_modules/hapticFeedback', () => ({
+  triggerWarningHapticFeedback: jest.fn(),
+}));
+
 jest.mock('electrum-client', () => {
   return jest.fn().mockImplementation(() => (globalThis as any).__createNextFakeClient());
 });
@@ -404,15 +408,47 @@ describe('BlueElectrum lifecycle', () => {
     });
   });
 
-  it('does not automatically connect after the user removes the primary', async () => {
+  it.each([false, true])('persistent removal blocks reconnection even if clearing a field fails: %s', async failClear => {
     const get = DefaultPreference.get as jest.Mock;
-    const original = get.getMockImplementation();
-    get.mockImplementation(async key => (key === 'electrum_default_server_declined' ? '1' : undefined));
+    const set = DefaultPreference.set as jest.Mock;
+    const clear = DefaultPreference.clear as jest.Mock;
+    const originals = [get, set, clear].map(mock => mock.getMockImplementation());
+    const stored = new Map<string, string>([
+      [BlueElectrum.ELECTRUM_HOST, 'private.server'],
+      [BlueElectrum.ELECTRUM_SSL_PORT, '50002'],
+      [BlueElectrum.ELECTRUM_BACKUP_SERVERS, JSON.stringify([{ host: 'backup.server', ssl: 50002 }])],
+    ]);
+    get.mockImplementation(async key => stored.get(key));
+    set.mockImplementation(async (key, value) => {
+      stored.set(key, value);
+    });
+    clear.mockImplementation(async key => {
+      if (failClear) throw new Error('storage failure');
+      stored.delete(key);
+    });
     try {
+      if (failClear) await expect(BlueElectrum.removePreferredServer()).rejects.toThrow('storage failure');
+      else await BlueElectrum.removePreferredServer();
+      expect(await BlueElectrum.getPreferredServer()).toBeUndefined();
       expect(await BlueElectrum.ensureConnected()).toBe(false);
       expect(created).toHaveLength(0);
+      expect(stored.get(BlueElectrum.DEFAULT_SERVER_DECLINED)).toBe('1');
+      if (!failClear) expect(stored.has(BlueElectrum.ELECTRUM_BACKUP_SERVERS)).toBe(false);
+      // Reset to defaults is explicitly different from Remove server.
+      clear.mockImplementation(async key => {
+        stored.delete(key);
+      });
+      const reset = BlueElectrum.presentResetToDefaultsAlert();
+      await flush();
+      const alert = presentAlertMock.mock.calls.at(-1)![0];
+      await alert.buttons.find((button: any) => button.style === 'default').onPress();
+      expect(await reset).toBe(true);
+      expect(await BlueElectrum.getPreferredServer()).toMatchObject({
+        host: 'fulcrum.kilombino.com',
+        ssl: 17717,
+      });
     } finally {
-      get.mockImplementation(original!);
+      [get, set, clear].forEach((mock, index) => mock.mockImplementation(originals[index]!));
     }
   });
 
