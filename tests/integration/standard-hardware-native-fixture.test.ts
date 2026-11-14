@@ -1,15 +1,32 @@
 /**
- * Validate the new simulator backend over authenticated HTTPS before the costly
- * native run. This is a fixture test, not evidence of native UI completion.
+ * Validate the simulator backend through real wallet discovery, authenticated
+ * TLS/HTTPS, signing and broadcast. This is not evidence of native UI completion.
  */
 import assert from 'assert';
 import https from 'https';
-import * as bitcoin from 'bitcoinjs-lib';
-import { BIP32Factory } from 'bip32';
-import ecc from '../../blue_modules/noble_ecc';
 import { verifyPublicFundingSeparation } from '../../class/xbt/separation-service';
 import { StandardHardwareNativeFixture, PUBLIC_WATCH_ACCOUNT, PUBLIC_RECIPIENT, EXPLORER_PORT } from '../native/standard-hardware-fixture';
 
+import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
+const mockPreferences = new Map<string, string>();
+jest.mock('react-native-default-preference', () => ({
+  __esModule: true,
+  default: {
+    setName: jest.fn(),
+    get: jest.fn(async (key: string) => mockPreferences.get(key)),
+    set: jest.fn(async (key: string, value: string) => {
+      mockPreferences.set(key, value);
+    }),
+    clear: jest.fn(async (key: string) => {
+      mockPreferences.delete(key);
+    }),
+  },
+}));
+jest.mock('../../class/xbt/standard-hardware', () => ({
+  ...jest.requireActual('../../class/xbt/standard-hardware'),
+  assertStandardHardwareReleased: jest.fn(),
+}));
 const real =
   process.env.REDWALLET_BTC_REGTEST_BITCOIND && process.env.REDWALLET_XBT_REGTEST_BITCOIND && process.env.REDWALLET_XBT_REGTEST_FULCRUM
     ? test
@@ -30,7 +47,7 @@ function get(url: string, ca?: string): Promise<{ status: number; text: string }
   });
 }
 real(
-  'native fixture authenticates HTTPS and supplies fail-closed proof over real competing chains',
+  'native fixture discovers coins and submits a verified standard transaction over authenticated transports',
   async () => {
     const fixture = new StandardHardwareNativeFixture();
     try {
@@ -74,37 +91,43 @@ real(
       await fixture.reorg(false);
       await expect(verify()).resolves.toBeUndefined();
 
-      const pub = BIP32Factory(ecc).fromBase58(PUBLIC_WATCH_ACCOUNT.split(']')[1]).derivePath('0/0').publicKey;
-      const request = new bitcoin.Psbt();
-      request.addInput({
-        hash: fixture.funding.getId(),
-        index: 0,
-        nonWitnessUtxo: fixture.funding.toBuffer(),
-        witnessUtxo: fixture.funding.outs[0],
-        sighashType: 1,
-        bip32Derivation: [
-          {
-            pubkey: pub,
-            masterFingerprint: Buffer.from('73c5da0a', 'hex'),
-            path: "m/84'/0'/0'/0/0",
-          },
-        ],
-      });
-      request.addOutput({ address: PUBLIC_RECIPIENT, value: 100000n });
-      request.addOutput({
-        script: fixture.funding.outs[0].script,
-        value: 898000n,
-      });
+      mockPreferences.set(BlueElectrum.ELECTRUM_HOST, '127.0.0.1');
+      mockPreferences.set(BlueElectrum.ELECTRUM_SSL_PORT, String(fixture.transport.port));
+      mockPreferences.set(BlueElectrum.ELECTRUM_TLS_CA, fixture.transport.ca);
+      mockPreferences.set('electrum_default_server_declined', '1');
+      await BlueElectrum.setDisabled(false);
+      expect(await BlueElectrum.ensureConnected()).toBe(true);
+      const watch = new WatchOnlyWallet();
+      watch.setSecret(PUBLIC_WATCH_ACCOUNT);
+      // Match the XBT import flow: choose the network before fetching history.
+      watch.xbt_network = true;
+      watch.init();
+      await watch.fetchBalance();
+      await watch.fetchTransactions();
+      await watch.fetchUtxo();
+      expect(watch.getBalance()).toBe(999000);
+      expect(watch.getUtxo()).toHaveLength(1);
+      // Enabling signing after discovery must preserve verified spendable coins.
+      watch.setUseWithHardwareWalletEnabled(true);
+      watch.setHardwareSigningMode('standard');
+      expect(watch.getUtxo()).toHaveLength(1);
+      const { psbt: request } = await watch.createStandardHardwareTransaction(
+        watch.getUtxo(),
+        [{ address: PUBLIC_RECIPIENT, value: 100000 }],
+        2,
+        watch._getInternalAddressByIndex(0),
+      );
       const signed = fixture.sign(request);
-      expect(signed.validateSignaturesOfAllInputs((key, hash, sig) => ecc.verify(hash, key, sig))).toBe(true);
-      signed.finalizeAllInputs();
-      const hex = signed.extractTransaction().toHex();
-      await fixture.knots.rpc('sendrawtransaction', [hex]);
+      const hex = watch.combinePsbt(request, signed).toHex();
+      await expect(watch.broadcastTx(hex)).resolves.toBe(true);
+      expect(fixture.transport.broadcasts).toEqual([hex]);
       const result = await fixture.settle(hex);
       expect(result.confirmations).toBe(2);
       expect(result.btcRejection.allowed).toBe(false);
     } finally {
       global.fetch = originalFetch;
+      BlueElectrum.forceDisconnect();
+      await BlueElectrum.setDisabled(true);
       await fixture.stop();
       expect(fixture.cleanupComplete).toBe(true);
     }
