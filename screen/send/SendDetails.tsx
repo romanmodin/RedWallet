@@ -1211,7 +1211,7 @@ const SendDetails = () => {
   const onUseAllPressed = useCallback(() => {
     triggerHapticFeedback(HapticFeedbackTypes.NotificationWarning);
     const message = utxos
-      ? `Use only the ${utxos.length} selected coins, minus the network fee? No unselected coins will be added.`
+      ? loc.formatString(loc.send.details_adv_full_sure_selected, { number: utxos.length })
       : frozenBalance > 0
         ? loc.send.details_adv_full_sure_frozen
         : loc.send.details_adv_full_sure;
@@ -1652,7 +1652,7 @@ const SendDetails = () => {
             <Pressable
               testID="SendMaxButton"
               accessibilityRole="button"
-              accessibilityLabel={utxos ? 'Send maximum from selected coins' : 'Send maximum available amount'}
+              accessibilityLabel={utxos ? loc.send.max_selected_accessibility : loc.send.max_accessibility}
               disabled={isLoading || balance <= 0 || item.amount === BitcoinUnit.MAX || !!item.usdcRefreshing}
               onPress={onUseAllPressed}
               style={({ pressed }) => [
@@ -1665,7 +1665,7 @@ const SendDetails = () => {
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={[styles.selectLabel, stylesHook.selectLabel]}>{item.amount === BitcoinUnit.MAX ? 'MAX SELECTED' : 'MAX'}</Text>
+              <Text style={[styles.selectLabel, stylesHook.selectLabel]}>{item.amount === BitcoinUnit.MAX ? loc.send.max_selected : loc.send.max}</Text>
             </Pressable>
           )}
         </View>
