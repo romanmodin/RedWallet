@@ -12,25 +12,40 @@ function fixture() {
   const sibling = Buffer.alloc(32, 3);
   Buffer.from(crypto.hash256(Buffer.concat([sibling, conflict.getHash()]))).copy(header, 36);
   const hash = Buffer.from(crypto.hash256(header)).reverse().toString('hex');
-  const spent = { spent: true, txid: conflict.getId(), status: { confirmed: true, block_height: 1000000, block_hash: hash } };
+  const spent = {
+    spent: true,
+    txid: conflict.getId(),
+    status: { confirmed: true, block_height: 1000000, block_hash: hash },
+  };
   const calls: string[] = [];
   let rewrite = (_url: string, value: string) => value;
   global.fetch = jest.fn(async (url: any, options: any) => {
     calls.push(url);
     expect(options.method).toBe('GET');
     expect(options.credentials).toBe('omit');
+    expect(options.headers['Cache-Control']).toContain('no-store');
     let value: string;
     if (url.endsWith('/block-height/961640')) value = checkpoint;
     else if (url.endsWith('/blocks/tip/height')) value = '1000005';
     else if (url.includes('/outspend/')) value = JSON.stringify(spent);
     else if (url.endsWith('/hex')) value = conflict.toHex();
     else if (url.endsWith('/merkle-proof'))
-      value = JSON.stringify({ block_height: 1000000, pos: 1, merkle: [Buffer.from(sibling).reverse().toString('hex')] });
+      value = JSON.stringify({
+        block_height: 1000000,
+        pos: 1,
+        merkle: [Buffer.from(sibling).reverse().toString('hex')],
+      });
     else if (url.endsWith('/header')) value = header.toString('hex');
     else if (url.endsWith('/block-height/1000000')) value = hash;
     else if (url.endsWith('/block/' + hash)) value = JSON.stringify({ id: hash, height: 1000000, tx_count: 2 });
     else throw new Error('Unexpected URL');
-    return { ok: true, redirected: false, url, headers: { get: () => null }, text: async () => rewrite(url, value) } as any;
+    return {
+      ok: true,
+      redirected: false,
+      url,
+      headers: { get: () => null },
+      text: async () => rewrite(url, value),
+    } as any;
   });
   return {
     parent,
@@ -111,11 +126,11 @@ it('stops new requests when the signing review is canceled', async () => {
   expect(f.calls.length).toBeLessThanOrEqual(2);
 });
 it('fails closed on an unavailable provider', async () => {
-  fixture();
+  const f = fixture();
   global.fetch = jest.fn(async () => {
     throw new Error('offline');
   });
-  await expect(verifyPublicFundingSeparation([new Transaction()], () => {})).rejects.toThrow('offline');
+  await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow('offline');
 });
 it('bounds input counts before making requests', async () => {
   const f = fixture();
@@ -131,4 +146,77 @@ it('rejects independently reported tree-size disagreement', async () => {
       : value,
   );
   await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
+});
+
+// Each parent has a different outpoint, conflict and anchored block. This
+// reaches the full request budget, including two final lookups per block.
+it.each([13, 64])('verifies %i distinct funding parents within the bounded request budget', async count => {
+  const routes = new Map<string, string>();
+  routes.set('/block-height/961640', checkpoint);
+  routes.set('/blocks/tip/height', '1000100');
+  const parents: Transaction[] = [];
+  for (let index = 0; index < count; index++) {
+    const parent = new Transaction();
+    parent.addInput(Buffer.alloc(32, index + 1), 0);
+    parent.addOutput(Buffer.from('0014' + '02'.repeat(20), 'hex'), 1000n);
+    const conflict = parent.clone();
+    conflict.outs[0].value = 900n;
+    const header = Buffer.alloc(80);
+    const sibling = Buffer.alloc(32, 3);
+    Buffer.from(crypto.hash256(Buffer.concat([sibling, conflict.getHash()]))).copy(header, 36);
+    const hash = Buffer.from(crypto.hash256(header)).reverse().toString('hex');
+    const height = 1000000 + index;
+    routes.set(
+      '/tx/' + Buffer.from(parent.ins[0].hash).reverse().toString('hex') + '/outspend/0',
+      JSON.stringify({
+        spent: true,
+        txid: conflict.getId(),
+        status: { confirmed: true, block_height: height, block_hash: hash },
+      }),
+    );
+    routes.set('/tx/' + conflict.getId() + '/hex', conflict.toHex());
+    routes.set(
+      '/tx/' + conflict.getId() + '/merkle-proof',
+      JSON.stringify({
+        block_height: height,
+        pos: 1,
+        merkle: [Buffer.from(sibling).reverse().toString('hex')],
+      }),
+    );
+    routes.set('/block/' + hash + '/header', header.toString('hex'));
+    routes.set('/block-height/' + height, hash);
+    routes.set('/block/' + hash, JSON.stringify({ id: hash, height, tx_count: 2 }));
+    parents.push(parent);
+  }
+  global.fetch = jest.fn(async (url: any) => {
+    const value = routes.get(new URL(url).pathname.replace('/api', ''));
+    if (!value) throw new Error('Unexpected proof request');
+    return {
+      ok: true,
+      redirected: false,
+      url,
+      headers: { get: () => null },
+      text: async () => value,
+    } as any;
+  });
+  await verifyPublicFundingSeparation(parents, () => {});
+  expect(global.fetch).toHaveBeenCalledTimes(6 + count * 10);
+});
+
+it('budgets skipped candidate inputs before a confirmed conflict', async () => {
+  const f = fixture();
+  // Preserve the first input, but place it last so all 64 outspends are queried.
+  for (let index = 1; index < 64; index++) f.parent.addInput(Buffer.alloc(32, 4), index);
+  f.parent.ins.reverse();
+  f.rewrite((url, value) => (url.includes('/outspend/') && !url.endsWith('/outspend/0') ? '{"spent":false}' : value));
+  await verifyPublicFundingSeparation([f.parent], () => {});
+  expect(f.calls.filter(url => url.includes('/outspend/'))).toHaveLength(64);
+});
+
+it('rejects an oversized parent anywhere in the batch before contacting a provider', async () => {
+  const f = fixture();
+  const tooLarge = f.parent.clone();
+  for (let index = 1; index < 65; index++) tooLarge.addInput(Buffer.alloc(32, 4), index);
+  await expect(verifyPublicFundingSeparation([f.parent, tooLarge], () => {})).rejects.toThrow();
+  expect(f.calls).toHaveLength(0);
 });

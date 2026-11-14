@@ -17,12 +17,17 @@ const unavailable = (): never => {
 export async function verifyPublicFundingSeparation(funding: Transaction[], assertAuthorized: () => void): Promise<void> {
   assertAuthorized();
   if (!funding.length || funding.length > 64) unavailable();
+  // Validate the complete bounded batch before any network request. Budget for
+  // every candidate input, proof/metadata lookups and the final anchor recheck;
+  // a fixed 128-call limit incorrectly rejected valid larger coin selections.
+  if (funding.some(parent => parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64)) unavailable();
+  const requestLimit = 6 + funding.reduce((total, parent) => total + parent.ins.length + 9, 0);
   const deadline = Date.now() + 45000;
   let requests = 0;
   let bytes = 0;
   const get = async (host: string, path: string, limit = 16384): Promise<string> => {
     assertAuthorized();
-    if (++requests > 128 || Date.now() >= deadline) unavailable();
+    if (++requests > requestLimit || Date.now() >= deadline) unavailable();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.min(8000, deadline - Date.now()));
     try {
@@ -30,7 +35,7 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
         method: 'GET',
         redirect: 'error',
         credentials: 'omit',
-        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, max-age=0', Pragma: 'no-cache' },
         signal: controller.signal,
       });
       assertAuthorized();
@@ -62,7 +67,6 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
   const startTip = await tip();
   const anchors = new Map<number, string>();
   for (const parent of funding) {
-    if (parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64) unavailable();
     let verified = false;
     for (const input of parent.ins) {
       const id = Buffer.from(input.hash).reverse().toString('hex');

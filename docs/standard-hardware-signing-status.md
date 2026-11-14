@@ -18,7 +18,7 @@ Evidence is freshly collected before request creation and again before XBT broad
 
 - Coin selection runs once; only selected inputs undergo separation verification. Existing base-wallet UTXO integrity/maturity checks remain intact.
 - Initial support is direct Unified P2WPKH funding. Descendants (including standard-send change), coinbase, mixed/Taproot funding and RBF remain unsupported and block if selected. No automatic coin splitting is performed.
-- Physical Keystone 3.0.2 signing, isolated Knots acceptance/replay tests, native UI and independent review remain release requirements.
+- Physical Keystone 3.0.2 signing, production Electrum transport, native UI and independent review remain release requirements. Isolated Knots acceptance/replay qualification now passes (details below).
 - Umbrel Docker inspection was unavailable without sudo authentication; no node settings or funds were changed.
 
 ## Validation
@@ -26,3 +26,15 @@ Evidence is freshly collected before request creation and again before XBT broad
 The focused suite covers proof integrity, independent-source disagreement, reorgs, malformed/insufficient evidence, cancellation, exact selected inputs, delayed signing, mode changes, existing XBT Unified signing and BTC hardware signing. TypeScript and changed-file ESLint are checked.
 
 A read-only live public-chain exercise passed on November 13 Pacific (November 14 UTC), using a real confirmed SHA-256 transaction and a hypothetical conflicting funding body. This verifies live transport and proof inclusion only, **not XBT transaction validity, actual wallet separation or hardware acceptance**. Receipt: `docs/evidence/standard-hardware-public-proof-20261113.json`. Reproduction: `node scripts/diagnostics/check-separation-service.cjs` from repository root with dependencies installed. No keys/signing/broadcast calls exist in that diagnostic.
+
+### Shared-history node qualification
+
+The opt-in integration test starts independently verified Bitcoin Core 29.0 and Knots 29.4.2 binaries in new temporary regtest directories, with loopback RPC and no peers. Both nodes share the exact chain and funding outpoint through height 149. Knots activates BLAKE2b at 150. Published test-seed coins only are used.
+
+It demonstrates that the Unified parent is accepted by Knots and rejected by Core, while a freshly signed standard variant with the same transaction ID can be accepted by Core before a conflicting spend. Simply changing the standard signature flag to 0x21 is rejected by Knots. The wallet blocks standard signing until a different conflicting Core spend confirms. After six confirmations, the production watch-only builder preserves fingerprint/path, exports a standard request, accepts the simulated cold signer's URv2 return, and rejects changed signed amounts. Knots accepts and confirms the resulting transaction; Core rejects both that transaction and the alternative parent after the conflict. An actual Core reorg removing the conflict also causes the production separation recheck to block.
+
+The explorer adapter maps requests to the isolated Core node and translates regtest heights to exercise unchanged mainnet thresholds. This does not qualify provider independence, TLS, the production Electrum broadcast transport, native UI, or a physical Keystone. The separately recorded public-chain diagnostic covers live explorer transport. Runtime release remains disabled.
+
+Reproduction: set `REDWALLET_BTC_REGTEST_BITCOIND` and `REDWALLET_XBT_REGTEST_BITCOIND` to verified test binaries, then run `node_modules/.bin/jest --runInBand tests/integration/xbt-standard-hardware-regtest.test.ts`. A successful run writes `artifacts/standard-hardware-regtest/receipt.json` after both nodes stop and temporary data is removed. CI downloads checksum-pinned binaries and runs the same test.
+
+The proof-service request budget now scales with the bounded funding-input count instead of a fixed 128 requests. Regression cases cover 13 and 64 distinct funding parents and a conflict found only after scanning 64 candidate inputs. Deadlines and body-size limits remain. HTTP cache-control headers replace the unsupported React Native `RequestInit.cache` option that failed the previous CI type check.

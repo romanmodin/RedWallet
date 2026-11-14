@@ -83,6 +83,34 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
 
+    - name: Verify isolated Knots test binary
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/xbt-knots"
+        knots_url=$(node -p "require('./tests/native/backend-assets.json').knots.linux.url")
+        knots_sha256=$(node -p "require('./tests/native/backend-assets.json').knots.linux.sha256")
+        curl --fail --location --retry 2 --max-time 120 "$knots_url" --output "$RUNNER_TEMP/xbt-knots/knots.tar.gz"
+        printf '%s  %s\n' "$knots_sha256" "$RUNNER_TEMP/xbt-knots/knots.tar.gz" | sha256sum --check
+        tar -xzf "$RUNNER_TEMP/xbt-knots/knots.tar.gz" -C "$RUNNER_TEMP/xbt-knots" bitcoin-29.4.2.knots20260508/bin/bitcoind
+        test -x "$RUNNER_TEMP/xbt-knots/bitcoin-29.4.2.knots20260508/bin/bitcoind"
+
+    - name: Verify standard hardware signing on shared-history isolated chains
+      env:
+        REDWALLET_BTC_REGTEST_BITCOIND: ${{ runner.temp }}/btc-core/bitcoin-29.0/bin/bitcoind
+        REDWALLET_XBT_REGTEST_BITCOIND: ${{ runner.temp }}/xbt-knots/bitcoin-29.4.2.knots20260508/bin/bitcoind
+      run: |
+        node_modules/.bin/jest --runInBand tests/integration/xbt-standard-hardware-regtest.test.ts
+        node -e "const r = require('./artifacts/standard-hardware-regtest/receipt.json'); if (r.cleanupComplete !== true || r.confirmations !== 2 || r.unseparatedFundingBlocked !== true || r.reorgBeforeBroadcastBlocked !== true || r.unifiedFlagCannotBeAppended !== true || r.alteredAmountRejected !== true || r.xbtAcceptance.allowed !== true || r.btcRejection.allowed !== false || r.parentReplayRejection.allowed !== false) throw new Error('Standard hardware consensus receipt missing or incomplete');"
+
+    - name: Save standard hardware consensus-test receipt
+      if: ${{ always() }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: standard-hardware-consensus-receipt
+        path: artifacts/standard-hardware-regtest/receipt.json
+        if-no-files-found: ignore
+        retention-days: 7
+
   # The inherited integration suite is hardcoded to Bitcoin mainnet fixtures.
   # RedWallet must reject Bitcoin Electrum peers after the XBT checkpoint check,
   # so it cannot safely run until the suite is migrated to the configured Fulcrum.
