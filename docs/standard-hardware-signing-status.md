@@ -20,3 +20,9 @@ Current funding checks validate every direct parent signature against Unified P2
 - iOS UI checks, independent review and TestFlight build.
 
 No transaction was signed by user hardware or broadcast during this implementation.
+
+## Confirmed-conflict verifier added
+
+`separation-proof.ts` checks that a different transaction body spends a funding input and has a valid merkle inclusion branch in a separately anchored SHA-256 block with at least six confirmations. It rejects same-txid/witness-only alternatives, unrelated spends, mismatched headers, malformed branches and insufficient confirmations. Thirteen focused tests pass.
+
+This is a pure verifier, not a live separation service. The anchor must come from an independently authenticated current BTC chain view, never from the proof bundle itself. Header-chain authentication, evidence discovery, wallet integration and fresh broadcast-time checks remain unimplemented; the release gate remains false. Synthetic headers in unit tests test inclusion mechanics only and do not establish live consensus validity.
