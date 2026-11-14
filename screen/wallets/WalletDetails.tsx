@@ -1,3 +1,4 @@
+import { isXbtAccount } from '../../blue_modules/xbt-account-groups';
 import { BtcWatchOnlyWallet } from '../../class/wallets/btc-watch-only-wallet';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -776,6 +777,14 @@ const WalletDetails: React.FC = () => {
                     bottomDivider
                   />
                 </>
+              )}
+              {isXbtAccount(wallet) && (
+                <SettingsListItem
+                  title={loc.xbt_accounts.settings_button}
+                  testID="XbtAccountSettings"
+                  chevron
+                  onPress={() => navigate('XbtAccountGroup', { walletID, settings: true })}
+                />
               )}
               {wallet.allowXpub && wallet.allowXpub() && (
                 <SettingsListItem onPress={navigateToXPub} title={loc.wallets.details_show_xpub} testID="XpubButton" bottomDivider />

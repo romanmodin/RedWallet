@@ -291,7 +291,12 @@ describe('RedWallet UI Tests - no wallets', () => {
     await element(by.text('Yes, I have.')).tap();
     await waitForId('BitcoinAddressQRCode');
     await waitForId('CopyTextToClipboard');
+    await waitFor(element(by.id('SetCustomAmountButton')))
+      .toBeVisible()
+      .whileElement(by.id('ReceiveDetailsScrollView'))
+      .scroll(150, 'down');
     await element(by.id('SetCustomAmountButton')).tap();
+    await waitForId('BitcoinAmountInput');
     await element(by.id('BitcoinAmountInput')).replaceText('1');
     await element(by.id('CustomAmountDescription')).replaceText('test');
     await element(by.id('CustomAmountDescription')).tapReturnKey();

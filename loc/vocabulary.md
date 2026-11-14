@@ -341,3 +341,7 @@ Each locale lives in its own file under [`vocabulary/`](vocabulary/). One Markdo
 3. Add a row to each per-language section under the same category (between the category's divider row and the next divider row). Mark unknown values **TODO**.
 4. If the term is brand/protocol (capitalised proper noun), default to **keep in English** across locales unless a locale has an established convention.
 5. If you change a shipped string in a locale's `.json`, update the corresponding row here in the same PR.
+
+## XBT account grouping (2026-11-12)
+
+SegWit and Taproot retain their protocol names. Account means a BIP84/BIP86 derivation account; Russian uses «счёт», grouping «объединить счета», default receive type «тип адреса для получения по умолчанию». Grouping is presentation metadata and does not move funds or combine keys. Other locales fall back to English for the new xbt_accounts section.

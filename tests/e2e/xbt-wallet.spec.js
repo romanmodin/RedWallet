@@ -74,6 +74,7 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForId('WalletNameInput');
 
     await expect(element(by.id('ActivateBitcoinButton'))).toBeVisible();
+    await expect(element(by.id('XbtWalletFormat'))).toHaveText('Native SegWit (BIP84)');
     await expect(element(by.id('ActivateVaultButton'))).not.toExist();
     await expect(element(by.id('ActivateLightningButton'))).not.toExist();
   });
@@ -97,7 +98,12 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForWalletsList();
     await openReceive('btc-created', true);
     await waitForId('CopyTextToClipboard');
+    await waitFor(element(by.id('SetCustomAmountButton')))
+      .toBeVisible()
+      .whileElement(by.id('ReceiveDetailsScrollView'))
+      .scroll(150, 'down');
     await element(by.id('SetCustomAmountButton')).tap();
+    await waitForId('BitcoinAmountInput');
     await element(by.id('BitcoinAmountInput')).replaceText('1');
     await element(by.id('changeAmountUnitButton')).tap();
     await expect(element(by.id('BitcoinAmountInput'))).toHaveText('100000000');
@@ -116,7 +122,12 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForWalletsList();
     await openReceive('xbt-created', true);
     await waitForId('CopyTextToClipboard');
+    await waitFor(element(by.id('SetCustomAmountButton')))
+      .toBeVisible()
+      .whileElement(by.id('ReceiveDetailsScrollView'))
+      .scroll(150, 'down');
     await element(by.id('SetCustomAmountButton')).tap();
+    await waitForId('BitcoinAmountInput');
     await element(by.id('BitcoinAmountInput')).replaceText('1');
     await element(by.id('changeAmountUnitButton')).tap();
     await expect(element(by.id('BitcoinAmountInput'))).toHaveText('100000000');
@@ -155,6 +166,17 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForId(walletLabel);
     await openReceive(walletLabel);
     await waitForLabel(expectedAddress);
+
+    // Exercise the native radio controls and keyed QR/address replacement using
+    // published BIP84/BIP86 vectors. No signing, funds or network are involved.
+    await waitForId('ReceiveAddressType-segwit');
+    await waitForId('ReceiveAddressType-taproot');
+    await element(by.id('ReceiveAddressType-taproot')).tap();
+    await waitForLabel('bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr');
+    await expect(element(by.label(expectedAddress))).not.toExist();
+    await element(by.id('ReceiveAddressType-segwit')).tap();
+    await waitForLabel(expectedAddress);
+    await expect(element(by.label('bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr'))).not.toExist();
   });
 
   it('creates a Taproot wallet and reloads it after restart', async () => {

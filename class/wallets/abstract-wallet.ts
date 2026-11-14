@@ -34,6 +34,8 @@ export class AbstractWallet {
 
   segwitType?: 'p2wpkh' | 'p2sh(p2wpkh)' | 'p2tr' | 'p2pkh' /* not segwit but ok */;
   _derivationPath?: string;
+  /** Optional presentation group. Individual keys, balances and signing remain independent. */
+  xbtAccountGroup?: { id: string; label: string; receiveWalletID: string };
   label: string;
   secret: string;
   balance: number;

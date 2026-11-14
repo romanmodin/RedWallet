@@ -123,8 +123,8 @@ const WalletsAdd: React.FC = () => {
   const { wallets, addWallet, saveToDisk } = useStorage();
   const route = useRoute<RouteProps>();
   const { entropy: entropyHex } = route.params || {};
-  const selectedIndex = route.params?.selectedIndex === 1 ? 1 : 0;
   const btc = route.params?.network === 'btc';
+  const selectedIndex = !btc && route.params?.selectedIndex === 1 ? 1 : 0;
   const selectedWalletType = state.selectedWalletType;
   const entropy = entropyHex ? hexToUint8Array(entropyHex) : undefined;
   const { navigate, goBack, setParams } = useExtendedNavigation<NavigationProps>();
@@ -314,7 +314,7 @@ const WalletsAdd: React.FC = () => {
 
   const navigateToImportWallet = () => {
     navigate('ImportWallet', {
-      xbtFormat: selectedIndex === 1 ? 'taproot' : 'segwit',
+      xbtFormat: !btc && route.params?.selectedIndex === 1 ? 'taproot' : 'segwit',
       network: btc ? 'btc' : 'xbt',
     });
   };
