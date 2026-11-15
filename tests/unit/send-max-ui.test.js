@@ -3,7 +3,8 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import SendDetails from '../../screen/send/SendDetails';
 import { BitcoinUnit } from '../../models/bitcoinUnits';
 import { XbtSegwitBech32Wallet } from '../../class/wallets/xbt-segwit-bech32-wallet';
-import NetworkTransactionFees from '../../models/networkTransactionFees';
+import NetworkTransactionFees, { NetworkTransactionFeeType } from '../../models/networkTransactionFees';
+import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import ActionSheet from '../../screen/ActionSheet';
 import { confirmXbtPayment } from '../../class/xbt/payment-warning';
 
@@ -176,4 +177,93 @@ test('an explicitly empty coin selection cannot fall back to the wallet balance'
   expect(ActionSheet.showActionSheetWithOptions).not.toHaveBeenCalled();
   fireEvent.press(view.getByTestId('CreateTransactionButton'));
   expect(wallet.createTransaction).not.toHaveBeenCalled();
+});
+test('changing the selected coins before MAX review never sends stale or unselected inputs', async () => {
+  const view = await screen();
+  const replacement = { txid: '44'.repeat(32), vout: 2, value: 50000, address: ADDRESS };
+  // user re-opens coin control and picks a different, smaller set before pressing MAX
+  mockRoute.params = { ...mockRoute.params, utxos: [replacement] };
+  view.rerender(<SendDetails />);
+  await act(async () => {});
+  await chooseMax(view);
+  const estimate = wallet.coinselect([replacement], [{ address: ADDRESS }], 1);
+  expect(mockAmountProps.maxSendableAmount).toBe(50000 - estimate.fee);
+  fireEvent.press(view.getByTestId('CreateTransactionButton'));
+  await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('Confirm', expect.any(Object)));
+  const builderInputs = wallet.createTransaction.mock.calls[0][0];
+  expect(builderInputs).toEqual([replacement]);
+  for (const stale of [...selected, unselected]) expect(builderInputs).not.toContainEqual(stale);
+  const review = mockNavigation.navigate.mock.calls.find(([name]) => name === 'Confirm')[1];
+  expect(review.recipients[0].value).toBe(50000 - estimate.fee);
+});
+test('changing the selected coins after MAX is armed recomputes the amount from the new set only', async () => {
+  const view = await screen();
+  await chooseMax(view);
+  const narrowed = [selected[0]];
+  mockRoute.params = { ...mockRoute.params, utxos: narrowed };
+  view.rerender(<SendDetails />);
+  await act(async () => {});
+  const estimate = wallet.coinselect(narrowed, [{ address: ADDRESS }], 1);
+  await waitFor(() => expect(mockAmountProps.maxSendableAmount).toBe(100000 - estimate.fee));
+  fireEvent.press(view.getByTestId('CreateTransactionButton'));
+  await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('Confirm', expect.any(Object)));
+  const builderInputs = wallet.createTransaction.mock.calls[0][0];
+  expect(builderInputs).toEqual(narrowed);
+  expect(builderInputs).not.toContainEqual(selected[1]);
+  expect(builderInputs).not.toContainEqual(unselected);
+});
+test('a changed fee rate before review makes MAX subtract the actual current fee', async () => {
+  const view = await screen();
+  await chooseMax(view);
+  const lowFee = wallet.coinselect(selected, [{ address: ADDRESS }], 1).fee;
+  expect(mockAmountProps.maxSendableAmount).toBe(300000 - lowFee);
+  // the fee screen returns a custom rate through route params
+  mockRoute.params = { ...mockRoute.params, selectedFeeRate: '25', selectedFeeType: NetworkTransactionFeeType.CUSTOM };
+  view.rerender(<SendDetails />);
+  await act(async () => {});
+  const highFee = wallet.coinselect(selected, [{ address: ADDRESS }], 25).fee;
+  expect(highFee).toBeGreaterThan(lowFee);
+  await waitFor(() => expect(mockAmountProps.maxSendableAmount).toBe(300000 - highFee));
+  fireEvent.press(view.getByTestId('CreateTransactionButton'));
+  await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('Confirm', expect.any(Object)));
+  expect(wallet.createTransaction).toHaveBeenCalledWith(selected, [{ address: ADDRESS }], 25, CHANGE, expect.any(Number), false, 0);
+  const review = mockNavigation.navigate.mock.calls.find(([name]) => name === 'Confirm')[1];
+  expect(review.satoshiPerByte).toBe(25);
+  expect(review.recipients[0].value).toBe(300000 - highFee);
+});
+test('watch-only MAX prepares an unsigned review for the selected coins only', async () => {
+  // Public account key only (no seed, no signing key); the builder is stubbed at the unsigned review boundary.
+  const watch = new WatchOnlyWallet();
+  watch.setSecret('zpub6r7jhKKm7BAVx3b3nSnuadY1WnshZYkhK8gKFoRLwK9rF3Mzv28BrGcCGA3ugGtawi1WLb2vyjQAX9ZTDGU5gNk2bLdTc3iEXr6tzR1ipNP');
+  watch.init();
+  watch.getID = () => 'public-max-watch-only';
+  const address = watch._getExternalAddressByIndex(0);
+  const changeAddress = watch._getInternalAddressByIndex(0);
+  const coins = [
+    { txid: '55'.repeat(32), vout: 0, value: 120000, address },
+    { txid: '66'.repeat(32), vout: 1, value: 80000, address },
+  ];
+  const other = { txid: '77'.repeat(32), vout: 0, value: 5000000, address };
+  watch.getBalance = () => 5200000;
+  watch.getUtxo = () => [...coins, other];
+  watch.fetchUtxo = jest.fn().mockResolvedValue(undefined);
+  watch.getChangeAddressAsync = jest.fn().mockResolvedValue(changeAddress);
+  const unsignedReview = { toBase64: () => 'public-unsigned-review-only' };
+  watch.createTransaction = jest.fn((inputs, targets, rate) => {
+    const { outputs, fee } = watch.coinselect(inputs, targets, rate);
+    return { outputs, fee, psbt: unsignedReview, tx: { getId: () => 'public-test-id', toHex: () => 'unsigned' } };
+  });
+  mockStorage.wallets = [watch];
+  mockRoute.params = { ...mockRoute.params, walletID: watch.getID(), utxos: coins };
+  const view = await screen();
+  await chooseMax(view);
+  const estimate = watch.coinselect(coins, [{ address: ADDRESS }], 1);
+  expect(mockAmountProps.maxSendableAmount).toBe(200000 - estimate.fee);
+  fireEvent.press(view.getByTestId('CreateTransactionButton'));
+  await waitFor(() => expect(mockNavigation.navigate).toHaveBeenCalledWith('PsbtWithHardwareWallet', expect.any(Object)));
+  expect(watch.createTransaction.mock.calls[0][0]).toEqual(coins);
+  expect(watch.createTransaction.mock.calls[0][0]).not.toContainEqual(other);
+  // the review goes to the external signer; nothing is offered for broadcast
+  expect(mockNavigation.navigate).not.toHaveBeenCalledWith('Confirm', expect.anything());
+  expect(mockNavigation.navigate.mock.calls.find(([name]) => name === 'PsbtWithHardwareWallet')[1].psbt).toBe(unsignedReview);
 });
