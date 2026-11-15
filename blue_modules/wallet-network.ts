@@ -3,12 +3,16 @@ import * as BtcElectrum from './BtcElectrum';
 import { formatBalance } from '../loc';
 import { BitcoinUnit } from '../models/bitcoinUnits';
 
-type WalletIdentity = { type: string; getID(): string };
+type WalletIdentity = {
+  type: string;
+  getID(): string;
+  getElectrum?: () => Pick<typeof BlueElectrum, keyof ReturnType<typeof BtcElectrum.forWallet>>;
+};
 export const isBtcWallet = (wallet?: { type: string } | null): boolean =>
   wallet?.type === 'HDsegwitBech32BTC' || wallet?.type === 'watchOnlyBTC';
 export const walletTicker = (wallet?: { type: string } | null): 'BTC' | 'XBT' => (isBtcWallet(wallet) ? 'BTC' : 'XBT');
 export const walletElectrum = (wallet?: WalletIdentity | null) =>
-  isBtcWallet(wallet) && wallet ? BtcElectrum.forWallet(wallet.getID()) : BlueElectrum;
+  isBtcWallet(wallet) && wallet ? (wallet.getElectrum?.() ?? BtcElectrum.forWallet(wallet.getID())) : BlueElectrum;
 export const selectWalletNetwork = (wallet?: WalletIdentity | null) =>
   BtcElectrum.selectWallet(isBtcWallet(wallet) ? wallet!.getID() : undefined);
 export const formatWalletBalance = (wallet: { type: string } | null | undefined, sats: number, unit: string, formatted = false) => {

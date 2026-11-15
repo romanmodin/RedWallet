@@ -75,7 +75,9 @@ export class BtcWatchOnlyWallet extends WatchOnlyWallet {
   }
 
   getElectrum() {
-    return BtcElectrum.forWallet(this.getID());
+    return BtcElectrum.forWallet(this.getID(), () =>
+      this._hdWalletInstance instanceof BtcSegwitBech32Wallet ? this._hdWalletInstance.getElectrumAddresses() : [],
+    );
   }
 
   allowSend() {

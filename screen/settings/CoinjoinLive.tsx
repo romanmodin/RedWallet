@@ -54,6 +54,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const [recovered, setRecovered] = useState<Journal[]>([]);
   const [view, setView] = useState<ClientView | undefined>(() => activePool.snapshot()?.view),
     [error, setError] = useState(''),
+    [confirmationError, setConfirmationError] = useState(''),
     [localBusy, setBusy] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [voteOptions, setVoteOptions] = useState<string>();
@@ -83,16 +84,17 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
       // Back detaches only this view. Explicit Stop remains the sole cancellation action.
     };
   }, []);
-  const run = async (action: () => Promise<void>) => {
+  const run = async (action: () => Promise<void>, automatic = false) => {
     if (busy || actionInFlight.current) return;
     actionInFlight.current = true;
     setBusy(true);
-    setError('');
+    if (!automatic) setError('');
+    setConfirmationError('');
     try {
       if (activePool.snapshot()?.client) await activePool.perform(action);
       else await action();
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : 'Action failed');
+      if (mounted.current) (automatic ? setConfirmationError : setError)(e instanceof Error ? e.message : 'Action failed');
     } finally {
       actionInFlight.current = false;
       if (mounted.current) setBusy(false);
@@ -158,19 +160,20 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
         if (await confirmRecoveredRound(chosen, round.poolId)) confirmed = true;
         else pending = true;
       } catch (e) {
-        if (mounted.current) setError(e instanceof Error ? e.message : 'Could not check confirmation');
+        if (mounted.current) setConfirmationError(e instanceof Error ? e.message : 'Could not check confirmation');
       }
     }
     const remaining = await recoverWalletRounds(chosen);
     if (mounted.current) {
       setRecovered(remaining);
-      setConfirmationNotice(
-        confirmed
-          ? 'Previous round confirmed. Recovered outputs remain frozen for review in Coin Control.'
-          : pending
-            ? 'Waiting for blockchain confirmation. Coins remain reserved.'
-            : '',
-      );
+      if (confirmed || pending)
+        setConfirmationNotice(
+          confirmed
+            ? 'Previous round confirmed. Recovered outputs remain frozen for review in Coin Control.'
+            : pending
+              ? 'Waiting for blockchain confirmation. Coins remain reserved.'
+              : '',
+        );
     }
   };
   const checkActiveConfirmation = async () => {
@@ -181,6 +184,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
       setConfirmationNotice(confirmed ? '' : 'Waiting for blockchain confirmation. Coins remain reserved.');
   };
   const chooseWallet = async (chosen: MixingWallet) => {
+    if (wallet !== chosen) setConfirmationNotice('');
     setWallet(chosen);
     setSelected([]);
     setCoins([]);
@@ -198,13 +202,13 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
         current.view?.journal.reviewedId &&
         (current.view.journal.phase === 'uncertain' || (current.view.journal.phase === 'signed' && current.view.broadcastId))
       )
-        run(checkActiveConfirmation);
-    } else if (wallet) {
+        run(checkActiveConfirmation, true);
+    } else if (wallet && recovered.some(round => round.phase === 'uncertain' && round.reviewedId)) {
       run(async () => {
         await refreshRecovered(wallet);
         await wallet.fetchUtxo();
         if (mounted.current) setCoins(wallet.getUtxo());
-      });
+      }, true);
     }
   };
   useEffect(() => {
@@ -261,7 +265,7 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
   const progress = session && journal ? coinjoinProgress(session, journal) : undefined;
   const timing = session && journal ? roundTiming(session, journal) : undefined;
   const attention = view && (!active?.automatic || view.error) ? roundAttention(view, clock) : undefined;
-  const displayedError = error || view?.error;
+  const displayedError = error || confirmationError || view?.error;
   const issue = displayedError ? coinjoinIssue(displayedError) : undefined;
   const response = session ? closingResponse(session) : undefined;
   const respondToClosing = async (accept: boolean, retry = false) => {
@@ -571,8 +575,8 @@ export default function CoinjoinLive({ experimentalAcknowledged = false }: { exp
             {journal && !['complete', 'aborted'].includes(journal.phase) && (
               <>
                 <SettingsFootnote>
-                  Keep RedWallet open for continuous participation. If your phone suspends it, RedWallet will try to reconnect when you return. A
-                  missed deadline can end the round.
+                  Keep RedWallet open for continuous participation. If your phone suspends it, RedWallet will try to reconnect when you
+                  return. A missed deadline can end the round.
                 </SettingsFootnote>
                 {!!active?.autoIssue && <SettingsFootnote>{active.autoIssue}</SettingsFootnote>}
                 {active?.automatic ? (

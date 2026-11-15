@@ -13,7 +13,14 @@ export class BtcSegwitBech32Wallet extends HDSegwitBech32Wallet {
   readonly typeReadable = BtcSegwitBech32Wallet.typeReadable;
 
   getElectrum() {
-    return BtcElectrum.forWallet(this.getID());
+    return BtcElectrum.forWallet(this.getID(), () => this.getElectrumAddresses());
+  }
+
+  getElectrumAddresses(): string[] {
+    const addresses = [];
+    for (let i = 0; i < this.next_free_address_index + this.gap_limit; i++) addresses.push(this._getExternalAddressByIndex(i));
+    for (let i = 0; i < this.next_free_change_address_index + this.gap_limit; i++) addresses.push(this._getInternalAddressByIndex(i));
+    return addresses;
   }
 
   allowRBF() {
@@ -48,10 +55,7 @@ export class BtcSegwitBech32Wallet extends HDSegwitBech32Wallet {
   async fetchTransactions() {
     const backend = this.getElectrum();
     if (!(await backend.ensureConnected())) throw new Error('Select the blue BTC wallet to refresh Bitcoin.');
-    const addresses = [];
-    for (let i = 0; i < this.next_free_address_index + this.gap_limit; i++) addresses.push(this._getExternalAddressByIndex(i));
-    for (let i = 0; i < this.next_free_change_address_index + this.gap_limit; i++) addresses.push(this._getInternalAddressByIndex(i));
-    const histories = await backend.multiGetHistoryByAddress(addresses);
+    const histories = await backend.multiGetHistoryByAddress(this.getElectrumAddresses());
     await super.fetchTransactions();
     // The shared cache stops refetching settled transactions after seven blocks.
     // Keep BTC confirmations current so coinbase funds can reach maturity at 100.

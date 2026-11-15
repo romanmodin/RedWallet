@@ -5,7 +5,8 @@ import Avatar from '../../components/Avatar';
 import Badge from '../../components/Badge';
 import Icon from '../../components/Icon';
 import { Animated, ActivityIndicator, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import debounce from '../../blue_modules/debounce';
+import presentAlert from '../../components/Alert';
+import { availableCoinSelection } from '../../blue_modules/coin-control-selection';
 import { TWallet, Utxo } from '../../class/wallets/types';
 import { FButton, FContainer } from '../../components/FloatButtons';
 import SafeArea from '../../components/SafeArea';
@@ -193,19 +194,6 @@ const CoinControl: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [selected, setSelected] = useState<string[]>([]);
 
-  // save frozen status. Because effect called on each event, debounce it.
-  const debouncedSaveFronen = useRef(
-    debounce(async frzn => {
-      utxos.forEach(({ txid, vout }) => {
-        wallet.setUTXOMetadata(txid, vout, { frozen: frzn.includes(`${txid}:${vout}`) });
-      });
-      await saveToDisk();
-    }, 500),
-  );
-  useEffect(() => {
-    debouncedSaveFronen.current(frozen);
-  }, [frozen]);
-
   useEffect(() => {
     (async () => {
       try {
@@ -249,7 +237,7 @@ const CoinControl: React.FC = () => {
     if (utxos.length === 0) return '';
     if (selected.length === 0) return loc.cc.tip;
     const summ = selected.reduce((prev, curr) => {
-      return prev + (utxos.find(({ txid, vout }) => `${txid}:${vout}` === curr) as Utxo).value;
+      return prev + (utxos.find(({ txid, vout }) => `${txid}:${vout}` === curr)?.value ?? 0);
     }, 0);
     const value = formatWalletBalance(wallet, summ, wallet.getPreferredBalanceUnit(), true);
     return loc.formatString(loc.cc.selected_summ, { value });
@@ -266,15 +254,36 @@ const CoinControl: React.FC = () => {
 
   const handleChoose = (item: Utxo) => navigation.navigate('CoinControlOutput', { walletID, utxo: item });
 
-  const handleUseCoin = (u: Utxo[]) => {
-    goFromCoinControlToSendDetails(navigation, walletID, u);
+  const handleUseCoin = async (u: Utxo[]) => {
+    try {
+      await saveToDisk();
+      goFromCoinControlToSendDetails(navigation, walletID, availableCoinSelection(wallet, u));
+    } catch (e) {
+      presentAlert({
+        message: e instanceof Error ? e.message : 'Could not use these coins.',
+      });
+    }
   };
 
-  const handleMassFreeze = () => {
-    if (allFrozen) {
-      setFrozen(f => f.filter(i => !selected.includes(i))); // unfreeze
-    } else {
-      setFrozen(f => [...new Set([...f, ...selected])]); // freeze
+  const handleMassFreeze = async () => {
+    // Update only the user's selection, synchronously. A delayed whole-list write
+    // could undo a freeze applied by CoinJoin or another screen.
+    const outputs = utxos.filter(({ txid, vout }) => selected.includes(`${txid}:${vout}`));
+    // Honor the displayed action; an external freeze must not turn Freeze into Unfreeze.
+    const freeze = !allFrozen;
+    outputs.forEach(out => wallet.setUTXOMetadata(out.txid, out.vout, { frozen: freeze }));
+    setFrozen(
+      wallet
+        .getUtxo(true)
+        .filter(out => wallet.getUTXOMetadata(out.txid, out.vout).frozen)
+        .map(({ txid, vout }) => `${txid}:${vout}`),
+    );
+    try {
+      await saveToDisk();
+    } catch (e) {
+      presentAlert({
+        message: e instanceof Error ? e.message : 'Could not save coin settings.',
+      });
     }
   };
 

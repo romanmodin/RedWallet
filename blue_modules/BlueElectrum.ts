@@ -103,7 +103,7 @@ export const validateBackupConfiguration = validateBackupServers;
 const ELECTRUM_CONNECTION_DISABLED = 'electrum_disabled';
 // RedWallet must be configured with an XBT-compatible Electrum server.
 // Do not ship Bitcoin public peers or silently fall back to a different chain.
-const DEFAULT_SERVER_DECLINED = 'electrum_default_server_declined';
+export const DEFAULT_SERVER_DECLINED = 'electrum_default_server_declined';
 export const hardcodedPeers: Peer[] = [];
 export const suggestedServers: Peer[] = XBT_ELECTRUM_PRESETS.map(peer => ({ ...peer }));
 
@@ -240,6 +240,7 @@ export const getPreferredServer = async (): Promise<ElectrumServerItem | undefin
       sslPort,
     });
 
+    if (await DefaultPreference.get(DEFAULT_SERVER_DECLINED)) return;
     if (!host) {
       if (!tcpPort && !sslPort && !tlsCa && !(await DefaultPreference.get(DEFAULT_SERVER_DECLINED))) {
         return { ...XBT_ELECTRUM_PRESETS[0] };
@@ -260,16 +261,18 @@ export const getPreferredServer = async (): Promise<ElectrumServerItem | undefin
 };
 
 export const removePreferredServer = async () => {
+  forceDisconnect();
   try {
     await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
-    console.log('[electrum] Removing preferred server');
+    // Persist the opt-out first so partial removal cannot reconnect or fall back.
     await DefaultPreference.set(DEFAULT_SERVER_DECLINED, '1');
+    await DefaultPreference.clear(ELECTRUM_BACKUP_SERVERS);
     await DefaultPreference.clear(ELECTRUM_HOST);
     await DefaultPreference.clear(ELECTRUM_TCP_PORT);
     await DefaultPreference.clear(ELECTRUM_SSL_PORT);
     await DefaultPreference.clear(ELECTRUM_TLS_CA);
-  } catch (error) {
-    console.error('[electrum] Error in removePreferredServer:', error);
+  } finally {
+    forceDisconnect();
   }
 };
 
@@ -322,6 +325,7 @@ async function getSavedPeer(): Promise<Peer | null> {
 
     console.log('[electrum] Getting saved peer:', { host, tcpPort, sslPort });
 
+    if (await DefaultPreference.get(DEFAULT_SERVER_DECLINED)) return null;
     if (!host) {
       if (!tcpPort && !sslPort && !tlsCa && !(await DefaultPreference.get(DEFAULT_SERVER_DECLINED))) {
         return { ...XBT_ELECTRUM_PRESETS[0] };
@@ -671,6 +675,7 @@ export async function ensureConnected(opts: EnsureConnectedOptions = {}): Promis
 
 export async function presentResetToDefaultsAlert(): Promise<boolean> {
   const hasPreferredServer = await getPreferredServer();
+  const defaultDeclined = await DefaultPreference.get(DEFAULT_SERVER_DECLINED);
   const serverHistoryStr = await DefaultPreference.get(ELECTRUM_SERVER_HISTORY);
   const serverHistory = typeof serverHistoryStr === 'string' ? JSON.parse(serverHistoryStr) : [];
   return new Promise(resolve => {
@@ -678,7 +683,7 @@ export async function presentResetToDefaultsAlert(): Promise<boolean> {
 
     const buttons: AlertButton[] = [];
 
-    if (hasPreferredServer?.host && (hasPreferredServer.tcp || hasPreferredServer.ssl)) {
+    if (defaultDeclined || (hasPreferredServer?.host && (hasPreferredServer.tcp || hasPreferredServer.ssl))) {
       buttons.push({
         text: loc.settings.electrum_reset,
         onPress: async () => {
@@ -690,8 +695,11 @@ export async function presentResetToDefaultsAlert(): Promise<boolean> {
             await DefaultPreference.clear(ELECTRUM_SSL_PORT);
             await DefaultPreference.clear(ELECTRUM_TLS_CA);
             await DefaultPreference.clear(ELECTRUM_TCP_PORT);
+            await DefaultPreference.clear(DEFAULT_SERVER_DECLINED);
           } catch (e) {
-            console.log('[electrum]', e); // Must be running on Android
+            console.log('[electrum]', e);
+            resolve(false);
+            return;
           }
           resolve(true);
         },
@@ -712,8 +720,11 @@ export async function presentResetToDefaultsAlert(): Promise<boolean> {
             await DefaultPreference.clear(ELECTRUM_SSL_PORT);
             await DefaultPreference.clear(ELECTRUM_TLS_CA);
             await DefaultPreference.clear(ELECTRUM_TCP_PORT);
+            await DefaultPreference.clear(DEFAULT_SERVER_DECLINED);
           } catch (e) {
-            console.log('[electrum]', e); // Must be running on Android
+            console.log('[electrum]', e);
+            resolve(false);
+            return;
           }
           resolve(true);
         },
