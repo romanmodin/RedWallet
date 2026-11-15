@@ -67,14 +67,15 @@ it('uses one opaque handle, preserves CR and asks the native writer to append LF
   await expect(stream.readLine()).rejects.toThrow('unavailable');
 });
 
-it('cancels during entropy acquisition without starting native Tor', async () => {
+it('cancels promptly during entropy acquisition without starting native Tor', async () => {
   const entropy = deferred<Buffer>();
   (randomBytes as jest.Mock).mockReturnValue(entropy.promise);
   const f = fixture();
   const opening = f.open();
   f.controller.abort();
-  entropy.resolve(Buffer.alloc(16));
   await expect(opening).rejects.toThrow('unavailable');
+  entropy.resolve(Buffer.alloc(16));
+  await turns();
   expect(f.bridge.joinblaket).not.toHaveBeenCalled();
 });
 

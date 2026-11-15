@@ -43,18 +43,34 @@ export function createIosDirectoryTransport(
         signal.aborted
       )
         throw failure();
-      const id = Buffer.from(await randomBytes(16)).toString('hex');
-      if (signal.aborted) throw failure();
-      let closed = false,
+      let id: string | undefined;
+      let started = false,
+        closed = false,
         reading = false,
         writing = false;
-      let rejectClosed: (reason: Error) => void = () => {};
-      const cancelled = new Promise<never>((_resolve, reject) => {
-        rejectClosed = reject;
-      });
-      // A stream can close while no operation is awaiting this signal.
-      cancelled.catch(() => {});
+      // Each completed operation removes its abort handler. A shared never-settling
+      // Promise.race signal would retain one reaction for every received frame.
+      const waiters = new Set<() => void>();
+      const cancellable = <T>(operation: Promise<T>): Promise<T> =>
+        new Promise((resolve, reject) => {
+          let settled = false;
+          const finish = (error: unknown, value?: T) => {
+            if (settled) return;
+            settled = true;
+            waiters.delete(abort);
+            if (error !== undefined) reject(error);
+            else resolve(value as T);
+          };
+          const abort = () => finish(failure());
+          waiters.add(abort);
+          operation.then(
+            value => finish(undefined, value),
+            error => finish(error ?? failure()),
+          );
+          if (closed) abort();
+        });
       const nativeClose = () => {
+        if (!started || !id) return;
         try {
           Promise.resolve(bridge.joinblaket('close', id, '')).catch(() => {});
         } catch {}
@@ -63,7 +79,7 @@ export function createIosDirectoryTransport(
         if (closed) return;
         closed = true;
         signal.removeEventListener('abort', close);
-        rejectClosed(failure());
+        for (const abort of [...waiters]) abort();
         nativeClose();
       };
       signal.addEventListener('abort', close, { once: true });
@@ -72,6 +88,10 @@ export function createIosDirectoryTransport(
       if (closed) throw failure();
       const timer = setTimeout(close, OPEN_TIMEOUT);
       try {
+        const entropy = await cancellable(randomBytes(16));
+        if (closed || !(entropy instanceof Uint8Array) || entropy.length !== 16) throw failure();
+        id = Buffer.from(entropy).toString('hex');
+        started = true;
         const opening = Promise.resolve(bridge.joinblaket('open', id, ''));
         // Even a native implementation that finishes opening after cancellation is explicitly closed.
         opening.then(
@@ -80,7 +100,7 @@ export function createIosDirectoryTransport(
           },
           () => {},
         );
-        await Promise.race([opening, cancelled]);
+        await cancellable(opening);
         if (closed) throw failure();
       } catch {
         close();
@@ -90,9 +110,9 @@ export function createIosDirectoryTransport(
       }
 
       const call = async (action: 'read' | 'write', value: string): Promise<unknown> => {
-        if (closed) throw failure();
+        if (closed || !id) throw failure();
         try {
-          const result = await Promise.race([bridge.joinblaket(action, id, value), cancelled]);
+          const result = await cancellable(bridge.joinblaket(action, id, value));
           if (closed) throw failure();
           return result;
         } catch {
