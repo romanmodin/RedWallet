@@ -38,6 +38,11 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
   and requires an independently established chain anchor. It rechecks the anchored tip after lookup.
   This adapter has no live transport or anchor provider yet. Inclusion is proven; unspent status still
   relies on the selected Electrum server, and this is not a full chain-consensus validator.
+- Strict session message codecs match pinned fill, ioauth and encrypted signature vectors. Incoming
+  messages must match the expected maker, recipient and state command; the protocol does not sign the
+  command itself, so a session controller must enforce ordering. Maker input authorization verifies
+  control of the NaCl key through an input key, duplicate/overlapping inputs, chain-proven amounts,
+  metadata, dust/change, output types and a stable chain view before returning a transaction part.
 - CSPRNG-shuffled transaction construction with exact maker/taker accounting, dust included in the
   total cost, fee-ceiling enforcement, ownership metadata and fully verified witness assembly.
   With the shuffle held fixed for testing, the unsigned bytes, signed bytes and txid exactly
@@ -55,8 +60,11 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
 - Local recipient/coin preflight: one hot XBT P2WPKH payment, one available proof coin with
   at least five confirmations and at least 20% of the payment. This does not prove chain state.
 - Serialized commitment consumption with durable-save-before-reveal, backup union, strict
-  corruption rejection and the Android-compatible used/external JSON shape.
-  Storage integration must use one instance per wallet plus appropriate cross-process locking.
+  corruption rejection and the Android-compatible used/external JSON shape. BlueApp now caches one
+  store per active wallet and persists commitment metadata through strict saveToDisk(true), sharing
+  the CoinJoin write lock. Compare-and-swap rejects stale adapters; failed writes roll back, and
+  wallet removal/identity change prevents revelation. Full wallet serialization preserves history;
+  a mnemonic-only backup does not. Explicit backup-import UI and controller wiring remain pending.
 - The existing locked @noble/curves 2.0.1 is now a direct dependency for audited X25519. No new
   version or dependency resolution was introduced.
 
