@@ -93,7 +93,7 @@ describe('JoinBlaket PoDLE', () => {
 
     const flip = (b: Buffer, i = 5): Buffer => {
       const copy = Buffer.from(b);
-      copy[i] ^= 1;
+      copy[i] = (copy[i] + 1) % 256;
       return copy;
     };
     assert.strictEqual(verify(good.p, good.p2, flip(good.s, 31), good.e, good.c), false);
@@ -228,8 +228,9 @@ describe('JoinBlaket PoDLE', () => {
     assert.strictEqual(formatUtxoList(refs, false), `${TXID}:0,${TXID}:5`);
     assert.strictEqual(formatUtxoList(refs, true), `${TXID}:0,${TXID}:5:0014${'11'.repeat(20)}:9`);
     assert.throws(() => parseUtxoList(`${TXID}:0,`));
+    assert.throws(() => parseUtxoList(`${TXID}:0,${TXID}:0`), /Duplicate/);
     assert.throws(() => parseUtxoList(`${TXID}:0,,${TXID}:1`));
-    assert.strictEqual(parseUtxoList(new Array(256).fill(`${TXID}:0`).join(',')).length, 256);
+    assert.strictEqual(parseUtxoList(Array.from({ length: 256 }, (_, i) => `${TXID}:${i}`).join(',')).length, 256);
     assert.throws(() => parseUtxoList(new Array(257).fill(`${TXID}:0`).join(',')), /Too many/);
     assert.throws(() => parseUtxoList('1,'.repeat(200_000)));
   });
@@ -248,7 +249,7 @@ describe('JoinBlaket PoDLE', () => {
     assert.strictEqual(bindsTo(p, Buffer.concat([hex('a914'), Buffer.from(crypto.hash160(redeem)), hex('87')])), true);
 
     const wrongHash = Buffer.from(spk);
-    wrongHash[10] ^= 1;
+    wrongHash[10] = (wrongHash[10] + 1) % 256;
     assert.strictEqual(bindsTo(p, wrongHash), false);
     assert.strictEqual(bindsTo(hex(podle.proofs[1].P2), spk), false);
     assert.strictEqual(bindsTo(p, Buffer.concat([hex('0020'), h160, Buffer.alloc(12)])), false);

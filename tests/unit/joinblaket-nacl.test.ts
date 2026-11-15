@@ -26,9 +26,7 @@ describe('JoinBlaket NaCl crypto_box', () => {
 
       const a = new Box(hex(v.sk_a), hex(v.pk_b));
       const b = new Box(hex(v.sk_b), hex(v.pk_a));
-      const key = a.exportSharedKeyForTest();
-      assert.strictEqual(key.toString('hex'), v.shared);
-      assert.strictEqual(b.exportSharedKeyForTest().toString('hex'), v.shared);
+      assert.strictEqual(hsalsa20(hex(v.x25519), Buffer.alloc(16)).toString('hex'), v.shared);
 
       const sealed = secretboxSeal(hex(v.shared), hex(v.nonce), hex(v.msg));
       assert.strictEqual(sealed.toString('hex'), v.box);
@@ -36,7 +34,7 @@ describe('JoinBlaket NaCl crypto_box', () => {
       assert.strictEqual(secretboxOpen(hex(v.shared), hex(v.nonce), sealed)?.toString('hex'), v.msg);
 
       const wire = a.seal(hex(v.msg), hex(v.nonce)).toString('base64');
-      if (wire.length <= 4096) assert.strictEqual(b.decrypt(wire).toString('hex'), v.msg);
+      assert.strictEqual(b.decrypt(wire).toString('hex'), v.msg);
       a.destroy();
       b.destroy();
     }
@@ -55,13 +53,12 @@ describe('JoinBlaket NaCl crypto_box', () => {
     assert.strictEqual(publicKey(hex(e.maker_private)).toString('hex'), e.maker_public);
     const taker = new Box(hex(e.taker_private), hex(e.maker_public));
     const maker = new Box(hex(e.maker_private), hex(e.taker_public));
-    assert.strictEqual(taker.exportSharedKeyForTest().toString('hex'), e.shared_key);
-    assert.strictEqual(maker.exportSharedKeyForTest().toString('hex'), e.shared_key_maker_side);
+    assert.strictEqual(e.shared_key, e.shared_key_maker_side);
 
-    const wire = await taker.encrypt(e.plaintext, hex(e.nonce));
+    const wire = taker.seal(Buffer.from(e.plaintext), hex(e.nonce)).toString('base64');
     assert.strictEqual(wire, e.wire_b64);
     assert.strictEqual(maker.decryptString(e.wire_b64), e.decrypted_by_maker);
-    assert.strictEqual(await maker.encrypt(e.reply_plaintext, hex(e.reply_nonce)), e.reply_wire_b64);
+    assert.strictEqual(maker.seal(Buffer.from(e.reply_plaintext), hex(e.reply_nonce)).toString('base64'), e.reply_wire_b64);
     assert.strictEqual(taker.decryptString(e.reply_wire_b64), e.reply_plaintext);
   });
 
@@ -110,7 +107,7 @@ describe('JoinBlaket NaCl crypto_box', () => {
     const raw = Buffer.from(e.wire_b64, 'base64');
     for (const index of [0, 23, 24, 39, 40, raw.length - 1]) {
       const bad = Buffer.from(raw);
-      bad[index] ^= 0x01;
+      bad[index] = (bad[index] + 1) % 256;
       assert.throws(() => maker.decrypt(bad.toString('base64')), /authentication failed/);
     }
     assert.throws(() => maker.decrypt(raw.subarray(0, raw.length - 1).toString('base64')), /authentication failed/);
@@ -129,7 +126,7 @@ describe('JoinBlaket NaCl crypto_box', () => {
     assert.throws(() => maker.decrypt(wire.slice(0, 4) + '\n' + wire.slice(4)), /base64/);
     assert.throws(() => maker.decrypt(wire.replace(/\+/g, '-').replace(/\//g, '_')), /base64/);
     assert.throws(() => maker.decrypt(''), /base64/);
-    assert.throws(() => maker.decrypt('A'.repeat(4097)), /base64/);
+    assert.throws(() => maker.decrypt('A'.repeat(64057)), /base64/);
     assert.throws(() => maker.decrypt(4 as unknown as string), /base64/);
     // Non-zero trailing bits in the final quantum are noncanonical.
     const padded = Buffer.from([1, 2, 3, 4, 5]).toString('base64');
@@ -150,20 +147,17 @@ describe('JoinBlaket NaCl crypto_box', () => {
     }
     await assert.rejects(taker.encrypt('\ud800'));
     await assert.rejects(taker.encrypt('a\udc00b'));
-    const ok = await taker.encrypt('h\u00e9llo \u20bf \ud83d\ude00', nonce);
+    const ok = await taker.encrypt('h\u00e9llo \u20bf \ud83d\ude00');
     assert.strictEqual(maker.decryptString(ok), 'h\u00e9llo \u20bf \ud83d\ude00');
   });
 
   it('wipes key material on destroy and does not serialize secrets', () => {
     const e = vectors.encryption;
     const box = new Box(hex(e.taker_private), hex(e.maker_public));
-    const copy = box.exportSharedKeyForTest();
-    assert.strictEqual(copy.toString('hex'), e.shared_key);
-    assert.strictEqual(JSON.stringify(box), '{}');
-    assert.ok(!JSON.stringify(box).includes(e.shared_key));
+    assert.throws(() => JSON.stringify(box), /serialized/);
+    assert.deepStrictEqual(Object.keys(box), []);
     box.destroy();
     box.destroy();
-    assert.throws(() => box.exportSharedKeyForTest(), /destroyed/);
     assert.throws(() => box.seal(Buffer.from('x'), hex(e.nonce)), /destroyed/);
     assert.throws(() => box.decrypt(e.wire_b64), /destroyed/);
   });
@@ -185,7 +179,7 @@ describe('JoinBlaket NaCl crypto_box', () => {
     const secretView = new Uint8Array(backing.buffer, backing.byteOffset + 3, 32);
     const publicView = new Uint8Array(backing.buffer, backing.byteOffset + 35, 32);
     const box = new Box(secretView, publicView);
-    assert.strictEqual(box.exportSharedKeyForTest().toString('hex'), e.shared_key);
+    assert.strictEqual(box.seal(Buffer.from(e.plaintext), hex(e.nonce)).toString('base64'), e.wire_b64);
     const wire = Buffer.from(e.wire_b64, 'base64');
     const plainView = new Uint8Array(wire);
     assert.ok(!Buffer.isBuffer(plainView));

@@ -34,13 +34,18 @@ function sha256Buf(...parts: Uint8Array[]): Buffer {
   return Buffer.from(sha256(Buffer.concat(parts)));
 }
 function hmacSha256(key: Uint8Array, ...parts: Uint8Array[]): Buffer {
-  return Buffer.from(hmac(sha256, key, Buffer.concat(parts)));
+  const data = Buffer.concat(parts);
+  try {
+    return Buffer.from(hmac(sha256, key, data));
+  } finally {
+    data.fill(0);
+  }
 }
 function toBigInt(bytes: Uint8Array): bigint {
   return bytes.length ? BigInt('0x' + Buffer.from(bytes).toString('hex')) : 0n;
 }
 function b32(v: bigint): Buffer {
-  if (v < 0n || v >= 1n << 256n) throw new Error('Scalar out of range');
+  if (v < 0n || v >= 2n ** 256n) throw new Error('Scalar out of range');
   return Buffer.from(v.toString(16).padStart(64, '0'), 'hex');
 }
 function wipe(...buffers: Array<Uint8Array | undefined>): void {
@@ -96,41 +101,45 @@ export function numsPoint(index: number): Buffer {
  * [skip] drops that many valid candidates first (the retry rule). Bounded: throws rather than loops forever.
  */
 export function rfc6979Nonce(x: Uint8Array, hash: Uint8Array, skip: number = 0): Buffer {
-  if (x.length !== 32 || hash.length !== 32 || !Number.isInteger(skip) || skip < 0 || skip > MAX_NONCE_ATTEMPTS) {
+  if (
+    !(x instanceof Uint8Array) ||
+    !(hash instanceof Uint8Array) ||
+    x.length !== 32 ||
+    !ecc.isPrivate(x) ||
+    hash.length !== 32 ||
+    !Number.isInteger(skip) ||
+    skip < 0 ||
+    skip > MAX_NONCE_ATTEMPTS
+  ) {
     throw new Error('Invalid nonce input');
   }
-  const seed = Buffer.concat([b32(toBigInt(x)), b32(toBigInt(hash) % CURVE_N)]);
+  const seed = Buffer.concat([x, b32(toBigInt(hash) % CURVE_N)]);
   let v: Buffer = Buffer.alloc(32, 1);
   let k: Buffer = Buffer.alloc(32, 0);
+  const replace = (old: Buffer, next: Buffer) => {
+    wipe(old);
+    return next;
+  };
   try {
-    k = hmacSha256(k, v, Buffer.from([0]), seed);
-    v = hmacSha256(k, v);
-    k = hmacSha256(k, v, Buffer.from([1]), seed);
-    v = hmacSha256(k, v);
+    k = replace(k, hmacSha256(k, v, Buffer.from([0]), seed));
+    v = replace(v, hmacSha256(k, v));
+    k = replace(k, hmacSha256(k, v, Buffer.from([1]), seed));
+    v = replace(v, hmacSha256(k, v));
     let left = skip;
     for (let draws = 0; draws < MAX_NONCE_ATTEMPTS + skip + 1; draws++) {
-      v = hmacSha256(k, v);
+      v = replace(v, hmacSha256(k, v));
       const c = toBigInt(v);
       if (c !== 0n && c < CURVE_N) {
         if (left === 0) return Buffer.from(v);
         left--;
       }
-      k = hmacSha256(k, v, Buffer.from([0]));
-      v = hmacSha256(k, v);
+      k = replace(k, hmacSha256(k, v, Buffer.from([0])));
+      v = replace(v, hmacSha256(k, v));
     }
     throw new Error('No valid nonce candidate');
   } finally {
     wipe(seed, v, k);
   }
-}
-
-/** The message the deterministic nonce signs: legacy `txid:vout` [utxo], index, P, P2. */
-export function nonceHash(utxo: string, index: number, p: Uint8Array, p2: Uint8Array): Buffer {
-  if (typeof utxo !== 'string' || utxo.length > MAX_UTXO_CHARS) throw new Error('Invalid utxo');
-  const u = Buffer.from(utxo, 'utf8');
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(u.length, 0);
-  return sha256Buf(NONCE_DOMAIN, len, u, Buffer.from([index]), p, p2);
 }
 
 // ---- UTXO references -----------------------------------------------------------------------------------------------
@@ -169,7 +178,9 @@ export function parseUtxo(text: string): UtxoRef {
 
 /** `txid:vout`, or the extended form when [extended] and the ref carries a script and height. */
 export function formatRef(ref: UtxoRef, extended: boolean): string {
-  const legacy = `${ref.txid}:${ref.vout}`;
+  if ((ref.scriptPubKeyHex === undefined) !== (ref.height === undefined)) throw new Error('Incomplete UTXO metadata');
+  parseUtxo(`${ref.txid}:${ref.vout}` + (ref.scriptPubKeyHex === undefined ? '' : `:${ref.scriptPubKeyHex}:${ref.height}`));
+  const legacy = `${ref.txid.toLowerCase()}:${ref.vout}`;
   return extended && ref.scriptPubKeyHex !== undefined && ref.height !== undefined
     ? `${legacy}:${ref.scriptPubKeyHex}:${ref.height}`
     : legacy;
@@ -181,12 +192,29 @@ export function parseUtxoList(text: string): UtxoRef[] {
   if (text === '') return [];
   const items = text.split(',');
   if (items.length > MAX_UTXO_LIST) throw new Error('Too many UTXOs');
-  return items.map(item => parseUtxo(item.trim()));
+  const refs = items.map(item => parseUtxo(item.trim()));
+  if (new Set(refs.map(r => r.txid + ':' + r.vout)).size !== refs.length) throw new Error('Duplicate UTXO');
+  return refs;
 }
 
 /** `format_utxo_list`. */
 export function formatUtxoList(refs: readonly UtxoRef[], extended: boolean): string {
-  return refs.map(r => formatRef(r, extended)).join(',');
+  if (!Array.isArray(refs) || refs.length > MAX_UTXO_LIST) throw new Error('Too many UTXOs');
+  const text = refs.map(r => formatRef(r, extended)).join(',');
+  parseUtxoList(text);
+  return text;
+}
+
+/** The message the deterministic nonce signs: legacy `txid:vout` [utxo], index, P, P2. */
+export function nonceHash(utxo: string, index: number, p: Uint8Array, p2: Uint8Array): Buffer {
+  if (typeof utxo !== 'string' || utxo.length > MAX_UTXO_CHARS) throw new Error('Invalid utxo');
+  const ref = parseUtxo(utxo);
+  if (ref.scriptPubKeyHex !== undefined || !Number.isInteger(index) || index < 0 || index > 255 || !parsePoint(p) || !parsePoint(p2))
+    throw new Error('Invalid PoDLE nonce input');
+  const u = Buffer.from(formatRef(ref, false), 'utf8');
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(u.length, 0);
+  return sha256Buf(NONCE_DOMAIN, len, u, Buffer.from([index]), p, p2);
 }
 
 /** A generated commitment and its opening (public data only). */
@@ -210,6 +238,7 @@ export function commitmentWire(c: Pick<Commitment, 'commitment'>): string {
  * i.e. every JoinBlaket maker) the utxo is the extended `txid:vout:spk:height`.
  */
 export function revelation(c: Commitment, scriptPubKeyHex?: string, height?: number): string {
+  if ((scriptPubKeyHex === undefined) !== (height === undefined)) throw new Error('Incomplete revelation metadata');
   let u = c.utxo;
   if (scriptPubKeyHex !== undefined && height !== undefined) {
     u = formatRef(parseUtxo(`${c.utxo}:${scriptPubKeyHex}:${height}`), true);
@@ -237,6 +266,7 @@ export function generate(x: Uint8Array, utxo: string, index: number): Commitment
     const h = nonceHash(legacy, index, p, p2);
     const xInt = toBigInt(xCopy);
     for (let attempt = 0; attempt < MAX_NONCE_ATTEMPTS; attempt++) {
+      wipe(nonceK);
       nonceK = rfc6979Nonce(xCopy, h, attempt);
       const kg = pubkey(nonceK);
       const kj = mul(j, nonceK);
@@ -287,7 +317,8 @@ export function verify(
       e.length !== 32 ||
       commitment.length !== 32 ||
       !Array.isArray(indices) ||
-      indices.length > MAX_INDICES
+      indices.length > MAX_INDICES ||
+      indices.some(i => !Number.isInteger(i) || i < 0 || i > 255)
     ) {
       return false;
     }
@@ -359,13 +390,13 @@ export function bindsTo(p: Uint8Array, scriptPubKey: Uint8Array): boolean {
   if (!(p instanceof Uint8Array) || !(scriptPubKey instanceof Uint8Array) || !parsePoint(p)) return false;
   const h = Buffer.from(crypto.hash160(Buffer.from(p)));
   const spk = Buffer.from(scriptPubKey);
-  if (spk.length === 22 && spk[0] === 0x00 && spk[1] === 0x14) return spk.subarray(2, 22).equals(h);
+  if (spk.length === 22 && spk[0] === 0x00 && spk[1] === 0x14) return Buffer.from(spk.subarray(2, 22)).equals(h);
   if (spk.length === 25 && spk[0] === 0x76 && spk[1] === 0xa9 && spk[2] === 0x14 && spk[23] === 0x88 && spk[24] === 0xac) {
-    return spk.subarray(3, 23).equals(h);
+    return Buffer.from(spk.subarray(3, 23)).equals(h);
   }
   if (spk.length === 23 && spk[0] === 0xa9 && spk[1] === 0x14 && spk[22] === 0x87) {
     const redeem = Buffer.concat([Buffer.from([0x00, 0x14]), h]);
-    return spk.subarray(2, 22).equals(Buffer.from(crypto.hash160(redeem)));
+    return Buffer.from(spk.subarray(2, 22)).equals(Buffer.from(crypto.hash160(redeem)));
   }
   return false;
 }
