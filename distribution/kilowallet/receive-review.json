@@ -1,0 +1,17 @@
+{
+  "sourceCommit": "68148c8c5741c7b84b37f33322e67273f7208a19",
+  "harnessCommit": "a4bcaff4d6e50190a64c89f83c77e7c03b4933df",
+  "run": 43372119378,
+  "attempt": 1,
+  "artifact": 14013297598,
+  "artifactSha256": "9a588b20e13cd198774a808a2cbadc96e0b84c88f9bccd9b8220356dab42a5bc",
+  "imageHashes": {
+    "screenshots/receive-1/14-receive.png": "c0f80503a6b4a2d0c95f76a64bdd6a660990d026364b0a46a35d0db187463223",
+    "screenshots/receive-2/14-receive.png": "c0f80503a6b4a2d0c95f76a64bdd6a660990d026364b0a46a35d0db187463223"
+  },
+  "allImagesReviewed": true,
+  "receiveScreenApproved": true,
+  "approvedForSigning": false,
+  "notes": "Both actual images manually inspected: readable Receive XBT, identical official synthetic address/path, QR, copy and share controls. Focused receipt supersedes wrong Receive frame only; no blanket full-screen or funded/device approval.",
+  "reviewedAt": "2026-11-13T06:30:39.347215+00:00"
+}

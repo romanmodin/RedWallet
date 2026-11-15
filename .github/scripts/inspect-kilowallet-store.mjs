@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { makeToken } from "./inspect-ios-store.mjs";
 export const APP = "6824331953",
   BUILD = "19c6e86c-079e-4022-9a11-a9ab4f23c3ba";
+export const STORE_VERSION = "1ca23695-4563-4a0e-b20e-d1a6457f4f8b";
 const ROOT = "https://api.appstoreconnect.apple.com";
 class AppleReadError extends Error {
   constructor(status) {
@@ -11,13 +12,16 @@ class AppleReadError extends Error {
   }
 }
 export function readClient(token, request = fetch) {
+  const discovered = new Set();
   return async (path) => {
     const url = new URL(path, ROOT);
     const allowed =
       url.origin === ROOT &&
       !url.username &&
       !url.password &&
-      (url.pathname === "/v1/apps/" + APP ||
+      (discovered.has(url.pathname) ||
+        ["build", "appStoreReviewDetail", "appStoreVersionLocalizations"].some(x => url.pathname === `/v1/appStoreVersions/${STORE_VERSION}/${x}`) ||
+        url.pathname === "/v1/apps/" + APP ||
         url.pathname.startsWith("/v1/apps/" + APP + "/") ||
         url.pathname === "/v1/builds/" + BUILD ||
         (url.pathname === "/v1/appEncryptionDeclarations" &&
@@ -33,7 +37,15 @@ export function readClient(token, request = fetch) {
       headers: { Authorization: "Bearer " + token, Accept: "application/json" },
     });
     if (!response.ok) throw new AppleReadError(response.status);
-    return response.json();
+    const body = await response.json();
+    const children = url.pathname === `/v1/appStoreVersions/${STORE_VERSION}/appStoreVersionLocalizations` ? ["appStoreVersionLocalizations", "appScreenshotSets"]
+      : url.pathname === `/v1/apps/${APP}/appInfos` ? ["appInfos", "appInfoLocalizations"]
+      : discovered.has(url.pathname) && url.pathname.endsWith("/appScreenshotSets") ? ["appScreenshotSets", "appScreenshots"] : null;
+    if (children && Array.isArray(body.data)) for (const item of body.data) {
+      if (item.type !== children[0] || !/^[A-Za-z0-9-]+$/.test(item.id)) throw Error("Unexpected child identity");
+      discovered.add(`/v1/${children[0]}/${item.id}/${children[1]}`);
+    }
+    return body;
   };
 }
 export async function collection(get, path) {
@@ -94,6 +106,35 @@ export async function inspect(get) {
       });
     }
   }
+  await observe("publicReview", async () => {
+    const versions = await collection(get, `/v1/apps/${APP}/appStoreVersions?limit=200`);
+    const version = versions.find(v => v.id === STORE_VERSION);
+    if (version?.attributes?.versionString !== "1.0.0" || version.attributes.platform !== "IOS") throw Error("Wrong store version");
+    const prefix = `/v1/appStoreVersions/${STORE_VERSION}`;
+    const build = (await get(prefix + "/build")).data;
+    const details = (await get(prefix + "/appStoreReviewDetail")).data;
+    const locales = await collection(get, prefix + "/appStoreVersionLocalizations?limit=200");
+    const listing = [];
+    for (const loc of locales) {
+      const sets = await collection(get, `/v1/appStoreVersionLocalizations/${loc.id}/appScreenshotSets?limit=200`);
+      const screenshots = [];
+      for (const set of sets) {
+        const images = await collection(get, `/v1/appScreenshotSets/${set.id}/appScreenshots?limit=200`);
+        screenshots.push({id:set.id, displayType:set.attributes?.screenshotDisplayType, images:images.map(i => ({id:i.id, fileName:i.attributes?.fileName, checksum:i.attributes?.sourceFileChecksum, state:i.attributes?.assetDeliveryState?.state}))});
+      }
+      listing.push({id:loc.id, ...Object.fromEntries(["locale","description","keywords","supportUrl","marketingUrl","whatsNew","promotionalText"].map(k=>[k,loc.attributes?.[k] ?? null])), screenshots});
+    }
+    const infos = await collection(get, `/v1/apps/${APP}/appInfos?limit=200`);
+    const policies = [];
+    for (const info of infos) {
+      const locs = await collection(get, `/v1/appInfos/${info.id}/appInfoLocalizations?limit=200`);
+      policies.push({id:info.id, state:info.attributes?.appStoreState, localizations:locs.map(l=>({id:l.id,locale:l.attributes?.locale,privacyPolicyUrl:l.attributes?.privacyPolicyUrl}))});
+    }
+    return {versionId:STORE_VERSION,state:version.attributes.appStoreState,releaseType:version.attributes.releaseType,
+      selectedBuild:build ? {id:build.id,build:build.attributes?.version,processingState:build.attributes?.processingState}:null,
+      review:{id:details?.id,notes:details?.attributes?.notes ?? null,demoAccountRequired:details?.attributes?.demoAccountRequired ?? null,contactComplete:["contactFirstName","contactLastName","contactEmail","contactPhone"].every(k=>Boolean(details?.attributes?.[k]))},
+      listing,policies,privacyQuestionnaireVerified:false,screenshotPixelsReviewed:false};
+  });
   await observe("encryptionDeclarations", async () =>
     (
       await collection(

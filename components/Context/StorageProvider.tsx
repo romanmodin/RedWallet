@@ -462,7 +462,34 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
 
   const addAndSaveWallet = useCallback(
     async (w: TWallet) => {
-      if (wallets.some(i => i.getID() === w.getID())) {
+      const walletID = w.getID();
+      const importedAccount = w instanceof WatchOnlyWallet && w.hasMasterFingerprint() ? w : undefined;
+      const storedWallets = BlueApp.getWallets();
+      const existing =
+        storedWallets.find(candidate => candidate.getID() === walletID) ??
+        (importedAccount &&
+          storedWallets.find(candidate => candidate instanceof WatchOnlyWallet && candidate.matchesPublicAccount(importedAccount)));
+      if (existing) {
+        if (
+          existing instanceof WatchOnlyWallet &&
+          importedAccount &&
+          !existing.hasMasterFingerprint() &&
+          existing.matchesPublicAccount(importedAccount)
+        ) {
+          const previous = existing.getMasterFingerprint();
+          existing.setMasterFingerprint(importedAccount.getMasterFingerprint());
+          try {
+            await saveToDisk(false, true);
+          } catch {
+            existing.setMasterFingerprint(previous);
+            triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
+            presentAlert({ message: 'Could not save the master fingerprint. Import the public account again.' });
+            return;
+          }
+          triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
+          presentAlert({ message: 'Master fingerprint added to the existing watch-only wallet.' });
+          return;
+        }
         triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
         presentAlert({ message: 'This wallet has been previously imported.' });
         return;
@@ -499,7 +526,7 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) => 
         // Consider if user should be notified of notification setup failure
       }
     },
-    [wallets, addWallet, saveToDisk],
+    [addWallet, saveToDisk],
   );
 
   function confirmWalletDeletion(wallet: any, onConfirmed: () => void) {

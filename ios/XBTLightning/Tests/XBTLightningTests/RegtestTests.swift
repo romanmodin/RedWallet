@@ -277,7 +277,14 @@ final class RegtestTests: XCTestCase {
         let txid = try await RegtestNode.shared.withdraw(token: review.token)
         let received = try await peer("verify-withdraw-large", txid)
         XCTAssertEqual(received, "received-2000000")
+        try await waitForFixtureSync("restored withdrawal confirmed")
         #endif
+        // The restored balance and chain sync can arrive before recovery catches up
+        // to the new blocks. StopDaemon explicitly refuses while recovery is active.
+        try await waitUntil {
+            let recovery = try ProtoFields(await rpc { LndmobileGetRecoveryInfo(Data(), $0) })
+            return recovery.integers[1] != 1 || recovery.integers[2] == 1
+        }
         _ = try await rpc { LndmobileStopDaemon(Data(), $0) }
     }
 

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.kilombino.kilowallet.core.LiveServerTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-11-13T06:30:59.526Z" hostname="XCOM79-Alienware-15-R3" time="93.562">
+  <properties/>
+  <testcase name="scanAgainstDefaultServer[jvm]" classname="com.kilombino.kilowallet.core.LiveServerTest" time="93.562"/>
+  <system-out><![CDATA[Connecting(endpoint=fulcrum.kilombino.com:17717)
+Connected(server=Frigate 1.6.1, height=981764, fingerprint=a41989e4d8156910d66c94dd62627a83fb580c7e558d926eeb9164760f6f10fa)
+Found(row=AddressRow(chainIndex=0, index=0, address=bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu, path=m/84'/0'/0'/0/0, scriptHash=6e4f16236139f15046b38f399a683fb2aa8edf5fd128b3e5db017fb0ac74078a, confirmed=0, unconfirmed=0, txCount=176, type=null))
+Found(row=AddressRow(chainIndex=0, index=1, address=bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g, path=m/84'/0'/0'/0/1, scriptHash=acb101e9312975c11bd7adc75aa91fed37147214218b7dc0343e54b2e863a482, confirmed=0, unconfirmed=0, txCount=6, type=null))
+Found(row=AddressRow(chainIndex=0, index=2, address=bc1qp59yckz4ae5c4efgw2s5wfyvrz0ala7rgvuz8z, path=m/84'/0'/0'/0/2, scriptHash=3607099c964f0aa581316f4d77f9de6101dce7afd3b18e2db287a84225f2fd5d, confirmed=0, unconfirmed=0, txCount=2, type=null))
+Found(row=AddressRow(chainIndex=0, index=3, address=bc1qgl5vlg0zdl7yvprgxj9fevsc6q6x5dmcyk3cn3, path=m/84'/0'/0'/0/3, scriptHash=cfdc38d91b0947995b7a8d65d1f0c42e7e202d090092c87fbb0d843225badfd2, confirmed=0, unconfirmed=0, txCount=2, type=null))
+Found(row=AddressRow(chainIndex=0, index=4, address=bc1qm97vqzgj934vnaq9s53ynkyf9dgr05rargr04n, path=m/84'/0'/0'/0/4, scriptHash=5828594685d9bb1f63bc0ea44f24d9ca309b419ba49efc756677d363892d33c3, confirmed=0, unconfirmed=0, txCount=5, type=null))
+Found(row=AddressRow(chainIndex=0, index=5, address=bc1qnpzzqjzet8gd5gl8l6gzhuc4s9xv0djt0rlu7a, path=m/84'/0'/0'/0/5, scriptHash=67c8df38c9408598dff164e919ccdc8a9e7da7e006942d38c1473e96560f8ef6, confirmed=0, unconfirmed=0, txCount=2, type=null))
+Found(row=AddressRow(chainIndex=0, index=6, address=bc1qtet8q6cd5vqm0zjfcfm8mfsydju0a29ggqrmu9, path=m/84'/0'/0'/0/6, scriptHash=624ceec152b922908ed6838d9bff475302ba4050bdef91e37b5cfae79a09e8df, confirmed=0, unconfirmed=0, txCount=6, type=null))
+Found(row=AddressRow(chainIndex=0, index=7, address=bc1qhxgzmkmwvrlwvlfn4qe57lx2qdfg8phycnsarn, path=m/84'/0'/0'/0/7, scriptHash=5cd4a17ab9c311f7fbfc3ce55f7bb70ae8384e0329271f03ee3de59f66a2c2a6, confirmed=0, unconfirmed=0, txCount=4, type=null))
+Found(row=AddressRow(chainIndex=0, index=8, address=bc1qncdts3qm2guw3hjstun7dd6t3689qg4230jh2n, path=m/84'/0'/0'/0/8, scriptHash=7b9635019b0f685e4328d72fb9ec6722b436ebbedc4bb95e3fbb86512317baf1, confirmed=0, unconfirmed=0, txCount=5, type=null))
+Found(row=AddressRow(chainIndex=0, index=9, address=bc1qgswpjzsqgrm2qkfkf9kzqpw6642ptrgzapvh9y, path=m/84'/0'/0'/0/9, scriptHash=2a330968c40137512fec1121eca09b069bd1627e6bb3a9af1e5999a8fd62a5fb, confirmed=0, unconfirmed=0, txCount=4, type=null))
+Found(row=AddressRow(chainIndex=0, index=10, address=bc1qd30z5a5e50jtgx28rvt64483tq65r9pkj623wh, path=m/84'/0'/0'/0/10, scriptHash=989ed32c65a1d784b930169237e70e0e2c09d8735f488623f04c4ca4fd6165a0, confirmed=0, unconfirmed=0, txCount=2, type=null))
+Found(row=AddressRow(chainIndex=0, index=11, address=bc1qxr4fjkvnxjqphuyaw5a08za9g6qqh65t8qwgum, path=m/84'/0'/0'/0/
+suggested fee rate: 1.01 sat/vB
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -358,6 +358,36 @@ export class WatchOnlyWallet extends LegacyWallet {
     return this.masterFingerprint;
   }
 
+  hasMasterFingerprint() {
+    return Number.isInteger(this.masterFingerprint) && this.masterFingerprint > 0 && this.masterFingerprint <= 0xffffffff;
+  }
+
+  setMasterFingerprint(fingerprint: number) {
+    approvedExternalTransactions.delete(this);
+    pendingSigningRequests.delete(this);
+    this.masterFingerprint = fingerprint;
+  }
+
+  matchesPublicAccount(other: WatchOnlyWallet) {
+    const scriptType = this._hdWalletInstance?.segwitType;
+    if (
+      this.type !== other.type ||
+      !scriptType ||
+      scriptType !== other._hdWalletInstance?.segwitType ||
+      this.getDerivationPath() !== other.getDerivationPath()
+    ) {
+      return false;
+    }
+
+    // A descriptor can encode the same BIP84/BIP86 account with xpub or zpub.
+    const asXpub = (wallet: WatchOnlyWallet) => (wallet.secret.startsWith('zpub') ? wallet._zpubToXpub(wallet.secret) : wallet.secret);
+    try {
+      return asXpub(this) === asXpub(other);
+    } catch {
+      return false;
+    }
+  }
+
   getMasterFingerprintHex() {
     const fingerprint = Buffer.alloc(4);
     fingerprint.writeUInt32LE(this.masterFingerprint);

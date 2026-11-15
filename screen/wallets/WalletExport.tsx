@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { copySensitiveClipboard, clearSensitiveClipboard } from '../../blue_modules/sensitive-clipboard';
 import { useSecretExport } from '../../hooks/useSecretExport';
 import presentAlert from '../../components/Alert';
@@ -27,21 +28,31 @@ type RouteProps = RouteProp<WalletExportStackParamList, 'WalletExport'>;
 
 const HORIZONTAL_PADDING = 20;
 
-const CopyBox: React.FC<{ text: string; onPress: () => void }> = ({ text, onPress }) => {
+const CopyBox: React.FC<{
+  text: string;
+  copied: boolean;
+  onPress: () => void;
+}> = ({ text, copied, onPress }) => {
   const { colors } = useTheme();
   const stylesHook = StyleSheet.create({
     copyRoot: { backgroundColor: colors.lightBorder },
   });
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [pressed && styles.pressed, styles.copyRoot, stylesHook.copyRoot]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={copied ? loc._.copied : loc.transactions.details_copy}
+      testID="WalletExportCopy"
+      style={({ pressed }) => [pressed && styles.pressed, styles.copyRoot, stylesHook.copyRoot]}
+    >
       <View style={styles.copyLeft}>
         <BlueText textBreakStrategy="balanced" style={styles.copyText}>
-          {text}
+          {copied ? loc._.copied : text}
         </BlueText>
       </View>
       <View style={styles.copyRight}>
-        <Icon name="copy" type="font-awesome-6" color={colors.foregroundColor} />
+        <Icon name={copied ? 'check' : 'copy'} type="font-awesome-6" color={colors.foregroundColor} />
       </View>
     </Pressable>
   );
@@ -66,7 +77,10 @@ const WalletExport: React.FC = () => {
   const { colors } = useTheme();
   const wallet = wallets.find(w => w.getID() === walletID)!;
   const authorizeSecretExport = useSecretExport();
-  const [authorized, setAuthorized] = useState(wallet instanceof WatchOnlyWallet);
+  const isPublicExport = wallet instanceof WatchOnlyWallet;
+  const fingerprint = isPublicExport && wallet.hasMasterFingerprint() ? wallet.getMasterFingerprintHex() : undefined;
+  const [authorized, setAuthorized] = useState(isPublicExport);
+  const [copied, setCopied] = useState(false);
   const [qrCodeSize, setQRCodeSize] = useState(90);
   const { enableScreenProtect, disableScreenProtect } = useScreenProtect();
   const { currentAppState, previousAppState } = useAppState();
@@ -83,8 +97,10 @@ const WalletExport: React.FC = () => {
           const path = wallet.getDerivationPath();
           if (path?.startsWith('m/86')) {
             // for taproot watch-only HD we dont just show xpub, we show wallet descriptor
-            const fp = wallet.getMasterFingerprintHex();
-            secret = WalletDescriptor.getDescriptor(fp, path, secret);
+            secret = WalletDescriptor.getDescriptor(fingerprint ?? '00000000', path, secret);
+          } else if (fingerprint && path?.startsWith("m/84'") && wallet.isHd()) {
+            const xpub = secret.startsWith('zpub') ? wallet._zpubToXpub(secret) : secret;
+            secret = WalletDescriptor.getDescriptor(fingerprint, path, xpub);
           }
         } catch (e: any) {
           console.log(e.message);
@@ -95,7 +111,7 @@ const WalletExport: React.FC = () => {
       console.error('Failed to get wallet secret:', error);
       return [];
     }
-  }, [wallet, authorized]);
+  }, [wallet, authorized, fingerprint]);
 
   useEffect(() => {
     let active = true;
@@ -116,7 +132,7 @@ const WalletExport: React.FC = () => {
   }, [wallet]);
 
   useEffect(() => {
-    if (authorized && previousAppState === 'active' && currentAppState !== 'active') {
+    if (!isPublicExport && authorized && previousAppState === 'active' && currentAppState !== 'active') {
       setAuthorized(false);
       clearSensitiveClipboard().catch(() => {});
       disableScreenProtect();
@@ -126,7 +142,7 @@ const WalletExport: React.FC = () => {
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentAppState, previousAppState]);
+  }, [currentAppState, previousAppState, isPublicExport]);
 
   useEffect(() => {
     if (isPrivacyBlurEnabled) {
@@ -155,18 +171,26 @@ const WalletExport: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
   const handleCopy = useCallback(() => {
-    // The displayed secret has already been authenticated for this foreground session.
+    // Private exports have already been authenticated for this foreground session.
     if (!authorized || !secrets[0]) return;
     try {
-      copySensitiveClipboard(secrets[0]);
+      if (isPublicExport) Clipboard.setString(secrets[0]);
+      else copySensitiveClipboard(secrets[0]);
+      setCopied(true);
       triggerHapticFeedback(HapticFeedbackTypes.Selection);
     } catch {
       presentAlert({
-        message: 'Secure clipboard copying is unavailable in this build',
+        message: isPublicExport ? 'Could not copy the public wallet export.' : 'Secure clipboard copying is unavailable in this build',
       });
     }
-  }, [secrets, authorized]);
+  }, [secrets, authorized, isPublicExport]);
 
   const Scroll = useCallback(
     // eslint-disable-next-line react/no-unused-prop-types
@@ -251,7 +275,7 @@ const WalletExport: React.FC = () => {
           <BlueText style={styles.writeText}>
             {wallet.type === LightningCustodianWallet.type ? loc.wallets.copy_ln_url : loc.wallets.copy_ln_public}
           </BlueText>
-          <CopyBox text={secret} onPress={handleCopy} />
+          <CopyBox text={secret} copied={copied} onPress={handleCopy} />
         </>
       )}
 

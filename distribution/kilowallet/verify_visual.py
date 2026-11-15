@@ -2,8 +2,8 @@
 import hashlib,json,sys,zipfile
 from pathlib import Path
 from visual_evidence_audit import validate,FRAMES,SOURCE
-RUN=42234792388
-HARNESS="8314fe533d246b73f20c46f77a9a28b4ae2fa927"
+RUN=43336731222
+HARNESS="1e9ade642e5dac033f48658f23ef35e27616985a"
 def validate_manual(manual,hashes):
     assert manual["sourceCommit"]==SOURCE and manual["run"]==RUN and manual["attempt"]==1
     assert manual["harnessCommit"]==HARNESS
