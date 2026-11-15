@@ -291,7 +291,12 @@ describe('RedWallet UI Tests - no wallets', () => {
     await element(by.text('Yes, I have.')).tap();
     await waitForId('BitcoinAddressQRCode');
     await waitForId('CopyTextToClipboard');
+    // Android's system navigation bar can cover a button that Detox counts as visible.
+    // Scroll to the footer so the action is above the bar before tapping it.
+    await element(by.id('ReceiveDetailsScrollView')).scrollTo('bottom');
+    await expect(element(by.id('SetCustomAmountButton'))).toBeVisible();
     await element(by.id('SetCustomAmountButton')).tap();
+    await waitForId('BitcoinAmountInput');
     await element(by.id('BitcoinAmountInput')).replaceText('1');
     await element(by.id('CustomAmountDescription')).replaceText('test');
     await element(by.id('CustomAmountDescription')).tapReturnKey();
