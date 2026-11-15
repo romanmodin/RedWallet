@@ -161,4 +161,23 @@ jobs:
           bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/xbt-tor-host"
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
           xcrun simctl bootstatus "$device" -b
-          xcodebuild -project "$RUNNER_TEMP/xbt-tor-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/TorSmokeTests test
+          xcodebuild -project "$RUNNER_TEMP/xbt-tor-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/TorSmokeTests/testTorPublicSyncOnionPeerAndFeeFailureWithoutDirectFallback test
+
+  joinblaket-directory:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+        with:
+          ruby-version: '3.4.10'
+          bundler-cache: true
+      - name: Check the live JoinBlaket directory through in-app Tor
+        env:
+          XBT_TOR_SMOKE: '1'
+        run: |
+          set -eo pipefail
+          bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/joinblaket-tor-host"
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
+          xcrun simctl bootstatus "$device" -b
+          xcodebuild -project "$RUNNER_TEMP/joinblaket-tor-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/TorSmokeTests/testJoinBlaketTorDirectoryHandshakeChallenge test

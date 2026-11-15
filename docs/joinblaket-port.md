@@ -121,9 +121,10 @@ Tor routing. Native tests cover fragmented UTF-8, size limits, stale handles and
 The existing iOS Tor smoke job also includes a read-only directory handshake/challenge check; that check
 does not complete nick authentication or send a fill. The first live check at 1883efd88 failed after
 125 seconds; its cancellation error did not identify the original failure stage. The probe now reports
-bootstrap/connection/handshake stages and uses a separately cancellable deadline callback. The later probe at 67aceb48 passed in 52.305 seconds: the real onion accepted the XBT handshake
+bootstrap/connection/handshake stages and uses a separately cancellable deadline callback. The later probes passed at 67aceb48 (52.305 seconds) and 78f5a5e05 (22.829 seconds): the real onion accepted the XBT handshake
 and sent its nick-authentication challenge through the app's Tor on an iPhone simulator. The overall
-job was subsequently cancelled during the separate full LND Tor-sync test. This establishes a live
+jobs were subsequently cancelled during the separate full LND Tor-sync test. The workflow now reports
+the directory probe in its own job, separately from the long-running Lightning sync. This establishes a live
 read-only challenge result, not full nick authentication, a verified market, or a payment.
 
 ## Initial payment confirmation
@@ -131,7 +132,7 @@ read-only challenge result, not full nick authentication, a verified market, or 
 `initial-plan.ts` implements the separate approval that precedes fill/PoDLE disclosure. It selects an
 eligible proof coin first, then confirmed available coins to cover the maker fees and a five-input-per-maker
 mining estimate ceiling. It validates maker/bond certificates, snapshots the validated selection, and binds
-wallet, attempt, directory identity, chain height, recipient, change, selected inputs and fees into the review
+wallet, attempt, directory identity, validated chain height/hash, recipient, change, selected inputs and fees into the review
 identity. The caller still must supply independent chain verification and identify a fresh proof locally.
 
 The displayed maximum includes possible unreturned dust change. A cancellation, changed context, expired

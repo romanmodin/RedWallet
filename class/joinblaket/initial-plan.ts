@@ -10,7 +10,7 @@ import { validatePaymentSnapshot } from './round';
 import { UnsignedPayment } from './transaction';
 
 export type PlanCoin = ProofCoin & Readonly<{ scriptPubKey: string }>;
-export type PlanContext = Readonly<{ walletId: string; attemptId: string; nick: string; tip: number }>;
+export type PlanContext = Readonly<{ walletId: string; attemptId: string; nick: string; tip: number; tipHash: string }>;
 export type PlanRequest = PlanContext &
   PaymentRequest &
   Readonly<{
@@ -75,10 +75,12 @@ function contextOf(value: PlanContext): PlanContext {
     !isValidNick(value.nick) ||
     !Number.isSafeInteger(value.tip) ||
     value.tip <= 0 ||
-    value.tip > 0xffffffff
+    value.tip > 0xffffffff ||
+    typeof value.tipHash !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(value.tipHash)
   )
     throw new Error('Invalid plan context');
-  return Object.freeze({ walletId: value.walletId, attemptId: value.attemptId, nick: value.nick, tip: value.tip });
+  return Object.freeze({ walletId: value.walletId, attemptId: value.attemptId, nick: value.nick, tip: value.tip, tipHash: value.tipHash });
 }
 
 /** Inputs/selection must already come from the wallet and independently verified chain view. */

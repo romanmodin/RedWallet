@@ -30,6 +30,7 @@ function fixture() {
     attemptId: 'a'.repeat(64),
     nick: vectors.offer.taker_nick,
     tip,
+    tipHash: '0f'.repeat(32),
     chain: 'xbt',
     watchOnly: false,
     recipients: [{ address: addr('01'), amount: 100_000 }],
@@ -108,6 +109,7 @@ it('binds recipient, change, inputs, fees and wallet/round/directory context int
     { walletId: 'other' },
     { attemptId: 'b'.repeat(64) },
     { tip: tip + 1 },
+    { tipHash: '0e'.repeat(32) },
     { recipients: [{ address: addr('06'), amount: 100000 }] },
     { changeAddress: addr('07') },
     { feeRate: '3' },
@@ -365,4 +367,11 @@ it('keeps actual wallet cost within the displayed maximum across maker input cou
       expect(() => assertPaymentMatchesPlan(plan, payment)).not.toThrow();
     }
   }
+});
+
+it('rejects a different validated chain hash even when the height is unchanged', async () => {
+  const f = fixture();
+  const token = await approveInitialPlan(f.draft(), async () => true, { isCurrent: f.current });
+  expect(() => takeApprovedPlan(token, { ...f.request, tipHash: '0e'.repeat(32) })).toThrow('stale');
+  expect(() => prepareInitialPlan({ ...f.request, tipHash: '' }, f.selection)).toThrow('context');
 });
