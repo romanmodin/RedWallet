@@ -31,6 +31,7 @@ import {
 import { launchNativeClean } from './launch-native-clean';
 import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
+import { BitcoinUnit } from '../../models/bitcoinUnits';
 import { XBT_ELECTRUM_PRESETS } from '../../class/xbt/electrum-presets';
 import { cpfpNeedsApproval } from '../native/fee-bump-review';
 import { lifecycleFormats } from '../native/lifecycle-formats';
@@ -585,7 +586,9 @@ native('isolated native live wallet stages and final acceptance', () => {
             await nativeExpect(element(by.id('BitcoinAmountInput'))).not.toExist();
             copyFileSync(await device.takeScreenshot('native-max-selected'), path.join(artifactDirectory, 'max-selected.png'));
             assert.deepEqual(await backend.rpc('getrawmempool'), beforeMaxMempool, 'Selecting MAX must not broadcast');
-            await nativeActionOnce('Clear MAX amount tap', () => element(by.text(english.units.MAX)).tap());
+            await nativeActionOnce('Clear MAX amount tap', () => element(by.text(BitcoinUnit.MAX)).tap());
+            await waitForText(english.send.reset_amount_confirm);
+            assert.ok(await dismissAlertByText(english._.yes, 10_000, false), 'Clearing MAX must be confirmed');
             await waitForId('BitcoinAmountInput');
             assert.equal(await nativeText('BitcoinAmountInput'), '0');
             await nativeExpect(element(by.id('SendMaxButton'))).toBeVisible();
