@@ -11,6 +11,9 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
 
 - Exact decimal fee arithmetic and half-even rounding, quantized fee grid, maker fee limits,
   mining fee bounds, and sweep calculation tested against pinned upstream vectors.
+- Strict read-only market parsing and bounded estimates; watcher claims never become verified offers.
+- Maker 0x21 signature verification using RedWallet’s existing unified sighash; checks every maker input,
+  rejects high-S/invalid DER/replayable signatures and mutated prevouts or outputs. This is not plan approval or SPV.
 - Local recipient/coin preflight: one hot XBT P2WPKH payment, one available proof coin with
   at least five confirmations and at least 20% of the payment. This does not prove chain state.
 - Serialized commitment consumption with durable-save-before-reveal, backup union, strict
