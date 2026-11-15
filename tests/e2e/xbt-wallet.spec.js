@@ -98,10 +98,10 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForWalletsList();
     await openReceive('btc-created', true);
     await waitForId('CopyTextToClipboard');
-    await waitFor(element(by.id('SetCustomAmountButton')))
-      .toBeVisible()
-      .whileElement(by.id('ReceiveDetailsScrollView'))
-      .scroll(150, 'down');
+    // Android's system navigation bar can cover a button that Detox counts as visible.
+    // Scroll to the footer so the action is above the bar before tapping it.
+    await element(by.id('ReceiveDetailsScrollView')).scrollTo('bottom');
+    await expect(element(by.id('SetCustomAmountButton'))).toBeVisible();
     await element(by.id('SetCustomAmountButton')).tap();
     await waitForId('BitcoinAmountInput');
     await element(by.id('BitcoinAmountInput')).replaceText('1');
@@ -122,10 +122,10 @@ describe('RedWallet XBT-only release UI', () => {
     await waitForWalletsList();
     await openReceive('xbt-created', true);
     await waitForId('CopyTextToClipboard');
-    await waitFor(element(by.id('SetCustomAmountButton')))
-      .toBeVisible()
-      .whileElement(by.id('ReceiveDetailsScrollView'))
-      .scroll(150, 'down');
+    // Android's system navigation bar can cover a button that Detox counts as visible.
+    // Scroll to the footer so the action is above the bar before tapping it.
+    await element(by.id('ReceiveDetailsScrollView')).scrollTo('bottom');
+    await expect(element(by.id('SetCustomAmountButton'))).toBeVisible();
     await element(by.id('SetCustomAmountButton')).tap();
     await waitForId('BitcoinAmountInput');
     await element(by.id('BitcoinAmountInput')).replaceText('1');
