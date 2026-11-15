@@ -1,3 +1,4 @@
+import { JoinBlaketWalletStore } from './joinblaket/wallet-store';
 import { BtcWatchOnlyWallet } from './wallets/btc-watch-only-wallet';
 import { BtcSegwitBech32Wallet } from './wallets/btc-segwit-bech32-wallet';
 import { isBtcWallet } from '../blue_modules/wallet-network';
@@ -583,6 +584,14 @@ export class BlueApp {
     if (!this.wallets.includes(wallet)) throw new Error('CoinJoin wallet is not in active storage');
     return new WalletJournalStore(wallet, async () => {
       if (!this.wallets.includes(wallet)) throw new Error('CoinJoin wallet was removed');
+      await this.saveToDisk(true);
+    });
+  }
+
+  createJoinBlaketJournalStore(wallet: XbtSegwitBech32Wallet): JoinBlaketWalletStore {
+    if (!this.wallets.includes(wallet)) throw new Error('JoinBlaket wallet is not in active storage');
+    return new JoinBlaketWalletStore(wallet, async () => {
+      if (!this.wallets.includes(wallet)) throw new Error('JoinBlaket wallet was removed');
       await this.saveToDisk(true);
     });
   }

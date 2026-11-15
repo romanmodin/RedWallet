@@ -9,7 +9,7 @@ function hex(text: string): Buffer {
   if (typeof text !== 'string' || !/^(?:[0-9a-f]{2})+$/i.test(text)) throw new Error('Invalid hexadecimal data');
   return Buffer.from(text, 'hex');
 }
-function checkedTransaction(unsignedHex: string, coins: readonly SpentCoin[]): Transaction {
+export function validateUnsignedTransaction(unsignedHex: string, coins: readonly SpentCoin[]): Transaction {
   if (typeof unsignedHex !== 'string' || unsignedHex.length > 200_000 || !coins.length || coins.length > 128)
     throw new Error('Invalid transaction size');
   const tx = Transaction.fromBuffer(hex(unsignedHex));
@@ -34,7 +34,7 @@ function checkedTransaction(unsignedHex: string, coins: readonly SpentCoin[]): T
   return tx;
 }
 export function makerInputDigest(unsignedHex: string, coins: readonly SpentCoin[], index: number, publicKeyHex: string): Buffer {
-  const tx = checkedTransaction(unsignedHex, coins);
+  const tx = validateUnsignedTransaction(unsignedHex, coins);
   if (!Number.isInteger(index) || index < 0 || index >= coins.length) throw new Error('Invalid input index');
   if (typeof publicKeyHex !== 'string' || publicKeyHex.length !== 66) throw new Error('Invalid compressed public key');
   const pub = hex(publicKeyHex);
@@ -71,7 +71,7 @@ export function verifyAllMakerWitnesses(
   owners: readonly string[],
   witnesses: readonly MakerWitness[],
 ): void {
-  checkedTransaction(unsignedHex, coins);
+  validateUnsignedTransaction(unsignedHex, coins);
   if (owners.length !== coins.length || owners.some(o => typeof o !== 'string' || !o || o.length > 128) || !owners.includes('taker'))
     throw new Error('Invalid input ownership');
   const makerIndices = owners.map((o, i) => (o !== 'taker' ? i : -1)).filter(i => i >= 0);
