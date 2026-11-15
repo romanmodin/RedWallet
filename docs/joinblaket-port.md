@@ -84,11 +84,11 @@ complete authenticated exchange through an injected native bridge contract, not 
 The nick verifier now accepts encrypted messages that fit the actual 64 KiB wire limit; its former
 60,000-character cutoff incorrectly rejected a valid maximum-size NaCl message.
 
-Native CI at 67aceb48 passed all seven transport tests, including the embedded CRLF rejection that
+Native CI at 67aceb48 and 78f5a5e05 passed all seven transport tests, including the embedded CRLF rejection that
 failed at 1883efd88. The writer now checks CR/LF bytes directly because Swift treats CRLF as one
-Character. The native wallet regression job and public-node sync also passed at 67aceb48. The integrated
-app simulator build passed at 1883efd88 with this branch's Lightning/Tor bridge enabled; the earlier
-default app build did not include that bridge. These results do not qualify a live directory session.
+Character. The native wallet regression job and public-node sync also passed at both commits. The
+integrated app simulator build passed at 78f5a5e05 with this branch's Lightning/Tor bridge enabled; the
+earlier default app build did not include that bridge. These results do not qualify full nick authentication.
 
 ## Read-only authenticated orderbook
 
@@ -121,8 +121,30 @@ Tor routing. Native tests cover fragmented UTF-8, size limits, stale handles and
 The existing iOS Tor smoke job also includes a read-only directory handshake/challenge check; that check
 does not complete nick authentication or send a fill. The first live check at 1883efd88 failed after
 125 seconds; its cancellation error did not identify the original failure stage. The probe now reports
-bootstrap/connection/handshake stages and uses a separately cancellable deadline callback. Live
-success still must be verified; native unit-test success is not a routing or authentication result.
+bootstrap/connection/handshake stages and uses a separately cancellable deadline callback. The later probe at 67aceb48 passed in 52.305 seconds: the real onion accepted the XBT handshake
+and sent its nick-authentication challenge through the app's Tor on an iPhone simulator. The overall
+job was subsequently cancelled during the separate full LND Tor-sync test. This establishes a live
+read-only challenge result, not full nick authentication, a verified market, or a payment.
+
+## Initial payment confirmation
+
+`initial-plan.ts` implements the separate approval that precedes fill/PoDLE disclosure. It selects an
+eligible proof coin first, then confirmed available coins to cover the maker fees and a five-input-per-maker
+mining estimate ceiling. It validates maker/bond certificates, snapshots the validated selection, and binds
+wallet, attempt, directory identity, chain height, recipient, change, selected inputs and fees into the review
+identity. The caller still must supply independent chain verification and identify a fresh proof locally.
+
+The displayed maximum includes possible unreturned dust change. A cancellation, changed context, expired
+five-minute confirmation, late answer or clock rollback cannot authorize disclosure. Runtime approvals are
+one-use and cannot be recreated from serialized review data. `assertPaymentMatchesPlan` ties the later
+constructed transaction to the consumed initial approval, including every maker fee and the actual wallet
+cost. Dropping a maker is allowed only above the approved minimum; a replacement requires a new approval.
+
+This module does not reserve coins, consume commitments, open the UI, contact makers or sign. The controller
+must still wire durable reservations and fresh-commitment consumption before fill. PaymentRound's later exact
+transaction approval, all-maker signature checks and persistence-before-signing remain independently required.
+The new tests cover cancellation races, immutable snapshots, substitution/fee escalation and actual built
+transaction costs across maker input counts and dust boundaries. No production entry point is connected.
 
 ## Required before exposure in Send
 
@@ -131,7 +153,7 @@ journal field, but no UI starts a JoinBlaket round.
 Still required: native validation of the authenticated directory and the encrypted session controller; a validated chain-anchor
 provider and live proof-checked Electrum wiring; application integration of offer selection and PoDLE;
 application wiring for transaction construction and all-maker 0x21 signature
-verification before any taker signature; automatic startup recovery; explicit plan/fee-ceiling confirmation; encrypted backup integration;
+verification before any taker signature; automatic startup recovery; application wiring of the initial plan/fee-ceiling confirmation; encrypted backup integration;
 foreground/background lifecycle, cancellation and signed-but-unconfirmed handling; market panel,
 30-second refresh, progress/result/txid UI; native and disposable-chain end-to-end validation.
 
