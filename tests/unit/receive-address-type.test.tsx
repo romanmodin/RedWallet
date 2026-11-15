@@ -574,6 +574,29 @@ describe('Receive polling lifecycle', () => {
     expect(storage.fetchAndSaveWalletTransactions).toHaveBeenCalledWith(taproot.getID());
   });
 
+  test.each(['mempool', 'transaction', 'fees'] as const)('an optional %s error cannot hide pending or confirmed payment', async stage => {
+    const { taproot, storage } = setup();
+    const view = render(<Harness />);
+    await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
+    mockElectrum.getBalanceByAddress.mockResolvedValue({ confirmed: 0, unconfirmed: 500 });
+    mockElectrum.getMempoolTransactionsByAddress.mockImplementation(async () => [{ tx_hash: 'public-fixture', fee: 1000 }]);
+    mockElectrum.multiGetTransactionByTxid.mockResolvedValue({ 'public-fixture': { vsize: 100 } });
+    const failed =
+      stage === 'mempool'
+        ? mockElectrum.getMempoolTransactionsByAddress
+        : stage === 'transaction'
+          ? mockElectrum.multiGetTransactionByTxid
+          : mockElectrum.estimateFees;
+    failed.mockRejectedValue(new Error('Optional ETA request unavailable'));
+    await act(async () => polls[polls.length - 1]());
+    expect(failed).toHaveBeenCalledTimes(1);
+    expect(view.queryByTestId('ReceiveCopyPayload')).toBeNull();
+    mockElectrum.getBalanceByAddress.mockResolvedValue({ confirmed: 500, unconfirmed: 0 });
+    await act(async () => polls[polls.length - 1]());
+    expect(storage.fetchAndSaveWalletTransactions).toHaveBeenCalledTimes(1);
+    expect(storage.fetchAndSaveWalletTransactions).toHaveBeenCalledWith(taproot.getID());
+  });
+
   test('a balance response after unmount cannot start a second request', async () => {
     setup();
     const view = render(<Harness />);

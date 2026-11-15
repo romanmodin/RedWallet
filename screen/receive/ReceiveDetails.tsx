@@ -493,25 +493,33 @@ const ReceiveDetails = () => {
         console.debug('...got', balance);
 
         if (balance.unconfirmed > 0) {
-          const txs = await walletElectrum(wallet).getMempoolTransactionsByAddress(addressToUse);
-          if (!isCurrentPoll()) return;
-          const tx = txs.pop();
-          if (tx) {
-            const rez = await walletElectrum(wallet).multiGetTransactionByTxid([tx.tx_hash], true, 10);
+          // ETA is optional; an unavailable estimate must not discard an observed balance.
+          let nextEta = '';
+          try {
+            const txs = await walletElectrum(wallet).getMempoolTransactionsByAddress(addressToUse);
             if (!isCurrentPoll()) return;
-            if (rez[tx.tx_hash] && rez[tx.tx_hash].vsize) {
-              const satPerVbyte = Math.round(tx.fee / rez[tx.tx_hash].vsize);
-              const fees = await walletElectrum(wallet).estimateFees();
+            const tx = txs.pop();
+            if (tx) {
+              const rez = await walletElectrum(wallet).multiGetTransactionByTxid([tx.tx_hash], true, 10);
               if (!isCurrentPoll()) return;
-              if (satPerVbyte >= fees.fast) {
-                setEta(loc.formatString(loc.transactions.eta_10m));
-              } else if (satPerVbyte >= fees.medium) {
-                setEta(loc.formatString(loc.transactions.eta_3h));
-              } else {
-                setEta(loc.formatString(loc.transactions.eta_1d));
+              if (rez[tx.tx_hash] && rez[tx.tx_hash].vsize) {
+                const satPerVbyte = Math.round(tx.fee / rez[tx.tx_hash].vsize);
+                const fees = await walletElectrum(wallet).estimateFees();
+                if (!isCurrentPoll()) return;
+                if (satPerVbyte >= fees.fast) {
+                  nextEta = loc.formatString(loc.transactions.eta_10m);
+                } else if (satPerVbyte >= fees.medium) {
+                  nextEta = loc.formatString(loc.transactions.eta_3h);
+                } else {
+                  nextEta = loc.formatString(loc.transactions.eta_1d);
+                }
               }
             }
+          } catch (error) {
+            console.debug('Unable to estimate incoming payment confirmation:', error);
           }
+          if (!isCurrentPoll()) return;
+          setEta(nextEta);
 
           // Commit related state only after all awaited reads remain current.
           if (initialConfirmed === 0 && initialUnconfirmed === 0) {
