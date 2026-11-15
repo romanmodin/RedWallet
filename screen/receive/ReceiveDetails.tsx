@@ -201,6 +201,7 @@ const ReceiveDetails = () => {
   // Explicit address/history routes stay on the requested address.
   const canSwitchAddressType = useRef(!address || route.params.allowAddressTypeSwitch === true).current;
   const selectingType = useRef(false);
+  const pollGeneration = useRef(0);
   const [isSelectingType, setIsSelectingType] = useState(false);
 
   const wallet = walletID ? wallets.find(w => w.getID() === walletID) : undefined;
@@ -216,6 +217,8 @@ const ReceiveDetails = () => {
     let addedToStorage = false;
     let saved = false;
     selectingType.current = true;
+    // Invalidate responses immediately, before biometric/address/storage awaits.
+    pollGeneration.current += 1;
     setIsSelectingType(true);
     const before = wallets.map(member => ({
       member,
@@ -471,9 +474,14 @@ const ReceiveDetails = () => {
 
   // re-fetching address balance periodically
   useEffect(() => {
-    console.debug('receive/details - useEffect');
+    if (isSelectingType) return;
+    const generation = ++pollGeneration.current;
+    const isCurrentPoll = () => mounted.current && !selectingType.current && pollGeneration.current === generation;
+    let polling = false;
 
     const intervalId = setInterval(async () => {
+      if (!isCurrentPoll() || polling) return;
+      polling = true;
       try {
         const decoded = DeeplinkSchemaMatch.bip21decode(bip21encoded);
         const addressToUse = address || decoded.address;
@@ -481,27 +489,20 @@ const ReceiveDetails = () => {
 
         console.debug('checking address', addressToUse, 'for balance...');
         const balance = await walletElectrum(wallet).getBalanceByAddress(addressToUse);
-        if (!mounted.current) return;
+        if (!isCurrentPoll()) return;
         console.debug('...got', balance);
 
         if (balance.unconfirmed > 0) {
-          if (initialConfirmed === 0 && initialUnconfirmed === 0) {
-            setInitialConfirmed(balance.confirmed);
-            setInitialUnconfirmed(balance.unconfirmed);
-            setIntervalMs(25000);
-            triggerHapticFeedback(HapticFeedbackTypes.ImpactHeavy);
-          }
-
           const txs = await walletElectrum(wallet).getMempoolTransactionsByAddress(addressToUse);
-          if (!mounted.current) return;
+          if (!isCurrentPoll()) return;
           const tx = txs.pop();
           if (tx) {
             const rez = await walletElectrum(wallet).multiGetTransactionByTxid([tx.tx_hash], true, 10);
-            if (!mounted.current) return;
+            if (!isCurrentPoll()) return;
             if (rez[tx.tx_hash] && rez[tx.tx_hash].vsize) {
               const satPerVbyte = Math.round(tx.fee / rez[tx.tx_hash].vsize);
               const fees = await walletElectrum(wallet).estimateFees();
-              if (!mounted.current) return;
+              if (!isCurrentPoll()) return;
               if (satPerVbyte >= fees.fast) {
                 setEta(loc.formatString(loc.transactions.eta_10m));
               } else if (satPerVbyte >= fees.medium) {
@@ -510,6 +511,14 @@ const ReceiveDetails = () => {
                 setEta(loc.formatString(loc.transactions.eta_1d));
               }
             }
+          }
+
+          // Commit related state only after all awaited reads remain current.
+          if (initialConfirmed === 0 && initialUnconfirmed === 0) {
+            setInitialConfirmed(balance.confirmed);
+            setInitialUnconfirmed(balance.unconfirmed);
+            setIntervalMs(25000);
+            triggerHapticFeedback(HapticFeedbackTypes.ImpactHeavy);
           }
 
           setDisplayBalance(
@@ -558,11 +567,26 @@ const ReceiveDetails = () => {
         }
       } catch (error) {
         console.debug('Error checking balance:', error);
+      } finally {
+        polling = false;
       }
     }, intervalMs);
 
-    return () => clearInterval(intervalId);
-  }, [bip21encoded, address, initialConfirmed, initialUnconfirmed, intervalMs, fetchAndSaveWalletTransactions, walletID, wallet]);
+    return () => {
+      pollGeneration.current += 1;
+      clearInterval(intervalId);
+    };
+  }, [
+    bip21encoded,
+    address,
+    initialConfirmed,
+    initialUnconfirmed,
+    intervalMs,
+    fetchAndSaveWalletTransactions,
+    walletID,
+    wallet,
+    isSelectingType,
+  ]);
 
   useEffect(() => {
     const handleBackButton = () => {

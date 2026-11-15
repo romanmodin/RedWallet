@@ -20,7 +20,10 @@ const mockNavigation = {
   navigate: jest.fn(),
   setParams: jest.fn(),
 };
-jest.mock('../../hooks/useBiometrics', () => ({ useBiometrics: jest.fn(), unlockWithBiometrics: jest.fn() }));
+jest.mock('../../hooks/useBiometrics', () => ({
+  useBiometrics: jest.fn(),
+  unlockWithBiometrics: jest.fn(),
+}));
 jest.mock('../../hooks/context/useStorage', () => ({
   useStorage: () => mockStorage,
 }));
@@ -54,13 +57,14 @@ jest.mock('../../blue_modules/hapticFeedback', () => ({
   default: jest.fn(),
   HapticFeedbackTypes: {},
 }));
+const mockElectrum = {
+  getBalanceByAddress: jest.fn(),
+  getMempoolTransactionsByAddress: jest.fn(),
+  multiGetTransactionByTxid: jest.fn(),
+  estimateFees: jest.fn(),
+};
 jest.mock('../../blue_modules/wallet-network', () => ({
-  walletElectrum: () => ({
-    getBalanceByAddress: jest.fn(async () => ({
-      confirmed: 0,
-      unconfirmed: 0,
-    })),
-  }),
+  walletElectrum: () => mockElectrum,
   isBtcWallet: () => false,
   walletTicker: () => 'XBT',
   formatWalletBalance: () => '0',
@@ -126,7 +130,11 @@ function setup(watchOnly = false, grouped = true) {
     const w = new WatchOnlyWallet();
     w.xbt_network = true;
     w.setSecret(
-      JSON.stringify({ ExtPubKey: account.getXpub(), MasterFingerprint: '445a39f0', AccountKeyPath: account.getDerivationPath() }),
+      JSON.stringify({
+        ExtPubKey: account.getXpub(),
+        MasterFingerprint: '445a39f0',
+        AccountKeyPath: account.getDerivationPath(),
+      }),
     );
     w.init();
     return w;
@@ -166,7 +174,13 @@ function Harness() {
 }
 beforeEach(() => {
   jest.clearAllMocks();
-  (useBiometrics as jest.Mock).mockReturnValue({ isBiometricUseCapableAndEnabled: async () => false });
+  mockElectrum.getBalanceByAddress.mockReset().mockResolvedValue({ confirmed: 0, unconfirmed: 0 });
+  mockElectrum.getMempoolTransactionsByAddress.mockReset().mockResolvedValue([]);
+  mockElectrum.multiGetTransactionByTxid.mockReset().mockResolvedValue({});
+  mockElectrum.estimateFees.mockReset().mockResolvedValue({ fast: 10, medium: 5 });
+  (useBiometrics as jest.Mock).mockReturnValue({
+    isBiometricUseCapableAndEnabled: async () => false,
+  });
   mockNavigation.setParams.mockImplementation((params: object) => {
     if (Object.entries(params).some(([key, value]) => (mockParams as any)[key] !== value)) {
       mockParams = { ...mockParams, ...params };
@@ -307,7 +321,9 @@ test('leaving during address lookup cannot change the default or navigate later'
 test.each([false, true])('Native SegWit is preselected for a new group (watch-only %p)', async watchOnly => {
   const { segwit, taproot, storage } = setup(watchOnly);
   linkXbtAccounts(taproot, segwit);
-  mockParams = { walletID: getXbtReceiveAccount(taproot, storage.wallets).getID() };
+  mockParams = {
+    walletID: getXbtReceiveAccount(taproot, storage.wallets).getID(),
+  };
   const view = render(<Harness />);
   await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload').props.children).toBe(segwit._getExternalAddressByIndex(0)));
   expect(view.getByTestId('ReceiveAddressType-segwit').props.accessibilityState.checked).toBe(true);
@@ -321,7 +337,9 @@ test('a hot wallet can add Taproot directly from Receive without changing its Se
   const view = render(<Harness />);
   await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
   fireEvent.press(view.getByTestId('ReceiveAddressType-taproot'));
-  await waitFor(() => expect(storage.addWallet).toHaveBeenCalledTimes(1), { timeout: 3000 });
+  await waitFor(() => expect(storage.addWallet).toHaveBeenCalledTimes(1), {
+    timeout: 3000,
+  });
   await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload').props.children).toBe(taproot._getExternalAddressByIndex(0)), {
     timeout: 3000,
   });
@@ -337,7 +355,9 @@ test('failed hot account save removes only the new sibling and restores the orig
   await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
   storage.saveToDisk.mockRejectedValueOnce(new Error('Disk unavailable'));
   fireEvent.press(view.getByTestId('ReceiveAddressType-taproot'));
-  await waitFor(() => expect(storage.deleteWallet).toHaveBeenCalledTimes(1), { timeout: 3000 });
+  await waitFor(() => expect(storage.deleteWallet).toHaveBeenCalledTimes(1), {
+    timeout: 3000,
+  });
   expect(storage.wallets).toEqual([segwit]);
   expect(segwit.xbtAccountGroup).toBeUndefined();
   expect(mockParams.walletID).toBe(segwit.getID());
@@ -345,7 +365,9 @@ test('failed hot account save removes only the new sibling and restores the orig
 
 test('cancelled biometric approval cannot create or switch a hot account', async () => {
   const { segwit, storage } = setup(false, false);
-  (useBiometrics as jest.Mock).mockReturnValue({ isBiometricUseCapableAndEnabled: async () => true });
+  (useBiometrics as jest.Mock).mockReturnValue({
+    isBiometricUseCapableAndEnabled: async () => true,
+  });
   (unlockWithBiometrics as jest.Mock).mockResolvedValue(false);
   const view = render(<Harness />);
   await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
@@ -381,4 +403,192 @@ test('a hot wallet reuses an existing matching account without duplicating it', 
   expect(storage.addWallet).not.toHaveBeenCalled();
   expect(storage.wallets).toHaveLength(2);
   expect(getXbtReceiveAccount(segwit, storage.wallets)).toBe(taproot);
+});
+
+describe('Receive polling lifecycle', () => {
+  let polls: (() => Promise<void>)[];
+  beforeEach(() => {
+    polls = [];
+    const realSetInterval = global.setInterval;
+    jest.spyOn(global, 'setInterval').mockImplementation((handler, delay, ...args) => {
+      if (delay === 5000 || delay === 25000) polls.push(handler as () => Promise<void>);
+      return realSetInterval(handler, delay, ...args);
+    });
+  });
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason: Error) => void;
+    const promise = new Promise<T>((_resolve, _reject) => {
+      resolve = _resolve;
+      reject = _reject;
+    });
+    return { promise, resolve, reject };
+  }
+
+  async function freshPending() {
+    mockElectrum.getBalanceByAddress.mockResolvedValue({
+      confirmed: 0,
+      unconfirmed: 500,
+    });
+    await act(async () => polls[polls.length - 1]());
+  }
+
+  test.each(['success', 'failure'] as const)('drops an old balance during switching (%s)', async outcome => {
+    const { segwit, taproot, storage } = setup();
+    const view = render(<Harness />);
+    await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
+    const oldBalance = deferred<{ confirmed: number; unconfirmed: number }>();
+    mockElectrum.getBalanceByAddress.mockReturnValueOnce(oldBalance.promise);
+    let oldPoll!: Promise<void>;
+    act(() => {
+      oldPoll = polls[polls.length - 1]();
+    });
+    const save = deferred<void>();
+    storage.saveToDisk.mockReturnValueOnce(save.promise);
+    fireEvent.press(view.getByTestId('ReceiveAddressType-segwit'));
+    await waitFor(() => expect(storage.saveToDisk).toHaveBeenCalledWith(false, true));
+    await act(async () => {
+      oldBalance.resolve({ confirmed: 0, unconfirmed: 500 });
+      await oldPoll;
+    });
+    expect(mockElectrum.getMempoolTransactionsByAddress).not.toHaveBeenCalled();
+    expect(view.getByTestId('ReceiveCopyPayload').props.children).toBe(taproot._getExternalAddressByIndex(0));
+    await act(async () => {
+      if (outcome === 'success') save.resolve();
+      else save.reject(new Error('Disk unavailable'));
+    });
+    const selected = outcome === 'success' ? segwit : taproot;
+    await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload').props.children).toBe(selected._getExternalAddressByIndex(0)));
+    await freshPending();
+    expect(view.queryByTestId('ReceiveCopyPayload')).toBeNull();
+    expect(mockElectrum.getBalanceByAddress).toHaveBeenLastCalledWith(selected._getExternalAddressByIndex(0));
+  });
+
+  test('canceled biometric switch drops the old poll and resumes current-address monitoring', async () => {
+    const { segwit } = setup(false, false);
+    const approval = deferred<boolean>();
+    (useBiometrics as jest.Mock).mockReturnValue({
+      isBiometricUseCapableAndEnabled: async () => true,
+    });
+    (unlockWithBiometrics as jest.Mock).mockReturnValueOnce(approval.promise);
+    const view = render(<Harness />);
+    await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
+    const balance = deferred<{ confirmed: number; unconfirmed: number }>();
+    mockElectrum.getBalanceByAddress.mockReturnValueOnce(balance.promise);
+    let pending!: Promise<void>;
+    act(() => {
+      pending = polls[polls.length - 1]();
+    });
+    fireEvent.press(view.getByTestId('ReceiveAddressType-taproot'));
+    await waitFor(() => expect(unlockWithBiometrics).toHaveBeenCalled());
+    await act(async () => approval.resolve(false));
+    await act(async () => {
+      balance.resolve({ confirmed: 0, unconfirmed: 500 });
+      await pending;
+    });
+    expect(mockElectrum.getMempoolTransactionsByAddress).not.toHaveBeenCalled();
+    expect(view.getByTestId('ReceiveCopyPayload').props.children).toBe(segwit._getExternalAddressByIndex(0));
+    await freshPending();
+    expect(view.queryByTestId('ReceiveCopyPayload')).toBeNull();
+  });
+
+  test.each(['mempool', 'transaction', 'fees'] as const)('drops a late %s response during switching', async stage => {
+    const { taproot, storage } = setup();
+    const view = render(<Harness />);
+    await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
+    const response = deferred<any>();
+    const transaction = { tx_hash: 'public-fixture', fee: 1000 };
+    mockElectrum.getBalanceByAddress.mockResolvedValue({
+      confirmed: 0,
+      unconfirmed: 500,
+    });
+    mockElectrum.getMempoolTransactionsByAddress.mockImplementation(async () => [transaction]);
+    mockElectrum.multiGetTransactionByTxid.mockResolvedValue({
+      'public-fixture': { vsize: 100 },
+    });
+    const blocked =
+      stage === 'mempool'
+        ? mockElectrum.getMempoolTransactionsByAddress
+        : stage === 'transaction'
+          ? mockElectrum.multiGetTransactionByTxid
+          : mockElectrum.estimateFees;
+    blocked.mockReturnValueOnce(response.promise);
+    let pending!: Promise<void>;
+    act(() => {
+      pending = polls[polls.length - 1]();
+    });
+    await waitFor(() => expect(blocked).toHaveBeenCalled());
+    const save = deferred<void>();
+    storage.saveToDisk.mockReturnValueOnce(save.promise);
+    fireEvent.press(view.getByTestId('ReceiveAddressType-segwit'));
+    await waitFor(() => expect(storage.saveToDisk).toHaveBeenCalledWith(false, true));
+    await act(async () => {
+      response.resolve(
+        stage === 'mempool' ? [transaction] : stage === 'transaction' ? { 'public-fixture': { vsize: 100 } } : { fast: 10, medium: 5 },
+      );
+      await pending;
+    });
+    expect(view.getByTestId('ReceiveCopyPayload').props.children).toBe(taproot._getExternalAddressByIndex(0));
+    expect(view.getByTestId('ReceiveQrPayload').props.children).toBe(
+      DeeplinkSchemaMatch.bip21encode(taproot._getExternalAddressByIndex(0)),
+    );
+    view.unmount();
+    await act(async () => save.resolve());
+  });
+
+  test('effect cleanup drops a response for the previous address of the same account', async () => {
+    const { taproot } = setup();
+    const view = render(<Harness />);
+    await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
+    const balance = deferred<{ confirmed: number; unconfirmed: number }>();
+    mockElectrum.getBalanceByAddress.mockReturnValueOnce(balance.promise);
+    let pending!: Promise<void>;
+    act(() => {
+      pending = polls[polls.length - 1]();
+    });
+    const nextAddress = taproot._getExternalAddressByIndex(1);
+    await act(async () => mockNavigation.setParams({ address: nextAddress }));
+    await act(async () => {
+      balance.resolve({ confirmed: 0, unconfirmed: 500 });
+      await pending;
+    });
+    expect(mockElectrum.getMempoolTransactionsByAddress).not.toHaveBeenCalled();
+    expect(view.getByTestId('ReceiveCopyPayload').props.children).toBe(nextAddress);
+    await freshPending();
+    expect(mockElectrum.getBalanceByAddress).toHaveBeenLastCalledWith(nextAddress);
+  });
+
+  test('current-address monitoring still records the pending-to-confirmed transition', async () => {
+    const { taproot, storage } = setup();
+    const view = render(<Harness />);
+    await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
+    await freshPending();
+    expect(view.queryByTestId('ReceiveCopyPayload')).toBeNull();
+    mockElectrum.getBalanceByAddress.mockResolvedValue({
+      confirmed: 500,
+      unconfirmed: 0,
+    });
+    await act(async () => polls[polls.length - 1]());
+    expect(storage.fetchAndSaveWalletTransactions).toHaveBeenCalledTimes(1);
+    expect(storage.fetchAndSaveWalletTransactions).toHaveBeenCalledWith(taproot.getID());
+  });
+
+  test('a balance response after unmount cannot start a second request', async () => {
+    setup();
+    const view = render(<Harness />);
+    await waitFor(() => expect(view.getByTestId('ReceiveCopyPayload')).toBeTruthy());
+    const balance = deferred<{ confirmed: number; unconfirmed: number }>();
+    mockElectrum.getBalanceByAddress.mockReturnValueOnce(balance.promise);
+    let pending!: Promise<void>;
+    act(() => {
+      pending = polls[polls.length - 1]();
+    });
+    view.unmount();
+    await act(async () => {
+      balance.resolve({ confirmed: 0, unconfirmed: 500 });
+      await pending;
+    });
+    expect(mockElectrum.getMempoolTransactionsByAddress).not.toHaveBeenCalled();
+  });
 });
