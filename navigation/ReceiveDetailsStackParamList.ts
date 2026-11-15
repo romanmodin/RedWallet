@@ -7,6 +7,7 @@ export type ReceiveDetailsStackParamList = {
   ReceiveDetails: {
     walletID?: string;
     address?: string;
+    allowAddressTypeSwitch?: boolean;
     allowBIP47?: boolean;
     isBIP47Enabled?: boolean;
     toggleBIP47RequestedAt?: number;

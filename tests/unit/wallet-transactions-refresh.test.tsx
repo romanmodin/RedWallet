@@ -5,6 +5,7 @@ import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import presentAlert from '../../components/Alert';
 import WalletTransactions from '../../screen/wallets/WalletTransactions';
 import { Chain, BitcoinUnit } from '../../models/bitcoinUnits';
+import { getXbtReceiveAccount, XbtAccountGroup } from '../../blue_modules/xbt-account-groups';
 
 const mockNavigate = jest.fn();
 const mockFocus = { current: true };
@@ -16,6 +17,10 @@ const mockWallet = {
   preferredBalanceUnit: BitcoinUnit.BTC,
   _lastTxFetch: 0,
   getID: () => 'xbt-wallet',
+  xbtAccountGroup: undefined as XbtAccountGroup | undefined,
+  getDerivationPath: () => "m/84'/0'/0'",
+  getSecret: () => 'public-test-only',
+  getPassphrase: () => undefined,
   getLabel: () => 'XBT test wallet',
   getBalance: () => 0,
   getTransactions: () => [],
@@ -25,6 +30,7 @@ const mockWallet = {
   fetchBalance: jest.fn(),
   fetchTransactions: jest.fn(),
 };
+const mockWallets = [mockWallet];
 const mockRegister = jest.fn();
 const mockUnregister = jest.fn();
 const mockSave = jest.fn();
@@ -33,7 +39,7 @@ jest.mock('../../blue_modules/BlueElectrum', () => ({
   ensureConnected: jest.fn(),
   getPreferredServer: jest.fn(),
 }));
-jest.mock('../../hooks/context/useStorage', () => ({ useStorage: () => ({ wallets: [mockWallet], saveToDisk: mockSave }) }));
+jest.mock('../../hooks/context/useStorage', () => ({ useStorage: () => ({ wallets: mockWallets, saveToDisk: mockSave }) }));
 jest.mock('../../hooks/context/useSettings', () => ({ useSettings: () => ({ isElectrumDisabled: false }) }));
 jest.mock('../../hooks/useWalletSubscribe', () => ({ __esModule: true, default: () => mockWallet }));
 jest.mock('../../hooks/useExtendedNavigation', () => ({ useExtendedNavigation: () => mockNavigation }));
@@ -82,6 +88,8 @@ describe('WalletTransactions first-run refresh', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFocus.current = true;
+    mockWallet.xbtAccountGroup = undefined;
+    mockWallets.splice(0, mockWallets.length, mockWallet);
     (BlueElectrum.getPreferredServer as jest.Mock).mockResolvedValue(undefined);
     (BlueElectrum.ensureConnected as jest.Mock).mockResolvedValue(false);
   });
@@ -96,6 +104,25 @@ describe('WalletTransactions first-run refresh', () => {
     expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
     expect(presentAlert).not.toHaveBeenCalled();
     expect(mockWallet.fetchTransactions).not.toHaveBeenCalled();
+    fireEvent.press(view.getByTestId('ReceiveButton'));
+    expect(mockNavigate).toHaveBeenCalledWith('ReceiveDetails', { walletID: 'xbt-wallet' });
+    view.unmount();
+  });
+
+  it('receives to the explicitly opened account even when its group defaults to Taproot', async () => {
+    const group = { id: 'test-group', label: 'Test group', receiveWalletID: 'taproot-wallet' };
+    mockWallet.xbtAccountGroup = { ...group };
+    const taproot = {
+      ...mockWallet,
+      type: 'HDtaprootXBT',
+      getID: () => 'taproot-wallet',
+      getDerivationPath: () => "m/86'/0'/0'",
+      xbtAccountGroup: { ...group },
+    };
+    mockWallets.push(taproot);
+    expect(getXbtReceiveAccount(mockWallet as any, mockWallets as any)).toBe(taproot);
+    const view = renderScreen();
+    await waitFor(() => expect(BlueElectrum.getPreferredServer).toHaveBeenCalled());
     fireEvent.press(view.getByTestId('ReceiveButton'));
     expect(mockNavigate).toHaveBeenCalledWith('ReceiveDetails', { walletID: 'xbt-wallet' });
     view.unmount();
@@ -135,6 +162,8 @@ describe('WalletTransactions first-run refresh', () => {
     expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
 
     mockFocus.current = true;
+    mockWallet.xbtAccountGroup = undefined;
+    mockWallets.splice(0, mockWallets.length, mockWallet);
     view.rerender(<WalletTransactions route={mockRoute as any} navigation={mockNavigation as any} />);
     await waitFor(() => expect(mockWallet.fetchTransactions).toHaveBeenCalledTimes(1));
     expect(presentAlert).not.toHaveBeenCalled();

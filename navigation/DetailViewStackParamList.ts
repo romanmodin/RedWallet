@@ -46,6 +46,7 @@ export type DetailViewStackParamList = {
     onBarScanned?: string;
   };
   WalletDetails: { walletID: string };
+  XbtAccountGroup: { walletID: string; settings?: boolean };
   // TODO: type tx properly once Transaction and ElectrumTransaction are unified
   TransactionStatus: { hash: string; walletID: string; tx?: any };
   CPFP: {
