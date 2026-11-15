@@ -2,20 +2,20 @@
 import hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 REPO="romanmodin/RedWallet"
-RUN=43394532491
-HEAD='b7364b58c09238266a3b2fe248f0000b3b82c62b'
-SOURCE='68148c8c5741c7b84b37f33322e67273f7208a19'
-IPA='b09b7c9eab7c63a7697d5604b91ab82d83e60ff55c03d54e6d9acdc9ab12f7de'
-BUILD='964f117a-f5e1-400f-9aac-d3145407560a'
-ARTIFACT=14023907293
-ZIP_SHA='62808e4c1c9f3978ae65c8b056814db6b5bcf7d28da2fb02c64a8c30e191b497'
-MEMBERS={'kilowallet-source-gates.json': '6ec926cbc2b7f395ec749117a230517cdeb54664f66fea54f637751de7681254', 'kilowallet-visual-qualification.json': 'f9d0d487e11a6c818e61c66aceb13105e491a72ea17867dd78696a85f3b29368', 'kilowallet-archive-verification.json': '7bec57dc49c04156659948d04bdd2806f9aad4d132a3e639ec275eeb45c1ac13', 'kilowallet-package-verification.json': '4a0a56a75247dede7903568aef9835ab26e085dded63517168081f096d2aad2a', 'kilowallet-apple-processing.json': 'afad9ebe8eb913d635de48a3fbbf22ce43fe7075c6551fe6eebc11e7ce0c9dad', 'kilowallet-territory-preflight.json': '16c12b1c138363f97282b7a352b7c8b80dadbd79a8fcacdadb62f7f31e49b31e'}
+RUN=43728038899
+HEAD='a8450b02c9dbc0c97a8fab845d4e74d75115b2a7'
+SOURCE='9dfdcf864e92bde8a1c04485ff93294d2b731965'
+IPA='3ed229d51d125a0259baed04dc804587d2d6e41d0ca5d7cc9f1d50e15f1a0539'
+BUILD='39bccc02-a2e3-4a30-a890-ddd0eb9273af'
+ARTIFACT=14168451071
+ZIP_SHA='81f6d00d3e72de2e40656f53911be5b78495c6bba7898289428fc93d391c7359'
+MEMBERS={'kilowallet-source-gates.json': '62eca4875ff811b1f1c63b7102ae6584f2df75657417e547bc56b1c0fcf956df', 'kilowallet-visual-qualification.json': '05f95da2bfc6f376ff5a58e0d80a11076cc4f06cc93bbf469046ee04c36676a5', 'kilowallet-archive-verification.json': '7b9436eaedada448e79f0427fac56887068720e8ae0005fb6148211e2e55a4ce', 'kilowallet-package-verification.json': '1aaa9fdba3fa5ced5c95f0383c522312d544c74f8d35fd399fcdc0b51882ec6a', 'kilowallet-apple-processing.json': 'fcfb9078bed34ec3c3e878407fe12403d7b355cfc369a9e77112b742ea6f0ad4', 'kilowallet-territory-preflight.json': '4d93fe087d88aaf38d45d4747b43efb99d27509eced00f1265a4aa80960efdbe'}
 # Pins may change only after the corresponding signed package and Apple receipts exist.
 VERSION='1.0.0'
-BUILD_NUMBER='15'
+BUILD_NUMBER='21'
 SDK='iphoneos26.2'
-IOS_RUN=43260800743
-SCREEN_RUN=43227801950
+IOS_RUN=43697661614
+SCREEN_RUN=43699927727
 def gate_environment():
  return {**os.environ,"KILOWALLET_MARKETING_VERSION":VERSION,"KILOWALLET_SOURCE_COMMIT":SOURCE,
          "KILOWALLET_IOS_RUN_ID":str(IOS_RUN),"KILOWALLET_SCREENSHOT_RUN_ID":str(SCREEN_RUN)}
@@ -85,7 +85,7 @@ def main():
  meta=api(f"repos/{REPO}/actions/artifacts/{ARTIFACT}")
  receipts=validate_artifact(meta,api(f"repos/{REPO}/actions/artifacts/{ARTIFACT}/zip",True))
  visual=receipts["kilowallet-visual-qualification.json"]
- require(visual.get("sourceCommit")==SOURCE and visual.get("run")==43336731222 and visual.get("visualEvidenceQualified") is True,"Unqualified rendering evidence")
+ require(visual.get("sourceCommit")==SOURCE and visual.get("run")==43697661614 and visual.get("visualEvidenceQualified") is True,"Unqualified rendering evidence")
  env=gate_environment()
  subprocess.run([sys.executable,"-I",str(root/"distribution/kilowallet/verify_gates.py")],env=env,check=True)
  gates=json.loads(Path("kilowallet-source-gates.json").read_text())
