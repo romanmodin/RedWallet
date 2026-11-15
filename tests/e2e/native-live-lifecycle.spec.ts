@@ -5,7 +5,7 @@
  */
 import assert from 'assert';
 import { execFileSync } from 'child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import * as bitcoin from 'bitcoinjs-lib';
 import { by, device, element, expect as nativeExpect, waitFor } from 'detox';
@@ -456,6 +456,7 @@ native('isolated native live wallet stages and final acceptance', () => {
       it(stage + ' / ' + format + ' native live', async () => {
         const final = stage === 'final';
         let currentStep = 'setup';
+        let maxControlVerified = false;
         const startedAt = Date.now();
         const markStep = (step: string) => {
           currentStep = step;
@@ -564,6 +565,32 @@ native('isolated native live wallet stages and final acceptance', () => {
             await element(by.id('AddressInput')).typeText(vectors.recipient + '\n');
             await waitForKeyboardToClose();
             assert.equal(await nativeText('AddressInput'), vectors.recipient);
+            markStep('MAX control: cancel, select and clear without broadcast');
+            const beforeMaxMempool = await backend.rpc('getrawmempool');
+            const beforeMaxAmount = await nativeText('BitcoinAmountInput');
+            await waitForId('SendMaxButton');
+            await nativeExpect(element(by.id('SendMaxButton'))).toBeVisible();
+            mkdirSync(artifactDirectory, { recursive: true });
+            copyFileSync(await device.takeScreenshot('native-max-ready'), path.join(artifactDirectory, 'max-ready.png'));
+            await nativeActionOnce('MAX confirmation tap', () => element(by.id('SendMaxButton')).tap());
+            await waitForText(english.send.details_adv_full_sure);
+            assert.ok(await dismissAlertByText(english._.cancel, 10_000, false), 'MAX cancellation must dismiss the confirmation');
+            await waitForId('BitcoinAmountInput');
+            assert.equal(await nativeText('BitcoinAmountInput'), beforeMaxAmount, 'Cancelling MAX must preserve the entered amount');
+            assert.deepEqual(await backend.rpc('getrawmempool'), beforeMaxMempool, 'Cancelling MAX must not broadcast');
+            await nativeActionOnce('MAX confirmation reopen tap', () => element(by.id('SendMaxButton')).tap());
+            await waitForText(english.send.details_adv_full_sure);
+            assert.ok(await dismissAlertByText(english._.ok, 10_000, false), 'MAX selection requires explicit confirmation');
+            await waitForText(english.send.max_selected);
+            await nativeExpect(element(by.id('BitcoinAmountInput'))).not.toExist();
+            copyFileSync(await device.takeScreenshot('native-max-selected'), path.join(artifactDirectory, 'max-selected.png'));
+            assert.deepEqual(await backend.rpc('getrawmempool'), beforeMaxMempool, 'Selecting MAX must not broadcast');
+            await nativeActionOnce('Clear MAX amount tap', () => element(by.text(english.units.MAX)).tap());
+            await waitForId('BitcoinAmountInput');
+            assert.equal(await nativeText('BitcoinAmountInput'), '0');
+            await nativeExpect(element(by.id('SendMaxButton'))).toBeVisible();
+            maxControlVerified = true;
+            markStep('send explicit amount after clearing MAX');
             await element(by.id('BitcoinAmountInput')).replaceText('0.0009\n');
             await waitForKeyboardToClose();
             assert.equal(await nativeText('AddressInput'), vectors.recipient);
@@ -730,6 +757,7 @@ native('isolated native live wallet stages and final acceptance', () => {
                 confirmations: final || stage === 'rbf' || stage === 'encryption' || stage === 'delete' ? 2 : undefined,
                 highFeeDeclineBlockedBroadcast: stage === 'rbf',
                 decodedReviewVerified: stage === 'rbf',
+                maxControlVerified,
                 encryptedHistoryPreserved: final || stage === 'encryption',
                 deletionRecoveryPassed: final || stage === 'delete',
                 height: await backend.rpc('getblockcount'),
