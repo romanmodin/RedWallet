@@ -1,54 +1,79 @@
-import importlib.util,copy,unittest
-from pathlib import Path
-spec=importlib.util.spec_from_file_location("audit",Path(__file__).with_name("visual_evidence_audit.py"));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
-def good():
- return {"source":m.SOURCE,"captureExit":0,"checks":{k:True for k in ["lightningUsesTor","onionPeerConnected","watchtowerRegistered","emptyChannelBackupRpc","nativeQualificationCompleted"]},"passed":True,"createScreen":{"captureExit":0,"exists":True,"passed":True,"phrases":{"Your recovery words":True,"I wrote them down":True}},"frameChecks":{f:{"exists":True,"passed":True,"phrases":{"Lightning":True,"EXPORT SCB":True}} for f in m.FRAMES},"settingsReadiness":{"ready":True,"limitSeconds":60,"analysisTimeoutPerPhraseSeconds":60,"elapsedSeconds":10,"attempts":[{"captureExit":0,"elapsedSeconds":10,"captureElapsedSeconds":5,"check":{"passed":True,"phrases":{"Settings":True,"General":True,"Accessibility":True}}}]},"reentryReadiness":{"ready":True,"limitSeconds":30,"analysisTimeoutPerPhraseSeconds":60,"elapsedSeconds":10,"attempts":[{"captureExit":0,"elapsedSeconds":10,"captureElapsedSeconds":5,"check":{"passed":True,"phrases":{"Lightning":True,"EXPORT SCB":True}}}]},"reentryPidReceipt":"original=123\nresumed=123\n"}
-class T(unittest.TestCase):
- def test_complete_evidence_still_requires_visual_review(self):
-  r=m.validate(good());self.assertTrue(r["automatedEvidencePassed"]);self.assertFalse(r["releaseApproved"])
- def test_wrong_source(self):
-  v=good();v["source"]="0"*40
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_missing_each_frame(self):
-  for f in m.FRAMES:
-   v=good();del v["frameChecks"][f]
-   with self.assertRaises(AssertionError):m.validate(v)
- def test_springboard_create(self):
-  v=good();v["createScreen"]["phrases"]["Your recovery words"]=False
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_restart_is_not_same_process_reentry(self):
-  for pid in ["original=123\nresumed=124\n","original=\nresumed=\n",None]:
-   v=good();v["reentryPidReceipt"]=pid
-   with self.assertRaises((AssertionError,TypeError)):m.validate(v)
- def test_native_failure(self):
-  v=good();v["checks"]["watchtowerRegistered"]=False
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_failed_capture(self):
-  v=good();v["captureExit"]=1
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_readiness_timeout_rejected(self):
-  v=good();v["reentryReadiness"]["attempts"][-1]["captureElapsedSeconds"]=31
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_readiness_without_screen_rejected(self):
-  v=good();v["reentryReadiness"]["attempts"][-1]["check"]["phrases"]["Lightning"]=False
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_unready_rejected(self):
-  v=good();v["reentryReadiness"]["ready"]=False
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_unverified_settings_rejected(self):
-  v=good();v["settingsReadiness"]["attempts"][-1]["check"]["phrases"]["Settings"]=False
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_settings_icon_only_rejected(self):
-  v=good();v["settingsReadiness"]["attempts"][-1]["check"]["phrases"]={"Settings":True}
-  with self.assertRaises(AssertionError):m.validate(v)
- def test_missing_settings_content_rejected(self):
-  for phrase in ["General","Accessibility"]:
-   v=good();v["settingsReadiness"]["attempts"][-1]["check"]["phrases"][phrase]=False
-   with self.assertRaises(AssertionError):m.validate(v)
- def test_slow_analysis_after_on_time_capture_is_valid(self):
-  v=good();v["reentryReadiness"]["elapsedSeconds"]=90;v["reentryReadiness"]["attempts"][-1]["elapsedSeconds"]=90
-  self.assertTrue(m.validate(v)["automatedEvidencePassed"])
- def test_settings_late_capture_rejected(self):
-  v=good();v["settingsReadiness"]["attempts"][-1]["captureElapsedSeconds"]=61
-  with self.assertRaises(AssertionError):m.validate(v)
-if __name__=="__main__":unittest.main()
+import hashlib
+import io
+import unittest
+import zipfile
+from verify_visual import JOINBLAKET_FRAMES, png_dimensions, verify_images
+
+def png(width=1290, height=2796, tail=b""):
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + b"\x00\x00\x00\rIHDR"
+        + width.to_bytes(4, "big")
+        + height.to_bytes(4, "big")
+        + tail
+    )
+
+def fixture(duplicate_pair=None):
+    names = [f"{i:02d}-frame.png" for i in range(1, 69)] + JOINBLAKET_FRAMES
+    out = io.BytesIO()
+    expected = {}
+    duplicate_pair = set(duplicate_pair or [])
+    shared = png(tail=b"intentional duplicate")
+    with zipfile.ZipFile(out, "w") as archive:
+        for name in sorted(names):
+            data = shared if name in duplicate_pair else png(tail=name.encode())
+            archive.writestr(name, data)
+            expected[name] = hashlib.sha256(data).hexdigest()
+    return out.getvalue(), expected
+
+class PngAudit(unittest.TestCase):
+    def test_expected_dimensions(self):
+        self.assertEqual((1290, 2796), png_dimensions(png()))
+
+    def test_non_png_and_missing_ihdr_rejected(self):
+        for data in [
+            b"",
+            b"not png",
+            b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rNOPE" + b"\0" * 8,
+        ]:
+            with self.assertRaises(AssertionError):
+                png_dimensions(data)
+
+    def test_exact_unique_zip_qualified(self):
+        data, expected = fixture()
+        self.assertEqual(expected, verify_images(data, expected, set()))
+
+    def test_duplicate_rejected_without_allowlist(self):
+        pair = frozenset(["01-frame.png", "02-frame.png"])
+        data, expected = fixture(pair)
+        with self.assertRaises(AssertionError):
+            verify_images(data, expected, set())
+
+    def test_exact_allowlisted_duplicate_qualified(self):
+        pair = frozenset(["01-frame.png", "02-frame.png"])
+        data, expected = fixture(pair)
+        self.assertEqual(expected, verify_images(data, expected, {pair}))
+
+    def test_missing_file_changed_pixel_and_wrong_dimension_rejected(self):
+        data, expected = fixture()
+        changed_sets = [
+            {k: v for i, (k, v) in enumerate(expected.items()) if i},
+            dict(expected, **{next(iter(expected)): "f" * 64}),
+        ]
+        for changed in changed_sets:
+            with self.assertRaises(AssertionError):
+                verify_images(data, changed, set())
+
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w") as archive:
+            for name in expected:
+                archive.writestr(name, png(width=1, tail=name.encode()))
+        bad_hashes = {
+            name: hashlib.sha256(png(width=1, tail=name.encode())).hexdigest()
+            for name in expected
+        }
+        with self.assertRaises(AssertionError):
+            verify_images(out.getvalue(), bad_hashes, set())
+
+if __name__ == "__main__":
+    unittest.main()
