@@ -109,7 +109,7 @@ async function ready() {
   const signed = request.clone();
   signed.signInput(0, key);
   const hex = watch.combinePsbt(request, signed).toHex();
-  return { watch, request, hex, history, raws, client, response };
+  return { watch, request, hex, history, raws, client, response, parentId: parent.getId() };
 }
 
 beforeEach(async () => {
@@ -243,4 +243,115 @@ it('permits an explicit retry after a failed submission and rechecks evidence ag
   expect((global.fetch as jest.Mock).mock.calls.length).toBeGreaterThan(reads);
   expect(f.client.blockchainTransaction_broadcast).toHaveBeenCalledTimes(2);
   expect(f.client.blockchainTransaction_broadcast.mock.calls.every(call => call[0] === f.hex)).toBe(true);
+});
+
+// Regression coverage for returned-PSBT metadata, request invalidation and lagging explorer tips.
+// Reconnect, signer-disable and confirmation-drop boundaries are already covered above.
+type Fixture = Awaited<ReturnType<typeof ready>>;
+
+function signedReturn(f: Fixture) {
+  const cold = new XbtSegwitBech32Wallet();
+  cold.setSecret(seed);
+  const key = ECPairFactory(ecc).fromWIF(cold._getWifForAddress(f.watch._getExternalAddressByIndex(0))!);
+  const signed = f.request.clone();
+  signed.signInput(0, key);
+  return { signed, key };
+}
+
+describe('returned PSBT metadata cannot change the authoritative request', () => {
+  it('accepts a finalized return that omits key origins and UTXO metadata', async () => {
+    const f = await ready();
+    const { signed } = signedReturn(f);
+    signed.finalizeInput(0);
+    const stripped = bitcoin.Psbt.fromBase64(signed.toBase64());
+    delete stripped.data.inputs[0].bip32Derivation;
+    delete stripped.data.inputs[0].witnessUtxo;
+    delete stripped.data.inputs[0].nonWitnessUtxo;
+    stripped.data.outputs.forEach(output => delete output.bip32Derivation);
+    const tx = f.watch.combinePsbt(f.request, stripped);
+    expect(tx.toHex()).toBe(f.hex);
+    await expect(f.watch.broadcastTx(tx.toHex())).resolves.toBe(true);
+    expect(f.client.blockchainTransaction_broadcast).toHaveBeenCalledWith(f.hex);
+  });
+
+  it('keeps reviewed UTXO metadata when the return carries conflicting values', async () => {
+    const f = await ready();
+    const { signed } = signedReturn(f);
+    const reviewed = f.request.data.inputs[0].witnessUtxo!;
+    signed.data.inputs[0].witnessUtxo = { script: reviewed.script, value: reviewed.value + 1n };
+    signed.data.inputs[0].nonWitnessUtxo = Buffer.alloc(60, 7);
+    let tx: bitcoin.Transaction | undefined;
+    try {
+      tx = f.watch.combinePsbt(f.request, signed);
+    } catch {
+      // Rejecting a conflicting return is equally safe.
+    }
+    if (tx) {
+      expect(tx.toHex()).toBe(f.hex);
+      await expect(f.watch.broadcastTx(tx.toHex())).resolves.toBe(true);
+      expect(f.client.blockchainTransaction_broadcast).toHaveBeenCalledWith(f.hex);
+    } else {
+      await expect(f.watch.broadcastTx(f.hex)).rejects.toThrow('verified signing request');
+      expect(f.client.blockchainTransaction_broadcast).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not let conflicting key origins authorize a modified transaction', async () => {
+    const f = await ready();
+    const { signed } = signedReturn(f);
+    signed.data.inputs[0].bip32Derivation = [
+      { masterFingerprint: Buffer.from('deadbeef', 'hex'), path: "m/84'/0'/0'/1/9", pubkey: Buffer.alloc(33, 2) },
+    ];
+    let tx: bitcoin.Transaction | undefined;
+    try {
+      tx = f.watch.combinePsbt(f.request, signed);
+    } catch {
+      // Rejecting is acceptable; authorizing different bytes is not.
+    }
+    if (tx) expect(tx.toHex()).toBe(f.hex);
+    const changed = bitcoin.Transaction.fromHex(f.hex);
+    changed.outs[0].value += 1n;
+    await expect(f.watch.broadcastTx(changed.toHex())).rejects.toThrow('verified signing request');
+    expect(f.client.blockchainTransaction_broadcast).not.toHaveBeenCalled();
+  });
+
+  it('rejects a return whose transaction differs from the reviewed request', async () => {
+    const f = await ready();
+    const { key } = signedReturn(f);
+    const other = new bitcoin.Psbt();
+    const input = f.request.txInputs[0];
+    other.addInput({ hash: input.hash, index: input.index, witnessUtxo: f.request.data.inputs[0].witnessUtxo!, sighashType: 1 });
+    other.addOutput({ script: f.request.txOutputs[0].script, value: f.request.txOutputs[0].value + 1000n });
+    other.signInput(0, key);
+    expect(() => f.watch.combinePsbt(f.request, other)).toThrow();
+    await expect(f.watch.broadcastTx(f.hex)).rejects.toThrow('verified signing request');
+    expect(f.client.blockchainTransaction_broadcast).not.toHaveBeenCalled();
+  });
+});
+
+it('invalidates the previous signed return when a second request is prepared', async () => {
+  const f = await ready();
+  await f.watch.createStandardHardwareTransaction(
+    [{ txid: f.parentId, vout: 0, value: 199000, address: f.watch._getExternalAddressByIndex(0), confirmations: 10 }],
+    [{ address: f.watch._getExternalAddressByIndex(1), value: 40000 }],
+    2,
+    f.watch._getInternalAddressByIndex(0),
+  );
+  await expect(f.watch.broadcastTx(f.hex)).rejects.toThrow('verified signing request');
+  expect(() => f.watch.combinePsbt(f.request, f.request)).toThrow('current reviewed signing request');
+  expect(f.client.blockchainTransaction_broadcast).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['evidence host lags', 1000004, 1000009],
+  ['anchor host lags', 1000009, 1000004],
+])('fails closed when the %s leaves conflict depth below six', async (_name, evidence, anchor) => {
+  const f = await ready();
+  (global.fetch as jest.Mock).mockImplementation(async (url: string, options: any) => {
+    if (!url.endsWith('/blocks/tip/height')) return f.response(url, options);
+    const value = String(url.startsWith('https://mempool.space') ? anchor : evidence);
+    return { ok: true, redirected: false, url, headers: { get: () => null }, text: async () => value } as any;
+  });
+  await expect(f.watch.broadcastTx(f.hex)).rejects.toThrow();
+  expect(f.client.blockchainTransaction_broadcast).not.toHaveBeenCalled();
 });
