@@ -79,7 +79,12 @@ jobs:
 
     - name: Package APKs
       run: |
+        git rev-parse HEAD > android-e2e-source.sha
+        sha256sum \
+          android/app/build/outputs/apk/release/app-release.apk \
+          android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk > android-e2e-apks.sha256
         tar -czf bluewallet-android-apks.tar.gz \
+          android-e2e-source.sha android-e2e-apks.sha256 \
           android/app/build/outputs/apk/release/app-release.apk \
           android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk
 
@@ -159,6 +164,19 @@ jobs:
 
     - name: Restore APKs
       run: tar -xzf bluewallet-android-apks.tar.gz
+
+    - name: Verify APK artifact source and contents
+      shell: bash
+      env:
+        EXPECTED_SOURCE: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        artifact_source="$(cat android-e2e-source.sha)"
+        if [[ ! "$artifact_source" =~ ^[0-9a-f]{40}$ ]] || [[ "$artifact_source" != "$EXPECTED_SOURCE" ]]; then
+          echo "::error::APK artifact source $artifact_source does not match expected source $EXPECTED_SOURCE"
+          exit 1
+        fi
+        sha256sum --check --strict android-e2e-apks.sha256
+        echo "APK artifact source and checksums verified: $artifact_source" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Run tests
       uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
