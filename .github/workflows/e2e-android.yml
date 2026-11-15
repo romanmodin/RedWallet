@@ -16,6 +16,21 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    - name: Verify source commit
+      shell: bash
+      env:
+        EXPECTED_SOURCE: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        actual_source="$(git rev-parse HEAD)"
+        if [[ ! "$EXPECTED_SOURCE" =~ ^[0-9a-f]{40}$ ]] || [[ "$actual_source" != "$EXPECTED_SOURCE" ]]; then
+          echo "::error::Checkout $actual_source does not match expected source $EXPECTED_SOURCE"
+          exit 1
+        fi
+        echo "Verified source checkout: $actual_source"
+        echo "Source commit: $actual_source" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Free disk space (Ubuntu)
       run: |
@@ -84,6 +99,21 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    - name: Verify source commit
+      shell: bash
+      env:
+        EXPECTED_SOURCE: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        actual_source="$(git rev-parse HEAD)"
+        if [[ ! "$EXPECTED_SOURCE" =~ ^[0-9a-f]{40}$ ]] || [[ "$actual_source" != "$EXPECTED_SOURCE" ]]; then
+          echo "::error::Checkout $actual_source does not match expected source $EXPECTED_SOURCE"
+          exit 1
+        fi
+        echo "Verified source checkout: $actual_source"
+        echo "Source commit: $actual_source" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Free disk space (Ubuntu)
       run: |
