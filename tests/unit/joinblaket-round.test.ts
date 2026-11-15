@@ -243,3 +243,46 @@ test('a second CoinJoin protocol cannot start with different coins while change 
   await expect(setup(async () => {}, wallet)).rejects.toThrow('Conflicting CoinJoin');
   expect(wallet._joinblaketJournals).toBeUndefined();
 });
+
+test('more than 100 completed attempts compact safely without reusing change scripts or attempt IDs', async () => {
+  const wallet: ReservationWallet = { getID: () => 'wallet' };
+  const store = new JoinBlaketWalletStore(wallet, async () => {});
+  let first!: RoundJournal;
+  for (let i = 1; i <= 105; i++) {
+    const id = i.toString(16).padStart(64, '0');
+    const script = '0014' + i.toString(16).padStart(40, '0');
+    const round = await PaymentRound.begin('wallet', id, [point], script, 1000, 1, store);
+    if (i === 1) first = round.snapshot();
+    await round.cancel();
+  }
+  expect(Object.keys(wallet._joinblaketJournals!)).toHaveLength(1);
+  expect(Object.keys(wallet._joinblaketRetiredAttempts!)).toHaveLength(104);
+  expect(heldJoinBlaketChangeScripts(wallet).size).toBe(105);
+  expect(reservedCoins(wallet).size).toBe(0);
+  await expect(store.save(first)).rejects.toThrow('Retired');
+  await expect(PaymentRound.begin('wallet', 'ff'.repeat(32), [point], first.changeScript, 1000, 1, store)).rejects.toThrow(
+    'already disclosed',
+  );
+  const restored: ReservationWallet = { ...JSON.parse(JSON.stringify(wallet)), getID: () => 'wallet' };
+  expect(heldJoinBlaketChangeScripts(restored)).toEqual(heldJoinBlaketChangeScripts(wallet));
+});
+test('failed archival persistence restores both full journals and retired history', async () => {
+  const save = jest.fn(async () => {});
+  const { wallet, round, store } = await setup(save);
+  await round.cancel();
+  const before = wallet._joinblaketJournals,
+    retired = wallet._joinblaketRetiredAttempts;
+  save.mockRejectedValueOnce(new Error('archive failed'));
+  await expect(PaymentRound.begin('wallet', 'cd'.repeat(32), [point], '0014' + '44'.repeat(20), 1000, 1, store)).rejects.toThrow(
+    'archive failed',
+  );
+  expect(wallet._joinblaketJournals).toBe(before);
+  expect(wallet._joinblaketRetiredAttempts).toBe(retired);
+  expect(heldJoinBlaketChangeScripts(wallet)).toEqual(new Set([change]));
+  expect(reservedCoins(wallet).size).toBe(0);
+});
+test('corrupt retired history cannot silently permit change address reuse', async () => {
+  const { wallet } = await setup();
+  wallet._joinblaketRetiredAttempts = { ['cd'.repeat(32)]: 'bad script' };
+  expect(() => heldJoinBlaketChangeScripts(wallet)).toThrow('retired');
+});

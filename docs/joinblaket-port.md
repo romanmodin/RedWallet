@@ -16,6 +16,9 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
   rejects high-S/invalid DER/replayable signatures and mutated prevouts or outputs. This is not plan approval or SPV.
 - Python-compatible message framing and strict bounded parsing, including decoded Unicode validation.
   Gitar contributed this module; its tests also run with RedWallet's normal repository setup.
+- Ephemeral nick identity and strict low-S DER message authentication; exact handshake/transcript vectors.
+  Gitar contributed the initial port. Independent hardening fixes cover Hermes Buffer slices,
+  structural duplicate-key validation, bounded UTF-8, key serialization, and network/version binding.
 - CSPRNG-shuffled transaction construction with exact maker/taker accounting, dust included in the
   total cost, fee-ceiling enforcement, ownership metadata and fully verified witness assembly.
   With the shuffle held fixed for testing, the unsigned bytes, signed bytes and txid exactly
@@ -25,6 +28,8 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
   for signed/uncertain rounds. Only authenticated chain confirmation may release signed inputs.
 - Wallet storage integration shares a write lock with Kilojoin and propagates secure-storage failures.
   Ordinary XBT sends and Kilojoin reject JoinBlaket-reserved coins, including after serialization.
+  Finished attempts compact into identity/change-script tombstones; full journals do not accumulate with
+  cancelled attempts. The archive has an explicit 100,000-entry bound and never silently forgets scripts.
   Disclosed JoinBlaket change scripts are skipped by ordinary change allocation and rejected at send entry.
   One active CoinJoin protocol per wallet is currently enforced to prevent competing change allocation.
   This does not yet provide an application controller or automatic startup recovery.

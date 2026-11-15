@@ -6,6 +6,7 @@ export interface ReservationWallet {
   getID(): string;
   _kilojoinJournals?: Record<string, Journal>;
   _joinblaketJournals?: Record<string, RoundJournal>;
+  _joinblaketRetiredAttempts?: Record<string, string>;
 }
 const pending = new WeakSet<ReservationWallet>();
 export function reservedCoins(wallet: ReservationWallet): Set<string> {
@@ -36,12 +37,24 @@ export function reservedCoins(wallet: ReservationWallet): Set<string> {
       }
     }
   }
+  const retired = wallet._joinblaketRetiredAttempts;
+  if (retired !== undefined) {
+    if (!retired || typeof retired !== 'object' || Array.isArray(retired) || Object.keys(retired).length > 100000)
+      throw new Error('Invalid JoinBlaket retired history');
+    for (const [id, script] of Object.entries(retired)) {
+      if (!/^[0-9a-f]{64}$/.test(id) || typeof script !== 'string' || !/^0014[0-9a-f]{40}$/.test(script) || payments?.[id])
+        throw new Error('Invalid JoinBlaket retired attempt');
+    }
+  }
   return reserved;
 }
 /** Never reuse a change script previously disclosed for a JoinBlaket attempt. */
 export function heldJoinBlaketChangeScripts(wallet: ReservationWallet): Set<string> {
   reservedCoins(wallet); // Includes identity/corruption checks and pending-write exclusion.
-  return new Set(Object.values(wallet._joinblaketJournals ?? {}).map(j => j.changeScript));
+  return new Set([
+    ...Object.values(wallet._joinblaketJournals ?? {}).map(j => j.changeScript),
+    ...Object.values(wallet._joinblaketRetiredAttempts ?? {}),
+  ]);
 }
 export function assertJoinBlaketChangeUnreserved(wallet: ReservationWallet, changeAddress: string): void {
   const held = heldJoinBlaketChangeScripts(wallet);

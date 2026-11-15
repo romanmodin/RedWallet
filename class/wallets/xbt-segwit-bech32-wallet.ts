@@ -35,6 +35,7 @@ export class XbtSegwitBech32Wallet extends HDSegwitBech32Wallet {
 
   _kilojoinJournals?: Record<string, Journal>;
   _joinblaketJournals?: Record<string, RoundJournal>;
+  _joinblaketRetiredAttempts?: Record<string, string>;
 
   // Fee actions remain disabled until authenticated BIP84 replacement and fee review land.
   allowRBF() {

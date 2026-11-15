@@ -35,6 +35,7 @@ export class XbtTaprootWallet extends HDTaprootWallet {
 
   _kilojoinJournals?: Record<string, Journal>;
   _joinblaketJournals?: Record<string, RoundJournal>;
+  _joinblaketRetiredAttempts?: Record<string, string>;
 
   allowRBF() {
     return true;
