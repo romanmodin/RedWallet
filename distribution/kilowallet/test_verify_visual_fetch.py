@@ -1,22 +1,38 @@
-import copy,unittest
-from fetch_verified_visual import validate_remote,REPO
-from verify_visual import RUN,HARNESS,SOURCE
+import copy
+import unittest
+from fetch_verified_visual import REPO, validate_remote
+from verify_visual import ARTIFACT, ARTIFACT_SHA256, ATTEMPT, RUN, SOURCE
+
 class FetchTests(unittest.TestCase):
- def setUp(self):
-  self.r={'id':RUN,'run_attempt':1,'head_sha':HARNESS,'repository':{'full_name':REPO},'head_repository':{'full_name':REPO},'path':'.github/workflows/ios.yml','event':'workflow_dispatch','status':'completed','conclusion':'success'}
-  self.a={'id':1,'name':'candidate-lnd-frame-evidence','expired':False,'digest':'sha256:abc','workflow_run':{'id':RUN,'head_sha':HARNESS}}
-  self.p={'artifact':{'id':1,'sha256':'abc'},'expectedAppSource':SOURCE}
- def test_valid(self):self.assertTrue(validate_remote(self.r,self.a,self.p))
- def test_reject_wrong_run(self):
-  for key,value in [('id',0),('run_attempt',2),('head_sha','bad'),('path','bad'),('event','pull_request'),('status','in_progress'),('conclusion','failure'),('repository',{'full_name':'foreign'}),('head_repository',{'full_name':'foreign'})]:
-   with self.subTest(key=key):
-    r=copy.deepcopy(self.r);r[key]=value
-    with self.assertRaises(AssertionError):validate_remote(r,self.a,self.p)
- def test_reject_wrong_artifact(self):
-  for key,value in [('id',2),('name','other'),('expired',True),('digest','sha256:wrong'),('workflow_run',{'id':0,'head_sha':HARNESS}),('workflow_run',{'id':RUN,'head_sha':'wrong'})]:
-   with self.subTest(key=key,value=value):
-    a=copy.deepcopy(self.a);a[key]=value
-    with self.assertRaises(AssertionError):validate_remote(self.r,a,self.p)
- def test_reject_wrong_app(self):
-  p=copy.deepcopy(self.p);p['expectedAppSource']='wrong'
-  with self.assertRaises(AssertionError):validate_remote(self.r,self.a,p)
+    def setUp(self):
+        self.run = {"id":RUN,"run_attempt":ATTEMPT,"head_sha":SOURCE,
+            "repository":{"full_name":REPO},"head_repository":{"full_name":REPO},
+            "path":".github/workflows/ios.yml","event":"pull_request",
+            "status":"completed","conclusion":"success"}
+        self.artifact = {"id":ARTIFACT,"name":"screenshots","expired":False,
+            "digest":"sha256:"+ARTIFACT_SHA256,"workflow_run":{"id":RUN,"head_sha":SOURCE}}
+        self.receipt = {"run":RUN,"attempt":ATTEMPT,"sourceCommit":SOURCE,
+            "artifact":{"id":ARTIFACT,"sha256":ARTIFACT_SHA256}}
+    def test_valid(self): self.assertTrue(validate_remote(self.run,self.artifact,self.receipt))
+    def test_reject_wrong_run(self):
+        values = [("id",0),("run_attempt",2),("head_sha","bad"),("path","bad"),
+                  ("event","workflow_dispatch"),("status","in_progress"),("conclusion","failure"),
+                  ("repository",{"full_name":"foreign"}),("head_repository",{"full_name":"foreign"})]
+        for key,bad in values:
+            run=copy.deepcopy(self.run);run[key]=bad
+            with self.subTest(key=key),self.assertRaises(AssertionError): validate_remote(run,self.artifact,self.receipt)
+    def test_reject_wrong_artifact(self):
+        values=[("id",2),("name","other"),("expired",True),("digest","sha256:wrong"),
+                ("workflow_run",{"id":0,"head_sha":SOURCE}),("workflow_run",{"id":RUN,"head_sha":"wrong"})]
+        for key,bad in values:
+            artifact=copy.deepcopy(self.artifact);artifact[key]=bad
+            with self.subTest(key=key),self.assertRaises(AssertionError): validate_remote(self.run,artifact,self.receipt)
+    def test_reject_wrong_receipt(self):
+        for key,bad in [("run",0),("attempt",2),("sourceCommit","wrong")]:
+            receipt=copy.deepcopy(self.receipt);receipt[key]=bad
+            with self.subTest(key=key),self.assertRaises(AssertionError): validate_remote(self.run,self.artifact,receipt)
+        for key,bad in [("id",0),("sha256","wrong")]:
+            receipt=copy.deepcopy(self.receipt);receipt["artifact"][key]=bad
+            with self.subTest(key=key),self.assertRaises(AssertionError): validate_remote(self.run,self.artifact,receipt)
+
+if __name__ == "__main__": unittest.main()

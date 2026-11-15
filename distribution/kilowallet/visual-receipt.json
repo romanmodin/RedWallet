@@ -1,205 +1,104 @@
 {
-  "observedAt": "2026-11-13T01:24:19.694158+00:00",
-  "run": 43336731222,
+  "observedAt": "2026-11-15T12:50:42.369349+00:00",
+  "run": 43697661614,
   "attempt": 1,
-  "job": 131594674320,
-  "orchestration": "1e9ade642e5dac033f48658f23ef35e27616985a",
-  "expectedAppSource": "68148c8c5741c7b84b37f33322e67273f7208a19",
-  "expectedAppTree": "9feb8f8d99f115c6bb9d10cd2c08358cc5543484",
+  "job": 132761669774,
+  "sourceCommit": "9dfdcf864e92bde8a1c04485ff93294d2b731965",
+  "sourceTree": "9cfff022ec43945f9705fc0a0d14a8c93f653aca",
+  "checkoutCommit": "f24ecd1d609c7867a233781c63ea0b2dac268cea",
+  "checkoutTree": "9cfff022ec43945f9705fc0a0d14a8c93f653aca",
   "status": "completed",
   "conclusion": "success",
-  "diagnosticOnly": true,
-  "visualApproved": false,
   "artifact": {
-    "id": 13999315907,
-    "sha256": "fcf7f55a6d93b3d2a22ac9264f693497a3734b1fc145853683caec99eb42110f",
+    "id": 14160198887,
+    "name": "screenshots",
+    "sha256": "0ffe2ef90d0cd1af0fdf274ab41daa6f5c85720cf91949f43ad3892db24280c6",
     "apiDigestVerified": true,
     "zipCrcVerified": true,
     "files": [
-      "screenshots/00-settings-preflight-1.png",
-      "screenshots/03-create.png",
-      "screenshots/55-background-settings.png",
-      "screenshots/55-ln-live.png",
-      "screenshots/55-lnd-followup-1.png",
-      "screenshots/55-lnd-followup-2.png",
-      "screenshots/55-lnd-followup-3.png",
-      "screenshots/55-lnd-reentry-1.png",
-      "screenshots/55-lnd-reentry-2.png",
-      "screenshots/55-lnd-reentry-3.png",
-      "screenshots/55-lnd-transition-1.png",
-      "screenshots/55-settings-transition-1.png",
-      "screenshots-logs/background.launch",
-      "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/block_headers.bin",
-      "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/neutrino.db",
-      "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/reg_filter_headers.bin",
-      "screenshots-logs/create-focused-result.json",
-      "screenshots-logs/create.launch",
-      "screenshots-logs/create.log",
-      "screenshots-logs/create.stderr",
-      "screenshots-logs/host-resources.jsonl",
-      "screenshots-logs/ln-live.launch",
-      "screenshots-logs/ln-live.log",
-      "screenshots-logs/ln-live.stderr",
-      "screenshots-logs/lnd-focused-result.json",
-      "screenshots-logs/lnd-live.log",
-      "screenshots-logs/reentry-pids.txt",
-      "screenshots-logs/reentry-readiness.json",
-      "screenshots-logs/reentry.launch",
-      "screenshots-logs/settings-fixture-results.json",
-      "screenshots-logs/settings-preflight.json",
-      "screenshots-logs/settings-preflight.launch",
-      "screenshots-logs/tor-ln-live.log",
-      "screenshots-logs/settings-readiness.json",
-      "build/xcodebuild.log"
+      "01-welcome.png",
+      "02-history.png",
+      "03-create.png",
+      "04-restore.png",
+      "05-watch.png",
+      "06-home.png",
+      "07-simple.png",
+      "08-lightning.png",
+      "09-ln-starting.png",
+      "10-ln-running.png",
+      "11-ln-failed.png",
+      "12-ark.png",
+      "13-locked.png",
+      "14-receive.png",
+      "15-send.png",
+      "16-review.png",
+      "17-replace.png",
+      "18-settings.png",
+      "19-pool-intro.png",
+      "20-pools.png",
+      "21-pool-join.png",
+      "22-pool-create.png",
+      "23-pool-pay.png",
+      "24-pool-round.png",
+      "25-home-es.png",
+      "26-receive-es.png",
+      "27-settings-es.png",
+      "28-lightning-es.png",
+      "29-ln-running-es.png",
+      "30-pools-es.png",
+      "31-pool-round-zh.png",
+      "32-home-zh.png",
+      "33-dice.png",
+      "34-backup.png",
+      "35-cpfp.png",
+      "36-receive-taproot.png",
+      "37-settings-taproot.png",
+      "38-pool-history.png",
+      "39-psbt.png",
+      "40-immature.png",
+      "41-dice-es.png",
+      "42-backup-es.png",
+      "43-pool-history-es.png",
+      "44-psbt-es.png",
+      "45-ark-ready.png",
+      "46-ark-ready-es.png",
+      "47-ark-es.png",
+      "48-ln-bridge.png",
+      "49-ln-move.png",
+      "50-settings-notify.png",
+      "51-ln-bridge-es.png",
+      "52-ark-live.png",
+      "53-tor-live.png",
+      "54-tor-log.png",
+      "55-ln-live.png",
+      "56-wallets.png",
+      "57-private.png",
+      "58-note.png",
+      "59-request.png",
+      "60-export.png",
+      "61-coins.png",
+      "62-recipients.png",
+      "63-filters.png",
+      "64-units.png",
+      "65-backup-check.png",
+      "66-pool-v6.png",
+      "67-pool-v6-es.png",
+      "68-pool-create-v6.png",
+      "69-jb-send.png",
+      "70-jb-plan.png",
+      "71-jb-progress.png",
+      "72-jb-sent.png",
+      "73-jb-failed.png",
+      "74-jb-send-es.png",
+      "75-jb-plan-es.png",
+      "76-jb-sent-zh.png"
     ]
   },
-  "compilePassed": true,
   "capturePassed": true,
-  "focusedRuntime": {
-    "checks": {
-      "lightningUsesTor": true,
-      "onionPeerConnected": true,
-      "watchtowerRegistered": true,
-      "emptyChannelBackupRpc": true,
-      "nativeQualificationCompleted": true
-    },
-    "passed": true,
-    "physicalPhoneTested": false,
-    "fundedChannelRestoreTested": false,
-    "visualApprovalRequiresManualReview": true,
-    "source": "68148c8c5741c7b84b37f33322e67273f7208a19",
-    "screenshotSourceSha256": "8dbdab79978c7fd685964067fd650353cc097d64d071b4fb0c81dad8b4669709",
-    "captureExit": 0,
-    "chainCaches": [
-      {
-        "path": "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/reg_filter_headers.bin",
-        "size": 31415232,
-        "sha256": "b46f1460bd431a831623aef2e215a2491a9a85cbb392d789bcfefa3125548742"
-      },
-      {
-        "path": "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/neutrino.db",
-        "size": 120455168,
-        "sha256": "c736fb5f26d179dfcdc5e9733cedf38b4b2b69b287832c797ef7f08a5738fd6f"
-      },
-      {
-        "path": "screenshots-logs/chain-cache/data/chain/bitcoin/mainnet/block_headers.bin",
-        "size": 80225304,
-        "sha256": "73f99b143953948f00066d7705240722c9e6b7d1cb44793ae3aa58dda23bf2cb"
-      }
-    ],
-    "frameChecks": {
-      "55-ln-live.png": {
-        "exists": true,
-        "phrases": {
-          "Lightning": true,
-          "EXPORT SCB": true
-        },
-        "passed": true
-      },
-      "55-lnd-followup-1.png": {
-        "exists": true,
-        "phrases": {
-          "Lightning": true,
-          "EXPORT SCB": true
-        },
-        "passed": true
-      },
-      "55-lnd-followup-2.png": {
-        "exists": true,
-        "phrases": {
-          "Lightning": true,
-          "EXPORT SCB": true
-        },
-        "passed": true
-      },
-      "55-lnd-followup-3.png": {
-        "exists": true,
-        "phrases": {
-          "Lightning": true,
-          "EXPORT SCB": true
-        },
-        "passed": true
-      },
-      "55-lnd-reentry-1.png": {
-        "exists": true,
-        "phrases": {
-          "Lightning": true,
-          "EXPORT SCB": true
-        },
-        "passed": true
-      },
-      "55-lnd-reentry-2.png": {
-        "exists": true,
-        "phrases": {
-          "Lightning": true,
-          "EXPORT SCB": true
-        },
-        "passed": true
-      },
-      "55-lnd-reentry-3.png": {
-        "exists": true,
-        "phrases": {
-          "Lightning": true,
-          "EXPORT SCB": true
-        },
-        "passed": true
-      }
-    },
-    "settingsReadiness": {
-      "ready": true,
-      "limitSeconds": 60,
-      "analysisTimeoutPerPhraseSeconds": 60,
-      "elapsedSeconds": 9.094048874999999,
-      "attempts": [
-        {
-          "file": "55-settings-transition-1.png",
-          "elapsedSeconds": 9.09402087500007,
-          "captureElapsedSeconds": 5.342931833999955,
-          "captureExit": 0,
-          "check": {
-            "exists": true,
-            "phrases": {
-              "Settings": true,
-              "General": true,
-              "Accessibility": true
-            },
-            "passed": true
-          }
-        }
-      ]
-    },
-    "reentryReadiness": {
-      "ready": true,
-      "limitSeconds": 30,
-      "analysisTimeoutPerPhraseSeconds": 60,
-      "elapsedSeconds": 14.083677916999932,
-      "attempts": [
-        {
-          "file": "55-lnd-transition-1.png",
-          "elapsedSeconds": 14.083556124999859,
-          "captureElapsedSeconds": 6.093587666999838,
-          "captureExit": 0,
-          "check": {
-            "exists": true,
-            "phrases": {
-              "Lightning": true,
-              "EXPORT SCB": true
-            },
-            "passed": true
-          }
-        }
-      ]
-    },
-    "createScreen": {
-      "exists": true,
-      "phrases": {
-        "Your recovery words": true,
-        "I wrote them down": true
-      },
-      "passed": true,
-      "captureExit": 0
-    },
-    "reentryPidReceipt": "original=25498\nresumed=25498\n"
-  },
-  "nativeQualificationPassed": true
+  "allImagesDecoded": true,
+  "allImagesVisuallyReviewed": true,
+  "syntheticOnly": true,
+  "realTransaction": false,
+  "physicalPhoneTested": false,
+  "nativeVerifiedReceiptSha256": "941ba2b3ba0cb334ea33a00b66d2db377af4174ffb5de815a65adcdf9f5b5f7e"
 }
