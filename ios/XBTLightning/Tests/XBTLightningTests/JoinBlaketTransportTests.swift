@@ -52,7 +52,7 @@ final class JoinBlaketTransportTests: XCTestCase {
     func testOnlyBoundedSingleCRLFWrite() throws {
         XCTAssertEqual(try JoinBlaketLineBuffer.outgoing("hello\r"), Data("hello\r\n".utf8))
         for bad in ["", "hello", "hello\n", "a\r\nb\r", "a\rb\r", String(repeating: "é", count: 32768) + "\r"] {
-            XCTAssertThrowsError(try JoinBlaketLineBuffer.outgoing(bad))
+            XCTAssertThrowsError(try JoinBlaketLineBuffer.outgoing(bad), "Rejected framing case: " + String(bad.prefix(12).debugDescription))
         }
     }
 

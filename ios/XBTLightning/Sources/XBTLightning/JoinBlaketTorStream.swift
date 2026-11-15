@@ -32,10 +32,13 @@ struct JoinBlaketLineBuffer {
     }
 
     static func outgoing(_ line: String) throws -> Data {
-        guard line.hasSuffix("\r"), !line.dropLast().contains("\r"), !line.contains("\n") else {
+        // Swift treats CRLF as one Character: Character.contains("\r")/contains("\n")
+        // can miss an embedded CRLF. Framing is defined in bytes, not graphemes.
+        var data = Data(line.utf8)
+        guard data.last == 13, !data.dropLast().contains(13), !data.contains(10) else {
             throw JoinBlaketTransportFailure.invalid
         }
-        let data = Data((line + "\n").utf8)
+        data.append(10)
         guard data.count <= limit else { throw JoinBlaketTransportFailure.oversized }
         return data
     }
