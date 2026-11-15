@@ -31,7 +31,7 @@ export const GROUPS = [
 const ROOT = "https://api.appstoreconnect.apple.com";
 const EDITABLE = new Set(["DEVELOPER_REJECTED", "PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW"]);
 const SUBMITTED = new Set(["WAITING_FOR_REVIEW", "IN_REVIEW"]);
-const TERMINAL_REVIEW = new Set(["COMPLETE", "CANCELED"]);
+const TERMINAL_REVIEW = new Set(["COMPLETE"]);
 
 const validId = (x) => typeof x === "string" && /^[A-Za-z0-9-]+$/.test(x);
 const present = (x) => typeof x === "string" && x.trim().length > 0;
@@ -396,9 +396,14 @@ export async function readSnapshot(api) {
       "/v1/reviewSubmissions/" + exact.id + "/items",
       { include: "appStoreVersion", "fields[appStoreVersions]": "versionString,platform" },
     );
-    assert.equal(items.length, 1);
-    assert.equal(items[0]?.relationships?.appStoreVersion?.data?.id, VERSION_ID);
-    activeReview = { id: exact.id, state: exact.attributes.state, itemId: items[0].id };
+    assert.ok(items.length <= 1);
+    if (items.length)
+      assert.equal(items[0]?.relationships?.appStoreVersion?.data?.id, VERSION_ID);
+    activeReview = {
+      id: exact.id,
+      state: exact.attributes.state,
+      itemId: items[0]?.id || null,
+    };
   }
 
   return {
@@ -439,7 +444,24 @@ export function planPublic(snapshot, action, metadata) {
     };
   }
   assert.equal(action, "submit");
-  assert.ok(!snapshot.activeReview, "Existing review must finish canceling");
+  if (snapshot.activeReview) {
+    assert.equal(
+      snapshot.activeReview.state,
+      "READY_FOR_REVIEW",
+      "Existing review must finish canceling",
+    );
+    assert.equal(snapshot.selectedBuild, BUILD);
+    assert.equal(snapshot.reviewNotes, metadata.notes);
+    assert.equal(snapshot.description, metadata.description);
+    assert.equal(snapshot.privacyPolicyUrl, POLICY_URL);
+    return {
+      status: "SUBMISSION_RESUME",
+      writes: [
+        ...(snapshot.activeReview.itemId ? [] : [{ action: "create-review-item" }]),
+        { action: "submit-review", reviewId: snapshot.activeReview.id },
+      ],
+    };
+  }
   assert.ok(EDITABLE.has(snapshot.versionState), "Version is not editable");
   assert.ok([OLD_BUILD, BUILD].includes(snapshot.selectedBuild));
   const writes = [];
@@ -551,29 +573,38 @@ async function submit(api, snapshot, metadata, journal, wait = delay) {
   assert.equal(current.reviewNotes, metadata.notes);
   assert.equal(current.description, metadata.description);
   assert.equal(current.privacyPolicyUrl, POLICY_URL);
-  assert.equal(current.activeReview, null);
-  assert.ok(EDITABLE.has(current.versionState));
 
-  const review = (
-    await api("POST", "/v1/reviewSubmissions", {
+  let reviewId, hasItem;
+  if (current.activeReview) {
+    assert.equal(current.activeReview.state, "READY_FOR_REVIEW");
+    assert.ok(validId(current.activeReview.id));
+    reviewId = current.activeReview.id;
+    hasItem = Boolean(current.activeReview.itemId);
+  } else {
+    assert.ok(EDITABLE.has(current.versionState));
+    const review = (
+      await api("POST", "/v1/reviewSubmissions", {
+        data: {
+          type: "reviewSubmissions",
+          relationships: { app: { data: { type: "apps", id: APP } } },
+        },
+      })
+    ).data;
+    assert.ok(validId(review?.id));
+    assert.equal(review?.attributes?.state, "READY_FOR_REVIEW");
+    reviewId = review.id;
+    hasItem = false;
+  }
+  if (!hasItem)
+    await api("POST", "/v1/reviewSubmissionItems", {
       data: {
-        type: "reviewSubmissions",
-        relationships: { app: { data: { type: "apps", id: APP } } },
+        type: "reviewSubmissionItems",
+        relationships: {
+          reviewSubmission: { data: { type: "reviewSubmissions", id: reviewId } },
+          appStoreVersion: { data: { type: "appStoreVersions", id: VERSION_ID } },
+        },
       },
-    })
-  ).data;
-  assert.ok(validId(review?.id));
-  assert.equal(review?.attributes?.state, "READY_FOR_REVIEW");
-  const reviewId = review.id;
-  await api("POST", "/v1/reviewSubmissionItems", {
-    data: {
-      type: "reviewSubmissionItems",
-      relationships: {
-        reviewSubmission: { data: { type: "reviewSubmissions", id: reviewId } },
-        appStoreVersion: { data: { type: "appStoreVersions", id: VERSION_ID } },
-      },
-    },
-  });
+    });
   const items = await collection(
     api,
     "/v1/reviewSubmissions/" + reviewId + "/items",

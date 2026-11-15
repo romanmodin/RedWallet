@@ -151,6 +151,50 @@ test("submission planner changes only the build and three metadata fields before
   });
 });
 
+test("submission planner safely resumes only the exact build-21 review draft", () => {
+  const draft = {
+    versionState: "PREPARE_FOR_SUBMISSION",
+    selectedBuild: BUILD,
+    activeReview: { id: "draft-review", state: "READY_FOR_REVIEW", itemId: null },
+    screenshotsComplete: true,
+    reviewNotes: metadata.notes,
+    description: metadata.description,
+    privacyPolicyUrl: POLICY_URL,
+  };
+  assert.deepEqual(planPublic(draft, "submit", metadata), {
+    status: "SUBMISSION_RESUME",
+    writes: [
+      { action: "create-review-item" },
+      { action: "submit-review", reviewId: "draft-review" },
+    ],
+  });
+  assert.deepEqual(
+    planPublic(
+      { ...draft, activeReview: { ...draft.activeReview, itemId: "exact-item" } },
+      "submit",
+      metadata,
+    ),
+    {
+      status: "SUBMISSION_RESUME",
+      writes: [{ action: "submit-review", reviewId: "draft-review" }],
+    },
+  );
+  assert.throws(() =>
+    planPublic(
+      { ...draft, selectedBuild: OLD_BUILD },
+      "submit",
+      metadata,
+    ),
+  );
+  assert.throws(() =>
+    planPublic(
+      { ...draft, activeReview: { ...draft.activeReview, state: "CANCELING" } },
+      "submit",
+      metadata,
+    ),
+  );
+});
+
 test("Apple client rejects other apps, deletion, agreements, availability and privacy questionnaires", async () => {
   const r = receipts();
   let calls = 0;
