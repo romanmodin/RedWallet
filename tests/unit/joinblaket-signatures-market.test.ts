@@ -63,6 +63,18 @@ describe('JoinBlaket maker signatures match upstream vectors', () => {
     }
     expect(verifyMakerWitness(v.unsigned_tx, coins, { ...witnesses[0], publicKey: v.inputs[0].pubkey })).toBe(false);
   });
+  test('rejects oversized signature/key messages before decoding', () => {
+    expect(verifyMakerWitness(v.unsigned_tx, coins, { ...witnesses[0], signature: '00'.repeat(100000) })).toBe(false);
+    expect(verifyMakerWitness(v.unsigned_tx, coins, { ...witnesses[0], publicKey: '00'.repeat(100000) })).toBe(false);
+    expect(() =>
+      verifyAllMakerWitnesses(
+        v.unsigned_tx,
+        coins,
+        v.metadata.input_owners.map(o => (o === 'taker' ? o : 'x'.repeat(129))),
+        witnesses,
+      ),
+    ).toThrow();
+  });
   test('commits every prevout amount, outpoint and transaction output', () => {
     const changed = coins.map((c, i) => (i === 0 ? { ...c, value: c.value + 1 } : c));
     expect(verifyMakerWitness(v.unsigned_tx, changed, witnesses[0])).toBe(false);

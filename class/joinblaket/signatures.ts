@@ -36,6 +36,7 @@ function checkedTransaction(unsignedHex: string, coins: readonly SpentCoin[]): T
 export function makerInputDigest(unsignedHex: string, coins: readonly SpentCoin[], index: number, publicKeyHex: string): Buffer {
   const tx = checkedTransaction(unsignedHex, coins);
   if (!Number.isInteger(index) || index < 0 || index >= coins.length) throw new Error('Invalid input index');
+  if (typeof publicKeyHex !== 'string' || publicKeyHex.length !== 66) throw new Error('Invalid compressed public key');
   const pub = hex(publicKeyHex);
   const spent = hex(coins[index].scriptPubKey);
   if (pub.length !== 33 || !ecc.isPoint(pub) || !Buffer.from(crypto.hash160(pub)).equals(spent.subarray(2)))
@@ -53,6 +54,7 @@ export function makerInputDigest(unsignedHex: string, coins: readonly SpentCoin[
 // No private keys, signing or broadcast are exposed by this module.
 export function verifyMakerWitness(unsignedHex: string, coins: readonly SpentCoin[], witness: MakerWitness): boolean {
   try {
+    if (typeof witness.signature !== 'string' || witness.signature.length < 18 || witness.signature.length > 146) return false;
     const encoded = hex(witness.signature);
     if (encoded.length < 9 || encoded.length > 73 || encoded[encoded.length - 1] !== 0x21) return false;
     const digest = makerInputDigest(unsignedHex, coins, witness.index, witness.publicKey);
@@ -70,7 +72,8 @@ export function verifyAllMakerWitnesses(
   witnesses: readonly MakerWitness[],
 ): void {
   checkedTransaction(unsignedHex, coins);
-  if (owners.length !== coins.length || owners.some(o => !o) || !owners.includes('taker')) throw new Error('Invalid input ownership');
+  if (owners.length !== coins.length || owners.some(o => typeof o !== 'string' || !o || o.length > 128) || !owners.includes('taker'))
+    throw new Error('Invalid input ownership');
   const makerIndices = owners.map((o, i) => (o !== 'taker' ? i : -1)).filter(i => i >= 0);
   if (!makerIndices.length || witnesses.length !== makerIndices.length) throw new Error('Every maker input requires one signature');
   const seen = new Set<number>();
