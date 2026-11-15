@@ -4,6 +4,65 @@ import Lndmobile
 @testable import XBTLightning
 
 final class TorSmokeTests: XCTestCase {
+
+    /// Reachability and protocol challenge only: never sends a proof, fill, wallet data or funds.
+    func testJoinBlaketTorDirectoryHandshakeChallenge() async throws {
+        guard #available(iOS 17.0, *) else { throw XCTSkip("Tor requires iOS 17") }
+        let transport = JoinBlaketTransport.shared
+        let id = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        let nick = "J5" + String(id.prefix(14)).replacingOccurrences(of: "0", with: "1")
+        let timeout = Task {
+            do {
+                try await Task.sleep(nanoseconds: 150_000_000_000)
+                await transport.close(id)
+            } catch {}
+        }
+        defer { timeout.cancel() }
+        do {
+            try await transport.open(id)
+            let hello: [String: Any] = [
+                "app-name": "joinmarket", "directory": false, "location-string": "NOT-SERVING-ONION",
+                "proto-ver": 5, "features": ["neutrino_compat": true, "nick_auth": true, "peerlist_features": true, "ping": true],
+                "nick": nick, "network": "xbt"
+            ]
+            func frame(_ type: Int, _ line: String) throws -> String {
+                let data = try JSONSerialization.data(withJSONObject: ["type": type, "line": line], options: [.sortedKeys])
+                return String(decoding: data, as: UTF8.self) + "\r"
+            }
+            let helloData = try JSONSerialization.data(withJSONObject: hello, options: [.sortedKeys])
+            try await transport.writeLine(id, line: frame(793, String(decoding: helloData, as: UTF8.self)))
+            var accepted = false, challenged = false
+            for _ in 0..<10 {
+                let received = try await transport.readLine(id)
+                let text = try XCTUnwrap(received)
+                let body = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+                let type = try XCTUnwrap(body["type"] as? Int)
+                let line = try XCTUnwrap(body["line"] as? String)
+                if type == 798 { try await transport.writeLine(id, line: frame(799, "")); continue }
+                let fields = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+                if type == 795 || type == 793 {
+                    XCTAssertFalse(accepted)
+                    XCTAssertEqual(fields["accepted"] as? Bool, true)
+                    XCTAssertEqual(fields["network"] as? String, "xbt")
+                    XCTAssertEqual((fields["features"] as? [String: Any])?["nick_auth"] as? Bool, true)
+                    accepted = true
+                } else if type == 803 {
+                    XCTAssertTrue(accepted)
+                    XCTAssertEqual(fields["directory-id"] as? String, JoinBlaketTorStream.host + ":5222")
+                    let challenge = try XCTUnwrap(fields["challenge"] as? String)
+                    XCTAssertEqual(challenge.count, 64)
+                    XCTAssertTrue(challenge.allSatisfy { $0.isHexDigit && !$0.isUppercase })
+                    challenged = true
+                    break
+                } else { XCTFail("Unexpected directory handshake frame"); break }
+            }
+            XCTAssertTrue(accepted && challenged, "The onion directory must answer the Tor handshake; no funds were used")
+            await transport.close(id)
+        } catch {
+            await transport.close(id)
+            throw error
+        }
+    }
     func testTorPublicSyncOnionPeerAndFeeFailureWithoutDirectFallback() async throws {
         guard #available(iOS 17.0, *) else { throw XCTSkip("Tor requires iOS 17") }
         try await RegtestNode.shared.selectTransport("tor")

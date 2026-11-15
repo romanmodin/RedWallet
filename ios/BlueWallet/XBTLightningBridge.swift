@@ -1,11 +1,49 @@
 #if os(iOS) && !targetEnvironment(macCatalyst)
 import Foundation
+import UIKit
 import React
 import XBTLightning
 
 @objc(XBTLightningBridge)
-final class XBTLightningBridge: NSObject {
+final class XBTLightningBridge: NSObject, RCTInvalidating {
     @objc static func requiresMainQueueSetup() -> Bool { false }
+
+    private var directoryBackgroundObserver: NSObjectProtocol?
+
+    override init() {
+        super.init()
+        directoryBackgroundObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+        ) { _ in Task { await JoinBlaketTransport.shared.closeAll() } }
+    }
+
+    deinit {
+        if let observer = directoryBackgroundObserver { NotificationCenter.default.removeObserver(observer) }
+    }
+
+    @objc func invalidate() {
+        if let observer = directoryBackgroundObserver {
+            NotificationCenter.default.removeObserver(observer)
+            directoryBackgroundObserver = nil
+        }
+        Task { await JoinBlaketTransport.shared.closeAll() }
+    }
+
+    @objc(joinblaket:id:value:resolver:rejecter:)
+    func joinblaket(_ action: String, id: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                   rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch action {
+                case "open": try await JoinBlaketTransport.shared.open(id); resolve(nil)
+                case "read": resolve(try await JoinBlaketTransport.shared.readLine(id))
+                case "write": try await JoinBlaketTransport.shared.writeLine(id, line: value); resolve(nil)
+                case "close": await JoinBlaketTransport.shared.close(id); resolve(nil)
+                default: reject("joinblaket_invalid", "Invalid directory operation.", nil)
+                }
+            } catch { reject("joinblaket_unavailable", "JoinBlaket Tor connection unavailable.", nil) }
+        }
+    }
 
     @objc(network:value:resolver:rejecter:)
     func network(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {

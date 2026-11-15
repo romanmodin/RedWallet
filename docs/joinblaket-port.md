@@ -68,9 +68,26 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
 - The existing locked @noble/curves 2.0.1 is now a direct dependency for audited X25519. No new
   version or dependency resolution was introduced.
 
+## Native Tor transport
+
+The iOS bridge now has an explicit, dormant JoinBlaket line-transport entry point. It uses the existing
+in-process Arti engine and Network.framework SOCKS5 proxy with direct failover disabled. Both native
+and JavaScript sides pin the rc6 onion and port; no arbitrary target or DNS fallback is exposed. Each
+connection gets a separate SOCKS isolation credential. Only one handle may be active; cancellation,
+backgrounding, bridge invalidation and late-open completion close it. Native handles are retired for
+this process lifetime (10,000-handle bound fails closed). iOS 17 or newer and an active foreground app
+are required. This does not run a background payment service or sign anything.
+
+Byte-limited native line buffering, CRLF writes, bounded open/write deadlines, and rejection of parallel
+reads/writes protect the bridge. The adapter tests use injected native promises; they do not prove real
+Tor routing. Native tests cover fragmented UTF-8, size limits, stale handles and bootstrap cancellation.
+The existing iOS Tor smoke job also includes a read-only directory handshake/challenge check; that check
+does not complete nick authentication or send a fill. Native compilation and live success must be
+verified in CI before treating this transport as validated.
+
 ## Required before exposure in Send
 
-This is not a working payment feature yet. No live button, network requests or signer is connected. Existing wallet spending now honors the new
+This is not a working payment feature yet. No live button or signer is connected. Only an explicit call to the dormant native transport opens a connection. Existing wallet spending now honors the new
 journal field, but no UI starts a JoinBlaket round.
 Still required: Tor-only authenticated directory and encrypted session transport; a validated chain-anchor
 provider and live proof-checked Electrum wiring; application integration of offer selection and PoDLE;
