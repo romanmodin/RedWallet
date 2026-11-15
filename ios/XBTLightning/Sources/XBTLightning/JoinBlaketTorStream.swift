@@ -79,7 +79,7 @@ final class JoinBlaketTorStream: JoinBlaketLineConnection, @unchecked Sendable {
     }
 
     func open() async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             queue.async {
                 guard !self.started, !self.finished else {
                     continuation.resume(throwing: JoinBlaketTransportFailure.closed); return
@@ -107,7 +107,7 @@ final class JoinBlaketTorStream: JoinBlaketLineConnection, @unchecked Sendable {
     }
 
     func readLine() async throws -> String? {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String?, Error>) in
             queue.async {
                 guard self.ready, !self.finished else {
                     continuation.resume(throwing: JoinBlaketTransportFailure.closed); return
@@ -146,7 +146,7 @@ final class JoinBlaketTorStream: JoinBlaketLineConnection, @unchecked Sendable {
 
     func writeLine(_ line: String) async throws {
         let data = try JoinBlaketLineBuffer.outgoing(line)
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             queue.async {
                 guard self.ready, !self.finished else {
                     continuation.resume(throwing: JoinBlaketTransportFailure.closed); return
@@ -185,7 +185,7 @@ final class JoinBlaketTorStream: JoinBlaketLineConnection, @unchecked Sendable {
     }
 
     func close() async {
-        await withCheckedContinuation { continuation in
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             queue.async { self.finish(); continuation.resume() }
         }
     }
