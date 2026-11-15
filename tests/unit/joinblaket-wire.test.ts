@@ -208,3 +208,9 @@ describe('JoinBlaket wire adversarial parsing', () => {
     expect(Object.isFrozen(parse('{"type": 1, "line": "x"}'))).toBe(true);
   });
 });
+
+test('rejects JSON-escaped lone surrogates after decoding the line', () => {
+  for (const line of ['\\ud800', '\\udc00', 'a\\ud800z', '\\udc00\\ud800']) {
+    expect(() => parse('{"type": 1, "line": "' + line + '"}')).toThrow('surrogate');
+  }
+});

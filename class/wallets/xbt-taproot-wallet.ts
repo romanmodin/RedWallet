@@ -1,5 +1,11 @@
+import { RoundJournal } from '../joinblaket/round';
 import { Journal } from '../xbt/kilojoin/round';
-import { assertUnreserved, reservedCoins } from '../xbt/kilojoin/wallet-store';
+import {
+  assertJoinBlaketChangeUnreserved,
+  heldJoinBlaketChangeScripts,
+  assertUnreserved,
+  reservedCoins,
+} from '../xbt/kilojoin/wallet-store';
 import { ECPairFactory } from 'ecpair';
 
 import ecc from '../../blue_modules/noble_ecc';
@@ -28,6 +34,7 @@ export class XbtTaprootWallet extends HDTaprootWallet {
   static readonly derivationPath = "m/86'/0'/0'";
 
   _kilojoinJournals?: Record<string, Journal>;
+  _joinblaketJournals?: Record<string, RoundJournal>;
 
   allowRBF() {
     return true;
@@ -101,6 +108,17 @@ export class XbtTaprootWallet extends HDTaprootWallet {
       parents.get(utxo.txid)!.confirmations = confirmations;
       utxo.confirmations = confirmations;
     }
+  }
+
+  async getChangeAddressAsync(): Promise<string> {
+    heldJoinBlaketChangeScripts(this);
+    for (let attempt = 0; attempt <= 100; attempt++) {
+      const candidate = await super.getChangeAddressAsync();
+      const script = Buffer.from(bitcoin.address.toOutputScript(candidate)).toString('hex');
+      if (!heldJoinBlaketChangeScripts(this).has(script)) return candidate;
+      this.next_free_change_address_index++;
+    }
+    throw new Error('No unreserved change address available');
   }
 
   getUtxo(respectFrozen = false) {
@@ -178,6 +196,7 @@ export class XbtTaprootWallet extends HDTaprootWallet {
   createTransaction(...args: Parameters<AbstractHDElectrumWallet['createTransaction']>) {
     const [utxos, targets, feeRate, changeAddress, sequence, skipSigning, masterFingerprint] = args;
     assertUnreserved(this, utxos);
+    assertJoinBlaketChangeUnreserved(this, changeAddress);
     if (!this.weOwnAddress(changeAddress)) throw new Error('XBT change address is not controlled by this wallet');
     const verifiedUtxos = this.verifyInputs(utxos);
     const result = super.createTransaction(verifiedUtxos, targets, feeRate, changeAddress, sequence, true, masterFingerprint);

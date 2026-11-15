@@ -163,5 +163,6 @@ export function parse(text: string): Frame {
   if (typeof type !== 'number' || !/^(?:0|[1-9][0-9]*)$/.test(rawType) || !Number.isSafeInteger(type))
     throw new Error('Frame type must be an integer');
   if (typeof line !== 'string') throw new Error('Frame line must be a string');
+  if (hasLoneSurrogate(line)) throw new Error('Lone surrogate in frame');
   return Object.freeze({ type, line });
 }
