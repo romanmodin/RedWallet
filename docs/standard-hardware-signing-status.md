@@ -110,3 +110,11 @@ Run 43592270176 passed the prior Buffer failure and displayed the unsigned PSBT 
 Copy unsigned PSBT is now a full-size themed action immediately below the explanation and above the QR. It copies the same Base64 PSBT through the existing native clipboard API, with haptic feedback. It no longer depends on reaching a small text link beneath all QR controls. The native test still requires actual button visibility and reads the clipboard to parse the request. The release flag remains false and a fresh simulator run is required.
 
 Gitar approved the 70ab5f0 code review with six findings closed and none open. The ordinary iOS UI/TLS workflow passed. Separate Android window-focus and LND estimate-changed failures remain under triage; neither is treated as a passing qualification.
+
+### November 14 clipboard round trip and scanner readiness
+
+Run [43609471430, attempt 2](https://github.com/romanmodin/RedWallet/actions/runs/43609471430/attempts/2) on source 7333e1e passed native TLS setup, public watch-only discovery, enrollment cancellation/persistence and missing-proof rejection. The actual Copy action produced a parseable unsigned PSBT in the iOS clipboard, with public fixture fingerprint 73c5da0a and SIGHASH_ALL (1). The host fixture successfully signed that request.
+
+The next step failed because Detox could not find ScanQrBackdoorButton immediately after opening the scanner. The failure screenshot shows the scanner open; the test had no readiness wait while automatic synchronization was disabled. It now waits for the existing scanner test-input control before tapping. No application signing or proof check was changed.
+
+Receipt: missingProofBlocked=true, clipboardRoundTrip=true, passed=false, cleanupComplete=true. Returning the signature through the app, native broadcast-time reorg rejection and native broadcast/confirmation remain unqualified. A fresh native run is required. Physical Keystone and camera scanning remain untested, and the production release switch remains false.

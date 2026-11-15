@@ -211,6 +211,9 @@ suite('Standard hardware iOS qualification', () => {
         await element(by.id('PsbtWithHardwareScrollView')).scrollTo('top');
         await visible('PsbtTxScanButton', 'PsbtWithHardwareScrollView');
         await element(by.id('PsbtTxScanButton')).tap();
+        // Synchronization is disabled for live sockets; wait for navigation to
+        // mount the scanner before sending the first test-input tap.
+        await waitForId('ScanQrBackdoorButton');
         for (let i = 0; i < 6; i++) await element(by.id('ScanQrBackdoorButton')).tap();
         await waitForId('scanQrBackdoorInput');
         await element(by.id('scanQrBackdoorInput')).replaceText(signed.toBase64());
