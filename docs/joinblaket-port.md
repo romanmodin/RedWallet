@@ -84,10 +84,26 @@ complete authenticated exchange through an injected native bridge contract, not 
 The nick verifier now accepts encrypted messages that fit the actual 64 KiB wire limit; its former
 60,000-character cutoff incorrectly rejected a valid maximum-size NaCl message.
 
-Native CI at 1883efd88 compiled the transport and passed six of seven new native tests. The remaining
-framing test exposed Swift treating CRLF as one Character; the writer now checks CR/LF bytes directly.
-That fix still requires a new native test result. The integrated app simulator workflow now includes
-this branch's Lightning/Tor bridge; the earlier default app build did not include that bridge.
+Native CI at 67aceb48 passed all seven transport tests, including the embedded CRLF rejection that
+failed at 1883efd88. The writer now checks CR/LF bytes directly because Swift treats CRLF as one
+Character. The native wallet regression job and public-node sync also passed at 67aceb48. The integrated
+app simulator build passed at 1883efd88 with this branch's Lightning/Tor bridge enabled; the earlier
+default app build did not include that bridge. These results do not qualify a live directory session.
+
+## Read-only authenticated orderbook
+
+The new collector uses the authenticated client to request peer discovery and exactly one public
+`orderbook` request (without an extra leading `!`). It validates signed offers and bond certificates,
+deduplicates by maker/order with the later certificate expiry, and retains the connection for the
+caller. It sends no fill, commitment, wallet input, transaction or wallet signature. This is certificate
+verification only; proven chain data and current bond valuation are still required before selection.
+
+The watch has minimum/quiet/absolute time limits, one collector per client, 10,000 candidate messages,
+32 MiB of candidate input and a separate 20,000-frame traffic limit. Partial results are explicitly
+marked truncated. Offers are parsed incrementally; raw traffic is not retained. Cancellation closes
+the connection, and continuous traffic periodically yields so cancellation can run. An integration
+test exercises the real directory authentication state machine followed by the pinned signed offer.
+It uses an injected stream and does not claim live Tor or real-chain verification.
 
 ## Native Tor transport
 
@@ -103,8 +119,10 @@ Byte-limited native line buffering, CRLF writes, bounded open/write deadlines, a
 reads/writes protect the bridge. The adapter tests use injected native promises; they do not prove real
 Tor routing. Native tests cover fragmented UTF-8, size limits, stale handles and bootstrap cancellation.
 The existing iOS Tor smoke job also includes a read-only directory handshake/challenge check; that check
-does not complete nick authentication or send a fill. Native compilation and live success must be
-verified in CI before treating this transport as validated.
+does not complete nick authentication or send a fill. The first live check at 1883efd88 failed after
+125 seconds; its cancellation error did not identify the original failure stage. The probe now reports
+bootstrap/connection/handshake stages and uses a separately cancellable deadline callback. Live
+success still must be verified; native unit-test success is not a routing or authentication result.
 
 ## Required before exposure in Send
 

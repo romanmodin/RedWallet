@@ -10,6 +10,8 @@ import {
 } from '../../class/joinblaket/directory';
 import { NickIdentity, verifyPrivmsg, verifyProof } from '../../class/joinblaket/nick';
 import * as Wire from '../../class/joinblaket/wire';
+import { fetchOrderbook } from '../../class/joinblaket/orderbook';
+import vectors from '../fixtures/joinblaket/xbt-taker-vectors.json';
 
 jest.mock('../../class/rng', () => ({ randomBytes: jest.fn(async (size: number) => Buffer.alloc(size, 7)) }));
 
@@ -78,8 +80,8 @@ function challengeLine(id = DIRECTORY_ID) {
 }
 const clients: DirectoryClient[] = [];
 const identities: NickIdentity[] = [];
-function fixture(timeouts = {}) {
-  const identity = new NickIdentity(Buffer.alloc(32, 1));
+function fixture(timeouts = {}, secret = Buffer.alloc(32, 1)) {
+  const identity = new NickIdentity(secret);
   identities.push(identity);
   const stream = new Stream();
   let hello = '',
@@ -541,4 +543,26 @@ it('bounds write time from enqueue so preceding writes cannot extend the deadlin
   await jest.advanceTimersByTimeAsync(11);
   expect(f.client.isConnected).toBe(false);
   expect((await outcomes).map(r => r.status)).toEqual(['fulfilled', 'rejected']);
+});
+
+it('authenticates before collecting the signed rc6 market and never sends a fill', async () => {
+  jest.useFakeTimers();
+  const f = fixture({ peerlist: 10, quiet: 1 }, Buffer.from(vectors.nick.private_key, 'hex'));
+  const authenticate = f.stream.onWrite;
+  f.stream.onWrite = async frame => {
+    await authenticate(frame);
+    if (frame.type === Wire.GETPEERLIST) f.stream.frame(Wire.PEERLIST, vectors.offer.maker_nick + ';maker.onion:5222;F:nick_auth');
+    if (frame.type === Wire.PUBMSG) {
+      expect(frame.line).toBe(vectors.offer.taker_nick + '!PUBLIC!orderbook');
+      f.stream.frame(Wire.PRIVMSG, vectors.offer.privmsg_line);
+    }
+  };
+  await f.client.connect();
+  const collecting = fetchOrderbook(f.client, { minWaitMs: 30, quietMs: 15, maxWaitMs: 100, now: () => Date.now() });
+  const [result] = await Promise.all([collecting, jest.advanceTimersByTimeAsync(200)]);
+  expect(f.proofValid()).toBe(true);
+  expect(result).toMatchObject({ heard: 1, dropped: 0, truncated: false });
+  expect(result.offers[0].offer.counterparty).toBe(vectors.offer.maker_nick);
+  expect(f.stream.writes.map(line => Wire.parse(line).type)).toEqual([Wire.HANDSHAKE, Wire.NICK_AUTH_PROOF, Wire.GETPEERLIST, Wire.PUBMSG]);
+  expect(f.client.authenticated).toBe(true);
 });

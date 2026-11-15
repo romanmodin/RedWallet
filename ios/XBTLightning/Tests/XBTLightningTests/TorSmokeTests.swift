@@ -1,5 +1,6 @@
 #if XBT_LND_TOR_SMOKE
 import XCTest
+import Foundation
 import Lndmobile
 @testable import XBTLightning
 
@@ -8,18 +9,22 @@ final class TorSmokeTests: XCTestCase {
     /// Reachability and protocol challenge only: never sends a proof, fill, wallet data or funds.
     func testJoinBlaketTorDirectoryHandshakeChallenge() async throws {
         guard #available(iOS 17.0, *) else { throw XCTSkip("Tor requires iOS 17") }
-        let transport = JoinBlaketTransport.shared
+        let transport = JoinBlaketTransport(startTor: {
+            print("JoinBlaket native Tor: starting engine")
+            let connection = try await LightningTor.shared.start()
+            print("JoinBlaket native Tor: engine ready")
+            return connection.port
+        })
+        var stage = "opening directory"
         let id = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         let nick = "J5" + String(id.prefix(14)).replacingOccurrences(of: "0", with: "1")
-        let timeout = Task {
-            do {
-                try await Task.sleep(nanoseconds: 150_000_000_000)
-                await transport.close(id)
-            } catch {}
-        }
+        let timeout = DispatchWorkItem { Task { await transport.close(id) } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 150, execute: timeout)
         defer { timeout.cancel() }
         do {
             try await transport.open(id)
+            print("JoinBlaket native Tor: directory connected")
+            stage = "writing handshake"
             let hello: [String: Any] = [
                 "app-name": "joinmarket", "directory": false, "location-string": "NOT-SERVING-ONION",
                 "proto-ver": 5, "features": ["neutrino_compat": true, "nick_auth": true, "peerlist_features": true, "ping": true],
@@ -31,6 +36,7 @@ final class TorSmokeTests: XCTestCase {
             }
             let helloData = try JSONSerialization.data(withJSONObject: hello, options: [.sortedKeys])
             try await transport.writeLine(id, line: frame(793, String(decoding: helloData, as: UTF8.self)))
+            stage = "reading handshake and challenge"
             var accepted = false, challenged = false
             for _ in 0..<10 {
                 let received = try await transport.readLine(id)
@@ -39,6 +45,7 @@ final class TorSmokeTests: XCTestCase {
                 let type = try XCTUnwrap(body["type"] as? Int)
                 let line = try XCTUnwrap(body["line"] as? String)
                 if type == 798 { try await transport.writeLine(id, line: frame(799, "")); continue }
+                if type == 789 { continue } // A peer-list control frame may precede the challenge.
                 let fields = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
                 if type == 795 || type == 793 {
                     XCTAssertFalse(accepted)
@@ -60,7 +67,8 @@ final class TorSmokeTests: XCTestCase {
             await transport.close(id)
         } catch {
             await transport.close(id)
-            throw error
+            let torStatus = await LightningTor.shared.status()
+            XCTFail("JoinBlaket " + stage + " failed (" + String(describing: type(of: error)) + "); " + torStatus)
         }
     }
     func testTorPublicSyncOnionPeerAndFeeFailureWithoutDirectFallback() async throws {
