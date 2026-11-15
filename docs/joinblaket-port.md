@@ -19,6 +19,25 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
 - Ephemeral nick identity and strict low-S DER message authentication; exact handshake/transcript vectors.
   Gitar contributed the initial port. Independent hardening fixes cover Hermes Buffer slices,
   structural duplicate-key validation, bounded UTF-8, key serialization, and network/version binding.
+- NaCl crypto_box encryption and PoDLE commitments/revelations, initially ported with Gitar.
+  All 16 libsodium known-answer fixtures are copied exactly from rc6. Independent regression fixes cover
+  large encrypted messages, secret serialization, input mutation while awaiting entropy, Hermes slices,
+  nonce input validation and verification-index validation. Session keys live in a private WeakMap and
+  owned buffers are wiped; JavaScript cannot guarantee erasure of VM/library copies. Production encryption
+  always obtains a fresh CSPRNG nonce. Frames impose a 48,000-byte plaintext bound.
+- Authenticated offer parsing, fidelity-bond certificate/nick signatures, CLTV P2WSH derivation,
+  certificate expiry and economic bond valuation. Certificates do not authenticate their outpoint or
+  locktime by themselves: those claims must match independently proven chain output data.
+- Bonded-only maker selection: cheapest per maker and per bond outpoint, exact bigint-weighted
+  CSPRNG sampling without replacement, fee policy and explicit minimum-maker enforcement.
+  Expiry is checked per certificate, outside the shared outpoint lookup cache.
+- Individual XBT block-header PoW and bounded merkle inclusion checks, including the 164-byte
+  BLAKE2b header format, tested against public block/header hashes obtained read-only from Knots.
+  Invalid/negative/overflow targets and leftover merkle-position bits fail closed.
+- Electrum lookup recomputes txids and output values, checks script/unspent responses and merkle proofs,
+  and requires an independently established chain anchor. It rechecks the anchored tip after lookup.
+  This adapter has no live transport or anchor provider yet. Inclusion is proven; unspent status still
+  relies on the selected Electrum server, and this is not a full chain-consensus validator.
 - CSPRNG-shuffled transaction construction with exact maker/taker accounting, dust included in the
   total cost, fee-ceiling enforcement, ownership metadata and fully verified witness assembly.
   With the shuffle held fixed for testing, the unsigned bytes, signed bytes and txid exactly
@@ -38,13 +57,16 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
 - Serialized commitment consumption with durable-save-before-reveal, backup union, strict
   corruption rejection and the Android-compatible used/external JSON shape.
   Storage integration must use one instance per wallet plus appropriate cross-process locking.
+- The existing locked @noble/curves 2.0.1 is now a direct dependency for audited X25519. No new
+  version or dependency resolution was introduced.
 
 ## Required before exposure in Send
 
 This is not a working payment feature yet. No live button, network requests or signer is connected. Existing wallet spending now honors the new
 journal field, but no UI starts a JoinBlaket round.
-Still required: Tor-only authenticated directory and NaCl sessions; authenticated maker offers,
-fidelity bond and SPV verification; PoDLE; application wiring for transaction construction and all-maker 0x21 signature
+Still required: Tor-only authenticated directory and encrypted session transport; a validated chain-anchor
+provider and live proof-checked Electrum wiring; application integration of offer selection and PoDLE;
+application wiring for transaction construction and all-maker 0x21 signature
 verification before any taker signature; automatic startup recovery; explicit plan/fee-ceiling confirmation; encrypted backup integration;
 foreground/background lifecycle, cancellation and signed-but-unconfirmed handling; market panel,
 30-second refresh, progress/result/txid UI; native and disposable-chain end-to-end validation.
@@ -66,4 +88,5 @@ The separate MAX, hardware-signing, Kilowallet release and web-wallet work is pr
 - Direct read-only retrieval of the public market feed from Zorin returned HTTP 403 on 2026-11-15.
   No live market data, authenticated directory session, SPV maker/bond lookup, or live payment is verified.
 - RedWallet's existing chain freshness cross-check explicitly is not SPV. It must not be presented as the
-  rc6 maker/bond SPV proof. A proper XBT header/merkle verification adapter is required before exposure.
+  rc6 maker/bond SPV proof. The new header/merkle adapter must receive a validated independent chain
+  anchor and live transport before exposure; it may not accept the queried server as its own anchor.

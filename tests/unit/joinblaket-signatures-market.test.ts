@@ -130,6 +130,12 @@ describe('read-only market estimates', () => {
     for (const count of [-1, 0, 0.5, 129, NaN])
       expect(() => estimateMarket(parseMarket(JSON.stringify(sample)), 1000000, '2', count)).toThrow();
   });
+  test('economic bond weights are not bounded by the monetary supply', () => {
+    const market = parseMarket(JSON.stringify({ ...sample, offers: [{ ...sample.offers[0], bond_value: 3000000000000000 }] }));
+    expect(estimateMarket(market, 200000, '1')?.makers).toBe(1);
+    for (const bond_value of [-1, 0.1, 1e30])
+      expect(() => parseMarket(JSON.stringify({ ...sample, offers: [{ ...sample.offers[0], bond_value }] }))).toThrow();
+  });
   test('excludes zero-value bonds, caps counted offers at nine, preserves zero-maker result', () => {
     const zero = parseMarket(JSON.stringify({ ...sample, makers: 0, min_amount: null, max_amount: null, offers: [] }));
     expect(estimateMarket(zero, 200000, '1')).toBeNull();

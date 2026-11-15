@@ -19,6 +19,13 @@ export type Market = Readonly<{
   height: number | null;
   offers: readonly MarketOffer[];
 }>;
+// Watcher bond weights are economic scores (Kotlin Long), not satoshi amounts.
+// Floating precision here is informational only; authenticated selection uses bigint.
+function weight(x: unknown): number {
+  if (typeof x !== 'number' || !Number.isInteger(x) || x < 0 || x > Number(0x7fffffffffffffffn))
+    throw new Error('Invalid market bond weight');
+  return x;
+}
 function integer(x: unknown): number {
   if (typeof x !== 'number') throw new Error('Invalid market integer');
   return sats(x);
@@ -43,7 +50,7 @@ export function parseMarket(text: string): Market {
       maxsize,
       cjfee: o.cjfee,
       txfee: integer(o.txfee),
-      bondValue: integer(o.bond_value),
+      bondValue: weight(o.bond_value),
     });
   });
   const nullable = (value: unknown) => (value === null ? null : integer(value));
