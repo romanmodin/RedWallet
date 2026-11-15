@@ -2,9 +2,12 @@
 // The native destination is also pinned; it cannot proxy arbitrary hosts.
 import { NativeModules, Platform } from 'react-native';
 import { randomBytes } from '../rng';
+import { DirectoryClient, DIRECTORY_HOST, DIRECTORY_PORT } from './directory';
+import type { DirectoryTransport } from './directory';
+import type { NickIdentity } from './nick';
 
-export const IOS_DIRECTORY_HOST = 'f3tfzgk5ilwfapx427yx5ckeh7ptuvskfxnfnicfo747jyq5mgzdtvad.onion';
-export const IOS_DIRECTORY_PORT = 5222;
+export const IOS_DIRECTORY_HOST = DIRECTORY_HOST;
+export const IOS_DIRECTORY_PORT = DIRECTORY_PORT;
 const MAX_LINE = 65_536;
 const OPEN_TIMEOUT = 120_000;
 
@@ -26,10 +29,7 @@ function failure(): Error {
 export function createIosDirectoryTransport(
   bridge: DirectoryNativeBridge | undefined = NativeModules.XBTLightningBridge,
   platform: string = Platform.OS,
-): {
-  readonly viaTor: true;
-  open(host: string, port: number, signal: AbortSignal): Promise<IosDirectoryLineStream>;
-} {
+): DirectoryTransport {
   return {
     viaTor: true,
     async open(host, port, signal) {
@@ -159,4 +159,9 @@ export function createIosDirectoryTransport(
       };
     },
   };
+}
+
+/** Dormant factory: the caller explicitly connects and owns the ephemeral identity. */
+export function createIosDirectoryClient(identity: NickIdentity): DirectoryClient {
+  return new DirectoryClient({ identity, transport: createIosDirectoryTransport() });
 }

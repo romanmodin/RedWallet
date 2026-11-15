@@ -68,6 +68,27 @@ RedWallet adaptations retain the protocol rules while rejecting malformed input.
 - The existing locked @noble/curves 2.0.1 is now a direct dependency for audited X25519. No new
   version or dependency resolution was introduced.
 
+## Authenticated directory client
+
+The client now pins the production Tor endpoint, network and directory identity, requires the complete
+nick-authentication exchange, and blocks application send/receive until authentication succeeds. The
+native factory connects this client to the iOS bridge only when explicitly invoked. Pings and peer lists
+are handled separately; repeated/out-of-order authentication closes the connection. There is no public
+raw-send API. Closing or cancellation does not destroy the caller-owned ephemeral identity.
+
+Limits are explicit: 64 KiB frames (stricter than upstream receive limits), 1,024 queued frames / 8 MiB,
+64 queued writes, one consumer, 20,000 cached peers / 8 MiB, and a bounded/rate-limited peer-list collector.
+Late connections are closed, malformed frames are bounded, writes serialize, peer capabilities merge
+without downgrading, and continuous chunks cannot extend the collection deadline. Tests exercise the
+complete authenticated exchange through an injected native bridge contract, not a real native socket.
+The nick verifier now accepts encrypted messages that fit the actual 64 KiB wire limit; its former
+60,000-character cutoff incorrectly rejected a valid maximum-size NaCl message.
+
+Native CI at 1883efd88 compiled the transport and passed six of seven new native tests. The remaining
+framing test exposed Swift treating CRLF as one Character; the writer now checks CR/LF bytes directly.
+That fix still requires a new native test result. The integrated app simulator workflow now includes
+this branch's Lightning/Tor bridge; the earlier default app build did not include that bridge.
+
 ## Native Tor transport
 
 The iOS bridge now has an explicit, dormant JoinBlaket line-transport entry point. It uses the existing
@@ -89,7 +110,7 @@ verified in CI before treating this transport as validated.
 
 This is not a working payment feature yet. No live button or signer is connected. Only an explicit call to the dormant native transport opens a connection. Existing wallet spending now honors the new
 journal field, but no UI starts a JoinBlaket round.
-Still required: Tor-only authenticated directory and encrypted session transport; a validated chain-anchor
+Still required: native validation of the authenticated directory and the encrypted session controller; a validated chain-anchor
 provider and live proof-checked Electrum wiring; application integration of offer selection and PoDLE;
 application wiring for transaction construction and all-maker 0x21 signature
 verification before any taker signature; automatic startup recovery; explicit plan/fee-ceiling confirmation; encrypted backup integration;

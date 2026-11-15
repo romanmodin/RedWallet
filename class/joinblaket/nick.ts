@@ -6,14 +6,15 @@ import base from 'base-x';
 import ecc from '../../blue_modules/noble_ecc';
 import { randomBytes } from '../rng';
 import { decodeBase64, isCompressedPoint, messageHash, signHash, utf8, verifyMessage } from './message-signatures';
-import { DN_HANDSHAKE, HANDSHAKE, ONION_HOSTID, Frame, quote } from './wire';
+import { DN_HANDSHAKE, HANDSHAKE, ONION_HOSTID, Frame, quote, MAX_FRAME_LENGTH } from './wire';
 
 const BASE58 = base('123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz');
 const NICK_RE = /^J[0-9][1-9A-HJ-NP-Za-km-zO]{14}$/;
 const LOWER_HEX_64 = /^[0-9a-f]{64}$/;
 const PUBKEY_HEX = /^0[23][0-9a-f]{64}$/;
 const MAX_FIELD = 256;
-const MAX_PRIVMSG_REST = 60_000;
+// Encrypted payloads may exceed 60k while still fitting the protocol's 64 KiB frame.
+const MAX_PRIVMSG_REST = MAX_FRAME_LENGTH;
 export const NICK_VERSION = 5;
 export const NICK_AUTH_DOMAIN = 'nick-auth-v1';
 
