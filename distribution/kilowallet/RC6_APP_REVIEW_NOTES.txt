@@ -1,0 +1,17 @@
+This submission replaces Kilowallet 1.0.0 build 15 with RC6 build 21, bundle com.kilombino.kilowallet. Qualified source: 9dfdcf864e92bde8a1c04485ff93294d2b731965.
+
+No app account or sign-in is required. A reviewer can create a new empty wallet to inspect the on-chain, Kilojoin, Lightning, Ark and SEND views. Do not enter recovery words from a funded wallet. Reviewers do not need to fund a wallet or make a payment.
+
+Kilowallet operates on the Bitcoin BLAKE2b (XBT) chain. Its on-chain balance is separate from SHA-256 Bitcoin. The optional operator-run bridge can pay a SHA-256 Lightning invoice using XBT after the user reviews a quote. The app does not provide custodial accounts.
+
+RC6 adds PAY THROUGH JOINBLAKET for one payment to a native SegWit (bc1q) address. Kilowallet acts as a JoinMarket taker and selects makers with verified fidelity bonds. The SEND screen shows a read-only market summary and, after local authorization, a plan with each maker fee, the estimated mining fee and a fee ceiling. An actual round uses the app's Tor engine to reach the directory onion service; it does not fall back to a direct directory connection. Maker bonds, inputs and SPV proofs are checked through the selected Electrum server. Maker signatures are checked before the wallet signs its own inputs.
+
+JoinBlaket requires an eligible wallet coin with at least five confirmations and at least 20 percent of the payment amount. Used PoDLE commitment history is wallet-scoped and included in the password-protected backup. A running round reserves its coins and change address. Pending, reserved, wallet-change, server-change, signature, fee-ceiling and broadcast guards fail closed.
+
+iOS does not provide a continuous background service for JoinBlaket or Kilojoin. The app requests only the short background time iOS allows and tells the user to keep it open until a JoinBlaket payment finishes. A signed transaction that could not be broadcast remains pending and blocks conflicting work until resolved.
+
+The Lightning view runs an embedded LND node. Ark is an optional service operated independently by Paperclip Holdings LLC. Electrum, relay, bridge, watchtower, Ark and JoinBlaket services have distinct data handling described in the privacy policy. Camera access scans QR codes locally. Recovery secrets are stored in the iOS Keychain. Password-protected .kab backups can contain recovery material, Ark data, a static Lightning channel backup and JoinBlaket commitment history; user-exported files leave the app's control.
+
+Created by Kilombino; this iOS distribution is maintained by romanmodin with the author's permission. Source and license: https://github.com/romanmodin/kilowallet-ios
+
+Build 21 passed the exact-source migration, native simulator, signing, upload and Apple processing gates. Both intended TestFlight groups can install it and external beta review is approved. Tests used synthetic wallets. RC6 has not been installed on a physical iPhone and no real JoinBlaket payment or other financial transaction is claimed.

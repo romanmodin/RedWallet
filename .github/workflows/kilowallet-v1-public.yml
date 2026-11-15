@@ -1,0 +1,136 @@
+name: Kilowallet 1.0 verified App Store release
+"on":
+  pull_request:
+    paths:
+      - .github/workflows/kilowallet-v1-public.yml
+      - .github/scripts/kilowallet-v1-public-run.mjs
+      - .github/scripts/test-kilowallet-v1-public-run.mjs
+      - distribution/kilowallet/RC6_APP_REVIEW_NOTES.txt
+      - distribution/kilowallet/RC6_APP_STORE_DESCRIPTION.txt
+      - distribution/kilowallet/RC6_PRIVACY.md
+      - .github/scripts/*verify-kilowallet-upload*
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Inspect, withdraw the qualified build-15 review, or submit exact build 21
+        required: true
+        default: inspect
+        type: choice
+        options: [inspect, withdraw, submit]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: kilowallet-public-release
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Test exact public-release receipts, planner and Apple operation allowlist
+        run: node --test .github/scripts/test-kilowallet-v1-public-run.mjs
+      - name: Test immutable upload qualification
+        run: python3 -B .github/scripts/test-verify-kilowallet-upload.py -v
+
+  qualify:
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Require an exact first-attempt main dispatch
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$GITHUB_REF" = refs/heads/main
+      - name: Rebuild exact signed-upload and native-source qualification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B .github/scripts/verify-kilowallet-upload.py
+      - name: Download and verify the exact successful build-21 TestFlight receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/romanmodin/RedWallet/actions/artifacts/14170704691/zip > kilowallet-beta-result.zip
+          echo "9c349f311af37c66ce003cff252e63fca8d8b3b47030e0aff8a3a954b2a95a57  kilowallet-beta-result.zip" | sha256sum -c -
+          mkdir beta-receipt
+          unzip -q kilowallet-beta-result.zip -d beta-receipt
+          echo "d875489f886d1a8251e56f045f13e851dca3c441716100bb373a5c7c204ef0d5  beta-receipt/kilowallet-v1-beta-result.json" | sha256sum -c -
+          cmp beta-receipt/kilowallet-upload-qualification.json kilowallet-upload-qualification.json
+          cp beta-receipt/kilowallet-v1-beta-result.json .
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from "node:fs";
+          import { validateCandidate } from "./.github/scripts/kilowallet-v1-public-run.mjs";
+          validateCandidate(
+            JSON.parse(readFileSync("kilowallet-upload-qualification.json")),
+            JSON.parse(readFileSync("kilowallet-v1-beta-result.json")),
+          );
+          NODE
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilowallet-v1-public-qualification
+          path: |
+            kilowallet-upload-qualification.json
+            kilowallet-source-gates.json
+            kilowallet-v1-beta-result.json
+          retention-days: 30
+
+  apply:
+    needs: qualify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Recheck exact upload and TestFlight receipts immediately before Apple access
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          python3 -B .github/scripts/verify-kilowallet-upload.py
+          gh api repos/romanmodin/RedWallet/actions/artifacts/14170704691/zip > kilowallet-beta-result.zip
+          echo "9c349f311af37c66ce003cff252e63fca8d8b3b47030e0aff8a3a954b2a95a57  kilowallet-beta-result.zip" | sha256sum -c -
+          mkdir beta-receipt
+          unzip -q kilowallet-beta-result.zip -d beta-receipt
+          echo "d875489f886d1a8251e56f045f13e851dca3c441716100bb373a5c7c204ef0d5  beta-receipt/kilowallet-v1-beta-result.json" | sha256sum -c -
+          cmp beta-receipt/kilowallet-upload-qualification.json kilowallet-upload-qualification.json
+          cp beta-receipt/kilowallet-v1-beta-result.json .
+      - name: Read or mutate only the exact Kilowallet 1.0 public release
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          KILOWALLET_V1_PUBLIC_ACTION: ${{ inputs.action }}
+        run: node .github/scripts/kilowallet-v1-public-run.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: kilowallet-v1-public-result
+          path: |
+            kilowallet-v1-public-journal.jsonl
+            kilowallet-v1-public-result.json
+            kilowallet-upload-qualification.json
+            kilowallet-source-gates.json
+            kilowallet-v1-beta-result.json
+          if-no-files-found: error
+          retention-days: 30

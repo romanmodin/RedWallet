@@ -1,0 +1,15 @@
+Kilowallet is a self-custodial iPhone wallet for Bitcoin on the BLAKE2b chain (XBT). Create and restore wallets, receive payments with QR codes, and review amounts and network fees before sending.
+
+Manage multiple wallets, watch-only wallets and individual coins. Use SegWit or Taproot, export transactions for external signing, and increase the fee of an eligible unconfirmed transaction. Recovery words are stored in the iOS Keychain. Back up your recovery words securely.
+
+Kilojoin pools let compatible wallets build a shared transaction. Your wallet checks its outputs, change and fees before you approve signing. Asynchronous v6 pools retain their progress so you can return and continue later. You must reopen the app and respond before each deadline; iOS does not keep the round running continuously in the background. If you create a pool on the iPhone, keep the app open while it runs the pool. CoinJoin is experimental and does not guarantee anonymity.
+
+For one payment to a bc1q address, optional PAY THROUGH JOINBLAKET can build a JoinMarket CoinJoin with makers whose fidelity bonds are verified. Before approval, Kilowallet shows maker fees, the estimated mining fee and a fee ceiling. The payment uses Tor, requires an eligible coin with at least five confirmations, and must remain in the foreground until it finishes. CoinJoin is experimental and does not guarantee anonymity.
+
+The Lightning view runs a node on the iPhone. Open and manage channels, pay and receive Lightning invoices, and use a watchtower over Tor. An optional operator-run bridge pays a SHA-256 Lightning invoice using XBT; review the quote before approving. Channel funding, available liquidity and connectivity affect what can be paid or received.
+
+Ark is an optional network service with its own operator, terms, recovery requirements and privacy practices. Password-protected backups can include wallet recovery material, Ark data and a static Lightning channel backup. Keep backup files and their passwords secure.
+
+Configure your Electrum server and Tor preferences. Network transaction fees apply. This app operates on BLAKE2b XBT; its on-chain balance is separate from SHA-256 Bitcoin.
+
+Created by Kilombino. This iOS distribution is maintained by romanmodin with the author’s permission.
