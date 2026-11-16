@@ -52,6 +52,12 @@ jobs:
     - name: Run tests
       run: npm run unit
 
+    - name: Verify mocked cross-chain settlement and restart recovery
+      if: ${{ hashFiles('blue_modules/lightning-bridge/provider.ts') != '' }}
+      run: |
+        test -f tests/integration/lightning-cross-chain-bridge.test.ts
+        node_modules/.bin/jest --runInBand tests/integration/lightning-cross-chain-bridge.test.ts
+
     - name: Verify isolated Bitcoin Core test binary
       if: ${{ hashFiles('class/wallets/btc-segwit-bech32-wallet.ts') != '' }}
       run: |
