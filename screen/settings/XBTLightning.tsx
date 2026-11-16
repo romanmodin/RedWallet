@@ -35,6 +35,8 @@ import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/X
 import { validLightningChannelOpenSats, validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
 import { LndPaymentTracker, LndPaymentOutcome, lndPaymentMessage } from '../../blue_modules/lnd-payment-status';
 
+import { isBolt12Offer, normalizeLightningRequest } from '../../blue_modules/lightning-request';
+
 const bridge = NativeModules.XBTLightningBridge;
 // These fixed outcomes contain no wallet amounts. Keep them visible after a
 // submission; opaque native results and errors require revealing the balance.
@@ -70,14 +72,27 @@ type Withdrawal = {
   sats: string;
   feeRate: string;
 };
+type SavedOffer = {
+  id: string;
+  offer: string;
+  sats: string;
+  description: string;
+  active: boolean;
+  expires: string;
+};
 type Review = {
+  bolt12Token?: string;
   invoice: string;
   hash: string;
   sats: string;
   destination: string;
   feeLimit: string;
 };
-type PaymentAttempt = { hash: string; sats?: string; outcome: LndPaymentOutcome };
+type PaymentAttempt = {
+  hash: string;
+  sats?: string;
+  outcome: LndPaymentOutcome;
+};
 
 function paymentFeedbackTitle(outcome: LndPaymentOutcome): string {
   switch (outcome.state) {
@@ -196,6 +211,11 @@ export default function XBTLightning({
   const [routingFee, setRoutingFee] = useState('10');
   const [fundingAddress, setFundingAddress] = useState('');
   const [incoming, setIncoming] = useState<LightningReceiveInvoice>();
+  const [receiveOffer, setReceiveOffer] = useState(false);
+  const [offerDescription, setOfferDescription] = useState('');
+  const [offerAmount, setOfferAmount] = useState('');
+  const [savedOffers, setSavedOffers] = useState<SavedOffer[]>([]);
+  const [selectedOffer, setSelectedOffer] = useState<SavedOffer>();
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
@@ -487,18 +507,27 @@ export default function XBTLightning({
           onPress: () =>
             runAuthorized('Pay invoice', async () => {
               setReview(undefined);
-              setPaymentAttempt({ hash: payment.hash, sats: payment.sats, outcome: { state: 'pending' } });
+              setPaymentAttempt({
+                hash: payment.hash,
+                sats: payment.sats,
+                outcome: { state: 'pending' },
+              });
               const outcome = await paymentTracker.submit(payment.hash, async () => {
                 // Status lookup can finish after authentication or navigation changes.
                 if (!mounted.current || ['background', 'inactive'].includes(AppState.currentState)) {
                   throw Object.assign(new Error('Payment canceled before submission.'), { code: 'payment_not_submitted_canceled' });
                 }
+                if (payment.bolt12Token) return bridge.offers('pay', payment.bolt12Token, '', '');
                 return bridge.payInvoice
                   ? bridge.payInvoice(payment.invoice, payment.hash, payment.sats, payment.feeLimit)
                   : bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
               });
               if (mounted.current) {
-                setPaymentAttempt({ hash: payment.hash, sats: payment.sats, outcome });
+                setPaymentAttempt({
+                  hash: payment.hash,
+                  sats: payment.sats,
+                  outcome,
+                });
                 setMessage(lndPaymentMessage(outcome));
                 setActivityError(['unknown', 'not_submitted', 'failed'].includes(outcome.state));
                 if (outcome.state === 'settled') setOutgoing('');
@@ -669,7 +698,12 @@ export default function XBTLightning({
             <Text
               accessibilityRole="header"
               accessibilityLiveRegion="polite"
-              style={[styles.activityTitle, { color: feedbackTitle ? paymentFeedbackColor : colors.alternativeTextColor2 }]}
+              style={[
+                styles.activityTitle,
+                {
+                  color: feedbackTitle ? paymentFeedbackColor : colors.alternativeTextColor2,
+                },
+              ]}
             >
               {feedbackTitle || (activityError ? activityTitle + ' · Error' : activityTitle)}
             </Text>
@@ -881,6 +915,70 @@ export default function XBTLightning({
           )}
           {(tools || mode === 'invoice') && (
             <>
+              {bridge.offers && (
+                <>
+                  <SettingsListItem
+                    title={receiveOffer ? 'Use single-use invoice' : 'Use reusable BOLT12 offer'}
+                    disabled={busy}
+                    onPress={() => {
+                      setReceiveOffer(value => !value);
+                      setIncoming(undefined);
+                      setSelectedOffer(undefined);
+                    }}
+                  />
+                  {receiveOffer && (
+                    <>
+                      <TextInput
+                        accessibilityLabel="Offer description"
+                        placeholder="What is this offer for?"
+                        placeholderTextColor={colors.alternativeTextColor2}
+                        style={[
+                          styles.input,
+                          {
+                            color: colors.foregroundColor,
+                            borderColor: colors.hdborderColor,
+                          },
+                        ]}
+                        value={offerDescription}
+                        onChangeText={setOfferDescription}
+                        maxLength={256}
+                        editable={!busy}
+                      />
+                      <SettingsFootnote>
+                        BOLT12 offers are reusable. Leave the amount empty to let the payer choose. Keep RedWallet open to receive.
+                      </SettingsFootnote>
+                      <SettingsListItem
+                        title="Saved offers"
+                        disabled={busy}
+                        onPress={() =>
+                          run('Saved offers', async () => {
+                            const result = await bridge.offers('list', '', '', '');
+                            if (mounted.current) {
+                              setSavedOffers(result);
+                              setMessage(result.length ? 'Select an offer below.' : 'No saved offers.');
+                            }
+                          })
+                        }
+                      />
+                      {savedOffers.map(item => (
+                        <SettingsListItem
+                          key={item.id}
+                          title={item.description + (item.active ? '' : ' · Disabled')}
+                          disabled={busy}
+                          onPress={() => {
+                            setSelectedOffer(item);
+                            setIncoming({
+                              invoice: item.offer,
+                              sats: item.sats,
+                              kind: 'offer',
+                            });
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
               <TextInput
                 placeholderTextColor={colors.alternativeTextColor2}
                 style={[
@@ -898,11 +996,27 @@ export default function XBTLightning({
                 onChangeText={setAmount}
               />
               <SettingsListItem
-                title="Create invoice"
-                disabled={busy || !validLightningSats(amount)}
+                title={receiveOffer ? 'Create reusable offer' : 'Create invoice'}
+                disabled={
+                  busy ||
+                  (receiveOffer ? !offerDescription.trim() || (!!amount && !validLightningSats(amount)) : !validLightningSats(amount))
+                }
                 onPress={() =>
                   run('Invoice to receive', async () => {
                     const requestedSats = amount;
+                    if (receiveOffer) {
+                      const item = await bridge.offers('create', offerDescription.trim(), amount || '0', '');
+                      if (mounted.current) {
+                        setSelectedOffer(item);
+                        setIncoming({
+                          invoice: item.offer,
+                          sats: item.sats,
+                          kind: 'offer',
+                        });
+                        setMessage('Reusable offer ready. Keep RedWallet open to receive.');
+                      }
+                      return;
+                    }
                     const invoice = await bridge.invoice('receive', '', '', requestedSats);
                     if (mounted.current) {
                       setIncoming({ invoice, sats: requestedSats });
@@ -911,6 +1025,26 @@ export default function XBTLightning({
                   })
                 }
               />
+              {selectedOffer && receiveOffer && (
+                <SettingsListItem
+                  title={selectedOffer.active ? 'Disable offer' : 'Enable offer'}
+                  disabled={busy}
+                  onPress={() =>
+                    run('Offer status', async () => {
+                      const item = selectedOffer;
+                      await bridge.offers(item.active ? 'disable' : 'enable', item.id, '', '');
+                      if (mounted.current) {
+                        const next = { ...item, active: !item.active };
+                        setSelectedOffer(next);
+                        setSavedOffers(items => items.map(old => (old.id === next.id ? next : old)));
+                        setMessage(
+                          next.active ? 'Offer enabled.' : 'Offer disabled. Existing invoices may still be paid until they expire.',
+                        );
+                      }
+                    })
+                  }
+                />
+              )}
               {incoming && <XBTLightningInvoice key={incoming.invoice} {...incoming} />}
             </>
           )}
@@ -925,13 +1059,11 @@ export default function XBTLightning({
                     showFileImportButton: false,
                     onBarScanned: (data: string) => {
                       if (!mounted.current) return;
-                      const invoice = data.trim().replace(/^lightning:/i, '');
-                      if (
-                        invoice.length > 8192 ||
-                        !/^lnbc[0-9]*[munp]?1[02-9ac-hj-np-z]+$/i.test(invoice) ||
-                        (invoice !== invoice.toLowerCase() && invoice !== invoice.toUpperCase())
-                      ) {
-                        Alert.alert('Not a Lightning invoice', 'Scan a Lightning invoice QR code to pay.');
+                      let invoice: string;
+                      try {
+                        invoice = normalizeLightningRequest(data, !!bridge.offers);
+                      } catch {
+                        Alert.alert('Not a Lightning request', 'Scan an XBT Lightning invoice or a supported BOLT12 offer.');
                         return;
                       }
                       setReview(undefined);
@@ -956,7 +1088,7 @@ export default function XBTLightning({
                   },
                 ]}
                 accessibilityLabel="Invoice to pay"
-                placeholder="Paste a Lightning invoice"
+                placeholder={bridge.offers ? 'Paste a Lightning invoice or BOLT12 offer' : 'Paste a Lightning invoice'}
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={outgoing}
@@ -968,6 +1100,86 @@ export default function XBTLightning({
                 }}
                 editable={!busy}
               />
+
+              {bridge.offers && (
+                <>
+                  <SettingsListItem
+                    title="Resume saved offer payment"
+                    disabled={busy}
+                    onPress={() =>
+                      run('Saved offer payment', async () => {
+                        const saved = await bridge.offers('pending', '', '', '');
+                        if (!mounted.current) return;
+                        setReview(undefined);
+                        if (!saved) {
+                          setMessage('No saved offer payment.');
+                          return;
+                        }
+                        setOutgoing(saved.offer);
+                        setOfferAmount(saved.requestedSats === '0' ? '' : saved.requestedSats);
+                        setPaymentAttempt({
+                          hash: saved.hash,
+                          sats: saved.sats,
+                          outcome: { state: 'unknown' },
+                        });
+                        setMessage('Saved invoice restored. Check payment status or review this same invoice.');
+                      })
+                    }
+                  />
+                  {isBolt12Offer(outgoing) && (
+                    <>
+                      <TextInput
+                        accessibilityLabel="Offer payment sats"
+                        placeholder="Sats (required for an open amount)"
+                        placeholderTextColor={colors.alternativeTextColor2}
+                        style={[
+                          styles.input,
+                          {
+                            color: colors.foregroundColor,
+                            borderColor: colors.hdborderColor,
+                          },
+                        ]}
+                        keyboardType="number-pad"
+                        value={offerAmount}
+                        editable={!busy}
+                        onChangeText={value => {
+                          setOfferAmount(value);
+                          setReview(undefined);
+                        }}
+                      />
+                      <SettingsFootnote>
+                        Review requests an invoice without paying. BOLT12 needs a routing fee limit of at least 1 sat.
+                      </SettingsFootnote>
+                      <SettingsListItem
+                        title="Start new offer payment"
+                        disabled={busy}
+                        onPress={() =>
+                          Alert.alert(
+                            'Request another invoice?',
+                            'This starts a separate payment. A settled previous payment will not be reversed. Unresolved payments block this action.',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Start new',
+                                onPress: () =>
+                                  run('New offer payment', async () => {
+                                    await bridge.offers('reset', '', '', '');
+                                    if (mounted.current) {
+                                      setReview(undefined);
+                                      setPaymentAttempt(undefined);
+                                      setMessage('Ready to review a new offer payment.');
+                                    }
+                                  }),
+                              },
+                            ],
+                          )
+                        }
+                      />
+                    </>
+                  )}
+                </>
+              )}
+
               {bridge.payInvoice && (
                 <>
                   <SettingsFootnote>MAXIMUM ROUTING FEE (SATS)</SettingsFootnote>
@@ -991,32 +1203,63 @@ export default function XBTLightning({
                 </>
               )}
               <SettingsListItem
-                title="Review invoice"
-                disabled={busy || !outgoing.trim() || !validLightningSats(routingFee, true)}
+                title={isBolt12Offer(outgoing) ? 'Review offer' : 'Review invoice'}
+                disabled={
+                  busy ||
+                  !outgoing.trim() ||
+                  !validLightningSats(routingFee, !isBolt12Offer(outgoing)) ||
+                  (isBolt12Offer(outgoing) && !!offerAmount && !validLightningSats(offerAmount))
+                }
                 onPress={() =>
                   run('Review invoice', async () => {
                     const invoice = outgoing.trim();
-                    const decoded = await bridge.invoice('decode', invoice, '', '');
+                    let decoded;
+                    if (isBolt12Offer(invoice)) {
+                      if (!bridge.offers) throw new Error('BOLT12 is not available in this Lightning engine.');
+                      decoded = await bridge.offers('review', normalizeLightningRequest(invoice, true), offerAmount || '0', routingFee);
+                    } else {
+                      decoded = await bridge.invoice('decode', invoice, '', '');
+                    }
                     if (!mounted.current) return;
                     try {
                       const state = await paymentTracker.status(decoded.hash);
                       if (!mounted.current) return;
                       if (state === 'settled' || state === 'pending' || state === 'unknown') {
-                        const outcome: LndPaymentOutcome = { state, alreadyPaid: state === 'settled' };
+                        const outcome: LndPaymentOutcome = {
+                          state,
+                          alreadyPaid: state === 'settled',
+                        };
                         setReview(undefined);
-                        setPaymentAttempt({ hash: decoded.hash, sats: decoded.sats, outcome });
+                        setPaymentAttempt({
+                          hash: decoded.hash,
+                          sats: decoded.sats,
+                          outcome,
+                        });
                         paymentStatusVisible.current = true;
                         setMessage(lndPaymentMessage(outcome));
                       } else {
-                        setReview({ ...decoded, invoice, feeLimit: routingFee });
+                        setReview({
+                          ...decoded,
+                          invoice: decoded.invoice ?? invoice,
+                          feeLimit: routingFee,
+                        });
                         setMessage(decoded.sats + ' sats to ' + decoded.destination + '. Use Pay below to confirm.');
                       }
                     } catch {
                       if (mounted.current) {
                         setReview(undefined);
-                        setPaymentAttempt({ hash: decoded.hash, sats: decoded.sats, outcome: { state: 'unknown' } });
+                        setPaymentAttempt({
+                          hash: decoded.hash,
+                          sats: decoded.sats,
+                          outcome: { state: 'unknown' },
+                        });
                         paymentStatusVisible.current = true;
-                        setMessage(lndPaymentMessage({ state: 'not_submitted', reason: 'history_unavailable' }));
+                        setMessage(
+                          lndPaymentMessage({
+                            state: 'not_submitted',
+                            reason: 'history_unavailable',
+                          }),
+                        );
                         setActivityError(true);
                       }
                     }
@@ -1031,7 +1274,10 @@ export default function XBTLightning({
                     run('Payment status', async () => {
                       const state = await paymentTracker.status(paymentAttempt.hash);
                       if (mounted.current) {
-                        const outcome = { state, alreadyPaid: state === 'settled' ? paymentAttempt.outcome.alreadyPaid : undefined };
+                        const outcome = {
+                          state,
+                          alreadyPaid: state === 'settled' ? paymentAttempt.outcome.alreadyPaid : undefined,
+                        };
                         setPaymentAttempt({ ...paymentAttempt, outcome });
                         setMessage(lndPaymentMessage(outcome));
                         setActivityError(state === 'unknown');

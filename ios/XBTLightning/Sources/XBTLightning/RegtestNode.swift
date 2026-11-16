@@ -29,6 +29,8 @@ public actor RegtestNode {
                 "defaultTower": LightningWatchtower.defaultURI]
     }
     private let daemonObservation = DaemonObservation()
+    var offerOperationBusy = false
+    var offerReview: Bolt12Review?
     private var provisioning = false
     var spliceReviews = SpliceReviews()
     var splicingPoints: Set<String> = []
@@ -145,9 +147,14 @@ public actor RegtestNode {
             _ = try await rpc { LndmobileStart("--lnddir=" + folder.path + " --configfile=" + conf.path, StartupCallback($0, observation: observation)) }
         }
         startup = task
+        await LightningBackgroundTime.shared.setNodeRunning(true)
         // The Go engine is process-wide. A timeout does not establish it stopped.
         do { try await task.value }
-        catch { daemonObservation.recordFailure(); throw error }
+        catch {
+            daemonObservation.recordFailure()
+            await LightningBackgroundTime.shared.setNodeRunning(false)
+            throw error
+        }
         // The mobile startup callback only means that the transport is listening.
         for _ in 0..<30 {
             if try await status() != "Starting" { return }

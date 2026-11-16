@@ -124,6 +124,13 @@ class Fixture(BaseHTTPRequestHandler):
                 result = "received-2000000" if self.path == "/verify-withdraw-large" else "received-1000"
             elif self.path in ("/invoice", "/invoice-large"):
                 result = json.loads(call(lightning, "addinvoice", "--amt=2000000" if self.path == "/invoice-large" else "--amt=20000"))["payment_request"]
+            elif self.path == "/offer":
+                result = json.loads(call(lightning, "offer", "create", "--description=Disposable offer", "--amount_msat=1000000"))["offer"]["bolt12"]
+            elif self.path == "/pay-offer" and re.fullmatch(r"lno1[a-z0-9]{20,8192}", value):
+                paid = json.loads(call(lightning, "offer", "pay", "--amount_msat=1000000", "--fee_limit_msat=10000", value))
+                assert int(paid["amount_msat"]) == 1000000
+                assert re.fullmatch(r"[a-f0-9]{64}", paid["payment_preimage"])
+                result = "settled-offer"
             elif self.path == "/pay" and re.fullmatch(r"lnbcrt[a-z0-9]{60,4096}", value):
                 wait_for_payment_route(value)
                 response = call(lightning, "payinvoice", "--force", "--json", "--fee_limit=10", value)

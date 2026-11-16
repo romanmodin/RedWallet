@@ -167,6 +167,36 @@ final class RegtestTests: XCTestCase {
             let towers = try await RegtestNode.shared.watchtowers()
             return towers.contains { $0.acknowledged > 0 && $0.pending == 0 }
         }
+
+        // BOLT12 uses the pinned XBT engine and the same disposable channel.
+        let peerOffer = try await peer("offer")
+        let offerReview = try await RegtestNode.shared.reviewOffer(peerOffer, sats: 1000, feeSats: 10)
+        let offerToken = try XCTUnwrap(offerReview["bolt12Token"] as? String)
+        let offerHash = try XCTUnwrap(offerReview["hash"] as? String)
+        XCTAssertEqual(offerReview["sats"] as? String, "1000")
+        let repeatedOfferReview = try await RegtestNode.shared.reviewOffer(peerOffer, sats: 1000, feeSats: 10)
+        XCTAssertEqual(repeatedOfferReview["hash"] as? String, offerHash, "Review must reuse the saved invoice")
+        do {
+            _ = try await RegtestNode.shared.payOffer(token: offerToken)
+            XCTFail("Superseded reviews must not pay")
+        } catch let error as PaymentSubmissionFailure { XCTAssertEqual(error, .invalidReview) }
+        let offeredPayment = try await RegtestNode.shared.payOffer(token: try XCTUnwrap(repeatedOfferReview["bolt12Token"] as? String))
+        XCTAssertTrue(offeredPayment)
+        let paidOfferPage = try await RegtestNode.shared.walletActivity("payments", offset: 0)
+        let paidOfferRows = paidOfferPage["rows"] as? [[String: Any]] ?? []
+        XCTAssertEqual(paidOfferRows.filter { $0["id"] as? String == offerHash && $0["state"] as? String == "settled" }.count, 1)
+        try await RegtestNode.shared.resetOfferPayment()
+        let ownOffer = try await RegtestNode.shared.createOffer(description: "Disposable offer", sats: 1000)
+        let ownOfferString = try XCTUnwrap(ownOffer["offer"] as? String)
+        XCTAssertTrue(ownOfferString.hasPrefix("lno1"))
+        let offerReceipt = try await peer("pay-offer", ownOfferString)
+        XCTAssertEqual(offerReceipt, "settled-offer")
+        let ownOfferID = try XCTUnwrap(ownOffer["id"] as? String)
+        try await RegtestNode.shared.setOfferEnabled(id: ownOfferID, enabled: false)
+        let disabledOffers = try await RegtestNode.shared.listOffers()
+        XCTAssertEqual(disabledOffers.first { $0["id"] as? String == ownOfferID }?["active"] as? Bool, false)
+        try await RegtestNode.shared.setOfferEnabled(id: ownOfferID, enabled: true)
+
         for direction in ["in", "out"] {
             try await waitForFixtureSync("review splice " + direction)
             let mempoolBefore = try await peer("mempool")

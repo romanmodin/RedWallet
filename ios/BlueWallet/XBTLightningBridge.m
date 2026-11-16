@@ -12,5 +12,6 @@ RCT_EXTERN_METHOD(network:(NSString *)action value:(NSString *)value resolver:(R
 RCT_EXTERN_METHOD(watchtower:(NSString *)action value:(NSString *)value resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(wallet:(NSString *)action value:(NSString *)value resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(payInvoice:(NSString *)invoice hash:(NSString *)hash sats:(NSString *)sats feeLimit:(NSString *)feeLimit resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(offers:(NSString *)action value:(NSString *)value sats:(NSString *)sats feeLimit:(NSString *)feeLimit resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 @end
 #endif
