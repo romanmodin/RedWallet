@@ -6,9 +6,9 @@ Native SegWit watch-only standard SIGHASH_ALL (0x01) preparation, full funding t
 
 ## Separation evidence and trust
 
-Unified funding alone is insufficient: different SegWit signatures can share one transaction ID. The candidate requires direct Unified P2WPKH funding with six XBT confirmations, plus a *different* confirmed SHA-256 transaction spending one of that funding transaction's inputs. Thus the funding body cannot coexist on the checked SHA-256 chain.
+Unified funding alone is insufficient: different SegWit signatures can share one transaction ID. The candidate requires each selected Native SegWit output to trace through verified standard (0x01) transactions to Unified P2WPKH roots. Every selected, intermediate and root transaction needs six XBT confirmations. Each root also needs a *different* confirmed SHA-256 transaction spending one of that root transaction's inputs. Thus the funding body cannot coexist on the checked SHA-256 chain.
 
-The app retrieves outspend evidence, raw transactions, Merkle branches and headers from Blockstream. It cross-checks the fork checkpoint, current heights, conflict block hashes and block transaction counts against mempool.space. It hashes the transaction/header locally, checks the exact conflicting outpoint, validates Merkle inclusion with anchored depth/position/count, permits only legitimate odd-level duplication, and requires six confirmations. Each selected funding transaction must qualify. Absence, missing evidence, malformed responses, disagreement and outages all block.
+The app retrieves outspend evidence, raw transactions, Merkle branches and headers from Blockstream. It cross-checks the fork checkpoint, current heights, conflict block hashes and block transaction counts against mempool.space. It hashes the transaction/header locally, checks the exact conflicting outpoint, validates Merkle inclusion with anchored depth/position/count, permits only legitimate odd-level duplication, and requires six confirmations. Every input branch of a standard ancestor must qualify; shared roots are deduplicated only after checking each exact outpoint. Absence, missing evidence, malformed responses, disagreement and outages all block.
 
 **Trust model:** this relies on two independently operated HTTPS explorer chain views. It is not local consensus/header-chain validation and does not protect against both sources supplying an agreed false view or a later sufficiently deep reorg. The UI confirmation and review disclose this. No SHA-256 wallet session is selected or connected. The explicitly enabled mode would send public funding-ancestor transaction IDs to Blockstream and block lookups to both providers, revealing IP/request timing. It sends no xpubs, seed, PSBT or payment destinations to these services. Requests use GET only, with deadlines, count and accepted body-size limits.
 
@@ -17,11 +17,25 @@ Evidence is freshly collected before request creation and again before XBT broad
 ## Scope and remaining qualification
 
 - Coin selection runs once; only selected inputs undergo separation verification. Existing base-wallet UTXO integrity/maturity checks remain intact.
-- Initial support is direct Unified P2WPKH funding. Descendants (including standard-send change), coinbase, mixed/Taproot funding and RBF remain unsupported and block if selected. No automatic coin splitting is performed.
-- Physical Keystone 3.0.2 signing, the native mobile socket implementation/UI and independent review remain release requirements. Production BlueElectrum with real Node TLS sockets and Fulcrum now passes alongside isolated Knots acceptance/replay qualification (details below).
-- Umbrel Docker inspection was unavailable without sudo authentication; no node settings or funds were changed.
+- Native SegWit standard descendants, including change, are supported through bounded ancestry: at most 64 selected inputs, 64 standard edges per path, 64 distinct Unified roots, 256 fetched transactions and 16,000,000 aggregate raw-transaction hex characters. All branches must qualify. Coinbase within the selected-to-root path, mixed signature modes, non-P2WPKH ancestry and RBF remain unsupported. Root input prevouts may predate activation. No automatic coin splitting is performed.
+- Physical Keystone and OneKey signing/camera/file interoperability remain release requirements. The baseline native iOS simulator passed at e699d813; this ancestry follow-up needs its own exact-source simulator qualification. Production BlueElectrum with real Node TLS sockets and Fulcrum passes the extended change-spend scenario described below.
+- Production HTTPS redirect/privacy behavior also needs native qualification: React Native fetch does not reliably enforce redirect rejection. The release gate stays false; no live node settings or funds were changed.
 
-## Validation
+## Current qualification — November 16, 2026
+
+The direct-funding baseline at `e699d8138150b31b113a1b86dd2cf03b58b588d3` passed [native simulator run 43673154651](https://github.com/romanmodin/RedWallet/actions/runs/43673154651). Its artifact digest was independently checked against GitHub: `a89c5625b39ecf83c7bd1e4da6f5fd710b0ae0867b9215cc85b12418c5d77bd7`. The receipt records a clipboard PSBT round trip, missing-proof and actual SHA256 reorg rejection, exactly one native TLS submission, two XBT confirmations, Core replay rejection, and successful cleanup. Receipt: `docs/evidence/standard-hardware-native-e699-20261115.json`. This used a host signer with a public test seed and scanner text injection; it is not physical hardware or camera qualification. Historical failure notes below precede this passing run.
+
+This follow-up permits spending confirmed standard-send change by validating the entire bounded ancestor graph afresh before preparation and broadcast. It verifies every fetched transaction ID, actual previous output value/script, full signature and signature mode; rejects inflationary totals; checks each selected/intermediate/root history; and sends only deduplicated verified roots to the existing conflict-proof service. A cached shared ancestor retains its remaining depth so a longer path cannot bypass the depth limit. Only immediate funding transactions enter the PSBT. No persistent ancestry authorization is stored.
+
+Local validation passed: 125 tests in seven focused unit suites, TypeScript no-emit, changed-file ESLint, and two isolated Core/Knots/Fulcrum integration scenarios. The extended scenario prepares and signs a second standard payment from the first payment's six-confirmed change, blocks submission after either an XBT intermediate reorg or a SHA256 root-conflict reorg, restores those chains, and submits exactly once after explicit retry. Knots confirms it twice; Core rejects it with missing inputs. Both payments' exact signed bytes are observed at the production Electrum broadcast boundary, and repeated submission is blocked. All disposable processes/data are cleaned up.
+
+Receipt: `docs/evidence/standard-hardware-change-regtest-20261116.json`. This local receipt honestly records the baseline HEAD with tracked follow-up changes and hashes of the tested sources; it is not a clean-commit CI receipt. Every recorded source hash matched the files before this commit. CI requires both change-reorg outcomes, rejection on Core, six parent confirmations, two final confirmations and exactly two distinct total broadcasts (one per approved test payment).
+
+The existing GET-only public proof diagnostic passed again at 2026-11-16T10:34:20Z: `docs/evidence/standard-hardware-public-proof-20261116.json`. It uses a real public SHA256 conflict and a hypothetical competing body, so it demonstrates live evidence transport/inclusion only. No wallet addresses, keys or payments are used.
+
+Gitar reviewed the ancestry design on PR245; review of this exact follow-up diff and its new native simulator run remain pending. The test-only workflow permits this specific follow-up branch; production gates and signing/release workflows are unchanged. Physical Keystone first, then OneKey, must validate the actual exported/imported PSBT, device review and camera/file transport before release. Any real-money test requires separate explicit authorization. Standard mode remains disabled in production.
+
+## Historical validation
 
 The focused suite covers proof integrity, independent-source disagreement, reorgs, malformed/insufficient evidence, cancellation, exact selected inputs, delayed signing, mode changes, existing XBT Unified signing and BTC hardware signing. TypeScript and changed-file ESLint are checked.
 
@@ -61,7 +75,7 @@ This qualifies Node TLS sockets through the production JavaScript transport. It 
 
 Socket/consensus receipt: `docs/evidence/standard-hardware-electrum-20261114.json`, clean tested source `445a4501ac0f0bb6b778a920c5bd72945ac457b7`. It records two authenticated connections, seven header requests, twelve transaction reads, six history requests and exactly one broadcast. TypeScript, changed-file ESLint and workflow YAML/wiring checks passed.
 
-### Native iOS qualification added (not yet passed)
+### Native iOS qualification added (historical attempts before e699d813)
 
 A dedicated simulator-only workflow now builds the watch-only signing screens with an explicit CI source overlay. The checked-in release switch remains false. The overlay only enables the staged mode and redirects the two explorer base URLs to a loopback HTTPS fixture. It records source/overlay hashes, labels the app **RedWallet TEST ONLY**, and publishes a uniquely named simulator artifact that is not consumed by ordinary app build/release jobs.
 

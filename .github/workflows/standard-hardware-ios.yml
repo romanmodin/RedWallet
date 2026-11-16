@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.head_ref == 'feat/xbt-standard-hardware-20261114' || github.ref == 'refs/heads/feat/xbt-standard-hardware-20261114'
+    if: github.head_ref == 'feat/xbt-standard-hardware-20261114' || github.ref == 'refs/heads/feat/xbt-standard-hardware-20261114' || github.head_ref == 'feat/xbt-hardware-change-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-change-20261116'
     timeout-minutes: 90
     runs-on: macos-26
     env:

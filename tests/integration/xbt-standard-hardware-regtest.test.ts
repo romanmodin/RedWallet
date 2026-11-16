@@ -306,7 +306,110 @@ real(
       const final = await knots.rpc('getrawtransaction', [signed.getId(), true, settled[0]]);
       expect(final.confirmations).toBe(2);
       expect(final.hex).toBe(hex);
+
+      // Spend the change using another ordinary hardware signature. Its immediate
+      // funding transaction is now standard, so the original separated root must
+      // be discovered and revalidated through the confirmed ancestry.
+      const changeAddress = watch._getInternalAddressByIndex(0);
+      const changeIndex = signed.outs.findIndex(output =>
+        Buffer.from(output.script).equals(Buffer.from(bitcoin.address.toOutputScript(changeAddress))),
+      );
+      expect(changeIndex).toBeGreaterThanOrEqual(0);
+      await knots.rpc('generatetoaddress', [4, xbtMiner]);
+      const parentReady = await knots.rpc('getrawtransaction', [signed.getId(), true, settled[0]]);
+      expect(parentReady.confirmations).toBe(6);
+      const expectedTip = (await knots.rpc('getblockcount')) + offset;
+      let indexed = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const tip = await BlueElectrum.getReportedBlockTip();
+        const history = await BlueElectrum.multiGetHistoryByAddress([changeAddress]);
+        const entry = history[changeAddress]?.find(item => item.tx_hash === signed.getId());
+        if (tip !== null && tip >= expectedTip && entry && entry.height > 0 && tip - entry.height + 1 >= 6) {
+          indexed = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      expect(indexed).toBe(true);
+      (watch._hdWalletInstance!.getTransactions as jest.Mock).mockReturnValue([
+        { txid: funding.getId(), rawHex: funding.toHex(), confirmations: 12 },
+        { txid: signed.getId(), rawHex: hex, confirmations: 6 },
+      ]);
+      const changeCoin = {
+        txid: signed.getId(),
+        vout: changeIndex,
+        value: Number(signed.outs[changeIndex].value),
+        address: changeAddress,
+        confirmations: 6,
+      };
+      const { psbt: secondRequest } = await watch.createStandardHardwareTransaction(
+        [changeCoin],
+        [{ address: cold._getExternalAddressByIndex(2), value: 50000 }],
+        2,
+        watch._getInternalAddressByIndex(1),
+      );
+      expect(Buffer.from(secondRequest.data.inputs[0].nonWitnessUtxo!).toString('hex')).toBe(hex);
+      expect(secondRequest.data.inputs[0].sighashType).toBe(1);
+      const changeKey = ECPairFactory(ecc).fromWIF(cold._getWifForAddress(changeAddress)!);
+      const secondReturn = secondRequest.clone();
+      secondReturn.signInput(0, changeKey);
+      const secondSigned = watch.combinePsbt(secondRequest, secondReturn);
+      const secondHex = secondSigned.toHex();
+      const changeBtcRejection = (await core.rpc('testmempoolaccept', [[secondHex]]))[0];
+      expect(changeBtcRejection.allowed).toBe(false);
+      expect((await knots.rpc('testmempoolaccept', [[secondHex]]))[0].allowed).toBe(true);
+      // An XBT reorg of the immediate standard parent also invalidates review,
+      // even while the original root's SHA256 conflict is still confirmed.
+      await knots.rpc('invalidateblock', [settled[0]]);
+      let parentUnconfirmed = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const history = await BlueElectrum.multiGetHistoryByAddress([changeAddress]);
+        const entry = history[changeAddress]?.find(item => item.tx_hash === signed.getId());
+        if (!entry || entry.height <= 0) {
+          parentUnconfirmed = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      expect(parentUnconfirmed).toBe(true);
+      await expect(watch.broadcastTx(secondHex)).rejects.toThrow('six XBT confirmations');
+      expect(transport.broadcasts).toEqual([hex]);
+      await knots.rpc('reconsiderblock', [settled[0]]);
+      let parentRestored = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const tip = await BlueElectrum.getReportedBlockTip();
+        const history = await BlueElectrum.multiGetHistoryByAddress([changeAddress]);
+        const entry = history[changeAddress]?.find(item => item.tx_hash === signed.getId());
+        if (tip !== null && tip >= expectedTip && entry && entry.height > 0 && tip - entry.height + 1 >= 6) {
+          parentRestored = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      expect(parentRestored).toBe(true);
+      await core.rpc('invalidateblock', [conflictBlocks[0]]);
+      await expect(watch.broadcastTx(secondHex)).rejects.toThrow('separation');
+      expect(transport.broadcasts).toEqual([hex]);
+      await core.rpc('reconsiderblock', [conflictBlocks[0]]);
+      await expect(watch.broadcastTx(secondHex)).resolves.toBe(true);
+      await expect(watch.broadcastTx(secondHex)).rejects.toThrow('verified signing request');
+      expect(transport.broadcasts).toEqual([hex, secondHex]);
+      const secondBlocks = await knots.rpc('generatetoaddress', [2, xbtMiner]);
+      const secondFinal = await knots.rpc('getrawtransaction', [secondSigned.getId(), true, secondBlocks[0]]);
+      expect(secondFinal.confirmations).toBe(2);
+      expect(secondFinal.hex).toBe(secondHex);
       receipt = {
+        changeSpend: {
+          fundingTxid: signed.getId(),
+          signedTxid: secondSigned.getId(),
+          fundingConfirmations: parentReady.confirmations,
+          confirmations: secondFinal.confirmations,
+          standardSighash: secondRequest.data.inputs[0].sighashType,
+          rootReorgBeforeBroadcastBlocked: true,
+          intermediateReorgBeforeBroadcastBlocked: true,
+          btcRejection: changeBtcRejection,
+          broadcastCount: 1,
+        },
         sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {
           encoding: 'utf8',
         }).trim(),
