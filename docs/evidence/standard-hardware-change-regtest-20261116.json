@@ -1,0 +1,111 @@
+{
+  "changeSpend": {
+    "fundingTxid": "340e2372a6dbc94798cca0ad499b931618611e2b46d0634039aaeb2442ee39ed",
+    "signedTxid": "7e44bb5d670f146be79d556e7190288aac05ea8536eb1bb6cc6cc9c5e2ded022",
+    "fundingConfirmations": 6,
+    "confirmations": 2,
+    "standardSighash": 1,
+    "rootReorgBeforeBroadcastBlocked": true,
+    "intermediateReorgBeforeBroadcastBlocked": true,
+    "btcRejection": {
+      "txid": "7e44bb5d670f146be79d556e7190288aac05ea8536eb1bb6cc6cc9c5e2ded022",
+      "wtxid": "424c19b8c47ac75b35586a5f94cc207c73fbe7eb02e5a7ca756538973f5085f3",
+      "allowed": false,
+      "reject-reason": "missing-inputs"
+    },
+    "broadcastCount": 1
+  },
+  "sourceCommit": "e699d8138150b31b113a1b86dd2cf03b58b588d3",
+  "harnessSha256": "6296a12f46b3fb45982a09b3b4151c47005d12aec28ea01c90a14be9fe108a19",
+  "trackedChangesPresent": true,
+  "sourceFilesSha256": {
+    "tests/integration/xbt-standard-hardware-regtest.test.ts": "6296a12f46b3fb45982a09b3b4151c47005d12aec28ea01c90a14be9fe108a19",
+    "tests/helpers/standard-hardware-electrum.ts": "348bb72604e7dbd7d8827d8543dbfc30af78717c99e8c1a8b42291fc6f7ca158",
+    "tests/helpers/standard-hardware-node.ts": "c1c1ed9039b56e5335427e1a9158ca8694e0786aaaa111c0f59c6122d173efd5",
+    "blue_modules/BlueElectrum.ts": "7f31126400ed8b4d08189304473e667cbea3e15bafd62c202a7af9c5d485b4a9",
+    "class/wallets/watch-only-wallet.ts": "c2be1cfce23ea362a442c30fc0170aa9376650558775b63fc765001697516e34",
+    "class/xbt/standard-hardware.ts": "43eba719f298666ad8673c6cf301ee626d9e3fd741bbe8ebde7828b134b81675",
+    "class/xbt/separation-proof.ts": "f42f7e585d950b3b3bafbeb74d00ec25035e1a07697258ea5d5af0185efe3045",
+    "class/xbt/separation-service.ts": "958660e19a31764e04a9f904ec36b80befd697b25c89a718d3b02d6b080f3015",
+    "node_modules/electrum-client/index.js": "48ce7c845c1f3b65a438e62f30283f5881b54718303ff5a6856887d6c9dd8e9b",
+    "node_modules/electrum-client/lib/client.js": "fc2e561fde642ac68fdbc1a5fca0949a38c2d77ea41d6811140142e6d119eede"
+  },
+  "versions": {
+    "core": "Bitcoin Core daemon version v29.0.0",
+    "knots": "Bitcoin Knots daemon version v29.4.2.knots20260508"
+  },
+  "binarySha256": {
+    "core": "e91640d84f5dbaaa0934831dc21e9e72434cec57359cb83cb75b877a81bf2794",
+    "knots": "d04cd8211e711af989a7a62d0b8b55a8cfe496694392518da0ccb848469b3799",
+    "fulcrum": "0af4cb7723c2441b2d8ea0aa8b6769f8efaee3fd3fc8ec8d2bb303c4eaa09d6d"
+  },
+  "sharedPreForkHeight": 149,
+  "sharedTip": "5edae3d9cf2abf4568c27325bd06cae137936c2310c058bcd1d64c3cd6ec895a",
+  "xbtActivationHeight": 150,
+  "fundingTxid": "ffd681ff40a35a21e53bf7d6de21ea3d214c06510809b8101f2cf4b02596a533",
+  "conflictTxid": "eb87b91c2e4a11936a7cf5265d69fd8bfc7c8e8caf398c73b979e1f81b08878d",
+  "signedTxid": "340e2372a6dbc94798cca0ad499b931618611e2b46d0634039aaeb2442ee39ed",
+  "confirmedConflictHeight": 157,
+  "confirmations": 2,
+  "providerCalls": 96,
+  "coreUnified": {
+    "txid": "ffd681ff40a35a21e53bf7d6de21ea3d214c06510809b8101f2cf4b02596a533",
+    "wtxid": "e9ddadf54eca31c4b08de0affe23732c795597917750928b91abeae0251fdba3",
+    "allowed": false,
+    "reject-reason": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
+    "reject-details": "mandatory-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element), input 0 of ffd681ff40a35a21e53bf7d6de21ea3d214c06510809b8101f2cf4b02596a533 (wtxid e9ddadf54eca31c4b08de0affe23732c795597917750928b91abeae0251fdba3), spending b0781e00844bd7f74f103fa50cc3e618bdb26b818542410cc46bbba921b975fc:1"
+  },
+  "xbtAcceptance": {
+    "txid": "340e2372a6dbc94798cca0ad499b931618611e2b46d0634039aaeb2442ee39ed",
+    "wtxid": "b36b92b510f0bbb861428b6718ef76714be6ea9bb1920dd70349d82fececf60d",
+    "usage": 656,
+    "allowed": true,
+    "vsize": 141,
+    "fees": {
+      "base": 2.92e-06,
+      "effective-feerate": 2.07e-05,
+      "effective-includes": [
+        "b36b92b510f0bbb861428b6718ef76714be6ea9bb1920dd70349d82fececf60d"
+      ]
+    }
+  },
+  "btcRejection": {
+    "txid": "340e2372a6dbc94798cca0ad499b931618611e2b46d0634039aaeb2442ee39ed",
+    "wtxid": "b36b92b510f0bbb861428b6718ef76714be6ea9bb1920dd70349d82fececf60d",
+    "allowed": false,
+    "reject-reason": "missing-inputs"
+  },
+  "parentReplayRejection": {
+    "txid": "ffd681ff40a35a21e53bf7d6de21ea3d214c06510809b8101f2cf4b02596a533",
+    "wtxid": "be8df9f8750458313fa6b4e213553a4a73174349f403f97dc1262bb765464994",
+    "allowed": false,
+    "reject-reason": "missing-inputs"
+  },
+  "unseparatedFundingBlocked": true,
+  "reorgBeforeBroadcastBlocked": true,
+  "sameBodyStandardAcceptedBeforeConflict": true,
+  "unifiedFlagCannotBeAppended": true,
+  "alteredAmountRejected": true,
+  "qrRoundTrip": "URv2, reordered",
+  "productionElectrumTransport": {
+    "tlsAuthenticated": true,
+    "untrustedCertificateRejectedBeforeQueries": true,
+    "freshTipFailureBlocked": true,
+    "replacedConnectionBlocked": true,
+    "duplicateSubmissionBlocked": true,
+    "broadcastCount": 2,
+    "tlsConnections": 2,
+    "checkpointRequests": 2,
+    "methods": {
+      "server.version": 2,
+      "blockchain.headers.subscribe": 32,
+      "blockchain.transaction.get": 24,
+      "blockchain.scripthash.get_history": 45,
+      "blockchain.transaction.broadcast": 2
+    },
+    "adapter": "Loopback TLS to real Fulcrum; mainnet checkpoint and height labels adapted, transaction bytes unchanged"
+  },
+  "limitations": "Simulated hardware with public test seed. Explorer URLs adapted to one local Core node with height offset; no independent explorer/TLS provider qualification. Electrum uses real Node TLS sockets, not the native mobile socket implementation. No native UI, physical Keystone or mainnet broadcast tested.",
+  "observedAt": "2026-11-16T10:36:06.472Z",
+  "cleanupComplete": true
+}

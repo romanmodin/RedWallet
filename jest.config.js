@@ -8,6 +8,7 @@ module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts', 'tsx'],
   transformIgnorePatterns: ['node_modules/(?!((jest-)?react-native(-.*)?|@react-native(-community)?)|silent-payments|@arkade-os)/'],
   moduleNameMapper: {
+    '^.*\\/separation-http$': '<rootDir>/class/xbt/separation-http.ts',
     '^expo/fetch$': '<rootDir>/util/expo-fetch-nodejs.js',
     '^@react-native-vector-icons/(.*)$': '<rootDir>/tests/mocks/vector-icons.js',
     '^react-native-svg$': '<rootDir>/tests/mocks/react-native-svg.js',

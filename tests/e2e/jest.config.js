@@ -4,6 +4,7 @@ module.exports = {
     ? { testNamePattern: 'restores the published BIP84 recovery phrase|imports a BIP84 public account' }
     : {}),
   ...(process.env.TLS_TRUSTED_CERT_RECHECK === 'true' ? { testNamePattern: 'configured server certificate and matching name' } : {}),
+  moduleNameMapper: { '^.*\\/separation-http$': '<rootDir>/../class/xbt/separation-http.ts' },
   maxWorkers: 1,
   testTimeout: 600_000, // 10 minutes. iOS multisig and plausible deniability tests take a long time to run
   verbose: true,
@@ -14,6 +15,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/e2e/setup.js'],
   rootDir: '..',
   testMatch: ['<rootDir>/e2e/**/*.spec.{js,ts}'],
+  // Native signing fixtures use the same ESM crypto package as the app.
+  transformIgnorePatterns: ['/node_modules/(?!@noble/)'],
   transform: {
     '\\.[jt]sx?$': ['ts-jest'],
   },

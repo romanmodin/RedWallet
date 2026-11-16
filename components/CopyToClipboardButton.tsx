@@ -8,16 +8,17 @@ import loc from '../loc';
 type CopyToClipboardButtonProps = {
   stringToCopy: string;
   displayText?: string;
+  testID?: string;
 };
 
-export const CopyToClipboardButton: React.FC<CopyToClipboardButtonProps> = ({ stringToCopy, displayText }) => {
+export const CopyToClipboardButton: React.FC<CopyToClipboardButtonProps> = ({ stringToCopy, displayText, testID }) => {
   const onPress = () => {
     Clipboard.setString(stringToCopy);
     triggerHapticFeedback(HapticFeedbackTypes.Selection);
   };
 
   return (
-    <TouchableOpacity accessibilityRole="button" onPress={onPress}>
+    <TouchableOpacity testID={testID} accessibilityRole="button" onPress={onPress}>
       <Text style={styles.text}>{displayText && displayText.length > 0 ? displayText : loc.transactions.details_copy}</Text>
     </TouchableOpacity>
   );

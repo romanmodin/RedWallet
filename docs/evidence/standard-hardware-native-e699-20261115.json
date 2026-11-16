@@ -1,0 +1,42 @@
+{
+  "sourceCommit": "e699d8138150b31b113a1b86dd2cf03b58b588d3",
+  "observedAt": "2026-11-15T04:30:18.835Z",
+  "testSha256": "8f9ee6c591688594062f630fef45fdbbdb04423a828b171500e3115ccc9ab418",
+  "cleanupComplete": true,
+  "missingProofBlocked": true,
+  "masterFingerprint": "73c5da0a",
+  "sighashType": 1,
+  "clipboardRoundTrip": true,
+  "reorgBeforeBroadcastBlocked": true,
+  "txid": "a9527748e7026be08513b8b6313337c16704353d02665df4898e005b09848014",
+  "confirmations": 2,
+  "btcRejection": {
+    "txid": "a9527748e7026be08513b8b6313337c16704353d02665df4898e005b09848014",
+    "wtxid": "a1706c5b08c2022bcf1ed816d6118f22f4becf98b85cb4c8eb0dcc6340ffd5a5",
+    "allowed": false,
+    "reject-reason": "missing-inputs"
+  },
+  "parentReplayRejection": {
+    "txid": "7458baabafbec2b632fc4890a4b84e126176ad9469e7c9dbf091b8f76f633f29",
+    "wtxid": "af11463e8d9378b1b216e54ab9552ab6e34f8481e64240eb619dc994949011b6",
+    "allowed": false,
+    "reject-reason": "missing-inputs"
+  },
+  "broadcastCount": 1,
+  "nativeElectrumMethods": {
+    "server.version": 6,
+    "server.ping": 35,
+    "blockchain.headers.subscribe": 14,
+    "server.banner": 1,
+    "blockchain.scripthash.get_history": 348,
+    "blockchain.scripthash.get_balance": 164,
+    "blockchain.transaction.get": 8,
+    "mempool.get_fee_histogram": 1,
+    "blockchain.estimatefee": 3,
+    "blockchain.transaction.broadcast": 1
+  },
+  "nativeTlsConnections": 6,
+  "explorerCalls": 42,
+  "passed": true,
+  "limitations": "Simulator-only build overlay. Public test seed held by host signer, not app. Explorer HTTPS routes share one Core node. Scanner text injection, not camera. No physical Keystone or real funds."
+}

@@ -27,5 +27,21 @@
       "sha256": "ea38fe7a6d63f09bfab95d9e6e15962c1a3029eeeab2a96df8c8c878a2fb564f",
       "commit": "3eee5d4e576b6e7b586e95beb58e1a22808eb41f"
     }
+  },
+  "core": {
+    "tag": "v29.0",
+    "checksumSource": "https://bitcoincore.org/bin/bitcoin-core-29.0/SHA256SUMS",
+    "linux": {
+      "url": "https://bitcoincore.org/bin/bitcoin-core-29.0/bitcoin-29.0-x86_64-linux-gnu.tar.gz",
+      "sha256": "a681e4f6ce524c338a105f214613605bac6c33d58c31dc5135bbc02bc458bb6c"
+    },
+    "macos_arm64": {
+      "url": "https://bitcoincore.org/bin/bitcoin-core-29.0/bitcoin-29.0-arm64-apple-darwin.tar.gz",
+      "sha256": "34431c582a0399dd42e1276d87d25306cbdde0217f6744bd55a2945986645dda"
+    },
+    "macos_x86_64": {
+      "url": "https://bitcoincore.org/bin/bitcoin-core-29.0/bitcoin-29.0-x86_64-apple-darwin.tar.gz",
+      "sha256": "5bb824fc86a15318d6a83a1b821ff4cd4b3d3d0e1ec3d162b805ccf7cae6fca8"
+    }
   }
 }

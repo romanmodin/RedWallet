@@ -23,7 +23,7 @@ function download(asset: { url: string; sha256: string }): string {
   assert.equal(createHash('sha256').update(readFileSync(file)).digest('hex'), asset.sha256, 'Test-tool archive digest mismatch');
   return file;
 }
-function extractBinary(archive: string, name: string): void {
+function extractBinary(archive: string, name: string, destination = name): void {
   const members = execFileSync('tar', ['-tzf', archive], {
     encoding: 'utf8',
     maxBuffer: 20_000_000,
@@ -31,7 +31,7 @@ function extractBinary(archive: string, name: string): void {
     .split('\n')
     .filter(member => member.endsWith('/' + name) || member === name);
   assert.equal(members.length, 1, 'Ambiguous test binary in archive: ' + name);
-  const file = path.join(directory, name);
+  const file = path.join(directory, destination);
   writeFileSync(
     file,
     execFileSync('tar', ['-xOf', archive, members[0]], {
@@ -39,6 +39,9 @@ function extractBinary(archive: string, name: string): void {
     }),
   );
   chmodSync(file, 0o755);
+}
+if (process.argv.includes('--with-core')) {
+  extractBinary(download(manifest.core[mac ? macKey : 'linux']), 'bitcoind', 'core-bitcoind');
 }
 const knots = download(manifest.knots[mac ? macKey : 'linux']);
 extractBinary(knots, 'bitcoind');
