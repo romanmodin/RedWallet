@@ -169,11 +169,9 @@ public actor RegtestNode {
         startup = task
         await LightningBackgroundTime.shared.setNodeRunning(true)
         // The Go engine is process-wide. A timeout does not establish it stopped.
-        do { try await task.value }
-        catch {
-            daemonObservation.recordFailure()
+        try await waitForLightningStartup(task) {
+            observation.recordFailure()
             await LightningBackgroundTime.shared.setNodeRunning(false)
-            throw error
         }
         // The mobile startup callback only means that the transport is listening.
         for _ in 0..<30 {
