@@ -73,6 +73,8 @@ async function injectFragment(part: string) {
   for (let i = 0; i < 6; i++) await element(by.id('ScanQrBackdoorButton')).tap();
   await waitForId('scanQrBackdoorInput');
   await element(by.id('scanQrBackdoorInput')).replaceText(part);
+  // Confirm native text preservation before testing scanner/parser behavior.
+  await nativeExpect(element(by.id('scanQrBackdoorInput'))).toHaveText(part);
   await element(by.id('scanQrBackdoorOkButton')).tap();
   await waitFor(element(by.id('scanQrBackdoorInput')))
     .not.toExist()
@@ -124,7 +126,8 @@ suite('Standard hardware iOS qualification', () => {
         };
         await element(by.id('HardwareCheckScanAccount')).tap();
         await injectFragment(JSON.stringify(offlineAccount));
-        await waitForId('HardwareCheckShowRequest');
+        observed.offlineAccountInputExact = true;
+        await nativeExpect(element(by.id('HardwareCheckError'))).not.toExist();
         await visible('HardwareCheckShowRequest', 'HardwareSigningCheck');
         await element(by.id('HardwareCheckShowRequest')).tap();
         await visible('HardwareCheckRequest', 'HardwareSigningCheck');

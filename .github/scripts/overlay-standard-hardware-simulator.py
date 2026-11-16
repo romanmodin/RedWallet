@@ -9,6 +9,14 @@ import subprocess
 import sys
 
 REPLACEMENTS = {
+    # Public-fixture CI diagnostics only: stage/type/numeric stack positions,
+    # never scanned contents, account data or exception messages.
+    "screen/settings/HardwareSigningCheck.tsx": {
+        "          try {\n            if (kind === 'account') {": "          let diagnosticStage = 'parse';\n          try {\n            if (kind === 'account') {",
+        "              const fixture = createHardwareSigningFixture(account);": "              diagnosticStage = 'fixture';\n              const fixture = createHardwareSigningFixture(account);\n              diagnosticStage = 'serialize';",
+        "          } catch {\n            if (kind === 'signature')": "          } catch (error) {\n            if (kind === 'signature')",
+        "            else setError(loc.hardware_check.invalid_account);": "            else {\n              const name = error instanceof Error && ['Error', 'TypeError', 'RangeError', 'SyntaxError'].includes(error.name) ? error.name : 'unknown';\n              const positions = error instanceof Error ? (error.stack?.match(/:\\d+:\\d+/g) || []).slice(0, 8).join(',') : '';\n              setError('SIMULATOR ONLY: ' + diagnosticStage + ' / ' + name + ' / ' + positions);\n            }"
+    },
     "class/xbt/standard-hardware.ts": {
         "export const STANDARD_HARDWARE_RELEASE_ENABLED: boolean = false;":
         "export const STANDARD_HARDWARE_RELEASE_ENABLED: boolean = true;"

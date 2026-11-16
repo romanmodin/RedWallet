@@ -184,3 +184,38 @@ test('CLI creates only private local files, verifies real signatures, refuses ov
     rmSync(dir, { recursive: true, force: true });
   }
 }, 30000);
+
+test.each(['binary', 'base64', 'psbt-hex', 'final-psbt', 'raw-hex'])(
+  'verifies %s with mobile Buffer views and still rejects unsigned or changed returns',
+  format => {
+    const nodeBuffer = global.Buffer;
+    const mobileBuffer = require('buffer/').Buffer;
+    const species = Object.getOwnPropertyDescriptor(mobileBuffer, Symbol.species);
+    Object.defineProperty(mobileBuffer, Symbol.species, { value: Uint8Array, configurable: true });
+    try {
+      global.Buffer = mobileBuffer;
+      expect(mobileBuffer.from([1]).subarray(0, 1).equals).toBeUndefined();
+      const fixture = createHardwareSigningFixture(account);
+      expect(fixture.review.unsignedPsbtSha256).toBe('353608da4a5c8b715ab49b8fb72f91446f42d72015be4d8aff222674807ad356');
+      expect(bitcoin.Psbt.fromHex(fixture.request.toHex()).toHex()).toBe(fixture.request.toHex());
+      const p = signed();
+      let returned: Uint8Array;
+      if (format === 'binary') returned = p.toBuffer();
+      else if (format === 'base64') returned = bytes(p.toBase64());
+      else if (format === 'psbt-hex') returned = bytes(p.toHex());
+      else {
+        p.finalizeAllInputs();
+        returned = format === 'final-psbt' ? p.toBuffer() : bytes(p.extractTransaction().toHex());
+      }
+      expect(verifyHardwareSigningFixture(account, returned).status).toBe('offline-fixture-signature-verified');
+      expect(() => verifyHardwareSigningFixture(account, fixture.request.toBuffer())).toThrow();
+      const changed = signed().finalizeAllInputs().extractTransaction();
+      changed.outs[0].value--;
+      expect(() => verifyHardwareSigningFixture(account, bytes(changed.toHex()))).toThrow('changed the fixture');
+    } finally {
+      global.Buffer = nodeBuffer;
+      if (species) Object.defineProperty(mobileBuffer, Symbol.species, species);
+      else delete mobileBuffer[Symbol.species];
+    }
+  },
+);

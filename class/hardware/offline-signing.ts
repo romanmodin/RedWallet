@@ -116,12 +116,12 @@ export function createHardwareSigningFixture(value: unknown) {
 function decodeReturnedBytes(bytes: Uint8Array): Buffer {
   if (!bytes.length || bytes.length > MAX_RETURN_BYTES) throw new Error('Signed return must be nonempty and at most 64 KiB');
   const buffer = Buffer.from(bytes);
-  if (buffer.subarray(0, 5).equals(Buffer.from('70736274ff', 'hex'))) return buffer;
+  if (same(buffer.subarray(0, 5), Buffer.from('70736274ff', 'hex'))) return buffer;
   const text = buffer.toString('utf8').trim();
   if (/^(?:[0-9a-fA-F]{2})+$/.test(text)) return Buffer.from(text, 'hex');
   if (/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(text)) {
     const decoded = Buffer.from(text, 'base64');
-    if (decoded.toString('base64') === text && decoded.subarray(0, 5).equals(Buffer.from('70736274ff', 'hex'))) return decoded;
+    if (decoded.toString('base64') === text && same(decoded.subarray(0, 5), Buffer.from('70736274ff', 'hex'))) return decoded;
   }
   throw new Error('Use a binary, hexadecimal or Base64 signed PSBT, or a final transaction in hexadecimal');
 }
@@ -132,7 +132,7 @@ export function verifyHardwareSigningFixture(value: unknown, returned: Uint8Arra
   const { request, review } = createHardwareSigningFixture(value);
   const decoded = decodeReturnedBytes(returned);
   let tx: bitcoin.Transaction;
-  if (decoded.subarray(0, 5).equals(Buffer.from('70736274ff', 'hex'))) {
+  if (same(decoded.subarray(0, 5), Buffer.from('70736274ff', 'hex'))) {
     const signed = bitcoin.Psbt.fromBuffer(decoded);
     if (!same(signed.data.globalMap.unsignedTx.toBuffer(), request.data.globalMap.unsignedTx.toBuffer()))
       throw new Error('Returned transaction changed the fixture');
