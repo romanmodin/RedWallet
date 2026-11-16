@@ -1039,12 +1039,22 @@ export default function XBTLightning({
                     if (!mounted.current || outgoing.trim() !== quotedInvoice) return;
                     setSha256Quote(quote);
                     setMessage(
-                      'SHA256 Lightning invoice: ' + quote.originalSats + ' sats.\n' +
-                      'XBT Lightning to pay: ' + quote.paySats + ' sats.\n' +
-                      'Bridge spread: ' + (quote.spread * 100).toFixed(2) + '%.\n' +
-                      'Maximum XBT routing fee: ' + routingFee + ' sats.\n' +
-                      'Quote expires: ' + new Date(quote.expiresAt).toLocaleTimeString() + '.\n' +
-                      'PREVIEW ONLY: Cross-chain payments are disabled until native payment recovery and bridge settlement are verified.',
+                      'SHA256 Lightning invoice: ' +
+                        quote.originalSats +
+                        ' sats.\n' +
+                        'XBT Lightning to pay: ' +
+                        quote.paySats +
+                        ' sats.\n' +
+                        'Bridge spread: ' +
+                        (quote.spread * 100).toFixed(2) +
+                        '%.\n' +
+                        'Maximum XBT routing fee: ' +
+                        routingFee +
+                        ' sats.\n' +
+                        'Quote expires: ' +
+                        new Date(quote.expiresAt).toLocaleTimeString() +
+                        '.\n' +
+                        'PREVIEW ONLY: Cross-chain payments are disabled until native payment recovery and bridge settlement are verified.',
                     );
                   })
                 }

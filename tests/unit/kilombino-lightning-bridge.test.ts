@@ -13,14 +13,20 @@ it('rejects malformed, testnet and amountless invoices before contacting the bri
 });
 
 it('reads the direction-specific limits and spread', async () => {
-  fetchMock.mockResolvedValue({ ok: true, json: async () => ({ open: true, dirs: { toSHA256: { open: true, rate: 0.0038, spread: 0.02, min_sat: 1000, max_sat: 100000 } } }) });
+  fetchMock.mockResolvedValue({
+    ok: true,
+    json: async () => ({ open: true, dirs: { toSHA256: { open: true, rate: 0.0038, spread: 0.02, min_sat: 1000, max_sat: 100000 } } }),
+  });
   const info = await bridgeInfo();
   expect(info.dirs.toSHA256).toEqual({ open: true, rate: 0.0038, spread: 0.02, min_sat: 1000, max_sat: 100000 });
   expect(fetchMock).toHaveBeenCalledWith('https://bridge.kilombino.com/api/info', expect.objectContaining({ timeout: 10000 }));
 });
 
 it('fails closed when the provider returns malformed or inverted limits', async () => {
-  fetchMock.mockResolvedValue({ ok: true, json: async () => ({ open: true, dirs: { toSHA256: { open: true, rate: 1, spread: 0.01, min_sat: 100000, max_sat: 1000 } } }) });
+  fetchMock.mockResolvedValue({
+    ok: true,
+    json: async () => ({ open: true, dirs: { toSHA256: { open: true, rate: 1, spread: 0.01, min_sat: 100000, max_sat: 1000 } } }),
+  });
   await expect(bridgeInfo()).rejects.toThrow('limits');
 });
 

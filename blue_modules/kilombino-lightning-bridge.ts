@@ -14,7 +14,7 @@ const HASH = /^[0-9a-f]{64}$/i;
 const INVOICE = /^lnbc[0-9]*[munp]?1[02-9ac-hj-np-z]+$/i;
 const MAX_INVOICE_LENGTH = 8192;
 const MAX_DIFFICULTY = 22;
-const MAX_ATTEMPTS = 1 << 23;
+const MAX_ATTEMPTS = 8388608;
 
 export type BridgeInfo = {
   open: boolean;
@@ -53,7 +53,10 @@ function sats(value: unknown): number {
 }
 
 export function parseSha256Invoice(input: string): { invoice: string; hash: string; sats: number; expiresAt: number } {
-  const invoice = input.trim().replace(/^lightning:/i, '').toLowerCase();
+  const invoice = input
+    .trim()
+    .replace(/^lightning:/i, '')
+    .toLowerCase();
   if (invoice.length > MAX_INVOICE_LENGTH || !INVOICE.test(invoice)) throw new Error('Enter a valid SHA256 mainnet BOLT11 invoice.');
   let decoded: ReturnType<typeof bolt11.decode>;
   try {
@@ -91,9 +94,12 @@ export async function bridgeInfo(): Promise<BridgeInfo> {
 function leadingZeroBits(hash: Uint8Array): number {
   let bits = 0;
   for (const byte of hash) {
-    if (!byte) { bits += 8; continue; }
+    if (!byte) {
+      bits += 8;
+      continue;
+    }
     for (let shift = 7; shift >= 0; shift--) {
-      if (byte & (1 << shift)) return bits;
+      if (Math.floor(byte / Math.pow(2, shift)) % 2) return bits;
       bits++;
     }
   }
@@ -101,8 +107,15 @@ function leadingZeroBits(hash: Uint8Array): number {
 }
 
 export async function solveBridgePow(challenge: string, paymentHash: string, bits: number): Promise<string> {
-  if (typeof challenge !== 'string' || !challenge || challenge.length > 256 || !HASH.test(paymentHash) ||
-      !Number.isInteger(bits) || bits < 0 || bits > MAX_DIFFICULTY) {
+  if (
+    typeof challenge !== 'string' ||
+    !challenge ||
+    challenge.length > 256 ||
+    !HASH.test(paymentHash) ||
+    !Number.isInteger(bits) ||
+    bits < 0 ||
+    bits > MAX_DIFFICULTY
+  ) {
     throw new Error('Unsupported Lightning bridge challenge.');
   }
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
@@ -132,8 +145,14 @@ export async function quoteSha256Invoice(input: string): Promise<BridgeQuote> {
   });
   const holdInvoice = quote.hold_invoice;
   const token = quote.token;
-  if (typeof holdInvoice !== 'string' || !INVOICE.test(holdInvoice) || holdInvoice.length > MAX_INVOICE_LENGTH ||
-      typeof token !== 'string' || !token || token.length > 1024) {
+  if (
+    typeof holdInvoice !== 'string' ||
+    !INVOICE.test(holdInvoice) ||
+    holdInvoice.length > MAX_INVOICE_LENGTH ||
+    typeof token !== 'string' ||
+    !token ||
+    token.length > 1024
+  ) {
     throw new Error('Invalid bridge hold invoice or settlement token.');
   }
   // Bridge documentation describes expires_at in Unix seconds. Reject ambiguous timestamps.
