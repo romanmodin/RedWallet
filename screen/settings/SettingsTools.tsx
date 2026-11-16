@@ -25,8 +25,8 @@ const SettingsTools: React.FC = () => {
     <SettingsScrollView testID="SettingsToolsRoot">
       <SettingsSection>
         <SettingsListItem
-          title="Hardware signing check"
-          subtitle="Offline test · No funds"
+          title={loc.hardware_check.title}
+          subtitle={loc.hardware_check.subtitle}
           iconName="key"
           onPress={() => navigation.navigate('HardwareSigningCheck')}
           testID="HardwareSigningCheckTool"

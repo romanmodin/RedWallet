@@ -341,3 +341,7 @@ Each locale lives in its own file under [`vocabulary/`](vocabulary/). One Markdo
 3. Add a row to each per-language section under the same category (between the category's divider row and the next divider row). Mark unknown values **TODO**.
 4. If the term is brand/protocol (capitalised proper noun), default to **keep in English** across locales unless a locale has an established convention.
 5. If you change a shipped string in a locale's `.json`, update the corresponding row here in the same PR.
+
+## Russian hardware signing check
+
+The offline check uses the existing Russian terms «Отпечаток мастер-ключа» for master fingerprint and «сатоши» for sats. Hardware signing check is «Проверка аппаратной подписи»; change is «Сдача»; fee is «Комиссия». Native SegWit, Sparrow and QR remain protocol/product names. “Chain separation” in this diagnostic means «разделение монет между цепочками», not creation of a new chain. These strings describe a nonspendable test, not a payment.

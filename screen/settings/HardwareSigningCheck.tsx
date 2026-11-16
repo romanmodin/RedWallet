@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import BlueText from '../../components/BlueText';
 import Button from '../../components/Button';
+import loc from '../../loc';
 import { DynamicQRCode } from '../../components/DynamicQRCode';
 import { BlueSpacing20 } from '../../components/BlueSpacing';
 import { useTheme } from '../../components/themes';
@@ -83,12 +84,12 @@ const HardwareSigningCheck = () => {
             }
           } catch {
             if (kind === 'signature') setResult('failed');
-            else setError('Scan a public Native SegWit account export. Never enter a seed or private key.');
+            else setError(loc.hardware_check.invalid_account);
           }
         },
       });
     } catch {
-      if (lifetime.current.active && token === lifetime.current.generation) setError('The scanner could not be opened. Please try again.');
+      if (lifetime.current.active && token === lifetime.current.generation) setError(loc.hardware_check.scanner_error);
     } finally {
       if (pendingPermission.current === token) {
         pendingPermission.current = null;
@@ -99,35 +100,38 @@ const HardwareSigningCheck = () => {
 
   return (
     <ScrollView testID="HardwareSigningCheck" style={{ backgroundColor: colors.elevated }} contentContainerStyle={styles.content}>
-      <BlueText style={styles.heading}>Offline hardware check</BlueText>
+      <BlueText style={styles.heading}>{loc.hardware_check.heading}</BlueText>
       <BlueSpacing20 />
-      <BlueText>
-        This checks QR transfer and a signature without spending funds. The test transaction cannot be broadcast successfully.
-      </BlueText>
+      <BlueText>{loc.hardware_check.intro}</BlueText>
       <BlueSpacing20 />
       {!check ? (
         <>
-          <BlueText>
-            On your hardware wallet, choose a public account export such as Connect Sparrow. Your seed stays on the device.
-          </BlueText>
+          <BlueText>{loc.hardware_check.export_help}</BlueText>
           <BlueSpacing20 />
-          <Button title="Scan public account" testID="HardwareCheckScanAccount" disabled={busy} onPress={() => scan('account')} />
+          <Button
+            title={loc.hardware_check.scan_account}
+            testID="HardwareCheckScanAccount"
+            disabled={busy}
+            onPress={() => scan('account')}
+          />
         </>
       ) : (
         <>
-          <BlueText testID="HardwareCheckAccount">Native SegWit · {check.account.accountPath}</BlueText>
-          <BlueText>Fingerprint: {check.account.fingerprint.toUpperCase()}</BlueText>
+          <BlueText testID="HardwareCheckAccount">
+            {loc.formatString(loc.hardware_check.account, { path: check.account.accountPath })}
+          </BlueText>
+          <BlueText>{loc.formatString(loc.hardware_check.fingerprint, { fingerprint: check.account.fingerprint.toUpperCase() })}</BlueText>
           <BlueSpacing20 />
-          <BlueText style={styles.heading}>Test amounts only</BlueText>
-          <BlueText>Recipient: {check.review.recipientSat} sats</BlueText>
-          <BlueText>Change: {check.review.changeSat} sats</BlueText>
-          <BlueText>Fee: {check.review.feeSat} sats</BlueText>
+          <BlueText style={styles.heading}>{loc.hardware_check.test_amounts}</BlueText>
+          <BlueText>{loc.formatString(loc.hardware_check.recipient, { amount: check.review.recipientSat })}</BlueText>
+          <BlueText>{loc.formatString(loc.hardware_check.change, { amount: check.review.changeSat })}</BlueText>
+          <BlueText>{loc.formatString(loc.hardware_check.fee, { amount: check.review.feeSat })}</BlueText>
           <BlueSpacing20 />
           {!showRequest ? (
-            <Button title="Show test QR" testID="HardwareCheckShowRequest" onPress={() => setShowRequest(true)} />
+            <Button title={loc.hardware_check.show_request} testID="HardwareCheckShowRequest" onPress={() => setShowRequest(true)} />
           ) : (
             <>
-              <BlueText>Scan with your hardware wallet, review these amounts, then sign. If the device refuses, stop this check.</BlueText>
+              <BlueText>{loc.hardware_check.sign_help}</BlueText>
               <BlueSpacing20 />
               {focused && result !== 'passed' && (
                 <View style={styles.qr} testID="HardwareCheckRequest">
@@ -137,11 +141,11 @@ const HardwareSigningCheck = () => {
               <BlueSpacing20 />
               {result === 'passed' ? (
                 <BlueText testID="HardwareCheckPassed" style={styles.success}>
-                  Offline signature verified
+                  {loc.hardware_check.passed}
                 </BlueText>
               ) : (
                 <Button
-                  title="Scan signed response"
+                  title={loc.hardware_check.scan_signature}
                   testID="HardwareCheckScanSignature"
                   disabled={busy}
                   onPress={() => scan('signature')}
@@ -149,15 +153,15 @@ const HardwareSigningCheck = () => {
               )}
               {result === 'failed' && (
                 <BlueText testID="HardwareCheckFailed" style={styles.error}>
-                  The signature did not match this test. Check the device response and try scanning again.
+                  {loc.hardware_check.failed}
                 </BlueText>
               )}
               <BlueSpacing20 />
-              <BlueText>This result covers this offline test only. Real payments and chain separation were not tested.</BlueText>
+              <BlueText>{loc.hardware_check.limits}</BlueText>
             </>
           )}
           <BlueSpacing20 />
-          <Button title="Start over" testID="HardwareCheckReset" onPress={reset} />
+          <Button title={loc.hardware_check.reset} testID="HardwareCheckReset" onPress={reset} />
         </>
       )}
       {!!error && (
@@ -166,7 +170,7 @@ const HardwareSigningCheck = () => {
         </BlueText>
       )}
       <BlueSpacing20 />
-      <BlueText>This check does not add a wallet or contact a server. Public account and test data are not saved.</BlueText>
+      <BlueText>{loc.hardware_check.privacy}</BlueText>
     </ScrollView>
   );
 };

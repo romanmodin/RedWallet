@@ -595,7 +595,7 @@ const DetailViewStackScreensStack = () => {
         <DetailViewStack.Screen
           name="HardwareSigningCheck"
           component={HardwareSigningCheck}
-          options={settingsScreenOptions('Hardware signing check')}
+          options={settingsScreenOptions(loc.hardware_check.title)}
         />
         <DetailViewStack.Screen
           name="PromptPasswordConfirmationSheet"

@@ -712,5 +712,29 @@
     "notif_tx_sent": "Notification transaction sent. Please wait for it to confirm",
     "notif_tx": "Notification transaction",
     "not_found": "Payment code not found"
+  },
+  "hardware_check": {
+    "title": "Hardware signing check",
+    "subtitle": "Offline test · No funds",
+    "heading": "Offline hardware check",
+    "intro": "This checks QR transfer and a signature without spending funds. The test transaction cannot be broadcast successfully.",
+    "export_help": "On your hardware wallet, choose a public account export such as Connect Sparrow. Your seed stays on the device.",
+    "scan_account": "Scan public account",
+    "account": "Native SegWit · {path}",
+    "fingerprint": "Fingerprint: {fingerprint}",
+    "test_amounts": "Test amounts only",
+    "recipient": "Recipient: {amount} sats",
+    "change": "Change: {amount} sats",
+    "fee": "Fee: {amount} sats",
+    "show_request": "Show test QR",
+    "sign_help": "Scan with your hardware wallet, review these amounts, then sign. If the device refuses, stop this check.",
+    "scan_signature": "Scan signed response",
+    "passed": "Offline signature verified",
+    "failed": "The signature did not match this test. Check the device response and try scanning again.",
+    "limits": "This result covers this offline test only. Real payments and chain separation were not tested.",
+    "reset": "Start over",
+    "privacy": "This check does not add a wallet or contact a server. Public account and test data are not saved.",
+    "invalid_account": "Scan a public Native SegWit account export. Never enter a seed or private key.",
+    "scanner_error": "The scanner could not be opened. Please try again."
   }
 }
