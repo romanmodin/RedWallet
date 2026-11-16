@@ -1,4 +1,5 @@
 import { sha256 } from '@noble/hashes/sha256';
+import { BridgeRequest, nativeBridgeRequest } from './http';
 import { BridgeInvoice, ceilSats, hashPattern, readBridgeInvoice } from './invoice';
 
 export type BridgeMarket = {
@@ -189,8 +190,8 @@ export class KilombinoProvider implements LightningBridgeProvider {
   // Kilowallet Lightning.KILOMBINO_NODE, source e368766168dff16ea2302cd5ced8860dc019b3ef.
   readonly node = '0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60';
 
-  private readonly request: typeof fetch;
-  constructor(request: typeof fetch = fetch) {
+  private readonly request: BridgeRequest;
+  constructor(request: BridgeRequest = nativeBridgeRequest) {
     this.request = request;
   }
 

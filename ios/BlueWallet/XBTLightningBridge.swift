@@ -44,6 +44,20 @@ final class XBTLightningBridge: NSObject {
         }
     }
 
+    @objc(bridgeRequest:url:method:body:resolver:rejecter:)
+    func bridgeRequest(_ id: String, url: String, method: String, body: String,
+                       resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        BridgeHTTPTransport.shared.request(id: id, url: url, method: method, body: body) { result in
+            switch result {
+            case .success(let response): resolve(response)
+            case .failure: reject("bridge_transport", "Secure bridge request failed or was canceled.", nil)
+            }
+        }
+    }
+
+    @objc(cancelBridgeRequest:)
+    func cancelBridgeRequest(_ id: String) { BridgeHTTPTransport.shared.cancel(id: id) }
+
     @objc(bridgePayment:value:resolver:rejecter:)
     func bridgePayment(_ operation: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
                        rejecter reject: @escaping RCTPromiseRejectBlock) {
