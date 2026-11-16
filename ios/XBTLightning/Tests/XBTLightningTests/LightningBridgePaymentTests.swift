@@ -5,21 +5,21 @@ import CryptoKit
 final class LightningBridgePaymentTests: XCTestCase {
     let node = "02" + String(repeating: "12", count: 32)
     let preimage = Data(repeating: 0x11, count: 32)
-    var hash: String { Data(SHA256.hash(data: preimage)).map { String(format: "%02x", $0) }.joined() }
+    var paymentHash: String { Data(SHA256.hash(data: preimage)).map { String(format: "%02x", $0) }.joined() }
     func review(msat: String = "102000340") -> BridgePaymentReview {
-        BridgePaymentReview(invoice: "lnbc1fixture", hash: hash, msat: msat, feeLimit: "10",
+        BridgePaymentReview(invoice: "lnbc1fixture", hash: paymentHash, msat: msat, feeLimit: "10",
                             destination: node, node: node, expiresAt: 1120)
     }
     func decoded(hash: String? = nil, destination: String? = nil, feature: UInt64 = 512, msat: UInt64 = 102000340,
                  expiry: UInt64 = 120, cltv: UInt64 = 1200) -> Data {
         ProtoFields.field(1, data: Data((destination ?? node).utf8)) +
-        ProtoFields.field(2, data: Data((hash ?? self.hash).utf8)) +
+        ProtoFields.field(2, data: Data((hash ?? self.paymentHash).utf8)) +
         ProtoFields.field(4, integer: 1000) + ProtoFields.field(5, integer: expiry) +
         ProtoFields.field(9, integer: cltv) + ProtoFields.field(12, integer: msat) +
         ProtoFields.field(13, data: ProtoFields.field(1, integer: feature))
     }
     func payment(state: UInt64 = 2, proof: String? = nil) -> Data {
-        ProtoFields.field(1, data: Data(hash.utf8)) +
+        ProtoFields.field(1, data: Data(paymentHash.utf8)) +
         ProtoFields.field(6, data: Data((proof ?? String(repeating: "11", count: 32)).utf8)) +
         ProtoFields.field(8, integer: 102000340) +
         ProtoFields.field(10, integer: state) + ProtoFields.field(12, integer: 1234)
@@ -40,17 +40,17 @@ final class LightningBridgePaymentTests: XCTestCase {
         XCTAssertThrowsError(try BridgePaymentValidation.decoded(decoded(expiry: 10), review: review(), now: 1000))
     }
     func testLocalSettlementRequiresTheCorrectPreimageAndReturnsExactFees() throws {
-        let result = try BridgePaymentValidation.payment(payment(), hash: hash)
+        let result = try BridgePaymentValidation.payment(payment(), hash: paymentHash)
         XCTAssertEqual(result["state"] as? String, "settled")
         XCTAssertEqual(result["proofVerified"] as? Bool, true)
         XCTAssertEqual(result["msat"] as? String, "102000340")
         XCTAssertEqual(result["feeMsat"] as? String, "1234")
         XCTAssertNil(result["preimage"], "Do not export proof secrets into general wallet history")
-        XCTAssertThrowsError(try BridgePaymentValidation.payment(payment(proof: String(repeating: "22", count: 32)), hash: hash))
+        XCTAssertThrowsError(try BridgePaymentValidation.payment(payment(proof: String(repeating: "22", count: 32)), hash: paymentHash))
     }
     func testPendingAndFailedCannotBeReportedAsSettled() throws {
         for (code, state) in [(UInt64(1), "pending"), (3, "failed"), (4, "pending"), (0, "unknown")] {
-            let result = try BridgePaymentValidation.payment(payment(state: code, proof: ""), hash: hash)
+            let result = try BridgePaymentValidation.payment(payment(state: code, proof: ""), hash: paymentHash)
             XCTAssertEqual(result["state"] as? String, state)
             XCTAssertEqual(result["proofVerified"] as? Bool, false)
         }
