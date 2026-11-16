@@ -1,3 +1,6 @@
+import CrossChainLightning from '../../components/CrossChainLightning';
+import { readBridgeInvoice } from '../../blue_modules/lightning-bridge/invoice';
+import { crossChainBridge } from '../../blue_modules/lightning-bridge/runtime';
 import { LightningResize, selectedChannelAfterResize } from '../../blue_modules/lightning-resize';
 import { authorizeInForeground } from '../../blue_modules/foreground-authorization';
 import QRCodeComponent from '../../components/QRCode';
@@ -220,6 +223,7 @@ export default function XBTLightning({
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
+  const [crossPayment, setCrossPayment] = useState<{ invoice?: string }>();
   const [channels, setChannels] = useState<Channel[]>();
   const [channelError, setChannelError] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState<string>();
@@ -519,6 +523,9 @@ export default function XBTLightning({
                   throw Object.assign(new Error('Payment canceled before submission.'), { code: 'payment_not_submitted_canceled' });
                 }
                 if (payment.bolt12Token) return bridge.offers('pay', payment.bolt12Token, '', '');
+                if (bridge.bridgePayment && (await crossChainBridge.blocksNormalPayment(payment.hash))) {
+                  throw new Error('Cross-chain payment already submitted.');
+                }
                 return bridge.payInvoice
                   ? bridge.payInvoice(payment.invoice, payment.hash, payment.sats, payment.feeLimit)
                   : bridge.invoice('pay', payment.invoice, payment.hash, payment.sats);
@@ -1052,6 +1059,21 @@ export default function XBTLightning({
           )}
           {(tools || mode === 'pay') && (
             <>
+              {bridge.bridgePayment && (
+                <SettingsListItem title="Cross-chain payment history" disabled={busy} onPress={() => setCrossPayment({})} />
+              )}
+              {crossPayment && (
+                <CrossChainLightning
+                  key={crossPayment.invoice ?? 'history'}
+                  invoice={crossPayment.invoice}
+                  feeLimit={routingFee}
+                  hideHistoryAmounts={hideBalances}
+                  onClose={() => setCrossPayment(undefined)}
+                  canSubmit={() => mounted.current && navigation.isFocused()}
+                  authorize={action => runAuthorized('Cross-chain payment', action)}
+                />
+              )}
+
               <SettingsListItem
                 title="Scan invoice QR"
                 disabled={busy}
@@ -1214,15 +1236,28 @@ export default function XBTLightning({
                 }
                 onPress={() =>
                   run('Review invoice', async () => {
-                    const invoice = outgoing.trim();
+                    let invoice = outgoing.trim();
                     let decoded;
                     if (isBolt12Offer(invoice)) {
                       if (!bridge.offers) throw new Error('BOLT12 is not available in this Lightning engine.');
                       decoded = await bridge.offers('review', normalizeLightningRequest(invoice, true), offerAmount || '0', routingFee);
                     } else {
+                      if (bridge.bridgePayment && !invoice.startsWith('lnbcrt')) {
+                        const parsed = readBridgeInvoice(invoice);
+                        invoice = parsed.invoice;
+                        if (parsed.chain === 'SHA256') {
+                          setReview(undefined);
+                          setCrossPayment({ invoice: parsed.invoice });
+                          setMessage('Choose a Lightning processor before requesting a quote.');
+                          return;
+                        }
+                      }
                       decoded = await bridge.invoice('decode', invoice, '', '');
                     }
                     if (!mounted.current) return;
+                    if (bridge.bridgePayment && (await crossChainBridge.blocksNormalPayment(decoded.hash))) {
+                      throw new Error('This cross-chain payment is pending, uncertain or already paid. Check cross-chain history.');
+                    }
                     try {
                       const state = await paymentTracker.status(decoded.hash);
                       if (!mounted.current) return;

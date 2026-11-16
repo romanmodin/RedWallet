@@ -44,6 +44,23 @@ final class XBTLightningBridge: NSObject {
         }
     }
 
+    @objc(bridgePayment:value:resolver:rejecter:)
+    func bridgePayment(_ operation: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                       rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch operation {
+                case "review": resolve(try await RegtestNode.shared.reviewBridgePayment(value))
+                case "status": resolve(try await RegtestNode.shared.bridgePaymentStatus(hash: value))
+                case "pay": resolve(try await RegtestNode.shared.payBridgeInvoice(value))
+                default: reject("bridge_operation", "Unknown cross-chain payment operation.", nil)
+                }
+            } catch let error as PaymentSubmissionFailure { reject(error.code, error.localizedDescription, nil) }
+            catch let error as BridgePaymentFailure { reject("bridge_liquidity", error.localizedDescription, nil) }
+            catch { reject("bridge_payment_error", "The XBT node could not verify the bridge payment. Check payment status before trying again.", nil) }
+        }
+    }
+
     @objc(nodeName:value:resolver:rejecter:)
     func nodeName(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
                   rejecter reject: @escaping RCTPromiseRejectBlock) {

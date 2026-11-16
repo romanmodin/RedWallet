@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'ios/XBTLightning/**'
+      - 'blue_modules/lightning-bridge/**'
+      - 'components/CrossChainLightning.tsx'
+      - 'tests/unit/lightning-bridge.test.ts'
+      - 'tests/unit/cross-chain-lightning.test.tsx'
       - 'ios/BlueWallet/XBTLightningBridge.*'
       - 'screen/settings/XBTLightning.tsx'
       - 'components/XBTLightningNodeName.tsx'
@@ -40,6 +44,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - run: python3 .github/scripts/test-ios-release-gates.py
   regtest:
     strategy:
@@ -50,6 +56,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
           ruby-version: '3.4.10'
@@ -132,6 +140,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
           ruby-version: '3.4.10'
@@ -151,6 +161,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
           ruby-version: '3.4.10'
