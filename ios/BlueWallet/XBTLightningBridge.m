@@ -16,5 +16,8 @@ RCT_EXTERN_METHOD(offers:(NSString *)action value:(NSString *)value sats:(NSStri
 RCT_EXTERN_METHOD(nodeName:(NSString *)action value:(NSString *)value resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(bridgePayment:(NSString *)operation value:(NSString *)value resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(bridgeRequest:(NSString *)requestId url:(NSString *)url method:(NSString *)method body:(NSString *)body resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(cancelBridgeRequest:(NSString *)requestId)
+
 @end
 #endif
