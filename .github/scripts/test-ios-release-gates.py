@@ -27,6 +27,26 @@ class ReleaseGateTests(unittest.TestCase):
         jobs[-1]["conclusion"] = "success"
         self.assertEqual(verifier["validate_gate"](run, jobs, "fixture", run["path"], required)["conclusion"], "success")
 
+    def test_tor_release_rejects_missing_or_skipped_smoke_even_when_run_passed(self):
+        gate = verifier["required_gates"](mainnet=True, tor_smoke=True)[-1]
+        repo = {"full_name": "romanmodin/RedWallet"}
+        run = {"id": 1, "html_url": "fixture", "run_attempt": 1,
+               "repository": repo, "head_repository": repo, "head_sha": "fixture",
+               "path": gate[1], "status": "completed", "conclusion": "success"}
+        jobs = [{"name": name, "status": "completed", "conclusion": "success"}
+                for name in ("regtest (wallet)", "regtest (payments)", "public-sync")]
+        with self.assertRaisesRegex(RuntimeError, "Required gate jobs are missing"):
+            verifier["validate_gate"](run, jobs, "fixture", run["path"], gate[2])
+        tor = {"name": "tor-smoke", "status": "completed", "conclusion": "skipped"}
+        with self.assertRaisesRegex(RuntimeError, "Required job did not pass: tor-smoke"):
+            verifier["validate_gate"](run, jobs + [tor], "fixture", run["path"], gate[2])
+        tor["conclusion"] = "success"
+        self.assertEqual(verifier["validate_gate"](run, jobs + [tor], "fixture", run["path"], gate[2])["conclusion"], "success")
+
+    def test_tor_release_cannot_select_the_regtest_only_policy(self):
+        with self.assertRaisesRegex(RuntimeError, "Tor smoke qualification requires mainnet"):
+            verifier["required_gates"](regtest=True, tor_smoke=True)
+
     def test_network_selection_is_explicit(self):
         with self.assertRaises(RuntimeError):
             verifier["required_gates"](mainnet=True, regtest=True)

@@ -16,14 +16,18 @@ GATES = (
 
 
 
-def required_gates(*, regtest=False, mainnet=False):
+def required_gates(*, regtest=False, mainnet=False, tor_smoke=False):
     if regtest and mainnet:
         raise RuntimeError("Choose exactly one Lightning network")
+    if tor_smoke and not mainnet:
+        raise RuntimeError("Tor smoke qualification requires mainnet Lightning")
     gates = GATES
     if regtest or mainnet:
         jobs = {"regtest (wallet)", "regtest (payments)"}
         if mainnet:
             jobs.add("public-sync")
+        if tor_smoke:
+            jobs.add("tor-smoke")
         gates += (("LND_IOS_RUN_ID", ".github/workflows/xbt-lnd-ios.yml", jobs),)
     return gates
 
@@ -58,9 +62,13 @@ def main():
     source = os.environ["SOURCE_COMMIT"]
     if not re.fullmatch(r"[0-9a-f]{40}", source):
         raise RuntimeError("Expected a full source commit")
+    tor_smoke = os.environ.get("REQUIRE_XBT_TOR_SMOKE", "0")
+    if tor_smoke not in {"0", "1"}:
+        raise RuntimeError("REQUIRE_XBT_TOR_SMOKE must be 0 or 1")
     receipts = []
     gates = required_gates(regtest=os.environ.get("VERIFY_LND_REGTEST_IPA") == "1",
-                           mainnet=os.environ.get("VERIFY_LND_MAINNET_IPA") == "1")
+                           mainnet=os.environ.get("VERIFY_LND_MAINNET_IPA") == "1",
+                           tor_smoke=tor_smoke == "1")
     for variable, workflow, required_jobs in gates:
         run_id = os.environ[variable]
         if not run_id.isdecimal():

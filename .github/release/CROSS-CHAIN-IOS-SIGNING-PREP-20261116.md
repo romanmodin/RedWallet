@@ -14,12 +14,12 @@ Inactive draft preparation for PR260, stacked on bridge PR256 and combined Light
 
 | Gate | Exact-source run | State at preparation |
 | --- | --- | --- |
-| Software | 43849209646 | Hosted workflow started; 142 focused tests, full TypeScript and changed-file lint pass on Zorin |
+| Software | 43849209646 | Passed: 3,306 tests, one skipped, mocked bridge recovery, disposable SHA256 consensus and lint |
 | iOS application | 43849209511 | Pending; no pass claimed |
 | Disposable on-chain iOS | 43848906924 | Dispatched once; completion required |
 | Embedded XBT LND | 43849209556 | Current native execution required; parent passed 12 bridge cases but failed Tor fee recovery |
 
-The unchanged verifier requires completed successful current attempts and every required job. Main-only dispatch, ios-signing/ios-upload environments, source mapping, native LND mainnet verification and signed IPA checks remain intact. This preparation does not sign, deploy or submit anything. Previous source runs do not qualify this commit. Older running checks were left to finish.
+The verifier requires successful current attempts and every required job. This build and upload explicitly require a passed Tor smoke job, so an omitted or skipped recovery check cannot qualify the bridge. Other workflows retain their existing policy unless they opt in. Main-only dispatch, ios-signing/ios-upload environments, source mapping, native LND mainnet verification and signed IPA checks remain intact. This preparation does not sign, deploy or submit anything. Previous source runs do not qualify this commit. Older running checks were left to finish.
 
 ## Candidate beta notes (not published)
 
@@ -31,6 +31,6 @@ The unchanged verifier requires completed successful current attempts and every 
 
 ## Completion conditions
 
-Inspect native logs/artifacts, including the foreground lifecycle regression, six payment-validation and six HTTP-transport tests, then run the unchanged source/gate verifier. No real-network bridge payment has occurred; a small real-network test requires separate explicit authorization.
+Inspect native logs/artifacts, including the foreground lifecycle regression, six payment-validation and six HTTP-transport tests, then run the source and gate verifiers with the bridge Tor requirement enabled. No real-network bridge payment has occurred; a small real-network test requires separate explicit authorization.
 
 After qualification and reviewed source integration, signing would create a new exact-source IPA receipt. Upload and tester assignment remain separate. Uploaded-beta verification and assignment intentionally retain the old actual receipt until a new signed/uploaded receipt provides the build number, IPA hash, orchestration commit, successful upload run and Apple state. No placeholder receipts or TestFlight readiness claim.
