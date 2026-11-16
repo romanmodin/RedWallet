@@ -36,10 +36,10 @@ public final class LightningBackgroundTime {
         if observeLifecycle {
             observers.append(NotificationCenter.default.addObserver(
                 forName: UIApplication.willResignActiveNotification, object: nil, queue: .main
-            ) { [weak self] _ in Task { @MainActor in self?.leavingForeground() } })
+            ) { [weak self] _ in MainActor.assumeIsolated { self?.leavingForeground() } })
             observers.append(NotificationCenter.default.addObserver(
                 forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
-            ) { [weak self] _ in Task { @MainActor in self?.enteredForeground() } })
+            ) { [weak self] _ in MainActor.assumeIsolated { self?.enteredForeground() } })
         }
     }
 
@@ -53,12 +53,18 @@ public final class LightningBackgroundTime {
         attempted = true
         let current = UUID()
         generation = current
-        identifier = begin { [weak self] in
-            Task { @MainActor in
+        let requested = begin { [weak self] in
+            MainActor.assumeIsolated {
                 guard let self, self.generation == current else { return }
                 self.finish()
             }
         }
+        // Also tolerate a provider that expires synchronously during begin.
+        guard generation == current else {
+            if requested != .invalid { end(requested) }
+            return
+        }
+        identifier = requested
         guard identifier != .invalid else { return }
         cancelTimer = schedule(Self.graceSeconds) { [weak self] in
             guard let self, self.generation == current else { return }

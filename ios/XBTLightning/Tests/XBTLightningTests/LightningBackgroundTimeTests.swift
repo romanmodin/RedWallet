@@ -33,7 +33,7 @@ final class LightningBackgroundTimeTests: XCTestCase {
         XCTAssertEqual(ends.count, 2)
     }
 
-    func testExpirationAndStaleCallbacksEndExactlyOnce() async {
+    func testExpirationAndStaleCallbacksEndExactlyOnce() {
         var expirations: [() -> Void] = []
         var timers: [() -> Void] = []
         var ends = 0
@@ -50,14 +50,29 @@ final class LightningBackgroundTimeTests: XCTestCase {
         service.leavingForeground()
         expirations[0]()
         timers[0]()
-        await Task.yield()
         XCTAssertEqual(ends, 1, "An old callback must not end the new assertion")
         expirations[1]()
-        await Task.yield()
+        XCTAssertEqual(ends, 2, "Expiration must end the assertion before the callback returns")
         timers[1]()
         XCTAssertEqual(ends, 2)
         service.enteredForeground()
         XCTAssertEqual(ends, 2)
+    }
+
+    func testExpirationDuringBeginDoesNotLeakTheReturnedAssertion() {
+        var ends = 0
+        let service = LightningBackgroundTime(begin: { expiration in
+            expiration()
+            return UIBackgroundTaskIdentifier(rawValue: 1)
+        }, end: { _ in ends += 1 }, schedule: { _, _ in
+            XCTFail("Expired assertion needs no timer")
+            return {}
+        }, observeLifecycle: false)
+        service.setNodeRunning(true)
+        service.leavingForeground()
+        XCTAssertEqual(ends, 1)
+        service.enteredForeground()
+        XCTAssertEqual(ends, 1)
     }
 
     func testDenialDoesNotEndInvalidIdentifierOrRetry() {

@@ -27,6 +27,22 @@ final class LightningOffersTests: XCTestCase {
                                                         offerID: offerID, expectedSats: 500))
         }
     }
+
+    func testPersistedReviewFieldsAreRecheckedAgainstTheSignedInvoice() throws {
+        let original = try intent()
+        let fetched = try ProtoFields(response())
+        let decoded = ProtoFields.field(1, data: Data("invoice".utf8)) +
+            ProtoFields.field(2, integer: 1) + ProtoFields.field(7, data: try XCTUnwrap(fetched.bytes[2]?.first))
+        XCTAssertNoThrow(try original.validateDecoded(decoded))
+        let changed = Bolt12Intent(offer: original.offer, requestedSats: original.requestedSats,
+            invoice: original.invoice, hash: original.hash, sats: 499, destination: original.destination,
+            expires: original.expires, submitted: false)
+        XCTAssertThrowsError(try changed.validateDecoded(decoded))
+        let wrongChain = ProtoFields.field(1, data: Data("invoice".utf8)) +
+            ProtoFields.field(7, data: try XCTUnwrap(fetched.bytes[2]?.first))
+        XCTAssertThrowsError(try original.validateDecoded(wrongChain))
+    }
+
     func testReviewExpiresAndCannotAuthorizeAfterClockMovesBackwards() throws {
         let start = Date(timeIntervalSince1970: 2_000_000_001)
         let review = Bolt12Review(token: "token", intent: try intent(), feeSats: 10, created: start)

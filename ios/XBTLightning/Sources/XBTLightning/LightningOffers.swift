@@ -46,6 +46,22 @@ struct Bolt12Intent: Codable, Equatable {
                     expires: created + lifetime, submitted: false)
     }
 
+
+    func validateDecoded(_ data: Data) throws {
+        let decoded = try ProtoFields(data)
+        guard try decoded.string(1) == "invoice", decoded.integers[2] == 1,
+              let raw = decoded.bytes[7]?.first else { throw Bolt12Failure.invalid }
+        let info = try ProtoFields(raw)
+        let created = info.integers[4] ?? 0
+        let lifetime = info.integers[5] ?? 7200
+        guard info.integers[8] == 1,
+              info.bytes[1]?.first?.hex == hash, info.bytes[3]?.first?.hex == destination,
+              info.integers[2] == sats * 1000,
+              created <= UInt64.max - lifetime, created + lifetime == expires else {
+            throw Bolt12Failure.invalid
+        }
+    }
+
     func validate() throws {
         guard offer.hasPrefix("lno1"), offer.utf8.count <= 32768,
               invoice.hasPrefix("lni1"), invoice.utf8.count <= 32768,
@@ -193,6 +209,10 @@ extension RegtestNode {
             intent = try Bolt12Intent.fetched(fetched, offer: offer, requestedSats: sats, offerID: id, expectedSats: expected)
             try journal.save(intent)
         }
+        let invoiceData = try await rpc {
+            LndmobileOffersDecodeBolt12(ProtoFields.field(1, data: Data(intent.invoice.utf8)), $0)
+        }
+        try intent.validateDecoded(invoiceData)
         // Let an already submitted expired invoice still be inspected in history,
         // but do not issue a spend authorization for it.
         guard Date().timeIntervalSince1970 < Double(intent.expires) else { throw Bolt12Failure.expired }
@@ -255,6 +275,13 @@ extension RegtestNode {
         let state = try await offerPaymentState(hash: intent.hash)
         if state == "settled" { return true }
         guard state == "failed" || (state == "not_found" && !intent.submitted) else { throw Bolt12Failure.unresolved }
+        // Recheck persisted metadata against the signed invoice before spending.
+        // A valid JSON file with a corrupted amount must not understate the review.
+        let invoiceData = try await rpc {
+            LndmobileOffersDecodeBolt12(ProtoFields.field(1, data: Data(intent.invoice.utf8)), $0)
+        }
+        try intent.validateDecoded(invoiceData)
+        guard review.valid(now: Date()) else { throw PaymentSubmissionFailure.invalidReview }
         // No offer field: payment can only use the exact fetched/reviewed invoice.
         let request = ProtoFields.field(2, data: Data(intent.invoice.utf8)) +
             ProtoFields.field(6, integer: 30) + ProtoFields.field(7, integer: review.feeSats * 1000)
