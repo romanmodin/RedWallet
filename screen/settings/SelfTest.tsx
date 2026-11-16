@@ -1,3 +1,4 @@
+import JoinBlaketDiagnostics from './JoinBlaketDiagnostics';
 import { runKilojoinNativeSelfTest } from '../../class/xbt/kilojoin/native-self-test';
 import { runBip84ReplacementSelfTest } from '../../class/xbt/bip84-self-test';
 import { runTaprootSigningSelfTest } from '../../class/xbt/taproot-self-test';
@@ -425,7 +426,7 @@ const SelfTestContent: React.FC<{
   }
 
   return (
-    <SettingsScrollView automaticallyAdjustContentInsets contentInsetAdjustmentBehavior="automatic">
+    <SettingsScrollView testID="SelfTestScrollView" automaticallyAdjustContentInsets contentInsetAdjustmentBehavior="automatic">
       <SettingsSection>
         <View style={settingsCardContent}>
           {selfTestResult}
@@ -452,6 +453,7 @@ const SelfTestContent: React.FC<{
               <BlueSpacing20 />
             </>
           )}
+          {!state.isLoading && <JoinBlaketDiagnostics />}
         </View>
       </SettingsSection>
     </SettingsScrollView>

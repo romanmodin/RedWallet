@@ -105,6 +105,27 @@ the connection, and continuous traffic periodically yields so cancellation can r
 test exercises the real directory authentication state machine followed by the pinned signed offer.
 It uses an injected stream and does not claim live Tor or real-chain verification.
 
+## App-level read-only qualification
+
+Settings → About → Self-test now includes an explicit JoinBlaket connection check when the native
+iOS bridge is present. Visiting the screen does not connect. The check creates a fresh temporary
+nick, authenticates through the actual JavaScript/native Tor adapter, requests the orderbook and
+reports only public counts. It never loads a wallet or sends a fill, PoDLE proof, transaction or
+wallet signature. Authentication uses the temporary nick's own signature.
+
+A five-minute total deadline covers identity generation, authentication and market collection.
+Cancellation, backgrounding and leaving the screen close the connection and destroy the identity;
+late entropy completion cannot revive a cancelled attempt. Truncated discovery is rejected. Empty
+markets are reported honestly. The display explicitly excludes chain/bond-output verification and
+payments. This is a connection diagnostic, not a Send entry point.
+
+The separate `joinblaket-market` CI job uses this run's real simulator app on a fresh device, requires
+successful nick authentication and at least one certified live offer, and records counts without
+retaining identities or raw traffic. It does not depend on the long wallet UI test job. At introduction,
+the 20 new cancellation/lifecycle/summary tests passed (358 total targeted tests); live native results
+for this new path are pending. The earlier native challenge-only probe passed at e7711f434, while
+the separate Lightning onion-peer RPC timed out and general UI simulators had unresolved failures.
+
 ## Native Tor transport
 
 The iOS bridge now has an explicit, dormant JoinBlaket line-transport entry point. It uses the existing
