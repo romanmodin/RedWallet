@@ -7,6 +7,7 @@ public actor RegtestNode {
     public static let shared = RegtestNode()
     private var startup: Task<Void, Error>?
     private var preparing: Task<Void, Error>?
+    private var activeNodeName: String?
     private(set) var activeTransport: LightningTransport = .direct
 
     private func networkSelectionURL() throws -> URL {
@@ -53,6 +54,21 @@ public actor RegtestNode {
         try MainnetPeerStore.load(at: peerSelectionURL())
     }
 
+    private func nodeNameURL() throws -> URL {
+        try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+            appropriateFor: nil, create: true).appendingPathComponent("XBTLightning-mainnet-name.json")
+    }
+
+    public func nodeNameState() throws -> [String: Any] {
+        LightningNodeName.state(saved: try LightningNodeName.load(at: nodeNameURL()), active: activeNodeName)
+    }
+
+    public func saveNodeName(_ value: String) throws -> [String: Any] {
+        guard preparing == nil else { throw NodeNameFailure.starting }
+        try LightningNodeName.save(value, at: nodeNameURL())
+        return try nodeNameState()
+    }
+
     public func startSelectedMainnet(peer: String) async throws {
         if let preparing { return try await preparing.value }
         let mode = try selectedTransport()
@@ -66,11 +82,13 @@ public actor RegtestNode {
         let validated = selected.isEmpty ? "" : try MainnetConfiguration.endpoint(selected, usingTor: mode == .tor)
         try MainnetPeerStore.save(validated, at: peerSelectionURL())
         let peers = validated.isEmpty ? MainnetConfiguration.defaultPeers : [validated]
+        let alias = try LightningNodeName.load(at: nodeNameURL())
         activeTransport = mode
         let task = Task<Void, Error> {
             let connection = mode == .tor ? try await LightningTor.shared.start() : nil
-            let config = try MainnetConfiguration.text(peers: peers, torPort: connection?.port, torFeeURL: connection?.feeURL)
+            let config = try MainnetConfiguration.text(peers: peers, torPort: connection?.port, torFeeURL: connection?.feeURL, alias: alias)
             mainnet = true
+            activeNodeName = alias
             try await startConfiguration(config)
         }
         preparing = task
@@ -83,8 +101,10 @@ public actor RegtestNode {
             guard mainnet else { throw NodeFailure.invalidReply }
             return
         }
-        let config = try MainnetConfiguration.text(peers: peers)
+        let alias = try LightningNodeName.load(at: nodeNameURL())
+        let config = try MainnetConfiguration.text(peers: peers, alias: alias)
         mainnet = true
+        activeNodeName = alias
         try await startConfiguration(config)
     }
 

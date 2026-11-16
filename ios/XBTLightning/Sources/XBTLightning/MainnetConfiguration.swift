@@ -36,7 +36,8 @@ public enum MainnetConfiguration {
         return host + ":" + String(port)
     }
 
-    public static func text(peers: [String] = defaultPeers, torPort: UInt16? = nil, torFeeURL: String? = nil) throws -> String {
+    public static func text(peers: [String] = defaultPeers, torPort: UInt16? = nil, torFeeURL: String? = nil, alias: String = "RedWallet") throws -> String {
+        let alias = try LightningNodeName.validate(alias)
         guard !peers.isEmpty, peers.count <= 16 else { throw NodeFailure.invalidPeer }
         let endpoints = try peers.map { try endpoint($0, usingTor: torPort != nil) }
         var feeURL = "https://nodex.kilombino.com/data/lnd-fees.json"
@@ -55,7 +56,7 @@ public enum MainnetConfiguration {
         nolisten=true
         norest=true
         tlsdisableautofill=true
-        alias=RedWallet
+        alias=\(alias)
         nobootstrap=true
         maxpendingchannels=3
         protocol.splice=true
