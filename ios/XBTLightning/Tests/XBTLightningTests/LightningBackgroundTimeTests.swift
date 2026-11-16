@@ -87,3 +87,4 @@ final class LightningBackgroundTimeTests: XCTestCase {
         service.enteredForeground()
         XCTAssertEqual(starts, 1)
     }
+}
