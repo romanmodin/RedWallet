@@ -4,6 +4,23 @@ import Lndmobile
 @testable import XBTLightning
 
 final class TorSmokeTests: XCTestCase {
+    private func dumpTorLogTail() {
+        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+              let handle = try? FileHandle(forReadingFrom: base.appendingPathComponent("XBTLightning-Tor/tor.log")) else {
+            print("Tor timeout diagnostic: Arti log unavailable")
+            return
+        }
+        defer { try? handle.close() }
+        do {
+            let size = try handle.seekToEnd()
+            try handle.seek(toOffset: size > 16_384 ? size - 16_384 : 0)
+            let tail = try handle.read(upToCount: 16_384) ?? Data()
+            print("Disposable simulator Arti log tail:\n" + String(decoding: tail, as: UTF8.self))
+        } catch {
+            print("Tor timeout diagnostic: Arti log read failed")
+        }
+    }
+
     func testTorPublicSyncOnionPeerAndFeeFailureWithoutDirectFallback() async throws {
         guard #available(iOS 17.0, *) else { throw XCTSkip("Tor requires iOS 17") }
         try await RegtestNode.shared.selectTransport("tor")
@@ -41,7 +58,26 @@ final class TorSmokeTests: XCTestCase {
         XCTAssertTrue(running, "Tor XBT sync did not complete; no funds were used")
         guard running else { return }
         print("Tor smoke: connecting to the onion peer")
-        try await RegtestNode.shared.connect(to: "0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60@eu2pntt4zzsvm2fkcn5uaqxac2mj5t2fk5ecwyhhejp3deu7env2h2ad.onion:9735")
+        do {
+            try await RegtestNode.shared.connect(to: "0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60@eu2pntt4zzsvm2fkcn5uaqxac2mj5t2fk5ecwyhhejp3deu7env2h2ad.onion:9735")
+        } catch NodeFailure.timedOut {
+            // Observe the existing attempt; never retry ConnectPeer or convert
+            // the original timeout into success. This node is disposable.
+            print("Tor connect timed out; Arti state=\(ArtiRuntime.state())")
+            dumpTorLogTail()
+            try await Task.sleep(nanoseconds: 30_000_000_000)
+            do {
+                let latePeers = try ProtoFields(await rpc { LndmobileListPeers(Data(), $0) })
+                let connected = try (latePeers.bytes[1] ?? []).contains {
+                    try ProtoFields($0).string(1) == "0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60"
+                }
+                print("Tor timeout diagnostic: peer appeared later=\(connected)")
+            } catch {
+                print("Tor timeout diagnostic: read-only peer observation unavailable")
+            }
+            dumpTorLogTail()
+            throw NodeFailure.timedOut
+        }
         print("Tor smoke: reading connected peers")
         let peers = try ProtoFields(await rpc { LndmobileListPeers(Data(), $0) })
         let peerKeys = try (peers.bytes[1] ?? []).map { try ProtoFields($0).string(1) }
