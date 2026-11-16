@@ -34,6 +34,7 @@ import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/X
 
 import { validLightningChannelOpenSats, validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
 import { LndPaymentTracker, LndPaymentOutcome, lndPaymentMessage } from '../../blue_modules/lnd-payment-status';
+import { quoteSha256Invoice, BridgeQuote } from '../../blue_modules/kilombino-lightning-bridge';
 
 const bridge = NativeModules.XBTLightningBridge;
 // These fixed outcomes contain no wallet amounts. Keep them visible after a
@@ -199,6 +200,7 @@ export default function XBTLightning({
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [review, setReview] = useState<Review>();
+  const [sha256Quote, setSha256Quote] = useState<BridgeQuote>();
   const [channels, setChannels] = useState<Channel[]>();
   const [channelError, setChannelError] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState<string>();
@@ -935,6 +937,7 @@ export default function XBTLightning({
                         return;
                       }
                       setReview(undefined);
+                      setSha256Quote(undefined);
                       setPaymentAttempt(undefined);
                       paymentStatusVisible.current = false;
                       setOutgoing(invoice.toLowerCase());
@@ -962,6 +965,7 @@ export default function XBTLightning({
                 value={outgoing}
                 onChangeText={value => {
                   setReview(undefined);
+                  setSha256Quote(undefined);
                   setPaymentAttempt(undefined);
                   paymentStatusVisible.current = false;
                   setOutgoing(value);
@@ -1023,6 +1027,33 @@ export default function XBTLightning({
                   })
                 }
               />
+              <SettingsListItem
+                title="Preview SHA256 payment via Kilombino"
+                disabled={busy || !outgoing.trim()}
+                onPress={() =>
+                  run('SHA256 bridge quote', async () => {
+                    setSha256Quote(undefined);
+                    setReview(undefined);
+                    const quotedInvoice = outgoing.trim();
+                    const quote = await quoteSha256Invoice(quotedInvoice);
+                    if (!mounted.current || outgoing.trim() !== quotedInvoice) return;
+                    setSha256Quote(quote);
+                    setMessage(
+                      'SHA256 Lightning invoice: ' + quote.originalSats + ' sats.\n' +
+                      'XBT Lightning to pay: ' + quote.paySats + ' sats.\n' +
+                      'Bridge spread: ' + (quote.spread * 100).toFixed(2) + '%.\n' +
+                      'Maximum XBT routing fee: ' + routingFee + ' sats.\n' +
+                      'Quote expires: ' + new Date(quote.expiresAt).toLocaleTimeString() + '.\n' +
+                      'PREVIEW ONLY: Cross-chain payments are disabled until native payment recovery and bridge settlement are verified.',
+                    );
+                  })
+                }
+              />
+              {sha256Quote && (
+                <SettingsFootnote>
+                  SHA256 quote: {sha256Quote.originalSats} SHA256 sats → {sha256Quote.paySats} XBT sats. Preview only; no funds moved.
+                </SettingsFootnote>
+              )}
               {paymentAttempt && (
                 <SettingsListItem
                   title="Check payment status"
