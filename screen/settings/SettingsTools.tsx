@@ -24,6 +24,14 @@ const SettingsTools: React.FC = () => {
   return (
     <SettingsScrollView testID="SettingsToolsRoot">
       <SettingsSection>
+        <SettingsListItem
+          title="Hardware signing check"
+          subtitle="Offline test · No funds"
+          iconName="key"
+          onPress={() => navigation.navigate('HardwareSigningCheck')}
+          testID="HardwareSigningCheckTool"
+          chevron
+        />
         {!!NativeModules.XBTLightningBridge && (
           <SettingsListItem
             title="XBT Lightning"

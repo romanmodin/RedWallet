@@ -55,6 +55,7 @@ def main():
         "blue_modules/redwallet-separation-http/ios/RedWalletSeparationHTTP.m",
         ".github/scripts/overlay-standard-hardware-simulator.py",
         "screen/send/ScanQRCode.tsx", "components/CameraScreen.tsx",
+        "screen/settings/HardwareSigningCheck.tsx", "class/hardware/offline-signing.ts",
     ]
     for filename in tracked_transport:
         if filename not in contents:

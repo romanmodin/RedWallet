@@ -56,6 +56,7 @@ import NotificationSettings from '../screen/settings/NotificationSettings';
 import SelfTest from '../screen/settings/SelfTest';
 import ReleaseNotes from '../screen/settings/ReleaseNotes';
 import SettingsTools from '../screen/settings/SettingsTools';
+import HardwareSigningCheck from '../screen/settings/HardwareSigningCheck';
 import PromptPasswordConfirmationSheet from '../screen/PromptPasswordConfirmationSheet';
 import { useSizeClass, SizeClass } from '../blue_modules/sizeClass';
 import getWalletTransactionsOptions from './helpers/getWalletTransactionsOptions';
@@ -591,6 +592,11 @@ const DetailViewStackScreensStack = () => {
           options={settingsScreenOptions(loc.settings.about_release_notes)}
         />
         <DetailViewStack.Screen name="SettingsTools" component={SettingsTools} options={settingsScreenOptions(loc.settings.tools)} />
+        <DetailViewStack.Screen
+          name="HardwareSigningCheck"
+          component={HardwareSigningCheck}
+          options={settingsScreenOptions('Hardware signing check')}
+        />
         <DetailViewStack.Screen
           name="PromptPasswordConfirmationSheet"
           component={PromptPasswordConfirmationSheet}

@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.head_ref == 'feat/xbt-standard-hardware-20261114' || github.ref == 'refs/heads/feat/xbt-standard-hardware-20261114' || github.head_ref == 'feat/xbt-hardware-change-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-change-20261116' || github.head_ref == 'feat/xbt-hardware-https-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-https-20261116' || github.head_ref == 'fix/hardware-qr-session-20261116' || github.ref == 'refs/heads/fix/hardware-qr-session-20261116'
+    if: github.head_ref == 'feat/xbt-standard-hardware-20261114' || github.ref == 'refs/heads/feat/xbt-standard-hardware-20261114' || github.head_ref == 'feat/xbt-hardware-change-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-change-20261116' || github.head_ref == 'feat/xbt-hardware-https-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-https-20261116' || github.head_ref == 'fix/hardware-qr-session-20261116' || github.ref == 'refs/heads/fix/hardware-qr-session-20261116' || github.head_ref == 'feat/hardware-signing-check-20261116' || github.ref == 'refs/heads/feat/hardware-signing-check-20261116'
     timeout-minutes: 90
     runs-on: macos-26
     env:
@@ -33,6 +33,9 @@ jobs:
         run: |
           plutil -lint ios/BlueWallet.xcodeproj/project.pbxproj
           swift test --package-path blue_modules/redwallet-separation-http --scratch-path "$RUNNER_TEMP/proof-http-swift"
+
+      - name: Compile rendered QR image reader
+        run: xcrun swiftc tests/native/read-qr-image.swift -o "$RUNNER_TEMP/redwallet-qr-image-reader"
 
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0

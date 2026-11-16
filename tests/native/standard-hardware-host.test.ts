@@ -1,3 +1,5 @@
+import { captureRenderedPsbt } from './capture-rendered-psbt';
+import { createHardwareSigningFixture, parseHardwareCheckAccount } from '../../class/hardware/offline-signing';
 import { CryptoPSBT } from '@keystonehq/bc-ur-registry';
 import { URDecoder } from '@ngraveio/bc-ur';
 import { Psbt } from 'bitcoinjs-lib';
@@ -23,4 +25,13 @@ test('native host produces interoperable multipart PSBT fragments', () => {
   expect(decoder.isComplete()).toBe(true);
   expect(decoder.isSuccess()).toBe(true);
   expect(Buffer.from(CryptoPSBT.fromCBOR(decoder.resultUR().cbor).getPSBT())).toEqual(Buffer.from(psbt.toBuffer()));
+});
+
+test('native host loads the exact shared offline verifier and pixel-decoding entry point', () => {
+  expect(typeof captureRenderedPsbt).toBe('function');
+  const match = /^\[([0-9a-f]+)\/([^\]]+)\](xpub.+)$/.exec(PUBLIC_WATCH_ACCOUNT)!;
+  const account = parseHardwareCheckAccount(JSON.stringify({ fingerprint: match[1], accountPath: 'm/' + match[2], xpub: match[3] }));
+  const fixture = createHardwareSigningFixture(account);
+  expect(fixture.review.fundingInvalidReason).toBe('duplicate-inputs');
+  expect(fixture.funding.ins[0].hash).toEqual(fixture.funding.ins[1].hash);
 });

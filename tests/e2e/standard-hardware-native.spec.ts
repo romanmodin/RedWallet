@@ -10,6 +10,10 @@ import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import * as bitcoin from 'bitcoinjs-lib';
 import { CryptoPSBT } from '@keystonehq/bc-ur-registry';
+import BIP32Factory from 'bip32';
+import ecc from '../../blue_modules/noble_ecc';
+import { createHardwareSigningFixture } from '../../class/hardware/offline-signing';
+import { captureRenderedPsbt } from '../native/capture-rendered-psbt';
 import { by, device, element, expect as nativeExpect, waitFor } from 'detox';
 import {
   dismissAlertByText,
@@ -64,6 +68,17 @@ async function prepare() {
   await confirmDialog('Confirm XBT payment', true);
 }
 
+async function injectFragment(part: string) {
+  await waitForId('ScanQrBackdoorButton');
+  for (let i = 0; i < 6; i++) await element(by.id('ScanQrBackdoorButton')).tap();
+  await waitForId('scanQrBackdoorInput');
+  await element(by.id('scanQrBackdoorInput')).replaceText(part);
+  await element(by.id('scanQrBackdoorOkButton')).tap();
+  await waitFor(element(by.id('scanQrBackdoorInput')))
+    .not.toExist()
+    .withTimeout(10000);
+}
+
 suite('Standard hardware iOS qualification', () => {
   it('preserves watch-only origin, requires separation, and rechecks before one native TLS broadcast', async () => {
     assert.equal(device.getPlatform(), 'ios');
@@ -91,6 +106,51 @@ suite('Standard hardware iOS qualification', () => {
         await waitForWalletsList();
         await element(by.id('SettingsButton')).tap();
         await sleep(12000);
+        await waitForId('SettingsRoot');
+        step('checking offline signing through rendered QR pixels and returned fragments');
+        await visible('Tools', 'SettingsRoot');
+        await element(by.id('Tools')).tap();
+        await waitForId('HardwareSigningCheckTool');
+        await element(by.id('HardwareSigningCheckTool')).tap();
+        await waitForId('HardwareCheckScanAccount');
+        // Disposable public vector only, held by the host and never imported as a seed.
+        const offlineMaster = BIP32Factory(ecc).fromSeed(Buffer.alloc(32, 1));
+        const offlinePath = "m/84'/0'/0'";
+        const offlineNode = offlineMaster.derivePath(offlinePath);
+        const offlineAccount = {
+          fingerprint: Buffer.from(offlineMaster.fingerprint).toString('hex'),
+          accountPath: offlinePath,
+          xpub: offlineNode.neutered().toBase58(),
+        };
+        await element(by.id('HardwareCheckScanAccount')).tap();
+        await injectFragment(JSON.stringify(offlineAccount));
+        await waitForId('HardwareCheckShowRequest');
+        await visible('HardwareCheckShowRequest', 'HardwareSigningCheck');
+        await element(by.id('HardwareCheckShowRequest')).tap();
+        await visible('HardwareCheckRequest', 'HardwareSigningCheck');
+        const rendered = await captureRenderedPsbt(name => device.takeScreenshot(name));
+        assert.equal(rendered.psbt.toHex(), createHardwareSigningFixture(offlineAccount).request.toHex());
+        observed.offlineQrPixelDecode = true;
+        observed.offlineQrScreenshotCount = rendered.images;
+        // An unsigned return must show failure before the real signature is tried.
+        await visible('HardwareCheckScanSignature', 'HardwareSigningCheck');
+        await element(by.id('HardwareCheckScanSignature')).tap();
+        await injectFragment(rendered.psbt.toBase64());
+        await waitForId('HardwareCheckFailed');
+        await nativeExpect(element(by.id('HardwareCheckPassed'))).not.toExist();
+        observed.offlineUnsignedReturnRejected = true;
+        const offlineSigned = rendered.psbt.clone().signInput(0, offlineNode.derive(0).derive(0));
+        const offlineEncoder = new CryptoPSBT(Buffer.from(offlineSigned.toBuffer())).toUREncoder(175);
+        const offlineParts = Array.from({ length: offlineEncoder.fragmentsLength }, () => offlineEncoder.nextPart().toUpperCase());
+        await visible('HardwareCheckScanSignature', 'HardwareSigningCheck');
+        await element(by.id('HardwareCheckScanSignature')).tap();
+        for (const part of offlineParts.reverse()) await injectFragment(part);
+        await waitForId('HardwareCheckPassed');
+        await nativeExpect(element(by.id('HardwareCheckFailed'))).not.toExist();
+        assert.deepEqual(fixture.transport.broadcasts, []);
+        observed.offlineSigningCheckPassed = true;
+        await goBack();
+        await goBack();
         await waitForId('SettingsRoot');
         await visible('NetworkSettings', 'SettingsRoot');
         await element(by.id('NetworkSettings')).tap();
@@ -250,16 +310,6 @@ suite('Standard hardware iOS qualification', () => {
         const qrParts = (value: bitcoin.Psbt) => {
           const encoder = new CryptoPSBT(Buffer.from(value.toBuffer())).toUREncoder(175);
           return Array.from({ length: encoder.fragmentsLength }, () => encoder.nextPart().toUpperCase());
-        };
-        const injectFragment = async (part: string) => {
-          await waitForId('ScanQrBackdoorButton');
-          for (let i = 0; i < 6; i++) await element(by.id('ScanQrBackdoorButton')).tap();
-          await waitForId('scanQrBackdoorInput');
-          await element(by.id('scanQrBackdoorInput')).replaceText(part);
-          await element(by.id('scanQrBackdoorOkButton')).tap();
-          await waitFor(element(by.id('scanQrBackdoorInput')))
-            .not.toExist()
-            .withTimeout(10000);
         };
         const parts = qrParts(signed);
         const abandonedParts = qrParts(request);
