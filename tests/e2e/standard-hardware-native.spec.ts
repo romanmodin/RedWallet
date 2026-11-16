@@ -195,11 +195,27 @@ suite('Standard hardware iOS qualification', () => {
         for (const mode of ['redirect', 'oversized', 'slow'] as const) {
           fixture.proof = mode;
           const before = fixture.explorerRequests.length;
+          const beforeFault = fixture.faultResponses[mode];
           const started = Date.now();
           await prepare();
-          await waitForText('Separation evidence request failed', 30000);
+          // The JS 8s abort starts before native admission. Either deadline may
+          // win; both must block. Redirect/size faults must report failure.
+          const messages = ['Separation evidence request failed'];
+          if (mode === 'slow') messages.push('Separation evidence request canceled');
+          await eventually(async () => {
+            for (const message of messages) {
+              try {
+                await nativeExpect(element(by.text(message))).toBeVisible();
+                return true;
+              } catch {
+                /* Observe the other exact failure message on the next check. */
+              }
+            }
+            return false;
+          }, 30000);
           assert.equal(await dismissAlertByText('OK', 15000, false), true);
           assert(fixture.explorerRequests.length > before, mode + ' reached the TLS fixture');
+          assert(fixture.faultResponses[mode] > beforeFault, mode + ' emitted its own TLS fault response');
           assert.deepEqual(fixture.transport.broadcasts, []);
           await nativeExpect(element(by.id('PSBTHex'))).not.toExist();
           if (mode === 'slow') observed.nativeHTTPTimeoutElapsedMs = Date.now() - started;
@@ -207,6 +223,7 @@ suite('Standard hardware iOS qualification', () => {
         assert(fixture.redirectResponses > 0);
         assert.equal(fixture.redirectProbeRequests, 0);
         assert(fixture.malformedResponses >= 2);
+        observed.nativeHTTPSFaultResponses = { ...fixture.faultResponses };
         observed.nativeHTTPSRedirectBlocked = true;
         observed.nativeHTTPSRedirectProbeRequests = fixture.redirectProbeRequests;
         observed.nativeHTTPSChunkLimitBlocked = true;

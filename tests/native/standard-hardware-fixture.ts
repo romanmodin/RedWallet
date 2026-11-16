@@ -49,6 +49,7 @@ export class StandardHardwareNativeFixture {
   private xbtMiner = '';
   proof: 'missing' | 'valid' | 'disagreement' | 'unavailable' | 'redirect' | 'oversized' | 'slow' = 'missing';
   readonly explorerRequests: { provider: string; endpoint: string }[] = [];
+  readonly faultResponses = { redirect: 0, oversized: 0, slow: 0 };
   redirectResponses = 0;
   redirectProbeRequests = 0;
   malformedResponses = 0;
@@ -133,11 +134,13 @@ export class StandardHardwareNativeFixture {
           const [, provider, endpoint] = match;
           this.explorerRequests.push({ provider, endpoint });
           if (this.proof === 'redirect') {
+            this.faultResponses.redirect++;
             this.redirectResponses++;
             response.writeHead(302, { Location: 'https://127.0.0.1:' + EXPLORER_PORT + '/disclosure-probe' }).end();
             return;
           }
           if (this.proof === 'oversized') {
+            this.faultResponses.oversized++;
             this.malformedResponses++;
             response.writeHead(200, { 'Content-Type': 'text/plain', 'Transfer-Encoding': 'chunked' });
             response.write('a'.repeat(9000));
@@ -145,6 +148,7 @@ export class StandardHardwareNativeFixture {
             return;
           }
           if (this.proof === 'slow') {
+            this.faultResponses.slow++;
             this.malformedResponses++;
             response.writeHead(200, { 'Content-Type': 'text/plain', 'Transfer-Encoding': 'chunked' });
             response.flushHeaders();
