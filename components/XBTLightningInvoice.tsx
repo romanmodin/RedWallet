@@ -6,12 +6,17 @@ import QRCode from './QRCode';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
 import { useTheme } from './themes';
 
-export type LightningReceiveInvoice = { invoice: string; sats: string };
+export type LightningReceiveInvoice = {
+  invoice: string;
+  sats: string;
+  kind?: 'invoice' | 'offer';
+};
 
 // Tapping switches presentation; dragging remains owned by the parent scroll
 // view. Copy/share always use the complete, unchanged native invoice.
-export default function XBTLightningInvoice({ invoice, sats }: LightningReceiveInvoice) {
+export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }: LightningReceiveInvoice) {
   const { colors } = useTheme();
+  const noun = kind === 'offer' ? 'offer' : 'invoice';
   const [width, setWidth] = useState(0);
   const [showText, setShowText] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -21,14 +26,18 @@ export default function XBTLightningInvoice({ invoice, sats }: LightningReceiveI
   return (
     <View testID="XBTLightningReceiveInvoice" onLayout={event => setWidth(event.nativeEvent.layout.width)}>
       <Text accessibilityRole="header" style={[styles.amount, { color: colors.foregroundColor }]}>
-        Receive {sats} sats
+        {kind === 'offer' && sats === '0' ? 'Receive any amount' : 'Receive ' + sats + ' sats'}
       </Text>
-      <SettingsFootnote style={styles.explanation}>Scan with an XBT Lightning wallet, or copy and share the invoice.</SettingsFootnote>
+      <SettingsFootnote style={styles.explanation}>
+        {kind === 'offer'
+          ? 'Reusable BOLT12 offer. Keep RedWallet open to receive.'
+          : 'Scan with an XBT Lightning wallet, or copy and share the invoice.'}
+      </SettingsFootnote>
       <Pressable
         testID="XBTLightningInvoicePlate"
         accessibilityRole="button"
-        accessibilityLabel={showText ? 'Show invoice QR code' : 'Show invoice text'}
-        accessibilityHint="Tap to switch between the QR code and invoice text"
+        accessibilityLabel={showText ? 'Show ' + noun + ' QR code' : 'Show ' + noun + ' text'}
+        accessibilityHint={'Tap to switch between the QR code and ' + noun + ' text'}
         onPress={() => setShowText(value => !value)}
         style={[styles.plate, { minHeight: size + 56 }]}
       >
@@ -49,17 +58,19 @@ export default function XBTLightningInvoice({ invoice, sats }: LightningReceiveI
         ) : null}
       </Pressable>
       <SettingsFootnote style={styles.explanation}>
-        {showText ? 'Tap the text to show the QR code. Copy or Share includes the full invoice.' : 'Tap the QR code to show invoice text.'}
+        {showText
+          ? 'Tap the text to show the QR code. Copy or Share includes the full ' + noun + '.'
+          : 'Tap the QR code to show ' + noun + ' text.'}
       </SettingsFootnote>
       <SettingsListItem
-        title={copied ? 'Invoice copied' : 'Copy invoice'}
+        title={copied ? (kind === 'offer' ? 'Offer copied' : 'Invoice copied') : 'Copy ' + noun}
         onPress={() => {
           Clipboard.setString(invoice);
           setCopied(true);
         }}
       />
       <SettingsListItem
-        title="Share invoice"
+        title={'Share ' + noun}
         onPress={async () => {
           setShareError(false);
           try {
@@ -69,15 +80,26 @@ export default function XBTLightningInvoice({ invoice, sats }: LightningReceiveI
           }
         }}
       />
-      {shareError && <SettingsFootnote style={styles.explanation}>Could not open sharing. Use Copy invoice instead.</SettingsFootnote>}
+      {shareError && (
+        <SettingsFootnote style={styles.explanation}>{'Could not open sharing. Use Copy ' + noun + ' instead.'}</SettingsFootnote>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  amount: { fontSize: 20, fontWeight: '600', paddingHorizontal: 16, paddingTop: 16 },
+  amount: {
+    fontSize: 20,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
   explanation: { paddingHorizontal: 16, paddingVertical: 12 },
-  plate: { alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
+  plate: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
   quietZone: { padding: 16, backgroundColor: '#FFFFFF' },
   invoice: { paddingHorizontal: 16, fontSize: 12, lineHeight: 18 },
 });

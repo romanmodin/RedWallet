@@ -19,6 +19,7 @@ jest.mock('../../hooks/useSecretExport', () => ({
 }));
 beforeEach(() => {
   AppState.currentState = 'active';
+  jest.mocked(AppState.addEventListener).mockImplementation(() => ({ remove: jest.fn() }));
   bridge.run.mockReset().mockResolvedValue('Running');
   bridge.wallet.mockReset().mockResolvedValue({ rows: [], next: '0', more: false });
   bridge.invoice.mockClear();
@@ -47,7 +48,11 @@ jest.mock('../../components/themes', () => {
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
 const bridge = {
-  wallet: jest.fn<Promise<unknown>, [string, string]>(async () => ({ rows: [], next: '0', more: false })),
+  wallet: jest.fn<Promise<unknown>, [string, string]>(async () => ({
+    rows: [],
+    next: '0',
+    more: false,
+  })),
   peer: jest.fn(async () => ''),
   manage: jest.fn(
     async (action: string): Promise<unknown> =>
@@ -66,7 +71,11 @@ const bridge = {
   invoice: jest.fn(
     async (action: string): Promise<unknown> =>
       action === 'decode'
-        ? { sats: '500', destination: 'test peer', hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }
+        ? {
+            sats: '500',
+            destination: 'test peer',
+            hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          }
         : true,
   ),
 };
@@ -548,7 +557,7 @@ test('camera scan rejects unrelated QR data without replacing the invoice or pay
   fireEvent.press(screen.getByText('Scan invoice QR'));
   const scan = mockNavigation.navigate.mock.calls.at(-1)![1].onBarScanned;
   act(() => scan('https://example.com'));
-  expect(prompt).toHaveBeenCalledWith('Not a Lightning invoice', expect.any(String));
+  expect(prompt).toHaveBeenCalledWith('Not a Lightning request', expect.any(String));
   expect(screen.getByLabelText('Invoice to pay').props.value).toBe('');
   expect(bridge.invoice).not.toHaveBeenCalled();
   screen.unmount();
@@ -745,7 +754,11 @@ test.each(['pay', 'withdraw', 'open', 'close'])('declined authentication prevent
   );
   bridge.invoice.mockImplementation(async action =>
     action === 'decode'
-      ? { sats: '500', destination: 'peer', hash: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }
+      ? {
+          sats: '500',
+          destination: 'peer',
+          hash: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        }
       : true,
   );
   const s = render(<XBTLightning />);
@@ -947,7 +960,17 @@ describe('payment result reconciliation', () => {
   const hash = 'a'.repeat(64);
   const empty = { rows: [], next: '0', more: false };
   const history = (state: string) => ({
-    rows: [{ id: hash, direction: 'sent', state, sats: '500', feeSats: '0', timestamp: 1, memo: '' }],
+    rows: [
+      {
+        id: hash,
+        direction: 'sent',
+        state,
+        sats: '500',
+        feeSats: '0',
+        timestamp: 1,
+        memo: '',
+      },
+    ],
     next: '1',
     more: false,
   });
@@ -1350,3 +1373,124 @@ test.each(['success', 'declined', 'background-return', 'navigation-return', 'dis
     }
   },
 );
+
+const nativeOffersBridge = bridge as typeof bridge & { offers?: jest.Mock };
+const offerHash = 'c'.repeat(64);
+const offerFixture = {
+  id: 'd'.repeat(64),
+  offer: 'lno1qpz',
+  sats: '0',
+  description: 'Tips',
+  active: true,
+  expires: '0',
+};
+
+test('BOLT12 review fetches once and confirmation pays only the native reviewed token', async () => {
+  const offers = jest.fn(async (action: string) =>
+    action === 'review'
+      ? {
+          invoice: 'lni1qpz',
+          hash: offerHash,
+          sats: '500',
+          destination: 'issuer',
+          feeLimit: '10',
+          bolt12Token: 'bound-token',
+        }
+      : true,
+  );
+  nativeOffersBridge.offers = offers;
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  try {
+    const screen = render(<XBTLightning route={{ params: { mode: 'pay' } }} />);
+    await act(async () => {});
+    expect(offers).not.toHaveBeenCalled();
+    fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lightning:lno1qpz');
+    fireEvent.changeText(screen.getByLabelText('Offer payment sats'), '500');
+    await act(async () => fireEvent.press(screen.getByText('Review offer')));
+    expect(offers).toHaveBeenCalledWith('review', 'lno1qpz', '500', '10');
+    expect(bridge.invoice).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByText('Pay 500 sats'));
+    expect(prompt.mock.calls[0][1]).toContain('10 sats');
+    const confirm = prompt.mock.calls[0][2]!.find(button => button.text === 'Pay')!.onPress!;
+    await act(async () => {
+      confirm();
+      confirm();
+    });
+    expect(offers.mock.calls.filter(call => call[0] === 'pay')).toHaveLength(1);
+    expect(offers).toHaveBeenLastCalledWith('pay', 'bound-token', '', '');
+    expect(screen.getByText('PAYMENT SUCCEEDED')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    delete nativeOffersBridge.offers;
+    prompt.mockRestore();
+  }
+});
+
+test('reusable receiving offers support open amounts, copy, and disabling', async () => {
+  const offers = jest.fn(async (action: string) => (action === 'create' ? offerFixture : true));
+  nativeOffersBridge.offers = offers;
+  try {
+    const screen = render(<XBTLightning route={{ params: { mode: 'invoice' } }} />);
+    await act(async () => {});
+    fireEvent.press(screen.getByText('Use reusable BOLT12 offer'));
+    fireEvent.changeText(screen.getByLabelText('Offer description'), 'Tips');
+    await act(async () => fireEvent.press(screen.getByText('Create reusable offer')));
+    expect(offers).toHaveBeenCalledWith('create', 'Tips', '0', '');
+    expect(screen.getByText('Receive any amount')).toBeTruthy();
+    fireEvent.press(screen.getByText('Copy offer'));
+    expect(Clipboard.setString).toHaveBeenLastCalledWith('lno1qpz');
+    await act(async () => fireEvent.press(screen.getByText('Disable offer')));
+    expect(offers).toHaveBeenLastCalledWith('disable', offerFixture.id, '', '');
+    expect(screen.getByText('Enable offer')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    delete nativeOffersBridge.offers;
+  }
+});
+
+test('saved BOLT12 payment can be resumed after reopening without fetching another invoice', async () => {
+  const offers = jest.fn(async () => ({
+    offer: 'lno1qpz',
+    requestedSats: '500',
+    hash: offerHash,
+    sats: '500',
+  }));
+  nativeOffersBridge.offers = offers;
+  try {
+    const screen = render(<XBTLightning route={{ params: { mode: 'pay' } }} />);
+    await act(async () => {});
+    await act(async () => fireEvent.press(screen.getByText('Resume saved offer payment')));
+    expect(offers).toHaveBeenCalledTimes(1);
+    expect(offers).toHaveBeenCalledWith('pending', '', '', '');
+    expect(screen.getByLabelText('Invoice to pay').props.value).toBe('lno1qpz');
+    expect(screen.getByLabelText('Offer payment sats').props.value).toBe('500');
+    expect(screen.getByText('Check payment status')).toBeTruthy();
+    expect(screen.queryByText('Pay 500 sats')).toBeNull();
+    screen.unmount();
+  } finally {
+    delete nativeOffersBridge.offers;
+  }
+});
+
+test('requesting a new BOLT12 invoice requires explicit confirmation and respects an unresolved native guard', async () => {
+  const offers = jest.fn(async () => {
+    throw new Error('The previous payment is unresolved.');
+  });
+  nativeOffersBridge.offers = offers;
+  const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  try {
+    const screen = render(<XBTLightning route={{ params: { mode: 'pay' } }} />);
+    await act(async () => {});
+    fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lno1qpz');
+    fireEvent.press(screen.getByText('Start new offer payment'));
+    expect(offers).not.toHaveBeenCalled();
+    const confirm = prompt.mock.calls[0][2]!.find(button => button.text === 'Start new')!.onPress!;
+    await act(async () => confirm());
+    expect(offers).toHaveBeenCalledWith('reset', '', '', '');
+    expect(screen.getByText('The previous payment is unresolved.')).toBeTruthy();
+    screen.unmount();
+  } finally {
+    delete nativeOffersBridge.offers;
+    prompt.mockRestore();
+  }
+});

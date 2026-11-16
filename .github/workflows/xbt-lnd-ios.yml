@@ -67,7 +67,7 @@ jobs:
           git -C "$dir/peer-src" fetch -q --depth=1 https://github.com/Kilombino/lnd.git cae303b36594a2c48c9ce0cbb238672e3a1b284e
           git -C "$dir/peer-src" checkout -q --detach FETCH_HEAD
           cd "$dir/peer-src"
-          go build -tags="routerrpc invoicesrpc watchtowerrpc wtclientrpc" -o "$dir/ln-bin/" ./cmd/lnd ./cmd/lncli
+          go build -tags="routerrpc invoicesrpc watchtowerrpc wtclientrpc offersrpc" -o "$dir/ln-bin/" ./cmd/lnd ./cmd/lncli
       - name: Start a private compact-filter chain peer
         run: |
           set -euo pipefail
