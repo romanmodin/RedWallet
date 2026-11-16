@@ -18,7 +18,7 @@ private final class ProofProtocol: URLProtocol {
 
 final class SeparationHTTPTests: XCTestCase {
     private let base = SeparationHTTPTransport.evidenceBase
-    private let hash = String(repeating: "ab", count: 32)
+    private let fixtureHash = String(repeating: "ab", count: 32)
     private var transport: SeparationHTTPTransport!
     private var url: String { base + "/blocks/tip/height" }
     override func setUp() {
@@ -44,19 +44,19 @@ final class SeparationHTTPTests: XCTestCase {
         XCTAssertTrue(request.value(forHTTPHeaderField: "Cache-Control")!.contains("no-store"))
     }
     func testCanonicalAllowlistAndPerPathLimits() throws {
-        XCTAssertEqual(try SeparationHTTPTransport.bodyLimit(for: base + "/tx/" + hash + "/hex"), 2_000_000)
-        XCTAssertEqual(try SeparationHTTPTransport.bodyLimit(for: base + "/block/" + hash + "/header"), 160)
-        XCTAssertEqual(try SeparationHTTPTransport.bodyLimit(for: base + "/tx/" + hash + "/outspend/4294967295"), 16384)
-        let invalid = [
+        XCTAssertEqual(try SeparationHTTPTransport.bodyLimit(for: base + "/tx/" + fixtureHash + "/hex"), 2_000_000)
+        XCTAssertEqual(try SeparationHTTPTransport.bodyLimit(for: base + "/block/" + fixtureHash + "/header"), 160)
+        XCTAssertEqual(try SeparationHTTPTransport.bodyLimit(for: base + "/tx/" + fixtureHash + "/outspend/4294967295"), 16384)
+        let invalid: [String] = [
             url + "?x=1", url + "#x", url + "\n", url + "/", base + "/address/bc1qtest",
             "http://blockstream.info/api/blocks/tip/height", "https://blockstream.info:443/api/blocks/tip/height",
             "https://user@blockstream.info/api/blocks/tip/height", "https://blockstream.info.evil.example/api/blocks/tip/height",
-            "https://127.0.0.1/api/blocks/tip/height", base + "/tx/" + hash + "/%68ex",
-            base + "/tx/" + hash + "/outspend/4294967296", base + "/tx/" + hash + "/outspend/01",
-            SeparationHTTPTransport.anchorBase + "/tx/" + hash + "/hex"
+            "https://127.0.0.1/api/blocks/tip/height", base + "/tx/" + fixtureHash + "/%68ex",
+            base + "/tx/" + fixtureHash + "/outspend/4294967296", base + "/tx/" + fixtureHash + "/outspend/01",
+            SeparationHTTPTransport.anchorBase + "/tx/" + fixtureHash + "/hex"
         ]
         for value in invalid { XCTAssertThrowsError(try SeparationHTTPTransport.request(url: value, limit: 160), value) }
-        XCTAssertThrowsError(try SeparationHTTPTransport.request(url: base + "/block/" + hash + "/header", limit: 161))
+        XCTAssertThrowsError(try SeparationHTTPTransport.request(url: base + "/block/" + fixtureHash + "/header", limit: 161))
     }
     func testSuccessfulRequestReturnsOnlyExpectedURLAndBoundedUTF8Body() async throws {
         ProofProtocol.handler = { $0.reply(Data("976100".utf8)) }
