@@ -73,8 +73,9 @@ probe('JoinBlaket authenticated read-only directory through the native Tor bridg
       await device.takeScreenshot('joinblaket-directory-failure').catch(() => {});
       throw error;
     } finally {
+      // This dedicated single-test process ends here. A synchronization command
+      // after termination cannot reach the app and masks the probe result.
       await device.terminateApp();
-      await device.enableSynchronization();
     }
   }, 420000);
 });
