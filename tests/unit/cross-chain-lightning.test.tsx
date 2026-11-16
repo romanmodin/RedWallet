@@ -132,3 +132,29 @@ test('reopening history exposes pending status and masks invoice and amounts whe
   expect(fake.approve).not.toHaveBeenCalled();
   view.unmount();
 });
+
+test('approval errors remain visible and replace stale review with durable pending state', async () => {
+  const { view, fake } = setup();
+  fireEvent.press(view.getByLabelText('Processor two'));
+  await act(async () => fireEvent.press(view.getByText('Get quote')));
+  fake.approve.mockRejectedValueOnce(new Error('Keychain locked after dispatch'));
+  fake.list.mockResolvedValueOnce([{ ...item, state: 'submitting' }]);
+  await act(async () => fireEvent.press(view.getByText('Confirm and pay')));
+  expect(view.getByText('Keychain locked after dispatch')).toBeTruthy();
+  expect(view.getByText(/Payment pending or uncertain/)).toBeTruthy();
+  expect(view.queryByText('Confirm and pay')).toBeNull();
+  expect(fake.approve).toHaveBeenCalledTimes(1);
+  view.unmount();
+});
+test('an unreadable journal after an approval error never leaves a Pay button visible', async () => {
+  const { view, fake } = setup();
+  fireEvent.press(view.getByLabelText('Processor two'));
+  await act(async () => fireEvent.press(view.getByText('Get quote')));
+  fake.approve.mockRejectedValueOnce(new Error('Storage locked'));
+  fake.list.mockRejectedValueOnce(new Error('Storage locked'));
+  await act(async () => fireEvent.press(view.getByText('Confirm and pay')));
+  expect(view.getByText(/Payment pending or uncertain/)).toBeTruthy();
+  expect(view.queryByText('Confirm and pay')).toBeNull();
+  expect(fake.approve).toHaveBeenCalledTimes(1);
+  view.unmount();
+});

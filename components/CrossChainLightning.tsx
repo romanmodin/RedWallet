@@ -138,16 +138,29 @@ export default function CrossChainLightning({
   const pay = async () => {
     if (!record?.quote || !authorize || working.current || !active()) return;
     const reviewed = record;
+    let approvalAttempted = false;
     working.current = true;
     setBusy(true);
     setMessage('');
     try {
       await authorize(async () => {
+        approvalAttempted = true;
         const result = await controller.approve(reviewed.hash, reviewed.quote!.holdInvoice, active);
         if (alive.current) setRecord(result);
       });
     } catch (e) {
       if (alive.current) setMessage(e instanceof Error ? e.message : 'Payment outcome is uncertain. Check status.');
+      if (approvalAttempted) {
+        // Submission can succeed while the final Keychain write fails. Replace
+        // stale review UI with durable state; unreadable history stays uncertain.
+        let next: SwapRecord = { ...reviewed, state: 'unknown' };
+        try {
+          next = (await controller.list()).find(item => item.hash === reviewed.hash && item.node === reviewed.node) ?? next;
+        } catch {
+          /* Keep an uncertain display until the node/storage reconnects. */
+        }
+        if (alive.current) setRecord(next);
+      }
     } finally {
       working.current = false;
       if (alive.current) setBusy(false);

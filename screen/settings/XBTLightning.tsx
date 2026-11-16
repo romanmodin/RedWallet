@@ -363,26 +363,27 @@ export default function XBTLightning({
       if (mounted.current) setBusy(false);
     }
   };
-  const runAuthorized = (title: string, action: () => Promise<void>, exporting = false) =>
-    run(title, async () => {
-      let current = true;
-      const unsubscribe = navigation.addListener('blur', () => {
-        current = false;
-      });
-      try {
-        const authorized = await authorizeInForeground(
-          exporting ? authorizeExport : authorizePayment,
-          () => mounted.current && current && navigation.isFocused(),
-        );
-        if (!authorized) {
-          if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
-          return;
-        }
-        await action();
-      } finally {
-        unsubscribe();
-      }
+  const authorizeAction = async (action: () => Promise<void>, exporting = false) => {
+    let current = true;
+    const unsubscribe = navigation.addListener('blur', () => {
+      current = false;
     });
+    try {
+      const authorized = await authorizeInForeground(
+        exporting ? authorizeExport : authorizePayment,
+        () => mounted.current && current && navigation.isFocused(),
+      );
+      if (!authorized) {
+        if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
+        return;
+      }
+      await action();
+    } finally {
+      unsubscribe();
+    }
+  };
+  const runAuthorized = (title: string, action: () => Promise<void>, exporting = false) =>
+    run(title, () => authorizeAction(action, exporting));
   const runExport = (title: string, action: () => Promise<void>) => runAuthorized(title, action, true);
   const node = (action: string) =>
     run(action === 'start' ? 'Starting node' : action === 'setup' ? 'Setting up wallet' : 'Node status', async () => {
@@ -1070,7 +1071,7 @@ export default function XBTLightning({
                   hideHistoryAmounts={hideBalances}
                   onClose={() => setCrossPayment(undefined)}
                   canSubmit={() => mounted.current && navigation.isFocused()}
-                  authorize={action => runAuthorized('Cross-chain payment', action)}
+                  authorize={action => authorizeAction(action)}
                 />
               )}
 
