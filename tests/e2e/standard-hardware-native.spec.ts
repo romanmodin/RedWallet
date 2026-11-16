@@ -191,6 +191,27 @@ suite('Standard hardware iOS qualification', () => {
         assert.deepEqual(fixture.transport.broadcasts, []);
         observed.missingProofBlocked = true;
 
+        step('blocking redirects and bounded-response failures over real native HTTPS');
+        for (const mode of ['redirect', 'oversized', 'slow'] as const) {
+          fixture.proof = mode;
+          const before = fixture.explorerRequests.length;
+          const started = Date.now();
+          await prepare();
+          await waitForText('Separation evidence request failed', 30000);
+          assert.equal(await dismissAlertByText('OK', 15000, false), true);
+          assert(fixture.explorerRequests.length > before, mode + ' reached the TLS fixture');
+          assert.deepEqual(fixture.transport.broadcasts, []);
+          await nativeExpect(element(by.id('PSBTHex'))).not.toExist();
+          if (mode === 'slow') observed.nativeHTTPTimeoutElapsedMs = Date.now() - started;
+        }
+        assert(fixture.redirectResponses > 0);
+        assert.equal(fixture.redirectProbeRequests, 0);
+        assert(fixture.malformedResponses >= 2);
+        observed.nativeHTTPSRedirectBlocked = true;
+        observed.nativeHTTPSRedirectProbeRequests = fixture.redirectProbeRequests;
+        observed.nativeHTTPSChunkLimitBlocked = true;
+        observed.nativeHTTPSDeadlineBlocked = true;
+
         step('exporting PSBT through the app clipboard');
         fixture.proof = 'valid';
         await prepare();

@@ -47,8 +47,11 @@ export class StandardHardwareNativeFixture {
   private server?: Server;
   private sockets = new Set<Duplex>();
   private xbtMiner = '';
-  proof: 'missing' | 'valid' | 'disagreement' | 'unavailable' = 'missing';
+  proof: 'missing' | 'valid' | 'disagreement' | 'unavailable' | 'redirect' | 'oversized' | 'slow' = 'missing';
   readonly explorerRequests: { provider: string; endpoint: string }[] = [];
+  redirectResponses = 0;
+  redirectProbeRequests = 0;
+  malformedResponses = 0;
   cleanupComplete = false;
 
   async start(binaries: { core: string; knots: string; fulcrum: string }) {
@@ -120,10 +123,33 @@ export class StandardHardwareNativeFixture {
       (request, response) => {
         const run = async () => {
           assert.equal(request.method, 'GET');
+          if (request.url === '/disclosure-probe') {
+            this.redirectProbeRequests++;
+            response.writeHead(200).end('redirect was followed');
+            return;
+          }
           const match = /^\/(evidence|anchor)(\/.*)$/.exec(request.url || '');
           assert(match, 'Only local fixture explorer paths are allowed');
           const [, provider, endpoint] = match;
           this.explorerRequests.push({ provider, endpoint });
+          if (this.proof === 'redirect') {
+            this.redirectResponses++;
+            response.writeHead(302, { Location: 'https://127.0.0.1:' + EXPLORER_PORT + '/disclosure-probe' }).end();
+            return;
+          }
+          if (this.proof === 'oversized') {
+            this.malformedResponses++;
+            response.writeHead(200, { 'Content-Type': 'text/plain', 'Transfer-Encoding': 'chunked' });
+            response.write('a'.repeat(9000));
+            response.end('b'.repeat(9000));
+            return;
+          }
+          if (this.proof === 'slow') {
+            this.malformedResponses++;
+            response.writeHead(200, { 'Content-Type': 'text/plain', 'Transfer-Encoding': 'chunked' });
+            response.flushHeaders();
+            return; // Native absolute timeout must close this connection.
+          }
           if (this.proof === 'unavailable') {
             response.writeHead(503).end('fixture unavailable');
             return;

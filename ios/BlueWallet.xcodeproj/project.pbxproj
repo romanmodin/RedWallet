@@ -165,6 +165,9 @@
 		B4F0A4A22FA1BC0000AAAA01 /* WidgetHelper.mm in Sources */ = {isa = PBXBuildFile; fileRef = B4F0A4A12FA1BC0000AAAA00 /* WidgetHelper.mm */; };
 		B4F0A4A42FA1BC0000AAAA03 /* EventEmitter.mm in Sources */ = {isa = PBXBuildFile; fileRef = B4F0A4A32FA1BC0000AAAA02 /* EventEmitter.mm */; };
 		C978A716948AB7DEC5B6F677 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+		9DC535CE4ABC663875ABAC85 /* SeparationHTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A422AE63647C9D5EBBBC0093 /* SeparationHTTPTransport.swift */; };
+		0D7A69CCF66CE97267B454DD /* RedWalletSeparationHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CC855614FADEC24181B4721 /* RedWalletSeparationHTTP.swift */; };
+		776288864BA0BFBA592CC12A /* RedWalletSeparationHTTP.m in Sources */ = {isa = PBXBuildFile; fileRef = 01F40A7F2C5161CEC14C681B /* RedWalletSeparationHTTP.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -391,6 +394,9 @@
 		FC63C7054F1C4FDFB7A830E5 /* libRCTPrivacySnapshot.a */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = archive.ar; path = libRCTPrivacySnapshot.a; sourceTree = "<group>"; };
 		FC98DC24A81A463AB8B2E6B1 /* libRNImagePicker.a */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = archive.ar; path = libRNImagePicker.a; sourceTree = "<group>"; };
 		FD7977067E1A496F94D8B1B7 /* libRNDeviceInfo.a */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = archive.ar; path = libRNDeviceInfo.a; sourceTree = "<group>"; };
+		A422AE63647C9D5EBBBC0093 /* SeparationHTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SeparationHTTPTransport.swift; path = "../blue_modules/redwallet-separation-http/ios/SeparationHTTPTransport.swift"; sourceTree = "<group>"; };
+		4CC855614FADEC24181B4721 /* RedWalletSeparationHTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RedWalletSeparationHTTP.swift; path = "../blue_modules/redwallet-separation-http/ios/RedWalletSeparationHTTP.swift"; sourceTree = "<group>"; };
+		01F40A7F2C5161CEC14C681B /* RedWalletSeparationHTTP.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = RedWalletSeparationHTTP.m; path = "../blue_modules/redwallet-separation-http/ios/RedWalletSeparationHTTP.m"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -459,6 +465,9 @@
 			isa = PBXGroup;
 			children = (
 				B461B851299599F800E431AA /* AppDelegate.swift */,
+				01F40A7F2C5161CEC14C681B /* RedWalletSeparationHTTP.m */,
+				4CC855614FADEC24181B4721 /* RedWalletSeparationHTTP.swift */,
+				A422AE63647C9D5EBBBC0093 /* SeparationHTTPTransport.swift */,
 				32C7944323B8879D00BE2AFA /* BlueWalletRelease.entitlements */,
 				32F0A2502310B0910095C559 /* BlueWallet.entitlements */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -1085,6 +1094,9 @@
 				B409AB062D71E07500BA06F8 /* MenuElementsEmitter.swift in Sources */,
 				B44033CE2BCC352900162242 /* UserDefaultsGroup.swift in Sources */,
 				B461B852299599F800E431AA /* AppDelegate.swift in Sources */,
+				776288864BA0BFBA592CC12A /* RedWalletSeparationHTTP.m in Sources */,
+				0D7A69CCF66CE97267B454DD /* RedWalletSeparationHTTP.swift in Sources */,
+				9DC535CE4ABC663875ABAC85 /* SeparationHTTPTransport.swift in Sources */,
 				B44033F42BCC377F00162242 /* WidgetData.swift in Sources */,
 				B49A28C52CD1A894006B08E4 /* MarketData.swift in Sources */,
 				B4AA75242DAA339E00CF5CBE /* MenuElementsEmitter.m in Sources */,

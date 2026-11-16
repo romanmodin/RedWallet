@@ -1,0 +1,24 @@
+{
+  "sourceCommit": "ddf84f24c7525f078ccb65c040911ae616cde024",
+  "observedAt": "2026-11-16T11:04:05.539Z",
+  "results": [
+    {
+      "platform": "ios",
+      "nativeAdapter": true,
+      "genericFetchAdapter": false,
+      "bundleSha256": "1c91b5fcfed81e74902bff50c71da42e7d62adf94cbca058edc9bf3701b10c70"
+    },
+    {
+      "platform": "android",
+      "nativeAdapter": true,
+      "genericFetchAdapter": false,
+      "bundleSha256": "52207fa0824ba2f93ad72e163ef3d9f4d38119bf21d14e90523eaa5feb5dc7d2"
+    }
+  ],
+  "trackedChangesPresent": true,
+  "sourceSha256": {
+    "class/xbt/separation-service.ts": "2557cb594d1e38b117e9d776a4097e41726892349a5ebd764a3314a68a3e6928",
+    "class/xbt/separation-http.native.ts": "aaf2aef9c240119fb3ff472923fb83b43942171fd624877f68ebef081276e90b",
+    "class/xbt/separation-http-policy.ts": "8fb72d2ba2a56a936d924c441bc9bf2c117ff76bb7a1ebce5f68324c8f411445"
+  }
+}

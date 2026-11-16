@@ -1,3 +1,5 @@
+import { getSeparationHTTP } from './separation-http';
+import { SEPARATION_EVIDENCE as EVIDENCE, SEPARATION_ANCHOR as ANCHOR } from './separation-http-policy';
 import { Transaction } from 'bitcoinjs-lib';
 import { verifyFundingConflict } from './separation-proof';
 import { parseVerifiedParentTransaction } from './verified-transaction';
@@ -5,8 +7,6 @@ import { parseVerifiedParentTransaction } from './verified-transaction';
 // Fixed HTTPS sources; no wallet sessions, xpubs, addresses, PSBTs or broadcast.
 // Trust model: two independently operated explorer chain views over TLS, NOT a
 // locally validated header chain. A disagreement or outage fails closed.
-const EVIDENCE = 'https://blockstream.info/api';
-const ANCHOR = 'https://mempool.space/api';
 const CHECKPOINT_HEIGHT = 961640;
 const CHECKPOINT_HASH = '00000000000000000001d82da6ecccf08e07afa383f9212b0e1b95cc72430c00';
 const HASH = /^[0-9a-f]{64}$/;
@@ -31,18 +31,7 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.min(8000, deadline - Date.now()));
     try {
-      const response = await fetch(host + path, {
-        method: 'GET',
-        redirect: 'error',
-        credentials: 'omit',
-        headers: { 'Cache-Control': 'no-cache, no-store, max-age=0', Pragma: 'no-cache' },
-        signal: controller.signal,
-      });
-      assertAuthorized();
-      if (!response.ok || response.redirected || (response.url && response.url !== host + path)) unavailable();
-      const length = response.headers.get('content-length');
-      if (length !== null && (!/^\d+$/.test(length) || Number(length) > limit)) unavailable();
-      const text = (await response.text()).trim();
+      const text = (await getSeparationHTTP(host + path, limit, controller.signal)).trim();
       bytes += text.length;
       assertAuthorized();
       if (text.length > limit || bytes > 16000000 || Date.now() >= deadline) unavailable();
