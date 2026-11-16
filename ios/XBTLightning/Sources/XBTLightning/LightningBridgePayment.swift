@@ -8,7 +8,7 @@ public enum BridgePaymentFailure: LocalizedError {
     public var errorDescription: String? { "Insufficient available XBT Lightning liquidity for this quote and routing fee limit." }
 }
 
-struct BridgePaymentReview: Codable {
+struct BridgePaymentReview: Codable, Sendable {
     let invoice: String
     let hash: String
     let msat: String
@@ -111,6 +111,10 @@ extension RegtestNode {
         return result
     }
     public func payBridgeInvoice(_ json: String) async throws -> [String: Any] {
+        let foregroundEpoch = try await MainActor.run {
+            guard UIApplication.shared.applicationState == .active else { throw PaymentSubmissionFailure.invalidReview }
+            return LightningBackgroundTime.shared.paymentForegroundEpoch
+        }
         let review: BridgePaymentReview
         do {
             let validated = try await validatedBridgeReview(json)
@@ -118,15 +122,18 @@ extension RegtestNode {
             try await requireSynced()
             let previous = try await bridgePaymentStatus(hash: review.hash)
             guard previous["state"] as? String == "not_found" || previous["state"] as? String == "failed" else { return previous }
-            guard await MainActor.run(body: { UIApplication.shared.applicationState == .active }),
-                  review.expiresAt >= UInt64(Date().timeIntervalSince1970) + 15 else { throw PaymentSubmissionFailure.invalidReview }
         } catch {
             // All failures here precede SendPaymentV2. Errors below remain ambiguous.
             throw PaymentSubmissionFailure.invalidReview
         }
         let request = ProtoFields.field(5, data: Data(review.invoice.utf8)) + ProtoFields.field(6, integer: 30) +
             ProtoFields.field(7, integer: UInt64(review.feeLimit)!)
-        let result = try await rpc { LndmobileRouterSendPaymentV2(request, BridgePaymentResult($0)) }
+        let result = try await foregroundRPC {
+            guard UIApplication.shared.applicationState == .active,
+                  LightningBackgroundTime.shared.paymentForegroundEpoch == foregroundEpoch,
+                  review.expiresAt >= UInt64(Date().timeIntervalSince1970) + 15 else { throw PaymentSubmissionFailure.invalidReview }
+            LndmobileRouterSendPaymentV2(request, BridgePaymentResult($0))
+        }
         return try BridgePaymentValidation.payment(result, hash: review.hash)
     }
 }

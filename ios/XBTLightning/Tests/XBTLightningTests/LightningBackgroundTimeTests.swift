@@ -4,6 +4,17 @@ import UIKit
 
 @MainActor
 final class LightningBackgroundTimeTests: XCTestCase {
+    func testReturningToTheForegroundDoesNotRestoreAnOldPaymentAuthorization() {
+        let service = LightningBackgroundTime(observeLifecycle: false)
+        let oldEpoch = service.paymentForegroundEpoch
+        service.leavingForeground()
+        service.enteredForeground()
+        let freshEpoch = service.paymentForegroundEpoch
+        XCTAssertNotEqual(freshEpoch, oldEpoch)
+        service.enteredForeground()
+        XCTAssertEqual(service.paymentForegroundEpoch, freshEpoch)
+    }
+
     func testOnlyRunningNodeRequestsOneBoundedLeasePerCycle() {
         var starts = 0
         var ends: [UIBackgroundTaskIdentifier] = []

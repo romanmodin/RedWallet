@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { encode, sign } from 'bolt11';
-import { AppState } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
 import CrossChainLightning from '../../components/CrossChainLightning';
 import { BridgeController, SwapRecord } from '../../blue_modules/lightning-bridge/state';
 import { LightningBridgeProvider } from '../../blue_modules/lightning-bridge/provider';
@@ -55,13 +55,19 @@ const providers = [
 function setup(props: Partial<React.ComponentProps<typeof CrossChainLightning>> = {}) {
   const fake = {
     quote: jest.fn(async () => item),
-    approve: jest.fn(async () => ({ ...item, state: 'pending' })),
+    approve: jest.fn<ReturnType<BridgeController['approve']>, Parameters<BridgeController['approve']>>(async () => ({
+      ...item,
+      state: 'pending',
+    })),
     cancel: jest.fn(async () => undefined),
     list: jest.fn(async () => [item]),
     refresh: jest.fn(async () => item),
   };
   const close = jest.fn(),
-    authorize = jest.fn(async (action: () => Promise<void>) => action());
+    authorize = jest.fn(async (action: (isCurrent: () => boolean) => Promise<void>) => {
+      await action(() => true);
+      return true;
+    });
   const view = render(
     <CrossChainLightning
       invoice={original}
@@ -112,16 +118,57 @@ test('canceling a quote never invokes payment or authentication', async () => {
   view.unmount();
 });
 test('canceled authentication and background state cannot approve a payment', async () => {
-  const { view, fake } = setup({ authorize: async () => undefined });
+  const { view, fake } = setup({ authorize: async () => false });
   fireEvent.press(view.getByLabelText('Processor two'));
   await act(async () => fireEvent.press(view.getByText('Get quote')));
   await act(async () => fireEvent.press(view.getByText('Confirm and pay')));
   expect(fake.approve).not.toHaveBeenCalled();
+  expect(view.getByText('Action canceled. Nothing was submitted.')).toBeTruthy();
   Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'background' });
   await act(async () => fireEvent.press(view.getByText('Confirm and pay')));
   expect(fake.approve).not.toHaveBeenCalled();
   view.unmount();
 });
+test('leaving and returning to the app during payment checks cannot revive approval', async () => {
+  let notify = (_state: AppStateStatus) => {};
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+    notify = listener;
+    return { remove: jest.fn() };
+  });
+  let finishChecks!: () => void;
+  const checks = new Promise<void>(resolve => {
+    finishChecks = resolve;
+  });
+  const { view, fake } = setup();
+  fake.approve.mockImplementationOnce(async (_hash, _invoice, canSubmit) => {
+    await checks;
+    return { ...item, state: canSubmit() ? 'pending' : 'canceled' };
+  });
+  fireEvent.press(view.getByLabelText('Processor two'));
+  await act(async () => fireEvent.press(view.getByText('Get quote')));
+  await act(async () => {
+    fireEvent.press(view.getByText('Confirm and pay'));
+  });
+  expect(fake.approve).toHaveBeenCalledTimes(1);
+  expect(fake.approve.mock.calls[0][2]()).toBe(true);
+  await act(async () => {
+    Object.defineProperty(AppState, 'currentState', {
+      configurable: true,
+      value: 'background',
+    });
+    notify('background');
+    Object.defineProperty(AppState, 'currentState', {
+      configurable: true,
+      value: 'active',
+    });
+    notify('active');
+    finishChecks();
+  });
+  expect(view.getByText('Canceled before submission. No payment sent.')).toBeTruthy();
+  expect(view.queryByText(/Payment pending or uncertain/)).toBeNull();
+  view.unmount();
+});
+
 test('reopening history exposes pending status and masks invoice and amounts when hidden', async () => {
   const { view, fake } = setup({ invoice: undefined, initialHash: item.hash, hideHistoryAmounts: true, authorize: undefined });
   await act(async () => {});

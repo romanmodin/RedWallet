@@ -53,6 +53,15 @@ func rpc(_ send: (LndmobileCallbackProtocol) -> Void) async throws -> Data {
     try await withCheckedThrowingContinuation { continuation in send(Reply(continuation)) }
 }
 
+// Check the foreground lease and start the RPC synchronously on UIKit's actor.
+@MainActor
+func foregroundRPC(_ send: @MainActor (LndmobileCallbackProtocol) throws -> Void) async throws -> Data {
+    try await withCheckedThrowingContinuation { continuation in
+        let reply = Reply(continuation)
+        do { try send(reply) } catch { reply.onError(error) }
+    }
+}
+
 public enum XBTLightningNode {
     public static func info() async throws -> Data {
         try await rpc { LndmobileGetInfo(Data(), $0) }

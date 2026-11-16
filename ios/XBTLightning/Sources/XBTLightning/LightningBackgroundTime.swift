@@ -15,6 +15,7 @@ public final class LightningBackgroundTime {
     private var identifier: UIBackgroundTaskIdentifier = .invalid
     private var cancelTimer: (() -> Void)?
     private var generation = UUID()
+    private(set) var paymentForegroundEpoch = UUID()
     private var attempted = false
     private var running = false
 
@@ -49,6 +50,7 @@ public final class LightningBackgroundTime {
     }
 
     func leavingForeground() {
+        paymentForegroundEpoch = UUID()
         guard running, !attempted else { return }
         attempted = true
         let current = UUID()
