@@ -14,10 +14,18 @@ export type BridgeInvoice = {
 export const hashPattern = /^[0-9a-f]{64}$/;
 export const nodePattern = /^(02|03)[0-9a-f]{64}$/;
 
+// Bounded cache of immutable cryptographic results, keyed by the complete signed
+// invoice. Expiration is checked against the current clock by callers, never cached.
+const verifiedInvoices = new Map<string, Readonly<BridgeInvoice>>();
+
 // Both chains use lnbc. Classify only signed feature bits, never the HRP alone.
 export function readBridgeInvoice(value: string): BridgeInvoice {
   const invoice = value.trim().replace(/^lightning:/i, '');
   if (invoice.length > 8192 || !/^lnbc[0-9]*[munp]?1/i.test(invoice)) throw new Error('Use a mainnet Lightning invoice.');
+  if (invoice !== invoice.toLowerCase() && invoice !== invoice.toUpperCase()) throw new Error('Mixed-case Lightning invoice.');
+  const canonical = invoice.toLowerCase();
+  const cached = verifiedInvoices.get(canonical);
+  if (cached) return { ...cached };
   const raw = bech32.decode(invoice, 8192);
   const words = raw.words.slice(0, -104);
   if (words.length < 7) throw new Error('Invalid Lightning invoice.');
@@ -65,7 +73,7 @@ export function readBridgeInvoice(value: string): BridgeInvoice {
     throw new Error('Invalid amount, signature or invoice fields.');
   const expiresAt = decoded.timestamp! + expiry;
   if (!Number.isSafeInteger(expiresAt)) throw new Error('Invalid invoice expiry.');
-  return {
+  const result: BridgeInvoice = {
     invoice: invoice.toLowerCase(),
     hash,
     msat,
@@ -74,6 +82,9 @@ export function readBridgeInvoice(value: string): BridgeInvoice {
     cltv,
     chain: blake ? 'XBT' : 'SHA256',
   };
+  if (verifiedInvoices.size >= 512) verifiedInvoices.delete(verifiedInvoices.keys().next().value!);
+  verifiedInvoices.set(canonical, Object.freeze(result));
+  return { ...result };
 }
 export function provesPayment(preimage: string, hash: string): boolean {
   return hashPattern.test(preimage) && hashPattern.test(hash) && Buffer.from(sha256(Buffer.from(preimage, 'hex'))).toString('hex') === hash;

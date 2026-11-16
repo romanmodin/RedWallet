@@ -129,6 +129,21 @@ export function validateJournal(value: unknown): BridgeJournal {
   }
   return data;
 }
+// Warm signature results in bounded batches after a cold launch. The validation
+// pass below then checks every stored field using cached immutable decodes.
+export async function validateJournalAsync(value: unknown): Promise<BridgeJournal> {
+  const data = value as BridgeJournal;
+  if (!data || !Array.isArray(data.records) || data.records.length > 200) throw new Error('Invalid bridge payment storage.');
+  for (const record of data.records) {
+    if (record?.quote) {
+      readBridgeInvoice(record.quote.original);
+      readBridgeInvoice(record.quote.holdInvoice);
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+    }
+  }
+  return validateJournal(value);
+}
+
 // Every provider adapter crosses the same validation boundary before review/payment.
 function checkedQuote(q: BridgeQuote, original: BridgeInvoice, provider: LightningBridgeProvider, now: number): BridgeQuote {
   if (q.original !== original.invoice || q.originalMsat !== original.msat || q.provider !== provider.id)

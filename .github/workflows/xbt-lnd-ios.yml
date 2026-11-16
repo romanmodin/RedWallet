@@ -6,6 +6,7 @@ on:
       - 'blue_modules/lightning-bridge/**'
       - 'components/CrossChainLightning.tsx'
       - 'tests/unit/lightning-bridge.test.ts'
+      - 'tests/integration/lightning-cross-chain-bridge.test.ts'
       - 'tests/unit/cross-chain-lightning.test.tsx'
       - 'ios/BlueWallet/XBTLightningBridge.*'
       - 'screen/settings/XBTLightning.tsx'

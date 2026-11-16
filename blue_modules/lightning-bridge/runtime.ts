@@ -1,6 +1,15 @@
 import * as Keychain from 'react-native-keychain';
 import { NativeModules } from 'react-native';
-import { BridgeBackend, BridgeController, BridgeJournal, BridgeStore, NodePayment, SwapRecord, validateJournal } from './state';
+import {
+  BridgeBackend,
+  BridgeController,
+  BridgeJournal,
+  BridgeStore,
+  NodePayment,
+  SwapRecord,
+  validateJournal,
+  validateJournalAsync,
+} from './state';
 import { lightningBridgeProviders } from './provider';
 
 const service = 'com.redwallet.lightning-cross-chain.v1';
@@ -8,7 +17,7 @@ export const bridgeStore: BridgeStore = {
   async read(): Promise<BridgeJournal> {
     const stored = await Keychain.getGenericPassword({ service });
     if (!stored) return { version: 1, records: [], requests: [] };
-    return validateJournal(JSON.parse(stored.password));
+    return validateJournalAsync(JSON.parse(stored.password));
   },
   async write(journal: BridgeJournal): Promise<void> {
     validateJournal(journal);

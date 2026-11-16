@@ -208,6 +208,7 @@ export class KilombinoProvider implements LightningBridgeProvider {
         redirect: 'error',
         headers: {
           Accept: 'application/json',
+          'User-Agent': 'RedWallet',
           ...(body ? { 'Content-Type': 'application/json' } : {}),
         },
         ...(body ? { body: JSON.stringify(body) } : {}),

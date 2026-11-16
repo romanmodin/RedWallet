@@ -345,3 +345,20 @@ test('malformed secure history fails closed before rendering or sending', async 
   await expect(e.controller().list()).rejects.toThrow('stored quote');
   expect(e.backend.pay).not.toHaveBeenCalled();
 });
+
+test('repeated polls reuse immutable verification while altered invoices are rechecked', () => {
+  const value = invoice({ paymentHash: '71'.repeat(32) });
+  const altered = invoice({ paymentHash: '72'.repeat(32) });
+  const recover = jest.spyOn(jest.requireActual('bolt11'), 'decode');
+  try {
+    const first = readBridgeInvoice(value);
+    first.hash = '00'.repeat(32);
+    for (let i = 0; i < 20; i++) expect(readBridgeInvoice(value).hash).toBe('71'.repeat(32));
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(() => readBridgeInvoice('LN' + value.slice(2))).toThrow();
+    expect(readBridgeInvoice(altered).hash).toBe('72'.repeat(32));
+    expect(recover).toHaveBeenCalledTimes(2);
+  } finally {
+    recover.mockRestore();
+  }
+});
