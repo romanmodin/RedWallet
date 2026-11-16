@@ -218,6 +218,21 @@ describe('durable cross-chain state machine', () => {
     await expect(c.approve(hash, r.quote!.holdInvoice, () => true)).rejects.toThrow();
     expect(e.backend.pay).not.toHaveBeenCalled();
   });
+  it('invalidated confirmation during the secure write cannot make a payment', async () => {
+    const e = environment(),
+      { c, r } = await quoted(e);
+    let current = true;
+    const write = e.store.write as jest.Mock;
+    const persist = write.getMockImplementation()!;
+    write.mockImplementationOnce(async (journal: BridgeJournal) => {
+      await persist(journal);
+      expect(e.records()[0].state).toBe('submitting');
+      current = false;
+    });
+    expect((await c.approve(hash, r.quote!.holdInvoice, () => current)).state).toBe('canceled');
+    expect(e.records()[0].quote?.token).toBe('');
+    expect(e.backend.pay).not.toHaveBeenCalled();
+  });
   it('persists submitting before the RPC, survives a lost response and a controller restart', async () => {
     const e = environment(),
       { c, r } = await quoted(e);

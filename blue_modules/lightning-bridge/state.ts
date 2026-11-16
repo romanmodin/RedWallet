@@ -316,9 +316,8 @@ export class BridgeController {
       await this.store.write(journal);
       // From this durable boundary onward, interruption is ambiguous. Never retry.
       try {
-        if (!canSubmit()) {
-          r.state = 'canceled';
-        } else this.applyNode(r, await this.backend.pay(r));
+        if (!canSubmit()) this.applyNode(r, { state: 'not_submitted' });
+        else this.applyNode(r, await this.backend.pay(r));
       } catch {
         r.state = 'unknown';
       }

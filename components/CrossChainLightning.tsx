@@ -12,7 +12,7 @@ type Props = {
   initialHash?: string;
   feeLimit?: string;
   onClose: () => void;
-  authorize?: (action: () => Promise<void>) => Promise<void>;
+  authorize?: (action: (isCurrent: () => boolean) => Promise<void>) => Promise<boolean>;
   canSubmit?: () => boolean;
   hideHistoryAmounts?: boolean;
   controller?: BridgeController;
@@ -58,6 +58,7 @@ export default function CrossChainLightning({
     working = useRef(false),
     polling = useRef(false);
   const abort = useRef<AbortController | undefined>(undefined);
+  const approvalEpoch = useRef(0);
   const current = useRef(record);
   current.current = record;
   const active = () => alive.current && !['background', 'inactive'].includes(AppState.currentState) && canSubmit();
@@ -94,10 +95,14 @@ export default function CrossChainLightning({
     }, 5000);
     const listener = AppState.addEventListener('change', state => {
       if (state === 'active') refresh();
-      else abort.current?.abort();
+      else {
+        approvalEpoch.current += 1;
+        abort.current?.abort();
+      }
     });
     return () => {
       alive.current = false;
+      approvalEpoch.current += 1;
       abort.current?.abort();
       clearInterval(clock);
       clearInterval(poll);
@@ -143,11 +148,16 @@ export default function CrossChainLightning({
     setBusy(true);
     setMessage('');
     try {
-      await authorize(async () => {
+      const authorized = await authorize(async isCurrent => {
+        // Capture after Face ID has returned to the foreground. A later
+        // interruption invalidates approval even if the app is active again.
+        const epoch = approvalEpoch.current;
+        const canPay = () => approvalEpoch.current === epoch && AppState.currentState === 'active' && active() && isCurrent();
         approvalAttempted = true;
-        const result = await controller.approve(reviewed.hash, reviewed.quote!.holdInvoice, active);
+        const result = await controller.approve(reviewed.hash, reviewed.quote!.holdInvoice, canPay);
         if (alive.current) setRecord(result);
       });
+      if (!authorized && alive.current) setMessage('Action canceled. Nothing was submitted.');
     } catch (e) {
       if (alive.current) setMessage(e instanceof Error ? e.message : 'Payment outcome is uncertain. Check status.');
       if (approvalAttempted) {

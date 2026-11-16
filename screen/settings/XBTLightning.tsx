@@ -363,27 +363,28 @@ export default function XBTLightning({
       if (mounted.current) setBusy(false);
     }
   };
-  const authorizeAction = async (action: () => Promise<void>, exporting = false) => {
+  const authorizeAction = async (action: (isCurrent: () => boolean) => Promise<void>, exporting = false): Promise<boolean> => {
     let current = true;
+    const isCurrent = () => mounted.current && current && navigation.isFocused();
     const unsubscribe = navigation.addListener('blur', () => {
       current = false;
     });
     try {
-      const authorized = await authorizeInForeground(
-        exporting ? authorizeExport : authorizePayment,
-        () => mounted.current && current && navigation.isFocused(),
-      );
+      const authorized = await authorizeInForeground(exporting ? authorizeExport : authorizePayment, isCurrent);
       if (!authorized) {
         if (mounted.current) setMessage('Action canceled. Nothing was submitted.');
-        return;
+        return false;
       }
-      await action();
+      await action(isCurrent);
+      return true;
     } finally {
       unsubscribe();
     }
   };
   const runAuthorized = (title: string, action: () => Promise<void>, exporting = false) =>
-    run(title, () => authorizeAction(action, exporting));
+    run(title, async () => {
+      await authorizeAction(action, exporting);
+    });
   const runExport = (title: string, action: () => Promise<void>) => runAuthorized(title, action, true);
   const node = (action: string) =>
     run(action === 'start' ? 'Starting node' : action === 'setup' ? 'Setting up wallet' : 'Node status', async () => {
