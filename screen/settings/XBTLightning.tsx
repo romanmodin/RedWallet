@@ -28,6 +28,7 @@ import { SettingsFootnote, SettingsListItem, SettingsScrollView, SettingsSection
 import { useTheme } from '../../components/themes';
 import { usePaymentAuthorization } from '../../hooks/usePaymentAuthorization';
 import { useSecretExport } from '../../hooks/useSecretExport';
+import XBTLightningNodeName from '../../components/XBTLightningNodeName';
 import XBTLightningNetwork from '../../components/XBTLightningNetwork';
 import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
@@ -718,6 +719,7 @@ export default function XBTLightning({
           </ScrollView>
         </View>
       </View>
+      {tools && bridge.nodeName && <XBTLightningNodeName status={status} busy={busy} />}
       {tools && bridge.network && bridge.watchtower && (
         <XBTLightningNetwork status={status} busy={busy} run={run} report={setMessage} onTorChange={setTorActive} />
       )}

@@ -7,6 +7,20 @@ import XBTLightning
 final class XBTLightningBridge: NSObject {
     @objc static func requiresMainQueueSetup() -> Bool { false }
 
+    @objc(nodeName:value:resolver:rejecter:)
+    func nodeName(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                  rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch action {
+                case "get": resolve(try await RegtestNode.shared.nodeNameState())
+                case "save": resolve(try await RegtestNode.shared.saveNodeName(value))
+                default: reject("unknown_action", "Unknown node name operation.", nil)
+                }
+            } catch { reject("node_name_failed", error.localizedDescription, nil) }
+        }
+    }
+
     @objc(network:value:resolver:rejecter:)
     func network(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task {
