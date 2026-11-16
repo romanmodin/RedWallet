@@ -174,6 +174,17 @@ final class RegtestTests: XCTestCase {
         let offerToken = try XCTUnwrap(offerReview["bolt12Token"] as? String)
         let offerHash = try XCTUnwrap(offerReview["hash"] as? String)
         XCTAssertEqual(offerReview["sats"] as? String, "1000")
+        // Simulate termination between the durable submission marker and RPC.
+        let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                   appropriateFor: nil, create: false)
+        let offerJournal = Bolt12Journal(url: support.appendingPathComponent("XBTLightning-regtest/bolt12-payment.json"))
+        var interruptedOffer = try XCTUnwrap(offerJournal.load())
+        interruptedOffer.submitted = true
+        try offerJournal.save(interruptedOffer)
+        do {
+            try await RegtestNode.shared.resetOfferPayment()
+            XCTFail("A missing submitted payment must not allow a new invoice")
+        } catch let error as Bolt12Failure { XCTAssertEqual(error, .unresolved) }
         let repeatedOfferReview = try await RegtestNode.shared.reviewOffer(peerOffer, sats: 1000, feeSats: 10)
         XCTAssertEqual(repeatedOfferReview["hash"] as? String, offerHash, "Review must reuse the saved invoice")
         do {

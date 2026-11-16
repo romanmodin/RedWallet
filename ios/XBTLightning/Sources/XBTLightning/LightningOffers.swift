@@ -89,7 +89,7 @@ struct Bolt12Journal {
     func save(_ intent: Bolt12Intent) throws {
         do {
             try intent.validate()
-            try JSONEncoder().encode(intent).write(to: url, options: [.atomic, .completeUntilFirstUserAuthentication])
+            try JSONEncoder().encode(intent).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         } catch { throw Bolt12Failure.storage }
     }
     func clear() throws {
@@ -274,7 +274,11 @@ extension RegtestNode {
         guard var intent = try journal.load(), intent == review.intent else { throw PaymentSubmissionFailure.invalidReview }
         let state = try await offerPaymentState(hash: intent.hash)
         if state == "settled" { return true }
-        guard state == "failed" || (state == "not_found" && !intent.submitted) else { throw Bolt12Failure.unresolved }
+        // A crash can occur after journaling but before LND records the call.
+        // An explicit retry may use ONLY this exact signed invoice/hash. LND's
+        // payment database rejects in-flight duplicates and returns an already
+        // paid result. This never permits reset/refetch of a missing payment.
+        guard state == "failed" || state == "not_found" else { throw Bolt12Failure.unresolved }
         // Recheck persisted metadata against the signed invoice before spending.
         // A valid JSON file with a corrupted amount must not understate the review.
         let invoiceData = try await rpc {

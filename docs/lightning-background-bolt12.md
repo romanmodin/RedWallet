@@ -34,6 +34,9 @@ After submission, that action requires LND's authoritative terminal settled/fail
 state; pending, missing, unknown or unavailable history keeps the record.
 Resume saved offer payment restores the hash for status checking after reopening.
 Malformed/unreadable journal data fails closed. RPC errors do not erase it.
+If termination occurred after journaling but before LND recorded the payment, a
+freshly reviewed, explicitly confirmed retry can pay only that same invoice/hash;
+LND deduplicates it. Missing submitted history still forbids reset or refetch.
 
 ## Verification
 
