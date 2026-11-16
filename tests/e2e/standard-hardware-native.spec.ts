@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import * as bitcoin from 'bitcoinjs-lib';
+import { CryptoPSBT } from '@keystonehq/bc-ur-registry';
 import { by, device, element, expect as nativeExpect, waitFor } from 'detox';
 import {
   dismissAlertByText,
@@ -244,18 +245,39 @@ suite('Standard hardware iOS qualification', () => {
         observed.masterFingerprint = Buffer.from(request.data.inputs[0].bip32Derivation![0].masterFingerprint).toString('hex');
         observed.sighashType = request.data.inputs[0].sighashType;
         observed.clipboardRoundTrip = true;
-        // Use the existing scanner test input. This exercises its parser and
-        // returned-PSBT route, not camera optics or a physical hardware device.
+        // Inject real animated QR fragments through the existing scanner input.
+        // This exercises assembly/navigation, not camera optics or device signing.
+        const qrParts = (value: bitcoin.Psbt) => {
+          const encoder = new CryptoPSBT(Buffer.from(value.toBuffer())).toUREncoder(175);
+          return Array.from({ length: encoder.fragmentsLength }, () => encoder.nextPart().toUpperCase());
+        };
+        const injectFragment = async (part: string) => {
+          await waitForId('ScanQrBackdoorButton');
+          for (let i = 0; i < 6; i++) await element(by.id('ScanQrBackdoorButton')).tap();
+          await waitForId('scanQrBackdoorInput');
+          await element(by.id('scanQrBackdoorInput')).replaceText(part);
+          await element(by.id('scanQrBackdoorOkButton')).tap();
+          await waitFor(element(by.id('scanQrBackdoorInput')))
+            .not.toExist()
+            .withTimeout(10000);
+        };
+        const parts = qrParts(signed);
+        const abandonedParts = qrParts(request);
+        assert(parts.length > 1 && abandonedParts.length > 1);
+        assert.notEqual(parts.join(), abandonedParts.join());
         await element(by.id('PsbtWithHardwareScrollView')).scrollTo('top');
         await visible('PsbtTxScanButton', 'PsbtWithHardwareScrollView');
         await element(by.id('PsbtTxScanButton')).tap();
-        // Synchronization is disabled for live sockets; wait for navigation to
-        // mount the scanner before sending the first test-input tap.
-        await waitForId('ScanQrBackdoorButton');
-        for (let i = 0; i < 6; i++) await element(by.id('ScanQrBackdoorButton')).tap();
-        await waitForId('scanQrBackdoorInput');
-        await element(by.id('scanQrBackdoorInput')).replaceText(signed.toBase64());
-        await element(by.id('scanQrBackdoorOkButton')).tap();
+        await injectFragment(abandonedParts[0]);
+        await waitForId('UrProgressBar');
+        await nativeExpect(element(by.id('SignedTransactionHex'))).not.toExist();
+        await waitForId('ScanQrCancelButton');
+        await element(by.id('ScanQrCancelButton')).tap();
+        await waitForId('PsbtTxScanButton');
+        await element(by.id('PsbtTxScanButton')).tap();
+        for (const part of [...parts].reverse()) await injectFragment(part);
+        observed.animatedQrFragmentCount = parts.length;
+        observed.canceledQrSessionDiscarded = true;
         await waitForId('SignedTransactionHex');
         const hex = await text('SignedTransactionHex');
         assert.equal(bitcoin.Transaction.fromHex(hex).ins[0].witness[0].at(-1), 1);

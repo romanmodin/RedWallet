@@ -155,7 +155,7 @@ const CameraScreen: React.FC<CameraScreenProps> = ({
         />
       </View>
       <View style={styles.bottomButtons}>
-        <TouchableOpacity onPress={onCancelButtonPress}>
+        <TouchableOpacity testID="ScanQrCancelButton" onPress={onCancelButtonPress}>
           <Animated.Text style={[styles.backTextStyle, uiRotationStyle]}>{loc._.cancel}</Animated.Text>
         </TouchableOpacity>
         {isDesktop ? (
