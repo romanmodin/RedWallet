@@ -12,7 +12,7 @@ final class LightningNodeNameTests: XCTestCase {
         XCTAssertEqual(saved, "XCOM79 Mobile")
         let config = try MainnetConfiguration.text(alias: saved)
         XCTAssertTrue(config.contains("\nalias=XCOM79 Mobile\n"))
-        XCTAssertEqual(config, try MainnetConfiguration.text().replacingOccurrences("alias=RedWallet", with: "alias=XCOM79 Mobile"))
+        XCTAssertEqual(config, try MainnetConfiguration.text().replacingOccurrences(of: "alias=RedWallet", with: "alias=XCOM79 Mobile"))
         XCTAssertEqual(MainnetConfiguration.directoryName, "XBTLightning-mainnet")
         XCTAssertEqual(MainnetConfiguration.credentialService, "com.redwallet.xbt-lightning.mainnet.v1")
         XCTAssertThrowsError(try LightningNodeName.save("bad\nbitcoin.regtest=true", at: file))
