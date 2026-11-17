@@ -130,7 +130,13 @@ suite('Standard hardware iOS qualification', () => {
         await nativeExpect(element(by.id('HardwareCheckError'))).not.toExist();
         await visible('HardwareCheckShowRequest', 'HardwareSigningCheck');
         await element(by.id('HardwareCheckShowRequest')).tap();
-        await visible('HardwareCheckRequest', 'HardwareSigningCheck');
+        // The noninteractive wrapper reports invisible even with its entire QR
+        // on screen (run 44005700815). Judge visibility by decoding actual pixels,
+        // not the wrapper's hit-testing/visibility heuristic.
+        await waitFor(element(by.id('HardwareCheckRequest')))
+          .toExist()
+          .withTimeout(30000);
+        await element(by.id('HardwareSigningCheck')).scrollTo('bottom');
         const rendered = await captureRenderedPsbt(name => device.takeScreenshot(name));
         assert.equal(rendered.psbt.toHex(), createHardwareSigningFixture(offlineAccount).request.toHex());
         observed.offlineQrPixelDecode = true;
