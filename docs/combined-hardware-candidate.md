@@ -42,3 +42,11 @@ Run 44005700815 reached the rendered hardware QR after importing the exact publi
 The test now scrolls the hardware check to the bottom and waits for the QR request to exist. The existing screenshot/Core Image decoder remains the decisive visibility check: it must reconstruct the actual on-screen crypto-PSBT and match the exact expected fixture. No outgoing request is injected, no visibility threshold is lowered, and unsigned-response rejection, signature verification and the isolated payment assertions remain required. This harness correction does not change the app.
 
 For ef7a6c8, the software and Android workflows passed, and both hardware and ordinary iOS simulator builds compiled. The dedicated hardware flow did not pass. BIP84 run 44005704212 stopped before recovery after a tap failed to leave Add Wallet; its screenshot is not an ImportWalletScroll visibility false positive. The embedded Lightning Tor smoke failed connecting to the configured public onion peer with a SOCKS failure. Neither result may be counted as passing. No production signing or TestFlight release is qualified by these partial results.
+
+## Visible signing result on return from the scanner
+
+Run 44012168877 on 05f2793 successfully imported the exact public account and reconstructed the on-screen crypto-PSBT from three screenshots. It then rejected the unsigned response correctly, but the rejection message was below the viewport: the native text element was at y=899 in a screen of height 874. The retained visible-result assertion correctly failed. Evidence artifact 14299756416 has SHA256 7d70d367cf2d963ba09e80470715071c5ada8bec29a100df1107c52cc7722dcd. Cleanup completed; the overall flow did not pass.
+
+The hardware-check screen now shows either verdict directly below its heading and returns to the top when a result arrives and the screen regains focus. Retry, reset and verification behavior are unchanged. The native result-visibility assertions remain unchanged; the test does not scroll to rescue hidden feedback.
+
+For 05f2793, software, Android, embedded Lightning (including Tor) and the native BIP84 fee-bump flow all passed. Ordinary iOS was still running at inspection. Those results qualify that source only; this visible-result change requires fresh native verification.

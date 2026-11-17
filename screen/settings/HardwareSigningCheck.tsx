@@ -26,6 +26,7 @@ const HardwareSigningCheck = () => {
   const navigation = useExtendedNavigation();
   const { colors } = useTheme();
   const focused = useIsFocused();
+  const scrollView = useRef<ScrollView>(null);
   const [check, setCheck] = useState<Check>();
   const [showRequest, setShowRequest] = useState(false);
   const [result, setResult] = useState<'passed' | 'failed'>();
@@ -42,6 +43,12 @@ const HardwareSigningCheck = () => {
       current.generation++;
     };
   }, []);
+
+  // Scanner navigation can restore the scroll position above or below the result.
+  // Make either verdict immediately visible when returning to this screen.
+  useEffect(() => {
+    if (focused && result) scrollView.current?.scrollTo({ y: 0, animated: false });
+  }, [focused, result]);
 
   const reset = () => {
     lifetime.current.generation++;
@@ -99,8 +106,24 @@ const HardwareSigningCheck = () => {
   };
 
   return (
-    <ScrollView testID="HardwareSigningCheck" style={{ backgroundColor: colors.elevated }} contentContainerStyle={styles.content}>
+    <ScrollView
+      ref={scrollView}
+      testID="HardwareSigningCheck"
+      style={{ backgroundColor: colors.elevated }}
+      contentContainerStyle={styles.content}
+    >
       <BlueText style={styles.heading}>{loc.hardware_check.heading}</BlueText>
+      {result && (
+        <>
+          <BlueSpacing20 />
+          <BlueText
+            testID={result === 'passed' ? 'HardwareCheckPassed' : 'HardwareCheckFailed'}
+            style={result === 'passed' ? styles.success : styles.error}
+          >
+            {result === 'passed' ? loc.hardware_check.passed : loc.hardware_check.failed}
+          </BlueText>
+        </>
+      )}
       <BlueSpacing20 />
       <BlueText>{loc.hardware_check.intro}</BlueText>
       <BlueSpacing20 />
@@ -139,22 +162,13 @@ const HardwareSigningCheck = () => {
                 </View>
               )}
               <BlueSpacing20 />
-              {result === 'passed' ? (
-                <BlueText testID="HardwareCheckPassed" style={styles.success}>
-                  {loc.hardware_check.passed}
-                </BlueText>
-              ) : (
+              {result !== 'passed' && (
                 <Button
                   title={loc.hardware_check.scan_signature}
                   testID="HardwareCheckScanSignature"
                   disabled={busy}
                   onPress={() => scan('signature')}
                 />
-              )}
-              {result === 'failed' && (
-                <BlueText testID="HardwareCheckFailed" style={styles.error}>
-                  {loc.hardware_check.failed}
-                </BlueText>
               )}
               <BlueSpacing20 />
               <BlueText>{loc.hardware_check.limits}</BlueText>
