@@ -11,9 +11,13 @@ export async function resetWalletTestApp(device, options = {}, run = execFileSyn
     return;
   }
   const { permissions = {}, ...launchOptions } = options;
+  console.info('[wallet-test-reset] terminate started');
   await device.terminateApp();
+  console.info('[wallet-test-reset] uninstall started');
   await device.uninstallApp();
+  console.info('[wallet-test-reset] install started');
   await device.installApp();
+  console.info('[wallet-test-reset] install completed; shell reset started');
   const reset = await resetArtworkSimulator(run, device.id, { permissions });
   console.info('[wallet-test-reset]', JSON.stringify(reset));
   // The combined AppleSimulatorUtils reset can leave camera authorization unset
@@ -30,5 +34,7 @@ export async function resetWalletTestApp(device, options = {}, run = execFileSyn
       },
     );
   }
+  console.info('[wallet-test-reset] post-reset launch started');
   await device.launchApp({ ...launchOptions, newInstance: false });
+  console.info('[wallet-test-reset] post-reset launch completed');
 }
