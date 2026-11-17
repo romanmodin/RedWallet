@@ -47,3 +47,8 @@ No RC7 signed upload, Apple processing, TestFlight installation eligibility, nat
 ## Complete privacy-policy draft
 
 RC7_PRIVACY_DRAFT.md carries forward RC6 service/export disclosures and adds the source-reviewed own-node RPC data flow, Keychain access policy, local HTTP exposure, certificate verification and remote node retention limits. It is not the active privacy URL. Reconcile existing operator statements before publication; do not silently replace the current submitted policy.
+
+
+## Machine-enforced preparation hold
+
+verify_rc7_preparation.py rejects missing/false/non-boolean readyForSigning, outstanding blockers, wrong candidate/run pins and unqualified screenshot/RPC/startup evidence before the credentialed jobs. It runs again before signing. It does not replace the separate native-tree checks, downloaded artifact hashes or manual visual receipt validation. Current committed preparation remains blocked.

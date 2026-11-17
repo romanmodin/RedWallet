@@ -1,0 +1,41 @@
+"""Readiness interlock; native and visual receipt verification still run separately."""
+import json
+import os
+from pathlib import Path
+
+SOURCE = "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3"
+IOS_RUN = 44063853758
+SCREEN_RUN = 44111397016
+RPC_RUN = 44109729393
+RPC_SOURCE = "abd873ede80efe3382126ca321975157dd61f5db"
+
+def validate(preparation, source, ios_run, screen_run):
+    if source != SOURCE or str(ios_run) != str(IOS_RUN) or str(screen_run) != str(SCREEN_RUN):
+        raise RuntimeError("RC7 preparation does not match workflow pins")
+    if preparation.get("candidateSource") != SOURCE:
+        raise RuntimeError("Wrong RC7 candidate")
+    if preparation.get("readyForSigning") is not True or preparation.get("blockers") != []:
+        raise RuntimeError("RC7 signing is held pending reviewed evidence")
+    native = preparation.get("native", {})
+    checker = preparation.get("screenshotChecker", {})
+    rpc = preparation.get("rpcVisual", {})
+    startup = preparation.get("startupVisualSupplement", {})
+    if native.get("sourceCommit") != SOURCE or native.get("id") != IOS_RUN:
+        raise RuntimeError("Wrong native evidence")
+    if checker.get("run") != SCREEN_RUN or checker.get("source") != SOURCE or checker.get("verified") is not True:
+        raise RuntimeError("Screenshot checker is not qualified")
+    if rpc.get("run") != RPC_RUN or rpc.get("source") != RPC_SOURCE or rpc.get("verified") is not True:
+        raise RuntimeError("RPC visual evidence is not qualified")
+    if startup.get("candidateSource") != SOURCE or startup.get("manualVisualApproved") is not True:
+        raise RuntimeError("Lightning startup visual evidence is not qualified")
+    # These flags never replace fetching, hashing and verifying the actual evidence.
+    return True
+
+def main():
+    preparation = json.loads(Path(__file__).with_name("RC7_SIGNING_PREPARATION.json").read_text())
+    validate(preparation, os.environ["KILOWALLET_SOURCE_COMMIT"],
+             os.environ["KILOWALLET_IOS_RUN_ID"], os.environ["KILOWALLET_SCREENSHOT_RUN_ID"])
+    print("RC7 readiness interlock cleared; exact native and visual receipt gates still required.")
+
+if __name__ == "__main__":
+    main()

@@ -44,6 +44,8 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Require reviewed RC7 readiness before signing access
+        run: python3 -I distribution/kilowallet/verify_rc7_preparation.py
       - name: Verify exact source and current-attempt native tests
         env:
           GH_TOKEN: ${{ github.token }}
@@ -185,6 +187,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           test "$(git -C app rev-parse HEAD)" = "$KILOWALLET_SOURCE_COMMIT"
+          python3 -I signing/distribution/kilowallet/verify_rc7_preparation.py
           python3 -I signing/distribution/kilowallet/verify_gates.py
           python3 -B signing/distribution/kilowallet/fetch_verified_visual.py
       - name: Fetch verified Kilowallet 1.0 native engines
