@@ -11,6 +11,7 @@ concurrency:
 
 jobs:
   build:
+    timeout-minutes: 90
     runs-on: ubuntu-24.04
 
     steps:
@@ -98,6 +99,7 @@ jobs:
         if-no-files-found: error
 
   test:
+    timeout-minutes: 100
     runs-on: ubuntu-24.04
     needs: build
 
@@ -179,6 +181,7 @@ jobs:
         echo "APK artifact source and checksums verified: $artifact_source" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Run tests
+      timeout-minutes: 65
       uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
       with:
         api-level: 36
@@ -190,10 +193,20 @@ jobs:
         arch: x86_64
         # Authenticate native TLS first, then preserve settings, encryption, scan, deletion, watch-only import and XBT recovery coverage.
         # bluewallet2 depends on a funded Bitcoin fixture; unsupported cases in bluewallet.spec are explicit skips.
-        script: |
-          timeout 180s bash .github/scripts/wait-for-android-ui.sh "${{ github.workspace }}/artifacts/emulator-startup.log"
-          npx detox test -c android.release.device tests/e2e/electrum-tls.spec.js --runTestsByPath --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location ${{ github.workspace }}/artifacts/tls
-          npx detox test -c android.release.device tests/e2e/bluewallet.spec.js tests/e2e/bluewallet3.spec.js tests/e2e/xbt-wallet.spec.js --record-videos failing --record-logs failing --take-screenshots failing --headless --retries 0 --reuse --artifacts-location ${{ github.workspace }}/artifacts
+        # Successful run 44005503201 completed the entire test job in 28 minutes.
+        # Bound each suite separately; timeout/forced termination must remain a failure.
+        script: bash .github/scripts/run-android-e2e.sh "${{ github.workspace }}/artifacts"
+
+    - name: Stop remaining emulator services
+      if: always()
+      timeout-minutes: 2
+      shell: bash
+      run: |
+        # Covers an action-level timeout; normal exit is cleaned up by emulator-runner.
+        if command -v adb >/dev/null 2>&1; then
+          timeout --signal=TERM --kill-after=5s 15s adb emu kill || true
+          timeout --signal=TERM --kill-after=5s 10s adb kill-server || true
+        fi
 
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: failure() || cancelled()
