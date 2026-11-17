@@ -1,0 +1,83 @@
+{
+  "candidateSource": "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3",
+  "candidateTree": "212a9bc56aa9cbd93aed819fccf311a637c620c7",
+  "native": {
+    "id": 44063853758,
+    "sourceCommit": "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3",
+    "workflow": ".github/workflows/ios.yml",
+    "runAttempt": 1,
+    "url": "https://github.com/romanmodin/kilowallet-ios/actions/runs/44063853758",
+    "jobs": {
+      "iPhone release and simulator qualification": 133984964521
+    },
+    "requiredSteps": {
+      "Select supported Xcode": 6,
+      "Unit tests (JVM and iOS simulator)": 8,
+      "Check native tests actually ran on the Intel simulator": 9,
+      "Require asynchronous round and signed reservation regressions": 10,
+      "Fetch the Lightning engine (Lndmobile.xcframework, checked against lnd-engine/ENGINE)": 13,
+      "Fetch the Ark engine (KilombinoArk.xcframework, checked against ark-engine/ENGINE)": 14,
+      "Fetch the Tor engine (KilombinoTor.xcframework, checked against tor-engine/ENGINE)": 15,
+      "Build the app for the iOS Simulator (no signing)": 16,
+      "Boot a simulator, launch the app and take screenshots": 17,
+      "Verify live native engine outcomes": 18,
+      "Build Release for iphoneos without signing": 21
+    },
+    "checkouts": {
+      "iPhone release and simulator qualification": {
+        "checkoutCommit": "3aaf6d907dfc2ddf5c7516cb9685bbe7f299833c",
+        "tree": "212a9bc56aa9cbd93aed819fccf311a637c620c7"
+      }
+    }
+  },
+  "nativeReceiptSha256": "b8d2425f0a5bb9e8ce9799d8e822d21dc5f800480a68ee81636ca45696b6b981",
+  "startupVisualSupplement": {
+    "run": 44103548176,
+    "attempt": 1,
+    "sourceCommit": "7f14ab021e9a3d1accdd65a44271f10010c4b184",
+    "candidateSource": "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3",
+    "file": "/home/roman_modin/kilowallet-release-evidence/rc7-terminal-44103548176/screenshots/09-ln-starting.png",
+    "imageSha256": "23cff805876071e3e2870b4063c0251a5ba6ce06e8379ab68f1f56279c34a250",
+    "manualVisualApproved": true,
+    "observedText": [
+      "Catching up with the chain",
+      "block 812 450 of 979 937"
+    ],
+    "firstOcrPassed": true,
+    "foregroundRetryInvoked": false,
+    "rootCauseEstablished": false,
+    "syntheticOnly": true,
+    "realTransaction": false,
+    "physicalPhoneTested": false,
+    "overallSigningApproved": false,
+    "productTrees": {
+      "app": "1baf4ee92e2931555f0067e1d974040222c50be3",
+      "core": "1e309a17239aa594317a2666b95417158d313c43",
+      "iosApp": "08672acde85f84e9384c4097fa33e8e5280d939b",
+      "lnd-engine": "8d477810a79de735aecd51bce90782ddb1e2663d",
+      "ark-engine": "cfe0d12bdc7aaf5515619482e743f3ea86c2169d",
+      "tor-engine": "4d7882033113460c19dc3cbd4b6572478716965d"
+    }
+  },
+  "startupReceiptSha256": "24776a0f130d546e49769186e8fc9a294116fa99462babb6c4ff0a9adda48178",
+  "screenshotChecker": {
+    "run": 44111397016,
+    "source": "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3",
+    "verified": false
+  },
+  "rpcVisual": {
+    "run": 44109729393,
+    "source": "abd873ede80efe3382126ca321975157dd61f5db",
+    "verified": false,
+    "diagnosticOnly": true
+  },
+  "readyForSigning": false,
+  "buildNumber": null,
+  "blockers": [
+    "Exact-source screenshot checker not yet qualified",
+    "RPC native visuals not yet reviewed",
+    "RC7 visual gate and pinned receipts not activated",
+    "Live Apple build duplicate preflight remains required"
+  ],
+  "notes": "Preparation only. Existing RC6 visual verifier rejects this candidate until replaced by reviewed RC7 evidence. Do not merge or dispatch signing while readyForSigning is false. Diagnostic workflow must never replace full qualification."
+}

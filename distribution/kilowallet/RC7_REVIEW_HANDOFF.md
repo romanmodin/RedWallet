@@ -10,7 +10,10 @@ Prepared November 17, 2026. This is a draft package. It does not activate beta n
 - Current-source local tests: 9 RPC + 106 desktop application + 4 historical 0.4.0 migration + 4 historical 0.4.1 migration = 123 passed, zero skips/failures/errors.
 - Local receipt: `/home/roman_modin/kilowallet-release-evidence/rc7-rpc-review-20261117/local-qualification.json`, SHA256 `b232b22ede3dd98740926eb93ee8b63298f740294001851f0cf5d06cc7e839f4`. It explicitly does not approve native qualification or signing.
 - Gitar review dashboard https://github.com/romanmodin/kilowallet-ios/pull/18#issuecomment-6945265199 approved at 2026-11-17T10:23:24Z, 4/4 findings closed. Automated review is not a substitute for native qualification.
-- Exact-source native run: https://github.com/romanmodin/kilowallet-ios/actions/runs/44063853758 attempt 1; pending behind healthy prior-source run 44062304811 at preparation. Preserve both jobs; no duplicate dispatch or cancellation.
+- Exact-source native run: https://github.com/romanmodin/kilowallet-ios/actions/runs/44063853758 attempt 1 passed: 548 tests passed, one optional live test skipped, eight runtime checks and arm64 Release build passed. The protected verifier independently confirmed checkout 3aaf6d907dfc2ddf5c7516cb9685bbe7f299833c has exactly the candidate tree. Native receipt SHA256 b8d2425f0a5bb9e8ce9799d8e822d21dc5f800480a68ee81636ca45696b6b981.
+- Startup visual supplement https://github.com/romanmodin/kilowallet-ios/actions/runs/44103548176 passed and was manually reviewed. Product app/core/Swift/engine trees equal the candidate; only the diagnostic workflow/runner differ. It passed first OCR without invoking the foreground retry, so no root-cause/fix claim is made.
+- Missing exact-source screenshot-checker gate dispatched once: https://github.com/romanmodin/kilowallet-ios/actions/runs/44111397016 . RPC visual diagnostic44109729393 remains in progress. Neither diagnostic can replace full native qualification.
+- RC7_SIGNING_PREPARATION.json records exact receipts and explicit unresolved gates. Signing workflow inputs are prepared locally for RC7, but its existing RC6 visual gate still rejects RC7 until the reviewed RC7 gate is completed. Do not merge/dispatch this preparation as ready.
 
 ## RC7 privacy delta to reconcile before release
 
@@ -34,7 +37,7 @@ This table is factual preparation, not an export-compliance determination or a l
 4. Prepare the existing protected signing workflow with exact qualified source/unsigned artifact receipts. Preserve publisher identity, entitlements and engine pins. Collect signed IPA/archive SHA256, signing/upload run/attempt and Apple build UUID/processing result.
 5. Update the beta notes from RC7_BETA_NOTES_DRAFT.txt with the actual build number and verified results. Qualify both intended Internal and Public Beta groups against that exact UUID, external beta approval and installability. Public invitation: https://testflight.apple.com/join/kRWKx2Xc . The invitation alone does not prove RC7 availability.
 6. Tell Roman when the exact RC7 build is installable. Only then advance the separately authorized App Store replacement with accurate review/privacy metadata and supported screenshots.
-7. Re-read the live App Store state before deciding how to replace or release. Build 21 was WAITING_FOR_REVIEW at 2026-11-17T09:29:32.625Z; preserve that review until replacement qualification. Never automatically delete a public version, withdraw another app, accept new agreements or make unsupported legal attestations.
+7. Re-read the live App Store state before deciding how to replace or release. Build 21 was WAITING_FOR_REVIEW at 2026-11-17T14:59:15.819Z; preserve that review until replacement qualification. Never automatically delete a public version, withdraw another app, accept new agreements or make unsupported legal attestations.
 8. Verify public availability before disabling the existing release-follow-up automation. Do not create another automation.
 
 ## Remaining limits
