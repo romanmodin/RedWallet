@@ -1,0 +1,21 @@
+DRAFT — RC7 replacement is not yet qualified or submitted.
+Candidate source: romanmodin/kilowallet-ios 3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3. Bundle: com.kilombino.kilowallet.
+Fill in the exact signed 1.0.0 build number only after upload and Apple processing are verified.
+
+No app account or sign-in is required. A reviewer can create an empty wallet to inspect the interface. A funded wallet, recovery words from an existing wallet, node credentials or a financial transaction are not required for review.
+
+Kilowallet operates on the Bitcoin BLAKE2b (XBT) chain. Its on-chain balance is separate from SHA-256 Bitcoin. The optional operator-run bridge can pay a SHA-256 Lightning invoice using XBT after the user reviews a quote. The app does not provide custodial accounts.
+
+RC7 repairs dispatch of LND streaming calls in the iOS engine bridge. It also adds optional own-node RPC in Settings > BTC node & explorer, including QR scanning and multiple endpoint addresses. The node must support the BLAKE2b chain. HTTPS connections require the user to compare and trust the server certificate fingerprint before the app sends the RPC login. Plain HTTP is limited to local or onion endpoints; onion connections use the app's Tor. The RPC login is stored in the iOS Keychain, accessible on this device after first unlock without a separate Face ID prompt.
+
+When RPC is selected, Kilowallet creates/loads a watch-only wallet on the chosen node and imports public receive/change descriptors to read on-chain balance and history. This sends public wallet information to the node operator, which can associate addresses and activity. The RPC import does not send recovery words or private spending keys. First scanning/import may take several minutes. Kilojoin and JoinBlaket continue to use the selected Electrum service.
+
+The app retains on-chain coin controls, PSBT signing, fee bumping, an embedded Lightning node, optional Ark services and PAY THROUGH JOINBLAKET. JoinBlaket acts as a JoinMarket taker for one bc1q payment, shows maker/mining fees and a fee ceiling, and checks maker bonds, inputs, proofs and signatures. Its directory connection uses Tor without a direct fallback; the read-only market summary uses HTTPS. Wallet, coin reservation, pending transaction and signing guards remain in place.
+
+iOS does not provide a continuous background service for collaborative rounds. The app requests only limited background time and tells the user to keep it open. Signed but unresolved transactions remain pending and block conflicting work.
+
+Ark is an optional service operated independently by Paperclip Holdings LLC. Recovery secrets are stored in the iOS Keychain. Camera access scans QR codes locally. User-exported password-protected backups can include recovery material, Ark data, static Lightning channel backup and JoinBlaket commitment history. A separate Lightning move file can include live channel state. These user-directed exports leave the app's control. Electrum, relay, bridge, watchtower, Ark, JoinBlaket and optional RPC services have distinct data handling; the updated privacy disclosure must describe these accurately.
+
+Created by Kilombino; this iOS distribution is maintained by romanmodin with the author's permission. Source and license: https://github.com/romanmodin/kilowallet-ios
+
+Validation status must be finalized from exact-source native, migration, signing, upload and Apple receipts before submission. Current synthetic RPC/application/migration tests pass; physical iPhone installation, funded Lightning-channel recovery and real payments have not been performed.

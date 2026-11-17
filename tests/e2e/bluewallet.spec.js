@@ -278,13 +278,21 @@ describe('RedWallet UI Tests - no wallets', () => {
     if (process.env.CI) {
       if (require('fs').existsSync(lockFile)) return console.warn('skipping', JSON.stringify('t3'), 'as it previously passed on Travis');
     }
-    await resetWalletTestApp(device);
+    console.info('[persistence-test] reset started');
+    await resetWalletTestApp(device, { permissions: { notifications: 'YES' } });
+    console.info('[persistence-test] initial wallet list started');
     await waitForWalletsList();
 
+    console.info('[persistence-test] create wallet started');
     await helperCreateWallet();
 
-    await device.launchApp({ newInstance: true, permissions: { notifications: 'YES' } });
+    // Permission was applied in the initial reset. Do not restart SpringBoard
+    // again while checking that the same wallet survives an ordinary relaunch.
+    console.info('[persistence-test] persistence relaunch started');
+    await device.launchApp({ newInstance: true });
+    console.info('[persistence-test] restored wallet list started');
     await waitForWalletsList();
+    console.info('[persistence-test] restored wallet list ready');
     await expect(element(by.id('cr34t3d'))).toBeVisible();
     await tapAndTapAgainIfElementIsNotVisible('cr34t3d', 'ReceiveButton');
     await element(by.id('ReceiveButton')).tap();

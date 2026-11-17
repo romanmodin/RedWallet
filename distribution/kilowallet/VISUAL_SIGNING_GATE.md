@@ -1,4 +1,18 @@
-# RC6 release evidence and signing gate
+# Kilowallet release evidence and signing gates
+
+## RC7 qualified source and synthetic visuals
+
+Candidate 3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3, tree 212a9bc56aa9cbd93aed819fccf311a637c620c7. Native44063853758/a1 passed548 unique tests, one optional live-directory skip, eight runtime checks and unsigned arm64 Release. Checker44111397016/a2 passed; actual source-gate validation completed.
+
+Actual visual-bundle qualification verified79 effective images:75 accepted native frames, one unchanged-product startup replacement from44103548176/a1 and three synthetic RPC states from44125897581/a2. The original76-image artifact remains intact; only rejected native09 is excluded. The startup diagnostic passed first OCR; no foreground fix or repeatability claim. RPC fixtures prove rendering only.
+
+The verifier binds repository, source, workflow, current attempt, successful job, actual checkout tree, artifact API/downloaded ZIP hashes, exact image names, dimensions and reviewed pixel hashes. Only unchanged pool-create22/68 duplicates are allowed. RPC's app fixture changes are attributed; native/core/engine trees must match. Both source and visual verification repeat in the signing job.
+
+Static readiness and visual approval are complete. Live Apple duplicate checking remains a mandatory protected workflow gate before certificate access and immediately before upload. The proposed workflow run number must exceed every existing build in the exact iOS1.0.0 train; incomplete/foreign data or any reused number fails.81 offline tests pass. Current-head CI/review and protected runtime gates still precede signing/upload. No physical-phone or financial-transaction claim.
+
+Preserve the existing App Store review until the replacement qualifies and intended TestFlight groups can install it.
+
+## RC6 reference — existing distributed release
 
 The replacement candidate is exact source 9dfdcf864e92bde8a1c04485ff93294d2b731965, tree 9cfff022ec43945f9705fc0a0d14a8c93f653aca. Native run 43697661614 attempt 1 completed successfully. Its pull-request merge checkout f24ecd1d609c7867a233781c63ea0b2dac268cea has the exact candidate tree and includes the exact source as a parent.
 

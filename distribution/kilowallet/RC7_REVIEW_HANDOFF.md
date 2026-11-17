@@ -1,0 +1,62 @@
+# RC7 review and TestFlight preparation
+
+Prepared November 17, 2026. This is a draft package. It does not activate beta notes, alter privacy answers, replace a build or remove an Apple review.
+
+## Exact candidate and evidence
+
+- Publisher app source: `3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3`; tree `212a9bc56aa9cbd93aed819fccf311a637c620c7`.
+- App PR: https://github.com/romanmodin/kilowallet-ios/pull/18
+- Upstream RC7: `bfc80bdff0516608daa778e0936627bd4342d7f4`. Upstream unsigned IPA SHA256 `b8407108f4c477d1008b2d3a890ab0fd45697215d8ea8aa309ce87f292e6983b`; archive SHA256 `a65da684b05a1b12a0f7fed142b689e1bbaf892c5fd052e725859369fd91cd60`. These are intake checks, not publisher signing receipts.
+- Current-source local tests: 9 RPC + 106 desktop application + 4 historical 0.4.0 migration + 4 historical 0.4.1 migration = 123 passed, zero skips/failures/errors.
+- Local receipt: `/home/roman_modin/kilowallet-release-evidence/rc7-rpc-review-20261117/local-qualification.json`, SHA256 `b232b22ede3dd98740926eb93ee8b63298f740294001851f0cf5d06cc7e839f4`. It explicitly does not approve native qualification or signing.
+- Gitar review dashboard https://github.com/romanmodin/kilowallet-ios/pull/18#issuecomment-6945265199 approved at 2026-11-17T10:23:24Z, 4/4 findings closed. Automated review is not a substitute for native qualification.
+- Exact-source native run: https://github.com/romanmodin/kilowallet-ios/actions/runs/44063853758 attempt 1 passed: 548 tests passed, one optional live test skipped, eight runtime checks and arm64 Release build passed. The protected verifier independently confirmed checkout 3aaf6d907dfc2ddf5c7516cb9685bbe7f299833c has exactly the candidate tree. Native receipt SHA256 b8d2425f0a5bb9e8ce9799d8e822d21dc5f800480a68ee81636ca45696b6b981.
+- Startup visual supplement https://github.com/romanmodin/kilowallet-ios/actions/runs/44103548176 passed and was manually reviewed. Product app/core/Swift/engine trees equal the candidate; only the diagnostic workflow/runner differ. It passed first OCR without invoking the foreground retry, so no root-cause/fix claim is made.
+- Exact-source screenshot checker 44111397016/a2 and full verify_gates.py qualification passed.
+- Corrected RPC diagnostic 44125897581/a2, source c13760f8136358cc372d873b31f24246c15484e2, job134228076408 passed. Screenshots artifact14356671817 SHA256 cc65e11ba71939f8d7af72bb967c70e4c0fef1af64157596d72a5443b454966c; reports14356137679 SHA256 a5bf1b99489da9e4126e4addfb1354920d40628fee1eb5a4bff6299b66b799e4. API digests and ZIP CRC verified. All three exact RPC screens manually reviewed with no glyph/layout blockers.
+- Actual verify_rc7_visual_bundle.py completed against all three downloaded artifacts: 79 effective images verified, exact source/attempt/job/tree provenance retained. Diagnostic attribution remains explicit.
+- Static readiness and visual approval are now complete. These do not authorize bypassing live gates: the protected workflow reads Apple's build list before distribution certificate access and again immediately before upload, rejecting duplicate/non-newer numbers or incomplete/wrong-app evidence.
+
+## RC7 privacy delta to reconcile before release
+
+| Data or action | Source behavior | Required disclosure |
+| --- | --- | --- |
+| RPC login and endpoint list | Small secret stored through the iOS Keychain bridge; device-only after first unlock, without a separate Face ID requirement | Explain local credential storage and transmission to the user-selected node; do not claim every access requires biometrics |
+| Public descriptors | NodeRpcBackend.ensureWallet creates/loads a watch-only node wallet and imports receive/change descriptors | The selected node learns public wallet information and can associate address activity; private spending keys are not imported |
+| Network transport | NodeRpcBackend.call refuses untrusted/changed HTTPS pins before the RPC request; local/onion HTTP is permitted; IosPlatform.openRpc routes onion via Tor | Describe transport limits; do not claim all RPC traffic uses TLS or all app services use Tor |
+| Camera | RPC panel uses local QR scanning | Explain local camera purpose; never include actual credentials in review examples |
+| Existing services and exports | RPC changes the on-chain backend, not Kilojoin/JoinBlaket Electrum or optional bridge/Ark behavior | Retain RC6 service/export disclosures; do not replace them with a blanket "nothing leaves the device" assertion |
+
+Source references at the exact candidate: `core/src/commonMain/kotlin/com/kilombino/kilowallet/core/chain/NodeRpc.kt`; `app/src/commonMain/kotlin/com/kilombino/kilowallet/app/ui/NodeRpcPanel.kt`; `app/src/iosMain/kotlin/com/kilombino/kilowallet/app/IosBridge.kt`; `IosPlatform.kt`; `iosApp/iosApp/Bridge.swift`.
+
+This table is factual preparation, not an export-compliance determination or a legal attestation. Reconcile live App Store privacy fields against exact implementation and service behavior before changing them.
+
+## Ordered activation gates
+
+1. Finish current-source native tests, simulator runtime probes and unsigned Release build. Inspect current-attempt reports and screenshots, including new RPC/error states. Retain run IDs, exact source/tree and artifact digests. A green run on the prior source cannot qualify this candidate.
+2. Reconcile migration, LND call coverage, identity/address-progress preservation, scoped Ark/LND backups and pending/frozen guards. Use synthetic wallets only. No funded-channel/device-payment success is asserted.
+3. Inspect current publisher/coordinator branches, healthy jobs and Apple build list for duplicates. Assign a new build number only from that live state; this draft intentionally assigns none.
+4. Prepare the existing protected signing workflow with exact qualified source/unsigned artifact receipts. Preserve publisher identity, entitlements and engine pins. Collect signed IPA/archive SHA256, signing/upload run/attempt and Apple build UUID/processing result.
+5. Update the beta notes from RC7_BETA_NOTES_DRAFT.txt with the actual build number and verified results. Qualify both intended Internal and Public Beta groups against that exact UUID, external beta approval and installability. Public invitation: https://testflight.apple.com/join/kRWKx2Xc . The invitation alone does not prove RC7 availability.
+6. Tell Roman when the exact RC7 build is installable. Only then advance the separately authorized App Store replacement with accurate review/privacy metadata and supported screenshots.
+7. Re-read the live App Store state before deciding how to replace or release. Build 21 was WAITING_FOR_REVIEW at 2026-11-17T14:59:15.819Z; preserve that review until replacement qualification. Never automatically delete a public version, withdraw another app, accept new agreements or make unsupported legal attestations.
+8. Verify public availability before disabling the existing release-follow-up automation. Do not create another automation.
+
+## Remaining limits
+
+No RC7 signed upload, Apple processing, TestFlight installation eligibility, physical iPhone installation or real financial transaction is established by this package. Synthetic native visual qualification is complete. RC6 1.0.0 (21) is the last verified distributed build. Current RC6 active notes and privacy URL remain in force until a qualified replacement is ready.
+
+## Complete privacy-policy draft
+
+RC7_PRIVACY_DRAFT.md carries forward RC6 service/export disclosures and adds the source-reviewed own-node RPC data flow, Keychain access policy, local HTTP exposure, certificate verification and remote node retention limits. It is not the active privacy URL. Reconcile existing operator statements before publication; do not silently replace the current submitted policy.
+
+
+## Signing gates
+
+verify_rc7_preparation.py binds approved readiness to the exact candidate, native/checker/RPC/startup pins and visual-review digest. verify_gates.py independently fetches native and checker evidence. verify_rc7_visual_bundle.py verifies source trees, current attempts, downloaded artifact hashes and every reviewed image. These gates repeat before signing.
+
+The existing signing workflow now has a protected read-only preflight job after qualification and before certificate access. verify_build_number.py reads only the exact app and iOS 1.0.0 build train, follows bounded same-scope pagination, checks each build's app/train identity, and requires the workflow run number to exceed every existing build number. Pending, failed and expired builds also reserve their number. The gate repeats immediately before upload to catch intervening uploads. First-attempt publisher main dispatch is required. Receipts bind source, coordinator SHA, run, attempt, proposed number and observation time; no credentials are recorded.
+
+81 offline release tests pass, including duplicate/non-newer, processing/failed/expired reuse, wrong app/train, missing evidence, changed pagination scope, later-page collisions, cycles and workflow ordering. Current-head CI and Gitar review must still complete before merge and protected dispatch. No new automation was created.
+
+The RPC capture's earlier failure was a diagnostic harness CLI mismatch, corrected by checking required phrases separately without weakening assertions. Attempt1 of the corrected run failed to acquire a runner; only attempt2 executed successfully. Neither failed attempt is accepted as release evidence.

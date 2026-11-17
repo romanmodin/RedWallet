@@ -15,10 +15,10 @@ permissions:
   contents: read
   actions: read
 env:
-  KILOWALLET_SOURCE_COMMIT: 9dfdcf864e92bde8a1c04485ff93294d2b731965
+  KILOWALLET_SOURCE_COMMIT: 3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3
   KILOWALLET_MARKETING_VERSION: '1.0.0'
-  KILOWALLET_IOS_RUN_ID: '43697661614'
-  KILOWALLET_SCREENSHOT_RUN_ID: '43699927727'
+  KILOWALLET_IOS_RUN_ID: '44063853758'
+  KILOWALLET_SCREENSHOT_RUN_ID: '44111397016'
 
 concurrency:
   group: kilowallet-apple-upload
@@ -44,6 +44,8 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Require reviewed RC7 readiness before signing access
+        run: python3 -I distribution/kilowallet/verify_rc7_preparation.py
       - name: Verify exact source and current-attempt native tests
         env:
           GH_TOKEN: ${{ github.token }}
@@ -51,7 +53,7 @@ jobs:
       - name: Verify pinned artifact and reviewed rendering evidence
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -B distribution/kilowallet/fetch_verified_visual.py
+        run: python3 -B distribution/kilowallet/verify_rc7_visual_bundle.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: kilowallet-source-qualification
@@ -59,8 +61,37 @@ jobs:
             kilowallet-source-gates.json
             kilowallet-visual-qualification.json
           retention-days: 7
-  certificate:
+  preflight:
     needs: qualify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare temporary read-only Apple credentials
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: python3 distribution/kilowallet/prepare_signing.py
+      - name: Require unused build number before signing access
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: python3 -B distribution/kilowallet/verify_build_number.py before-signing
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilowallet-build-preflight
+          path: kilowallet-build-preflight-before-signing.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Clean up temporary Apple credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/Kilowallet-AuthKey.p8" "$RUNNER_TEMP/Kilowallet-ExportOptions.plist"
+  certificate:
+    needs: preflight
     if: ${{ github.ref == 'refs/heads/main' }}
     environment: ios-signing
     runs-on: macos-15-intel
@@ -185,8 +216,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           test "$(git -C app rev-parse HEAD)" = "$KILOWALLET_SOURCE_COMMIT"
+          python3 -I signing/distribution/kilowallet/verify_rc7_preparation.py
           python3 -I signing/distribution/kilowallet/verify_gates.py
-          python3 -B signing/distribution/kilowallet/fetch_verified_visual.py
+          python3 -B signing/distribution/kilowallet/verify_rc7_visual_bundle.py
       - name: Fetch verified Kilowallet 1.0 native engines
         if: ${{ startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
         working-directory: app
@@ -298,6 +330,9 @@ jobs:
       - name: Verify US-only availability immediately before 1.0 upload
         if: ${{ inputs.upload_to_testflight && startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
         run: python3 signing/distribution/kilowallet/verify_territories.py
+      - name: Recheck unused Apple build number immediately before upload
+        if: ${{ inputs.upload_to_testflight }}
+        run: python3 -B signing/distribution/kilowallet/verify_build_number.py before-upload
       - name: Upload Kilowallet to TestFlight
         if: ${{ inputs.upload_to_testflight }}
         run: |
@@ -321,6 +356,7 @@ jobs:
             kilowallet-package-verification.json
             kilowallet-apple-processing.json
             kilowallet-territory-preflight.json
+            kilowallet-build-preflight-before-upload.json
           if-no-files-found: ignore
           retention-days: 30
       - name: Clean up temporary credentials
