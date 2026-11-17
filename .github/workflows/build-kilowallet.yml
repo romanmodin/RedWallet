@@ -61,8 +61,37 @@ jobs:
             kilowallet-source-gates.json
             kilowallet-visual-qualification.json
           retention-days: 7
-  certificate:
+  preflight:
     needs: qualify
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare temporary read-only Apple credentials
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: python3 distribution/kilowallet/prepare_signing.py
+      - name: Require unused build number before signing access
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: python3 -B distribution/kilowallet/verify_build_number.py before-signing
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilowallet-build-preflight
+          path: kilowallet-build-preflight-before-signing.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Clean up temporary Apple credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/Kilowallet-AuthKey.p8" "$RUNNER_TEMP/Kilowallet-ExportOptions.plist"
+  certificate:
+    needs: preflight
     if: ${{ github.ref == 'refs/heads/main' }}
     environment: ios-signing
     runs-on: macos-15-intel
@@ -301,6 +330,9 @@ jobs:
       - name: Verify US-only availability immediately before 1.0 upload
         if: ${{ inputs.upload_to_testflight && startsWith(env.KILOWALLET_MARKETING_VERSION, '1.') }}
         run: python3 signing/distribution/kilowallet/verify_territories.py
+      - name: Recheck unused Apple build number immediately before upload
+        if: ${{ inputs.upload_to_testflight }}
+        run: python3 -B signing/distribution/kilowallet/verify_build_number.py before-upload
       - name: Upload Kilowallet to TestFlight
         if: ${{ inputs.upload_to_testflight }}
         run: |
@@ -324,6 +356,7 @@ jobs:
             kilowallet-package-verification.json
             kilowallet-apple-processing.json
             kilowallet-territory-preflight.json
+            kilowallet-build-preflight-before-upload.json
           if-no-files-found: ignore
           retention-days: 30
       - name: Clean up temporary credentials

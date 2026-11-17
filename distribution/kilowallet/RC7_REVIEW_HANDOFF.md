@@ -12,8 +12,10 @@ Prepared November 17, 2026. This is a draft package. It does not activate beta n
 - Gitar review dashboard https://github.com/romanmodin/kilowallet-ios/pull/18#issuecomment-6945265199 approved at 2026-11-17T10:23:24Z, 4/4 findings closed. Automated review is not a substitute for native qualification.
 - Exact-source native run: https://github.com/romanmodin/kilowallet-ios/actions/runs/44063853758 attempt 1 passed: 548 tests passed, one optional live test skipped, eight runtime checks and arm64 Release build passed. The protected verifier independently confirmed checkout 3aaf6d907dfc2ddf5c7516cb9685bbe7f299833c has exactly the candidate tree. Native receipt SHA256 b8d2425f0a5bb9e8ce9799d8e822d21dc5f800480a68ee81636ca45696b6b981.
 - Startup visual supplement https://github.com/romanmodin/kilowallet-ios/actions/runs/44103548176 passed and was manually reviewed. Product app/core/Swift/engine trees equal the candidate; only the diagnostic workflow/runner differ. It passed first OCR without invoking the foreground retry, so no root-cause/fix claim is made.
-- Missing exact-source screenshot-checker gate dispatched once: https://github.com/romanmodin/kilowallet-ios/actions/runs/44111397016 . RPC visual diagnostic44109729393 remains in progress. Neither diagnostic can replace full native qualification.
-- RC7_SIGNING_PREPARATION.json records exact receipts and explicit unresolved gates. Signing workflow inputs are prepared locally for RC7, but its existing RC6 visual gate still rejects RC7 until the reviewed RC7 gate is completed. Do not merge/dispatch this preparation as ready.
+- Exact-source screenshot checker 44111397016/a2 and full verify_gates.py qualification passed.
+- Corrected RPC diagnostic 44125897581/a2, source c13760f8136358cc372d873b31f24246c15484e2, job134228076408 passed. Screenshots artifact14356671817 SHA256 cc65e11ba71939f8d7af72bb967c70e4c0fef1af64157596d72a5443b454966c; reports14356137679 SHA256 a5bf1b99489da9e4126e4addfb1354920d40628fee1eb5a4bff6299b66b799e4. API digests and ZIP CRC verified. All three exact RPC screens manually reviewed with no glyph/layout blockers.
+- Actual verify_rc7_visual_bundle.py completed against all three downloaded artifacts: 79 effective images verified, exact source/attempt/job/tree provenance retained. Diagnostic attribution remains explicit.
+- Static readiness and visual approval are now complete. These do not authorize bypassing live gates: the protected workflow reads Apple's build list before distribution certificate access and again immediately before upload, rejecting duplicate/non-newer numbers or incomplete/wrong-app evidence.
 
 ## RC7 privacy delta to reconcile before release
 
@@ -42,23 +44,19 @@ This table is factual preparation, not an export-compliance determination or a l
 
 ## Remaining limits
 
-No RC7 signed upload, Apple processing, TestFlight installation eligibility, native visual approval, physical iPhone installation or real financial transaction is established by this package. RC6 1.0.0 (21) is the last verified distributed build. Current RC6 active notes and privacy URL remain in force until a qualified replacement is ready.
+No RC7 signed upload, Apple processing, TestFlight installation eligibility, physical iPhone installation or real financial transaction is established by this package. Synthetic native visual qualification is complete. RC6 1.0.0 (21) is the last verified distributed build. Current RC6 active notes and privacy URL remain in force until a qualified replacement is ready.
 
 ## Complete privacy-policy draft
 
 RC7_PRIVACY_DRAFT.md carries forward RC6 service/export disclosures and adds the source-reviewed own-node RPC data flow, Keychain access policy, local HTTP exposure, certificate verification and remote node retention limits. It is not the active privacy URL. Reconcile existing operator statements before publication; do not silently replace the current submitted policy.
 
 
-## Machine-enforced preparation hold
+## Signing gates
 
-verify_rc7_preparation.py rejects missing/false/non-boolean readyForSigning, outstanding blockers, wrong candidate/run pins and unqualified screenshot/RPC/startup evidence before the credentialed jobs. It runs again before signing. It does not replace the separate native-tree checks, downloaded artifact hashes or manual visual receipt validation. Current committed preparation remains blocked.
+verify_rc7_preparation.py binds approved readiness to the exact candidate, native/checker/RPC/startup pins and visual-review digest. verify_gates.py independently fetches native and checker evidence. verify_rc7_visual_bundle.py verifies source trees, current attempts, downloaded artifact hashes and every reviewed image. These gates repeat before signing.
 
-## RC7 visual bundle preparation
+The existing signing workflow now has a protected read-only preflight job after qualification and before certificate access. verify_build_number.py reads only the exact app and iOS 1.0.0 build train, follows bounded same-scope pagination, checks each build's app/train identity, and requires the workflow run number to exceed every existing build number. Pending, failed and expired builds also reserve their number. The gate repeats immediately before upload to catch intervening uploads. First-attempt publisher main dispatch is required. Receipts bind source, coordinator SHA, run, attempt, proposed number and observation time; no credentials are recorded.
 
-The signing workflow now invokes verify_rc7_visual_bundle.py in qualification and immediately before signing. It fetches three pinned CI artifacts and verifies current-attempt success, actual checkout trees, API and downloaded ZIP digests, exact screenshot sets, dimensions and reviewed pixel hashes. Native 76 images are preserved in their original receipt; only rejected startup 09 is explicitly replaced with the successful diagnostic frame. Three RPC states remain pending. The effective reviewed set will contain 79 images. Existing RC6 visual receipts/verifiers remain unchanged for the active release.
+81 offline release tests pass, including duplicate/non-newer, processing/failed/expired reuse, wrong app/train, missing evidence, changed pagination scope, later-page collisions, cycles and workflow ordering. Current-head CI and Gitar review must still complete before merge and protected dispatch. No new automation was created.
 
-The committed rc7-visual-review.json is deliberately unapproved. The actual pending manifest is rejected before fetching or signing. All 72 offline release safety tests pass; both existing downloaded native and startup ZIPs pass pixel verification. RPC diagnostic fixtures are explicitly attributed to their different source and do not substitute for full native production qualification, device testing or live RPC connectivity.
-
-Gitar follow-ups: preparation now pins the exact visual-review file digest and requires that file to be approved. The visual verifier compares startup product trees to the candidate and rejects native/core/engine changes in the RPC diagnostic; it records mixed-source attribution explicitly. The rejected startup pixels cannot be reused. Added complete-bundle, cross-artifact duplicate, provenance and workflow-order tests. All 72 offline tests pass; live GitHub product-tree comparison also passes. Current preparation remains blocked.
-
-November17 follow-up: full source gates now verified, including screenshot checker44111397016/a2. RPC44109729393 failed because the harness passed multiple text assertions to the single-phrase/optional-QR CLI and exited2 before OCR. All3 images manually viewed; settings and certificate rendered, error text visible. Failed run not qualified. Diagnostic-only fixc13760f checks each required phrase separately, preserving QR checks;4 new regression cases and9 startup cases pass. Replacement RPC44125897581 pending. Both readiness and overall visual approval remainfalse.
+The RPC capture's earlier failure was a diagnostic harness CLI mismatch, corrected by checking required phrases separately without weakening assertions. Attempt1 of the corrected run failed to acquire a runner; only attempt2 executed successfully. Neither failed attempt is accepted as release evidence.

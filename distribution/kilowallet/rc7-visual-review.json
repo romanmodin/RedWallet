@@ -1,9 +1,7 @@
 {
   "sourceCommit": "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3",
-  "approvedForSigning": false,
-  "blockers": [
-    "RPC capture and manual visual review pending"
-  ],
+  "approvedForSigning": true,
+  "blockers": [],
   "syntheticOnly": true,
   "realTransaction": false,
   "physicalPhoneQualified": false,
@@ -128,17 +126,19 @@
       "sourceCommit": "c13760f8136358cc372d873b31f24246c15484e2",
       "event": "workflow_dispatch",
       "jobName": "Diagnostic only - RC7 RPC visual coverage",
-      "artifactId": null,
-      "artifactSha256": null,
-      "imageHashes": {},
+      "artifactId": 14356671817,
+      "artifactSha256": "cc65e11ba71939f8d7af72bb967c70e4c0fef1af64157596d72a5443b454966c",
+      "imageHashes": {
+        "77-rpc-settings.png": "3214bb8b41e4f55d4706152db63fb8b2008f05b5f99b0918bc95ef7aa974297a",
+        "78-rpc-cert.png": "620fdbfedd2225f31e1d5ca547e68b987457aabc58b29ab60631abc9952daa6c",
+        "79-rpc-error.png": "d1db1d21ad0376db4f6b5ce30716b51f6ade21cd0861840ddfa6666e20d615cb"
+      },
       "excludedImages": [],
-      "reviewed": false,
-      "glyphsComplete": false,
-      "layoutOrClippingBlockers": [
-        "RPC capture and manual review pending"
-      ],
-      "reviewedAt": null,
-      "notes": "Diagnostic only; synthetic fixture delta reviewed. Await exact downloaded screenshots."
+      "reviewed": true,
+      "glyphsComplete": true,
+      "layoutOrClippingBlockers": [],
+      "reviewedAt": "2026-11-17T18:31:23.183167+00:00",
+      "notes": "Manually viewed exact attempt2 screenshots: RPC settings panel, saved synthetic node.invalid address and read-from-node toggle; certificate dialog with SHA-256 fingerprint, trust and cancel; plain-http rejection. No missing glyphs or obstructed controls. All phrase assertions passed. Fixtures only; no node connectivity, physical phone or financial transaction claim."
     }
   }
 }

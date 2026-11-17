@@ -1,18 +1,16 @@
 # Kilowallet release evidence and signing gates
 
-## RC7 preparation — signing remains blocked
+## RC7 qualified source and synthetic visuals
 
-Candidate: 3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3, tree 212a9bc56aa9cbd93aed819fccf311a637c620c7. Full native run 44063853758/a1 passed 548 unique tests with one optional live-directory skip, eight runtime checks, and the unsigned arm64 Release build. The PR merge checkout has the exact candidate tree. The exact-source screenshot checker is run 44111397016; its result must be collected and verified before qualification.
+Candidate 3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3, tree 212a9bc56aa9cbd93aed819fccf311a637c620c7. Native44063853758/a1 passed548 unique tests, one optional live-directory skip, eight runtime checks and unsigned arm64 Release. Checker44111397016/a2 passed; actual source-gate validation completed.
 
-The prepared signing workflow runs verify_rc7_preparation.py, verify_gates.py, then verify_rc7_visual_bundle.py before protected signing access, and repeats these checks before signing. Both RC7 readiness and visual approval remain false. Existing RC6 receipts below remain historical evidence for the currently distributed build; they cannot qualify RC7.
+Actual visual-bundle qualification verified79 effective images:75 accepted native frames, one unchanged-product startup replacement from44103548176/a1 and three synthetic RPC states from44125897581/a2. The original76-image artifact remains intact; only rejected native09 is excluded. The startup diagnostic passed first OCR; no foreground fix or repeatability claim. RPC fixtures prove rendering only.
 
-The RC7 visual bundle retains the full original 76-image artifact. Frame 09 showed SpringBoard, so it is excluded from effective coverage and replaced only by the manually reviewed startup frame from 44103548176/a1. That diagnostic used identical product trees and its first OCR attempt passed; this does not establish a foreground fix or repeatability. Three RPC settings/certificate/rejected-address images from 44109729393 are still awaiting review. Their source differs through explicitly reviewed synthetic fixtures; they prove rendering only, not device RPC connectivity or certificate interaction.
+The verifier binds repository, source, workflow, current attempt, successful job, actual checkout tree, artifact API/downloaded ZIP hashes, exact image names, dimensions and reviewed pixel hashes. Only unchanged pool-create22/68 duplicates are allowed. RPC's app fixture changes are attributed; native/core/engine trees must match. Both source and visual verification repeat in the signing job.
 
-The verifier binds each artifact to its repository, source, workflow, exact current attempt, successful job, actual checkout tree, API digest, downloaded ZIP hash, exact image list, dimensions and reviewed pixel hashes. The completed effective set must have 79 images, including the three RPC states. Only the unchanged pool-create pair 22/68 may share pixels. Missing evidence, stale attempts, unreviewed content and unexpected duplicates fail before signing. The production native gate remains mandatory independently of diagnostic results.
+Static readiness and visual approval are complete. Live Apple duplicate checking remains a mandatory protected workflow gate before certificate access and immediately before upload. The proposed workflow run number must exceed every existing build in the exact iOS1.0.0 train; incomplete/foreign data or any reused number fails.81 offline tests pass. Current-head CI/review and protected runtime gates still precede signing/upload. No physical-phone or financial-transaction claim.
 
-All 72 offline release safety tests pass, including negative artifact/readiness cases. Native 76 and startup 1 downloaded images pass the new byte verifier; the actual incomplete RC7 review manifest is rejected. No build number is assigned, no RC7 signing/upload has occurred, and no physical-phone qualification or real transaction is claimed.
-
-Before activation, collect and manually review the RPC artifact, complete exact-source checker qualification, update pinned evidence and remove only resolved blockers, obtain review and passing PR checks, then perform the live Apple duplicate/build preflight. Preserve the existing App Store review until the replacement is qualified and available to its intended TestFlight groups.
+Preserve the existing App Store review until the replacement qualifies and intended TestFlight groups can install it.
 
 ## RC6 reference — existing distributed release
 
