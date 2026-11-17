@@ -9,33 +9,50 @@
  */
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { AppState, NativeModules } from 'react-native';
+import { Alert, AppState, NativeModules } from 'react-native';
 import { LndWallet } from '../../class/wallets/lnd-wallet';
 
-type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (reason: unknown) => void };
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
+};
 const deferred = <T,>(): Deferred<T> => {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
+  let resolvePromise!: (value: T) => void;
+  let rejectPromise!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve: resolvePromise, reject: rejectPromise };
 };
 const flush = () => act(async () => {});
 
-const mockStorage: { wallets: unknown[]; saveToDisk: jest.Mock } = { wallets: [], saveToDisk: jest.fn(async () => {}) };
-jest.mock('../../hooks/context/useStorage', () => ({ useStorage: () => mockStorage }));
-jest.mock('../../hooks/usePaymentAuthorization', () => ({ usePaymentAuthorization: () => async () => true }));
-jest.mock('../../hooks/useSecretExport', () => ({ useSecretExport: () => async () => true }));
+const mockStorage: { wallets: unknown[]; saveToDisk: jest.Mock } = {
+  wallets: [],
+  saveToDisk: jest.fn(async () => {}),
+};
+jest.mock('../../hooks/context/useStorage', () => ({
+  useStorage: () => mockStorage,
+}));
+jest.mock('../../hooks/usePaymentAuthorization', () => ({
+  usePaymentAuthorization: () => async () => true,
+}));
+jest.mock('../../hooks/useSecretExport', () => ({
+  useSecretExport: () => async () => true,
+}));
 const mockNavigation = {
   navigate: jest.fn(),
   setOptions: jest.fn(),
   isFocused: jest.fn(() => true),
   addListener: jest.fn((_event: string, _listener: () => void) => jest.fn()),
 };
-jest.mock('../../hooks/useExtendedNavigation', () => ({ useExtendedNavigation: () => mockNavigation }));
-jest.mock('../../hooks/context/useSettings', () => ({ useSettings: () => ({ xbtPriceQuote: null }) }));
+jest.mock('../../hooks/useExtendedNavigation', () => ({
+  useExtendedNavigation: () => mockNavigation,
+}));
+jest.mock('../../hooks/context/useSettings', () => ({
+  useSettings: () => ({ xbtPriceQuote: null }),
+}));
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   // Mirror real focus semantics: run on mount, clean up on unmount (leaving the screen).
@@ -46,15 +63,30 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('@react-native-documents/picker', () => ({ types: {} }));
 jest.mock('react-native-fs', () => ({}));
 jest.mock('../../components/QRCode', () => () => null);
-jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: 0 }) }));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: 0 }),
+}));
 jest.mock('../../components/themes', () => {
   const real = jest.requireActual('../../components/themes');
   return { ...real, useTheme: () => real.BlueDefaultTheme };
 });
 
 const hash = 'a'.repeat(64);
-const channel = { point: 'fixture-point:0', peer: 'fixture-peer', active: true, state: 'active', localSats: '82000' };
-const tower = { key: '02fixture', addresses: ['tower.onion:9911'], eligible: true, sessions: '0', acknowledged: '0', pending: '0' };
+const channel = {
+  point: 'fixture-point:0',
+  peer: 'fixture-peer',
+  active: true,
+  state: 'active',
+  localSats: '82000',
+};
+const tower = {
+  key: '02fixture',
+  addresses: ['tower.onion:9911'],
+  eligible: true,
+  sessions: '0',
+  acknowledged: '0',
+  pending: '0',
+};
 const network = {
   selected: 'direct',
   active: 'direct',
@@ -97,10 +129,40 @@ const LndWalletHome = require('../../screen/wallets/LndWalletHome').default;
 // any rejection that nothing handled, is recorded and asserted empty.
 let consoleErrors: string[] = [];
 let unhandled: unknown[] = [];
+let ownedTimers: Set<ReturnType<typeof setTimeout>>;
+const assertTimersReleased = () => expect([...ownedTimers]).toEqual([]);
 const onUnhandled = (reason: unknown) => unhandled.push(reason);
 
 beforeEach(() => {
   jest.useFakeTimers();
+  ownedTimers = new Set();
+  const timeout = global.setTimeout;
+  const interval = global.setInterval;
+  const clearTimeout = global.clearTimeout;
+  const clearInterval = global.clearInterval;
+  const belongsToScreen = () => /(?:XBTLightning|XBTLightningNetwork|LndWalletHome)\.tsx/.test(new Error().stack ?? '');
+  jest.spyOn(global, 'setTimeout').mockImplementation(((callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+    const owned = belongsToScreen();
+    const handle = timeout(() => {
+      ownedTimers.delete(handle);
+      callback(...args);
+    }, delay);
+    if (owned) ownedTimers.add(handle);
+    return handle;
+  }) as typeof setTimeout);
+  jest.spyOn(global, 'setInterval').mockImplementation(((callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+    const handle = interval(callback, delay, ...args);
+    if (belongsToScreen()) ownedTimers.add(handle);
+    return handle;
+  }) as typeof setInterval);
+  jest.spyOn(global, 'clearTimeout').mockImplementation(handle => {
+    ownedTimers.delete(handle as ReturnType<typeof setTimeout>);
+    clearTimeout(handle);
+  });
+  jest.spyOn(global, 'clearInterval').mockImplementation(handle => {
+    ownedTimers.delete(handle as ReturnType<typeof setTimeout>);
+    clearInterval(handle);
+  });
   consoleErrors = [];
   unhandled = [];
   process.on('unhandledRejection', onUnhandled);
@@ -162,7 +224,7 @@ describe('XBTLightning settings: late channel refresh', () => {
     });
     expect(bridge.manage.mock.calls.length).toBe(before.manage);
     expect(bridge.run.mock.calls.length).toBe(before.run);
-    expect(jest.getTimerCount()).toBe(0);
+    assertTimersReleased();
     await expectQuiet();
   });
 
@@ -209,7 +271,7 @@ describe('XBTLightning settings: late channel refresh', () => {
       progress.resolve('50%');
       await progress.promise;
     });
-    expect(jest.getTimerCount()).toBe(0);
+    assertTimersReleased();
     await expectQuiet();
   });
 });
@@ -217,6 +279,7 @@ describe('XBTLightning settings: late channel refresh', () => {
 describe('XBTLightning settings: late wallet save after channel refresh', () => {
   const lndWallet = () => {
     const wallet = new LndWallet();
+    wallet.status = 'Running';
     return wallet;
   };
 
@@ -284,61 +347,81 @@ describe('XBTLightning settings: late wallet save after channel refresh', () => 
 
 describe('XBTLightning settings: late payment-status reads', () => {
   const startPendingPayment = async (read: (kind: string, cursor: string) => Promise<unknown>) => {
-    const { Alert } = require('react-native');
     const prompt = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     bridge.invoice.mockImplementation(async (action: string) =>
       action === 'decode' ? { sats: '500', destination: 'test peer', hash } : new Promise(() => {}),
     );
-    bridge.wallet.mockImplementation(read);
     const screen = render(<XBTLightning />);
     await flush();
     fireEvent.changeText(screen.getByLabelText('Invoice to pay'), 'lnbcrt-fixture');
     await act(async () => fireEvent.press(screen.getByText('Review invoice')));
     fireEvent.press(screen.getByText('Pay 500 sats'));
+    bridge.wallet.mockClear().mockImplementation(read);
     const buttons = prompt.mock.calls[0][2]!;
-    return { screen, approve: buttons.find(button => button.text === 'Pay')!.onPress! };
+    return {
+      screen,
+      approve: buttons.find(button => button.text === 'Pay')!.onPress!,
+    };
   };
   const emptyPage = { rows: [], next: '0', more: false };
 
-  test.each(['resolve', 'reject'] as const)('payment history read that %ss after leaving mid-submission is ignored quietly', async outcome => {
-    const lookup = deferred<unknown>();
-    const { screen, approve } = await startPendingPayment(async () => lookup.promise);
-    await act(async () => {
-      approve();
-    });
-    // Payment history lookup is in flight; the payment itself is not yet submitted.
-    expect(bridge.wallet).toHaveBeenCalledWith('payments', '0');
-    screen.unmount();
-    await act(async () => {
-      if (outcome === 'resolve') lookup.resolve(emptyPage);
-      else lookup.reject(new Error('history read failed'));
-      await lookup.promise.catch(() => {});
-    });
-    await flush();
-    await expectQuiet();
-    // The submission guard must refuse to send once the screen is gone.
-    const submitted = bridge.invoice.mock.calls.filter(call => call[0] === 'pay');
-    expect(submitted).toEqual([]);
-  });
+  test.each(['resolve', 'reject'] as const)(
+    'payment history read that %ss after leaving mid-submission is ignored quietly',
+    async outcome => {
+      const lookup = deferred<unknown>();
+      const { screen, approve } = await startPendingPayment(async () => lookup.promise);
+      await act(async () => {
+        approve();
+      });
+      // Payment history lookup is in flight; the payment itself is not yet submitted.
+      expect(bridge.wallet).toHaveBeenCalledWith('payments', '0');
+      screen.unmount();
+      await act(async () => {
+        if (outcome === 'resolve') lookup.resolve(emptyPage);
+        else lookup.reject(new Error('history read failed'));
+        await lookup.promise.catch(() => {});
+      });
+      await flush();
+      await expectQuiet();
+      // The submission guard must refuse to send once the screen is gone.
+      const submitted = bridge.invoice.mock.calls.filter(call => call[0] === 'pay');
+      expect(submitted).toEqual([]);
+    },
+  );
 
   test('pending-payment status poll that settles after leaving schedules nothing and logs nothing', async () => {
     const poll = deferred<unknown>();
     let calls = 0;
     const { screen, approve } = await startPendingPayment(async () => {
       calls += 1;
-      return calls === 1 ? emptyPage : poll.promise;
+      return calls === 1
+        ? {
+            rows: [{ id: hash, state: 'pending', direction: 'sent' }],
+            next: '0',
+            more: false,
+          }
+        : poll.promise;
     });
-    // The pay call never returns, so force a visible pending state via the lookup path.
+    // Existing pending history must start a status poll without submitting again.
     await act(async () => {
       approve();
     });
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+    });
+    expect(calls).toBe(2);
+    expect(bridge.invoice.mock.calls.filter(call => call[0] === 'pay')).toEqual([]);
     screen.unmount();
     await act(async () => {
       jest.advanceTimersByTime(30_000);
-      poll.resolve({ rows: [{ id: hash, state: 'settled', direction: 'sent' }], next: '0', more: false });
+      poll.resolve({
+        rows: [{ id: hash, state: 'settled', direction: 'sent' }],
+        next: '0',
+        more: false,
+      });
       await poll.promise;
     });
-    expect(jest.getTimerCount()).toBe(0);
+    assertTimersReleased();
     await expectQuiet();
   });
 });
@@ -385,7 +468,7 @@ describe('XBTLightning settings: rapid leave and re-enter', () => {
       await flush();
       screen.unmount();
     }
-    expect(jest.getTimerCount()).toBe(0);
+    assertTimersReleased();
     await act(async () => {
       jest.advanceTimersByTime(60_000);
     });
@@ -395,7 +478,13 @@ describe('XBTLightning settings: rapid leave and re-enter', () => {
 
 describe('XBTLightningNetwork: late network and watchtower responses', () => {
   const run = async (_title: string, action: () => Promise<void>) => action();
-  const props = { status: 'Running', busy: false, report: jest.fn(), onTorChange: jest.fn(), run };
+  const props = {
+    status: 'Running',
+    busy: false,
+    report: jest.fn(),
+    onTorChange: jest.fn(),
+    run,
+  };
   beforeEach(() => {
     props.report.mockClear();
     props.onTorChange.mockClear();
@@ -441,7 +530,7 @@ describe('XBTLightningNetwork: late network and watchtower responses', () => {
       jest.advanceTimersByTime(60_000);
     });
     expect(bridge.network.mock.calls.length).toBe(calls);
-    expect(jest.getTimerCount()).toBe(0);
+    assertTimersReleased();
     await expectQuiet();
   });
 
@@ -490,6 +579,7 @@ describe('XBTLightningNetwork: late network and watchtower responses', () => {
 describe('Lightning home: late refresh responses after leaving', () => {
   test.each(['resolve', 'reject'] as const)('fetchBalance that %ss after leaving does not save or update state', async outcome => {
     const wallet = new LndWallet();
+    wallet.status = 'Running';
     const fetched = deferred<void>();
     jest.spyOn(wallet, 'fetchBalance').mockImplementation(() => fetched.promise);
     const screen = render(<LndWalletHome wallet={wallet} />);
@@ -506,6 +596,7 @@ describe('Lightning home: late refresh responses after leaving', () => {
 
   test.each(['resolve', 'reject'] as const)('wallet page read that %ss after leaving does not save or update state', async outcome => {
     const wallet = new LndWallet();
+    wallet.status = 'Running';
     jest.spyOn(wallet, 'fetchBalance').mockResolvedValue(undefined);
     const page = deferred<unknown>();
     bridge.wallet.mockImplementation(async kind => (kind === 'overview' ? overview : page.promise));
@@ -523,6 +614,7 @@ describe('Lightning home: late refresh responses after leaving', () => {
 
   test.each(['resolve', 'reject'] as const)('saveToDisk that %ss after leaving is ignored quietly', async outcome => {
     const wallet = new LndWallet();
+    wallet.status = 'Running';
     jest.spyOn(wallet, 'fetchBalance').mockResolvedValue(undefined);
     const saved = deferred<void>();
     mockStorage.saveToDisk = jest.fn(() => saved.promise);
@@ -540,6 +632,7 @@ describe('Lightning home: late refresh responses after leaving', () => {
 
   test('a queued refresh is not started after leaving, and the poll timer is released', async () => {
     const wallet = new LndWallet();
+    wallet.status = 'Running';
     const fetched = deferred<void>();
     const fetchBalance = jest.spyOn(wallet, 'fetchBalance').mockImplementation(() => fetched.promise);
     const screen = render(<LndWalletHome wallet={wallet} />);
@@ -556,12 +649,13 @@ describe('Lightning home: late refresh responses after leaving', () => {
     });
     await flush();
     expect(fetchBalance.mock.calls.length).toBe(callsWhileVisible);
-    expect(jest.getTimerCount()).toBe(0);
+    assertTimersReleased();
     await expectQuiet();
   });
 
   test('a read from the first visit does not paint over the second visit', async () => {
     const wallet = new LndWallet();
+    wallet.status = 'Running';
     const first = deferred<void>();
     let calls = 0;
     jest.spyOn(wallet, 'fetchBalance').mockImplementation(() => {
