@@ -123,9 +123,9 @@
       "notes": "Correct Lightning startup screen manually reviewed. Product trees equal candidate. First OCR passed; no foreground retry or root cause proven."
     },
     "rpc": {
-      "run": 44109729393,
+      "run": 44125897581,
       "attempt": 1,
-      "sourceCommit": "abd873ede80efe3382126ca321975157dd61f5db",
+      "sourceCommit": "c13760f8136358cc372d873b31f24246c15484e2",
       "event": "workflow_dispatch",
       "jobName": "Diagnostic only - RC7 RPC visual coverage",
       "artifactId": null,

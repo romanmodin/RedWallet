@@ -63,22 +63,24 @@
   "screenshotChecker": {
     "run": 44111397016,
     "source": "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3",
-    "verified": false
+    "verified": true,
+    "attempt": 2,
+    "job": 134155661579
   },
   "rpcVisual": {
-    "run": 44109729393,
-    "source": "abd873ede80efe3382126ca321975157dd61f5db",
+    "run": 44125897581,
+    "source": "c13760f8136358cc372d873b31f24246c15484e2",
     "verified": false,
     "diagnosticOnly": true
   },
   "readyForSigning": false,
   "buildNumber": null,
   "blockers": [
-    "Exact-source screenshot checker not yet qualified",
     "RPC native visuals not yet reviewed",
     "RC7 visual gate and pinned receipts not activated",
     "Live Apple build duplicate preflight remains required"
   ],
   "notes": "Preparation only. Existing RC6 visual verifier rejects this candidate until replaced by reviewed RC7 evidence. Do not merge or dispatch signing while readyForSigning is false. Diagnostic workflow must never replace full qualification.",
-  "visualReviewSha256": "9b8cdca606c874f141487cf78ae43fa88229d046bfdfd5166029e25dd633fab0"
+  "visualReviewSha256": "98bfb996878917840cef03c6e038d5fff65c5dae8f6b5526fe2c156a4cf7fa60",
+  "sourceGatesSha256": "3b005a87aaf3ea189faee9e91d85cb97eb074949ec0aab71f6de82b0941dfa02"
 }

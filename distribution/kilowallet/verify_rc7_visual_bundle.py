@@ -20,7 +20,7 @@ SOURCE = "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3"
 PINS = {
     "native": (44063853758, SOURCE, "pull_request", "iPhone release and simulator qualification", 76),
     "startup": (44103548176, "7f14ab021e9a3d1accdd65a44271f10010c4b184", "workflow_dispatch", "Diagnostic only - RC7 Lightning startup frame", 1),
-    "rpc": (44109729393, "abd873ede80efe3382126ca321975157dd61f5db", "workflow_dispatch", "Diagnostic only - RC7 RPC visual coverage", 3),
+    "rpc": (44125897581, "c13760f8136358cc372d873b31f24246c15484e2", "workflow_dispatch", "Diagnostic only - RC7 RPC visual coverage", 3),
 }
 KNOWN_ARTIFACTS = {
     "native": (14331456008, "c6bc49414ae774aa3edde7abe688d1e7c2586a42b6e1cf7ae61409110b88743b"),
