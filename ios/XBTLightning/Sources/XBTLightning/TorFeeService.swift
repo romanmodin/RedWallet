@@ -20,8 +20,8 @@ final class TorFeeService: NSObject, URLSessionTaskDelegate, @unchecked Sendable
             var proxy = ProxyConfiguration(socksv5Proxy: .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: proxyPort)!))
             proxy.allowFailover = false
             configuration.proxyConfigurations = [proxy]
-            configuration.timeoutIntervalForRequest = 25
-            configuration.timeoutIntervalForResource = 30
+            configuration.timeoutIntervalForRequest = 2
+            configuration.timeoutIntervalForResource = 8
             configuration.urlCache = nil
             session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
         }
@@ -70,16 +70,18 @@ final class TorFeeService: NSObject, URLSessionTaskDelegate, @unchecked Sendable
         guard clients < 4 else { connection.cancel(); return }
         clients += 1
         var ended = false
+        var fetch: TorFeeFetch?
         let finish = {
             guard !ended else { return }
-            ended = true; self.clients -= 1; connection.cancel()
+            ended = true; fetch?.cancel(); fetch = nil
+            self.clients -= 1; connection.cancel()
         }
         connection.stateUpdateHandler = { state in
             if case .failed = state { finish() }
             if case .cancelled = state { finish() }
         }
         connection.start(queue: queue)
-        queue.asyncAfter(deadline: .now() + 35) { finish() }
+        queue.asyncAfter(deadline: .now() + 12) { finish() }
         func read(_ previous: Data) {
             connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, complete, error in
                 guard !ended else { return }
@@ -92,23 +94,35 @@ final class TorFeeService: NSObject, URLSessionTaskDelegate, @unchecked Sendable
                 guard Self.accepts(request) else {
                     connection.send(content: Data("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8), completion: .contentProcessed { _ in finish() }); return
                 }
-                Task {
-                    let payload: Data?
-                    do {
-                        guard let session = self.session else { throw TransportFailure.requiresNewerSystem }
-                        let (data, response) = try await session.data(from: URL(string: "https://nodex.kilombino.com/data/lnd-fees.json")!)
-                        guard (response as? HTTPURLResponse)?.statusCode == 200, data.count <= 65536,
-                              (try JSONSerialization.jsonObject(with: data)) is [String: Any] else { throw NodeFailure.invalidReply }
-                        payload = data
-                    } catch { payload = nil }
-                    self.queue.async {
+                let operation = TorFeeFetch(queue: self.queue, ready: { ArtiRuntime.state() == 2 },
+                    transport: { timeout, completion in
+                        guard let session = self.session else {
+                            completion(.failure(TransportFailure.requiresNewerSystem))
+                            return {}
+                        }
+                        var upstream = URLRequest(url: URL(string: "https://nodex.kilombino.com/data/lnd-fees.json")!)
+                        upstream.timeoutInterval = timeout
+                        let task = session.dataTask(with: upstream) { data, response, error in
+                            if let error { completion(.failure(error)); return }
+                            guard let data, (response as? HTTPURLResponse)?.statusCode == 200,
+                                  data.count <= 65536,
+                                  (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
+                                completion(.failure(NodeFailure.invalidReply)); return
+                            }
+                            completion(.success(data))
+                        }
+                        task.resume()
+                        return { task.cancel() }
+                    }, completion: { result in
                         guard !ended else { return }
+                        let payload = try? result.get()
                         let body = payload ?? Data()
                         let status = payload == nil ? "503 Service Unavailable" : "200 OK"
                         let headers = "HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
                         connection.send(content: Data(headers.utf8) + body, completion: .contentProcessed { _ in finish() })
-                    }
-                }
+                    })
+                fetch = operation
+                operation.start()
             }
         }
         read(Data())
