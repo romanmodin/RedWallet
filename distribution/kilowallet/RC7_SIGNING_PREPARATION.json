@@ -71,7 +71,8 @@
     "run": 44125897581,
     "source": "c13760f8136358cc372d873b31f24246c15484e2",
     "verified": false,
-    "diagnosticOnly": true
+    "diagnosticOnly": true,
+    "attempt": 2
   },
   "readyForSigning": false,
   "buildNumber": null,
@@ -81,6 +82,6 @@
     "Live Apple build duplicate preflight remains required"
   ],
   "notes": "Preparation only. Existing RC6 visual verifier rejects this candidate until replaced by reviewed RC7 evidence. Do not merge or dispatch signing while readyForSigning is false. Diagnostic workflow must never replace full qualification.",
-  "visualReviewSha256": "98bfb996878917840cef03c6e038d5fff65c5dae8f6b5526fe2c156a4cf7fa60",
+  "visualReviewSha256": "4441e43bcbc4a64664ba2d0e5420caa2f4a8284027527b087d375b061ab36a44",
   "sourceGatesSha256": "3b005a87aaf3ea189faee9e91d85cb97eb074949ec0aab71f6de82b0941dfa02"
 }

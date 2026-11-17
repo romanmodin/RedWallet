@@ -22,6 +22,7 @@ PINS = {
     "startup": (44103548176, "7f14ab021e9a3d1accdd65a44271f10010c4b184", "workflow_dispatch", "Diagnostic only - RC7 Lightning startup frame", 1),
     "rpc": (44125897581, "c13760f8136358cc372d873b31f24246c15484e2", "workflow_dispatch", "Diagnostic only - RC7 RPC visual coverage", 3),
 }
+EXPECTED_ATTEMPTS = {"native": 1, "startup": 1, "rpc": 2}
 KNOWN_ARTIFACTS = {
     "native": (14331456008, "c6bc49414ae774aa3edde7abe688d1e7c2586a42b6e1cf7ae61409110b88743b"),
     "startup": (14338834239, "756183fa66804c5905856c3b991eaaeab3241b4c00b49e52d3f12ee9fb98bbcd"),
@@ -49,7 +50,7 @@ def validate_manifest(manual):
     for role, (run, source, event, job, count) in PINS.items():
         item = evidence[role]
         require((item.get("run"), item.get("sourceCommit"), item.get("event"), item.get("attempt")) ==
-                (run, source, event, 1), "Wrong visual run/source/attempt: " + role)
+                (run, source, event, EXPECTED_ATTEMPTS[role]), "Wrong visual run/source/attempt: " + role)
         require(isinstance(item.get("jobName"), str) and bool(item["jobName"]), "Missing visual job")
         require(job is None or item["jobName"] == job, "Wrong visual job")
         require(item.get("reviewed") is True and item.get("glyphsComplete") is True and

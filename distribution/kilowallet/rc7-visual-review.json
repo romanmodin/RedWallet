@@ -124,7 +124,7 @@
     },
     "rpc": {
       "run": 44125897581,
-      "attempt": 1,
+      "attempt": 2,
       "sourceCommit": "c13760f8136358cc372d873b31f24246c15484e2",
       "event": "workflow_dispatch",
       "jobName": "Diagnostic only - RC7 RPC visual coverage",

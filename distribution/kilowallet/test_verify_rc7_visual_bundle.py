@@ -57,7 +57,7 @@ class RC7VisualTests(unittest.TestCase):
 
     def test_each_source_attempt_or_role_change_rejected(self):
         for role in PENDING["evidence"]:
-            for key, wrong in [("run", 1), ("sourceCommit", "0" * 40), ("attempt", 2),
+            for key, wrong in [("run", 1), ("sourceCommit", "0" * 40), ("attempt", 0),
                                ("event", "push"), ("reviewed", False), ("artifactId", None),
                                ("excludedImages", ["02-history.png"])]:
                 value = self.reviewed()
@@ -124,6 +124,12 @@ class RC7VisualTests(unittest.TestCase):
                 validate_remote(run, bad, item)
         with self.assertRaisesRegex(RuntimeError, "Stale"):
             validate_remote(dict(run, run_attempt=2), artifact, item)
+
+    def test_stale_rpc_attempt_rejected(self):
+        value = self.reviewed()
+        value["evidence"]["rpc"]["attempt"] = 1
+        with self.assertRaisesRegex(RuntimeError, "Wrong visual run/source/attempt"):
+            validate_manifest(value)
 
     def test_rejected_startup_pixels_cannot_be_reused(self):
         value = self.reviewed()
