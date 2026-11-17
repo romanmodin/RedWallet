@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   inspect,
+  failureSummary,
   readClient,
   APP,
   BUILD,
@@ -99,4 +100,25 @@ test("child metadata routes require a returned parent and stay GET-only",async()
  await get("/v1/appStoreVersionLocalizations/locale1/appScreenshotSets");
  assert.ok(calls.every(c=>c.method==="GET"));
  await assert.rejects(get("/v1/appStoreVersions/foreign/build"));
+});
+
+
+test("initial Apple HTTP failures retain status without response text or credentials", async () => {
+  for (const status of [401, 403, 404, 429, 500, 503]) {
+    const get = readClient("synthetic-secret", async () => ({
+      ok: false, status,
+      text: async () => "synthetic-secret unsafe response",
+    }));
+    let failure;
+    try { await inspect(get); } catch (error) { failure = failureSummary(error, "app-identity"); }
+    assert.deepEqual(failure, {stage:"app-identity",kind:"HTTPError",httpStatus:status});
+    assert.ok(!JSON.stringify(failure).includes("synthetic-secret"));
+  }
+});
+test("credential and network errors never disclose exception messages or fake HTTP status", () => {
+  for (const stage of ["credentials", "app-identity"]) {
+    const error = new Error("synthetic-secret"); error.status = 500;
+    assert.deepEqual(failureSummary(error, stage),
+      {stage, kind:"ReadOrRuntimeError", httpStatus:null});
+  }
 });

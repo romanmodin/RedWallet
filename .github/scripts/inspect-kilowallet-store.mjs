@@ -232,17 +232,29 @@ export async function inspect(get) {
   report.inspectionComplete = report.errors.length === 0;
   return report;
 }
+export function failureSummary(error, stage) {
+  return {
+    stage,
+    kind: error instanceof AppleReadError ? "HTTPError" : "ReadOrRuntimeError",
+    httpStatus: error instanceof AppleReadError ? error.status : null,
+  };
+}
 async function main() {
-  let report = { mode: "read-only", appId: APP, inspectionComplete: false };
+  let stage = "credentials";
+  let report = { mode: "read-only", appId: APP, inspectionComplete: false,
+    observedAt: new Date().toISOString(), writes: [] };
   try {
     if (process.env.TEAM_ID !== "PPG9C98EY9") throw Error("Wrong team");
     const credential = JSON.parse(
       process.env.APP_STORE_CONNECT_API_KEY_CONTENT || "",
     );
     delete process.env.APP_STORE_CONNECT_API_KEY_CONTENT;
-    report = await inspect(readClient(makeToken(credential)));
+    const get = readClient(makeToken(credential));
+    stage = "app-identity";
+    report = await inspect(get);
     if (!report.inspectionComplete) process.exitCode = 1;
-  } catch {
+  } catch (error) {
+    report.failure = failureSummary(error, stage);
     report.error = "Read-only inspection incomplete; no changes made";
     process.exitCode = 1;
   } finally {
