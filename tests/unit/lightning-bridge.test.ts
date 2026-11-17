@@ -377,3 +377,27 @@ test('repeated polls reuse immutable verification while altered invoices are rec
     recover.mockRestore();
   }
 });
+
+test('capacity cleanup respects the quote cooldown and persists before quoting', async () => {
+  const e = environment();
+  const records: BridgeJournal['records'] = Array.from({ length: 200 }, (_, i) => ({
+    hash: i.toString(16).padStart(64, '0'),
+    node,
+    provider: 'test',
+    state: 'requesting',
+    createdAt: NOW,
+    updatedAt: NOW,
+    feeLimit: '10',
+  }));
+  await e.store.write({ version: 1, records, requests: [] });
+  await expect(quoted(e)).rejects.toThrow('history is full');
+  records[42].createdAt -= 600000;
+  await e.store.write({ version: 1, records, requests: [] });
+  (e.store.write as jest.Mock).mockRejectedValueOnce(new Error('storage unavailable'));
+  await expect(quoted(e)).rejects.toThrow('storage unavailable');
+  expect(e.provider.quote).not.toHaveBeenCalled();
+  await quoted(e);
+  expect(e.records()).toHaveLength(200);
+  expect(e.records().some(r => r.hash === records[42].hash)).toBe(false);
+  expect(e.backend.pay).not.toHaveBeenCalled();
+});
