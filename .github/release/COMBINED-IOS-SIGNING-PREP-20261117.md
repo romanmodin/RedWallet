@@ -1,25 +1,25 @@
 # Combined Lightning and hardware iOS signing preparation
 
-This orchestration candidate pins production source `244b76b823c088d2cc0e9f4c7e4ddbff1ba506bd` from PR266. It does not activate standard hardware transaction signing: `STANDARD_HARDWARE_RELEASE_ENABLED` stays false. The offline hardware check can be tested without spending funds.
+Protected signing and upload are pinned to PR266 source `875f84bcf19fb7c98620df282d171cc344e9b3c3`. Standard hardware transaction signing stays disabled (`STANDARD_HARDWARE_RELEASE_ENABLED = false`). The offline hardware check uses a nonspendable request.
 
-The production map has 1,158 paths and SHA256 `3bc4fbba1b7f86404ba5095a980b30a2ece4fae264cbb0ac4abc2be74dbf587c`. The existing map definition includes tracked modes, object IDs and paths, excluding `.github/`, `tests/`, `fastlane/metadata/`, `zapstore.yaml` and Markdown. This verifies source identity, not reproducible binaries.
+The production map has 1,158 paths and SHA256 `d519095f6edf9d46e26e90adaa6ef0895d4a631aaa8c8fcf861c3d1e83574b4e`. It includes tracked modes, object IDs and paths, excluding `.github/`, `tests/`, `fastlane/metadata/`, `zapstore.yaml` and Markdown. This verifies source identity, not reproducible binaries.
 
-Both signing and upload require successful, completed runs on exactly the pinned source:
+Both signing and upload require successful, completed runs on this exact source:
 
 | Gate | Run |
 | --- | --- |
-| Unit and lint | 44034171626 |
-| General iOS build and test | 44034171588 |
-| Native BIP84 fee bump | 44033088702 |
-| Embedded LND wallet, payment, public sync and Tor smoke | 44034171607 |
-| Hardware build and complete simulator signing flow | 44034166335 |
+| Unit and lint | 44109439778 |
+| General iOS build and test | 44109439849 |
+| Native BIP84 fee bump | 44109439995 |
+| Embedded LND wallet, payment, public sync and Tor smoke | 44109440202 |
+| Hardware build and complete simulator signing flow | 44109440144 |
 
-These runs were still pending/in progress when this preparation was written. A missing, skipped, failed, canceled or still-running required job blocks signing and upload, even when the enclosing run reports success. A result for an older commit, another workflow or another repository is rejected. Jobs are read from the explicit latest run attempt. The hardware requirement is opt-in for this workflow, preserving unrelated workflow policies. The Tor requirement carries forward the reviewed work in PR259 without its older source pins.
+These replacement runs were queued or in progress when the pins were updated. A missing, skipped, failed, canceled or still-running required job blocks signing and upload, even when the enclosing run reports success. Results for another source, workflow or repository are rejected. Jobs are read from the explicit latest run attempt. Hardware and Tor requirements remain enabled in both protected jobs.
 
-The final source changes only the BIP84 test setup from a44b591: wait for the host keyboard to disappear before positioning/editing the port. The underlying app source is identical, but the exact-source release check remains strict; prior passing a44 results are not substituted. On a44, software, Android, general iOS, all embedded LND checks, and the full hardware simulator flow passed. Verified hardware receipt artifact14302788003 SHA256 `61991f835d90d9b84caf4474b0e20dfcfa1af3e8c35509c972e9f8f472646903` records a single disposable-regtest broadcast and two confirmations, QR reconstruction, signature/proof/reorg/TLS checks and cleanup.
+Source 875f84b fixes Settings → Broadcast waiting on Electrum before rejecting malformed input. It validates complete hex bytes and parses the transaction locally before networking, then reuses the parsed transaction for its displayed txid. The real-screen regression suite fails seven malformed-input cases on source244 and passes all twelve cases with the fix. TypeScript and changed-file lint passed. The iOS assertion now requires the local error message without relaxing timeouts. The retained prior iOS attempt2 artifact14320909231 has SHA256 `6a0faf56b31d4e415c62f452f34a0f1f90790d3c4e04cc0247a6ac8d2b3c774a`; its screenshot shows invalid input stuck Pending. Creation and both watch-only import cases passed in that attempt. Prior passing source244 gates are historical evidence and do not qualify this changed app.
 
-Validation: ten offline release-policy tests and four source-run tests pass and now run in software CI. YAML parsing verifies the source pins and policy calls in both protected jobs. A read-only live check correctly refused a still-running gate. New cases exercise missing/nonpassing hardware jobs, wrong source/workflow/repository, incomplete runs, invalid flag values, and the actual command entry point with mocked APIs, requiring hardware success before writing a receipt.
+Ten offline release-policy tests and four source-run tests cover hardware/Tor job requirements, wrong source/workflow/repository, incomplete runs, invalid flags and receipt creation. Existing main-only dispatch, protected environments, read-only certificate provisioning, encrypted IPA artifacts and signed-package verification stay intact.
 
-The existing main-only manual-dispatch guard, protected signing/upload environments, read-only certificate provisioning, encrypted IPA artifact and signed-package verification remain in place. This branch has not signed or uploaded an app and must be reviewed before merging into main. Final run results still need verification.
+This preparation has not signed or uploaded an app. After every exact-source gate passes and this preparation is reviewed and merged, build with upload disabled, verify the signed package and receipt, then upload that verified artifact in a separate protected run. Distribution must be pinned to the actual new build/upload receipt; the existing distribution workflow still refers to an older build.
 
-Simulator host signing and incoming text injection do not qualify the physical iPhone camera or Keystone3Pro/Cypherpunk3.0.2/Sparrow-mode round trip. That device test remains outstanding; private exports stay out of GitHub/Gitar. No real funds are spent. The separate settings-exit crash remains under investigation in PR258.
+Simulator host signing and incoming text injection do not qualify the physical iPhone camera or Keystone 3 Pro / Cypherpunk 3.0.2 / Sparrow-mode round trip. That device test remains outstanding. No real funds have been spent. A real bridge payment needs separate authorization. The independently reported Lightning Settings-exit crash remains under investigation in PR258.
