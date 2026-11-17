@@ -8,12 +8,13 @@ import io
 import json
 import os
 import re
+import struct
 import subprocess
 import zipfile
 from pathlib import Path
 
 from verify_gates import REPOSITORY, api, checked_trees, validate
-from verify_visual import duplicate_groups, png_dimensions
+from verify_visual import duplicate_groups
 
 SOURCE = "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3"
 PINS = {
@@ -28,6 +29,7 @@ KNOWN_ARTIFACTS = {
 RPC_IMAGES = {"77-rpc-settings.png", "78-rpc-cert.png", "79-rpc-error.png"}
 BASE_DUPLICATES = {frozenset({"22-pool-create.png", "68-pool-create-v6.png"})}
 EXCLUDED = {"native": ["09-ln-starting.png"], "startup": [], "rpc": []}
+PRODUCT_ROOTS = {"app", "core", "iosApp", "lnd-engine", "ark-engine", "tor-engine"}
 
 
 def require(condition, reason):
@@ -70,10 +72,31 @@ def validate_manifest(manual):
         else:
             require("09-ln-starting.png" in hashes, "Missing original startup frame")
         require(duplicate_groups(hashes) == (BASE_DUPLICATES if role == "native" else set()), "Unexpected duplicate images")
+    require(evidence["native"]["imageHashes"]["09-ln-starting.png"] !=
+            evidence["startup"]["imageHashes"]["09-ln-starting.png"], "Rejected startup frame reused")
     require(manual.get("diagnosticLimitations") ==
             "Startup uses unchanged product trees; RPC uses reviewed synthetic fixture changes. Neither diagnostic replaces native production qualification or proves device RPC connectivity.",
             "Missing diagnostic attribution")
     return evidence
+
+
+def validate_product_trees(candidate, startup, rpc):
+    for trees in (candidate, startup, rpc):
+        require(set(trees) == PRODUCT_ROOTS, "Missing product tree evidence")
+        require(all(re.fullmatch(r"[0-9a-f]{40}", sha) for sha in trees.values()), "Invalid product tree")
+    require(candidate == startup, "Startup diagnostic changed product code")
+    require(all(candidate[name] == rpc[name] for name in PRODUCT_ROOTS - {"app"}),
+            "RPC diagnostic changed native code, core or engines")
+    return True
+
+
+def product_trees(source):
+    prefix = f"repos/{REPOSITORY}"
+    tree = api(f"{prefix}/git/commits/{source}")["tree"]["sha"]
+    entries = api(f"{prefix}/git/trees/{tree}")
+    require(entries.get("truncated") is False, "Truncated product tree")
+    return {entry["path"]: entry["sha"] for entry in entries["tree"]
+            if entry["path"] in PRODUCT_ROOTS and entry["type"] == "tree"}
 
 
 def validate_remote(run, artifact, item):
@@ -95,7 +118,9 @@ def verify_archive(data, item):
         actual = {}
         for name in sorted(names):
             image = archive.read(name)
-            require(png_dimensions(image) == (1290, 2796), "Wrong screenshot dimensions")
+            require(len(image) >= 24 and image[:8] == b"\x89PNG\r\n\x1a\n" and image[12:16] == b"IHDR",
+                    "Invalid PNG header")
+            require(struct.unpack(">II", image[16:24]) == (1290, 2796), "Wrong screenshot dimensions")
             actual[name] = hashlib.sha256(image).hexdigest()
     require(actual == item["imageHashes"], "Screenshot pixels do not match review")
     return actual
@@ -121,6 +146,8 @@ def main():
     require(os.environ["KILOWALLET_SOURCE_COMMIT"] == SOURCE, "Wrong signing source")
     manual = json.loads(Path(__file__).with_name("rc7-visual-review.json").read_text())
     evidence = validate_manifest(manual)  # Fail before downloads when review is incomplete.
+    provenance = {role: product_trees(item["sourceCommit"]) for role, item in evidence.items()}
+    validate_product_trees(provenance["native"], provenance["startup"], provenance["rpc"])
     root = Path("rc7-visual-evidence")
     root.mkdir(exist_ok=True)
     archives, receipts = {}, {}
@@ -144,6 +171,7 @@ def main():
                   imageHashes=dict(sorted(effective.items())), evidence=receipts,
                   manualReviewSha256=hashlib.sha256(Path(__file__).with_name("rc7-visual-review.json").read_bytes()).hexdigest(),
                   syntheticOnly=True, realTransaction=False, physicalPhoneQualified=False,
+                  mixedSourceDiagnostics=True, productTrees=provenance,
                   diagnosticLimitations=manual["diagnosticLimitations"])
     Path("kilowallet-visual-qualification.json").write_text(json.dumps(result, indent=2) + "\n")
     print("RC7 native and supplemental visual artifacts verified; 79 effective images.")

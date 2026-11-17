@@ -1,4 +1,5 @@
 """Readiness interlock; native and visual receipt verification still run separately."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -31,10 +32,19 @@ def validate(preparation, source, ios_run, screen_run):
     # These flags never replace fetching, hashing and verifying the actual evidence.
     return True
 
+def validate_visual_binding(preparation, raw):
+    if preparation.get("visualReviewSha256") != hashlib.sha256(raw).hexdigest():
+        raise RuntimeError("RC7 visual review digest does not match preparation")
+    visual = json.loads(raw)
+    if visual.get("sourceCommit") != SOURCE or visual.get("approvedForSigning") is not True:
+        raise RuntimeError("Bound RC7 visual review is not approved")
+    return True
+
 def main():
     preparation = json.loads(Path(__file__).with_name("RC7_SIGNING_PREPARATION.json").read_text())
     validate(preparation, os.environ["KILOWALLET_SOURCE_COMMIT"],
              os.environ["KILOWALLET_IOS_RUN_ID"], os.environ["KILOWALLET_SCREENSHOT_RUN_ID"])
+    validate_visual_binding(preparation, Path(__file__).with_name("rc7-visual-review.json").read_bytes())
     print("RC7 readiness interlock cleared; exact native and visual receipt gates still required.")
 
 if __name__ == "__main__":

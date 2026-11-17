@@ -10,7 +10,7 @@ The RC7 visual bundle retains the full original 76-image artifact. Frame 09 show
 
 The verifier binds each artifact to its repository, source, workflow, exact current attempt, successful job, actual checkout tree, API digest, downloaded ZIP hash, exact image list, dimensions and reviewed pixel hashes. The completed effective set must have 79 images, including the three RPC states. Only the unchanged pool-create pair 22/68 may share pixels. Missing evidence, stale attempts, unreviewed content and unexpected duplicates fail before signing. The production native gate remains mandatory independently of diagnostic results.
 
-All 65 offline release safety tests pass, including negative artifact/readiness cases. Native 76 and startup 1 downloaded images pass the new byte verifier; the actual incomplete RC7 review manifest is rejected. No build number is assigned, no RC7 signing/upload has occurred, and no physical-phone qualification or real transaction is claimed.
+All 72 offline release safety tests pass, including negative artifact/readiness cases. Native 76 and startup 1 downloaded images pass the new byte verifier; the actual incomplete RC7 review manifest is rejected. No build number is assigned, no RC7 signing/upload has occurred, and no physical-phone qualification or real transaction is claimed.
 
 Before activation, collect and manually review the RPC artifact, complete exact-source checker qualification, update pinned evidence and remove only resolved blockers, obtain review and passing PR checks, then perform the live Apple duplicate/build preflight. Preserve the existing App Store review until the replacement is qualified and available to its intended TestFlight groups.
 

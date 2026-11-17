@@ -79,5 +79,6 @@
     "RC7 visual gate and pinned receipts not activated",
     "Live Apple build duplicate preflight remains required"
   ],
-  "notes": "Preparation only. Existing RC6 visual verifier rejects this candidate until replaced by reviewed RC7 evidence. Do not merge or dispatch signing while readyForSigning is false. Diagnostic workflow must never replace full qualification."
+  "notes": "Preparation only. Existing RC6 visual verifier rejects this candidate until replaced by reviewed RC7 evidence. Do not merge or dispatch signing while readyForSigning is false. Diagnostic workflow must never replace full qualification.",
+  "visualReviewSha256": "9b8cdca606c874f141487cf78ae43fa88229d046bfdfd5166029e25dd633fab0"
 }

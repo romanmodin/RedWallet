@@ -4,11 +4,13 @@ import io
 import json
 import struct
 import unittest
+from unittest.mock import patch
 import warnings
 import zipfile
 from pathlib import Path
 
-from verify_rc7_visual_bundle import RPC_IMAGES, validate_manifest, validate_remote, verify_archive
+from verify_rc7_visual_bundle import (PRODUCT_ROOTS, RPC_IMAGES, validate_manifest, validate_remote,
+                                      validate_product_trees, verify_archive, verify_bundle)
 
 PENDING = json.loads(Path(__file__).with_name("rc7-visual-review.json").read_text())
 
@@ -115,12 +117,75 @@ class RC7VisualTests(unittest.TestCase):
                     "workflow_run": {"id": item["run"], "head_sha": item["sourceCommit"]}}
         validate_remote(run, artifact, item)
         for key, wrong in [("expired", True), ("digest", "sha256:wrong"), ("id", 1),
-                           ("workflow_run", {"id": 1, "head_sha": item["sourceCommit"]})]:
+                           ("workflow_run", {"id": 1, "head_sha": item["sourceCommit"]}),
+                           ("workflow_run", {"id": item["run"], "head_sha": "0" * 40})]:
             bad = dict(artifact, **{key: wrong})
             with self.subTest(key=key), self.assertRaises(RuntimeError):
                 validate_remote(run, bad, item)
         with self.assertRaisesRegex(RuntimeError, "Stale"):
             validate_remote(dict(run, run_attempt=2), artifact, item)
+
+    def test_rejected_startup_pixels_cannot_be_reused(self):
+        value = self.reviewed()
+        value["evidence"]["startup"]["imageHashes"]["09-ln-starting.png"] = value["evidence"]["native"]["imageHashes"]["09-ln-starting.png"]
+        with self.assertRaisesRegex(RuntimeError, "Rejected startup frame reused"):
+            validate_manifest(value)
+
+    def test_product_provenance_rejects_changed_startup_or_native_rpc_code(self):
+        candidate = {name: hashlib.sha1(name.encode()).hexdigest() for name in PRODUCT_ROOTS}
+        rpc = dict(candidate, app="f" * 40)
+        self.assertTrue(validate_product_trees(candidate, candidate, rpc))
+        for role in ("startup", "rpc"):
+            for root in PRODUCT_ROOTS:
+                if role == "rpc" and root == "app":
+                    continue
+                bad = dict(candidate, **{root: "0" * 40})
+                with self.subTest(role=role, root=root), self.assertRaises(RuntimeError):
+                    validate_product_trees(candidate, bad if role == "startup" else candidate,
+                                           bad if role == "rpc" else rpc)
+
+    def test_effective_bundle_and_cross_artifact_duplicate(self):
+        def fixture(repeat_across_artifacts=False):
+            value = self.reviewed()
+            archives = {}
+            for role, item in value["evidence"].items():
+                buffer = io.BytesIO()
+                hashes = {}
+                with zipfile.ZipFile(buffer, "w") as archive:
+                    for name in item["imageHashes"]:
+                        identity = role + name
+                        if name == "68-pool-create-v6.png":
+                            identity = "native22-pool-create.png"
+                        if repeat_across_artifacts and name == "77-rpc-settings.png":
+                            identity = "native02-history.png"
+                        image = b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", 1290, 2796) + identity.encode()
+                        archive.writestr(name, image)
+                        hashes[name] = hashlib.sha256(image).hexdigest()
+                archives[role] = buffer.getvalue()
+                item.update(imageHashes=hashes, artifactSha256=hashlib.sha256(archives[role]).hexdigest())
+            pins = {role: (item["artifactId"], item["artifactSha256"])
+                    for role, item in value["evidence"].items() if role != "rpc"}
+            return value, archives, pins
+        value, archives, pins = fixture()
+        with patch("verify_rc7_visual_bundle.KNOWN_ARTIFACTS", pins):
+            result = verify_bundle(value, archives)
+            self.assertEqual(len(result), 79)
+            self.assertEqual(result["09-ln-starting.png"], value["evidence"]["startup"]["imageHashes"]["09-ln-starting.png"])
+            with self.assertRaisesRegex(RuntimeError, "Missing downloaded"):
+                verify_bundle(value, {k: v for k, v in archives.items() if k != "startup"})
+        value, archives, pins = fixture(True)
+        with patch("verify_rc7_visual_bundle.KNOWN_ARTIFACTS", pins), self.assertRaisesRegex(RuntimeError, "cross-artifact"):
+            verify_bundle(value, archives)
+
+    def test_workflow_keeps_independent_gates_in_order(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/build-kilowallet.yml").read_text()
+        qualify = workflow.split("  qualify:\n", 1)[1].split("  certificate:\n", 1)[0]
+        sign = workflow.split("  sign:\n", 1)[1].split("      - name: Fetch verified", 1)[0]
+        for section in (qualify, sign):
+            self.assertLess(section.index("verify_rc7_preparation.py"), section.index("verify_gates.py"))
+            self.assertLess(section.index("verify_gates.py"), section.index("verify_rc7_visual_bundle.py"))
+        self.assertIn("github.event_name == 'workflow_dispatch'", qualify)
+        self.assertIn("github.ref == 'refs/heads/main'", qualify)
 
 
 if __name__ == "__main__":
