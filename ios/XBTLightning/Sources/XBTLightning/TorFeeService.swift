@@ -20,7 +20,7 @@ final class TorFeeService: NSObject, URLSessionTaskDelegate, @unchecked Sendable
             var proxy = ProxyConfiguration(socksv5Proxy: .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: proxyPort)!))
             proxy.allowFailover = false
             configuration.proxyConfigurations = [proxy]
-            configuration.timeoutIntervalForRequest = 2
+            configuration.timeoutIntervalForRequest = 8
             configuration.timeoutIntervalForResource = 8
             configuration.urlCache = nil
             session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)

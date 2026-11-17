@@ -9,7 +9,7 @@ cp "$root/ios/XBTLightning/Tests/XBTLightningTests/TorFeeFetchTests.swift" "$wor
 cat > "$work/Package.swift" <<'SWIFT'
 // swift-tools-version: 5.9
 import PackageDescription
-let package = Package(name: "TorFeeFetchTests", targets: [
+let package = Package(name: "TorFeeFetchTests", platforms: [.macOS(.v13)], targets: [
     .target(name: "XBTLightning"),
     .testTarget(name: "XBTLightningTests", dependencies: ["XBTLightning"])
 ])

@@ -6,7 +6,7 @@ final class TorFeeFetchTests: XCTestCase {
     private let data = Data("{}".utf8)
     private var policy: TorFeeFetch.Policy {
         var p = TorFeeFetch.Policy()
-        p.budget = 0.3; p.attemptTimeout = 0.05; p.retryDelay = 0.01; p.minimumAttempt = 0.01
+        p.budget = 0.3; p.retryDelay = 0.01; p.minimumAttempt = 0.01
         return p
     }
 
@@ -16,7 +16,7 @@ final class TorFeeFetchTests: XCTestCase {
         let fetch = TorFeeFetch(queue: queue, policy: policy, ready: { true }, transport: { timeout, reply in
             calls += 1
             XCTAssertGreaterThan(timeout, 0)
-            XCTAssertLessThanOrEqual(timeout, 0.05)
+            XCTAssertLessThanOrEqual(timeout, 0.3)
             reply(calls == 1 ? .failure(URLError(.cannotConnectToHost)) : .success(self.data))
             return {}
         }, completion: { result in
@@ -25,6 +25,25 @@ final class TorFeeFetchTests: XCTestCase {
         fetch.start()
         await fulfillment(of: [done], timeout: 2)
         queue.sync { XCTAssertEqual(calls, 2) }
+    }
+
+    func testSlowFirstResponseKeepsItsCircuit() async {
+        let done = expectation(description: "slow first response")
+        var calls = 0
+        let fetch = TorFeeFetch(queue: queue, ready: { true }, transport: { timeout, reply in
+            calls += 1
+            // Model a circuit whose first response needs three seconds. A two-
+            // second per-attempt timeout would repeatedly abandon this work.
+            self.queue.asyncAfter(deadline: .now() + min(timeout, 3)) {
+                reply(timeout < 3 ? .failure(URLError(.timedOut)) : .success(self.data))
+            }
+            return {}
+        }, completion: { result in
+            XCTAssertEqual(try? result.get(), self.data); done.fulfill()
+        })
+        fetch.start()
+        await fulfillment(of: [done], timeout: 5)
+        queue.sync { XCTAssertEqual(calls, 1) }
     }
 
     func testStoppedTorDoesNotStartTransport() async {
@@ -39,7 +58,7 @@ final class TorFeeFetchTests: XCTestCase {
     }
 
     func testNonTransientFailuresDoNotRetry() async {
-        for error in [URLError(.serverCertificateUntrusted) as Error,
+        for error in [URLError(.timedOut) as Error, URLError(.serverCertificateUntrusted) as Error,
                       URLError(.cancelled) as Error, NSError(domain: "invalid-fee-response", code: 1)] {
             let done = expectation(description: "failure")
             var calls = 0
@@ -151,7 +170,7 @@ final class TorFeeFetchTests: XCTestCase {
         var p = policy; p.minimumAttempt = 1
         var calls = 0
         let fetch = TorFeeFetch(queue: queue, policy: p, ready: { true }, transport: { _, reply in
-            calls += 1; reply(.failure(URLError(.timedOut))); return {}
+            calls += 1; reply(.failure(URLError(.cannotConnectToHost))); return {}
         }, completion: { result in
             XCTAssertNil(try? result.get()); done.fulfill()
         })

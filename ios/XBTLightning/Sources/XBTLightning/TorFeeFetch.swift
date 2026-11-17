@@ -10,7 +10,6 @@ final class TorFeeFetch {
     struct Policy {
         // Pinned LND WebAPIResponseTimeout is 10s. Leave time for loopback IO.
         var budget: TimeInterval = 8
-        var attemptTimeout: TimeInterval = 2
         var retryDelay: TimeInterval = 0.5
         var minimumAttempt: TimeInterval = 1
         var attempts = 3
@@ -67,7 +66,9 @@ final class TorFeeFetch {
         count += 1
         generation += 1
         let current = generation
-        cancelTransport = transport(min(policy.attemptTimeout, time)) { [weak self] result in
+        // A slow but progressing Tor circuit gets the remaining budget.
+        // Only an early connection failure leaves time for another attempt.
+        cancelTransport = transport(time) { [weak self] result in
             guard let self else { return }
             self.queue.async {
                 guard !self.finished, self.generation == current else { return }
@@ -106,7 +107,7 @@ final class TorFeeFetch {
     static func retryable(_ error: Error) -> Bool {
         let error = error as NSError
         guard error.domain == NSURLErrorDomain else { return false }
-        return [URLError.timedOut, .cannotFindHost, .cannotConnectToHost,
+        return [URLError.cannotFindHost, .cannotConnectToHost,
                 .networkConnectionLost, .dnsLookupFailed, .notConnectedToInternet]
             .contains { $0.rawValue == error.code }
     }
