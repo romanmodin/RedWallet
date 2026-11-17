@@ -1,0 +1,14 @@
+Kilowallet 1.0.0 — RC7 publisher candidate
+Draft: do not use for distribution until the exact signed build number and receipts are verified.
+
+Use synthetic or empty test wallets only. Check upgrade preservation, wallet switching and reopening: wallet identities, receive-address progress, labels, frozen/reserved coins, pending transactions, wallet-scoped Ark data, Lightning state/backups and JoinBlaket commitment history. Never include recovery words, RPC passwords, private keys or backup files in feedback.
+
+RC7 fixes the iOS LND streaming-call bridge used by Lightning payment, channel and invoice operations. Upstream reported "Not paid: no such LND call: routerSendPaymentV2" in RC6. Physical-phone payment, channel close/resize and receipt of funds have not been verified for this publisher candidate. Do not send real funds as part of these checks.
+
+Settings > BTC node & explorer now offers an own-node RPC connection for a Knots node on the BLAKE2b chain. Scan a synthetic RPC QR code, paste or type a connection, then inspect TEST and ADD. Multiple connections are tried in order. Plain HTTP is allowed only for local-network or onion endpoints; other endpoints require HTTPS. HTTPS requires comparing and explicitly trusting the certificate fingerprint before sending the RPC login; a changed certificate is refused. Onion connections use the built-in Tor.
+
+With RPC enabled, the selected node supplies on-chain balance/history and receives watch-only public descriptors; it can link the wallet's addresses and activity. Recovery words and private spending keys are not part of that RPC import. The RPC login is stored in the iOS Keychain. First wallet scanning/import can take several minutes. Kilojoin and JoinBlaket still use the Electrum server. Test this only with an isolated synthetic wallet/node, not an existing production wallet or production RPC credentials.
+
+RC7 retains JoinBlaket, existing coin controls and backups. Keep the app open for collaborative rounds; iOS only allows limited background time. A signed transaction with an unresolved broadcast remains pending and blocks conflicting work.
+
+Publisher validation so far: nine RPC transport/error tests, 106 desktop application tests, and four migration checks each for 0.4.0 and 0.4.1, all passing against source 3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3. Native simulator/device compilation, visual review, protected signing/upload and Apple processing remain release gates. No physical iPhone installation or real financial transaction is claimed. Replace this paragraph with verified final results and report the exact assigned build number before publishing these notes.
