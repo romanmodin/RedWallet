@@ -1,14 +1,17 @@
+import { address } from 'bitcoinjs-lib';
 /** Durable round reservation adapter for XBT wallets. Contains no private keys. */
+import { RoundJournal, holdsCoins, validateRound } from '../../joinblaket/round';
 import { Journal, JournalStore, validateJournal } from './round';
 export interface ReservationWallet {
   getID(): string;
   _kilojoinJournals?: Record<string, Journal>;
+  _joinblaketJournals?: Record<string, RoundJournal>;
+  _joinblaketRetiredAttempts?: Record<string, string>;
 }
 const pending = new WeakSet<ReservationWallet>();
 export function reservedCoins(wallet: ReservationWallet): Set<string> {
   if (pending.has(wallet)) throw new Error('CoinJoin reservation write pending');
-  const records = wallet._kilojoinJournals;
-  if (records === undefined) return new Set(); // Existing wallets predate this field.
+  const records = wallet._kilojoinJournals === undefined ? {} : wallet._kilojoinJournals;
   if (!records || typeof records !== 'object' || Array.isArray(records) || Object.keys(records).length > 100)
     throw new Error('Invalid CoinJoin wallet journal');
   const reserved = new Set<string>();
@@ -20,7 +23,68 @@ export function reservedCoins(wallet: ReservationWallet): Set<string> {
       reserved.add(coin);
     }
   }
+  const payments = wallet._joinblaketJournals;
+  if (payments !== undefined) {
+    if (!payments || typeof payments !== 'object' || Array.isArray(payments) || Object.keys(payments).length > 100)
+      throw new Error('Invalid JoinBlaket wallet journal');
+    for (const [id, value] of Object.entries(payments)) {
+      const j = validateRound(value);
+      if (j.walletId !== wallet.getID() || j.attemptId !== id) throw new Error('JoinBlaket journal identity mismatch');
+      if (!holdsCoins(j.phase)) continue;
+      for (const coin of j.reserved) {
+        if (reserved.has(coin)) throw new Error('Conflicting CoinJoin reservations');
+        reserved.add(coin);
+      }
+    }
+  }
+  const retired = wallet._joinblaketRetiredAttempts;
+  if (retired !== undefined) {
+    if (!retired || typeof retired !== 'object' || Array.isArray(retired) || Object.keys(retired).length > 100000)
+      throw new Error('Invalid JoinBlaket retired history');
+    for (const [id, script] of Object.entries(retired)) {
+      if (!/^[0-9a-f]{64}$/.test(id) || typeof script !== 'string' || !/^0014[0-9a-f]{40}$/.test(script) || payments?.[id])
+        throw new Error('Invalid JoinBlaket retired attempt');
+    }
+  }
   return reserved;
+}
+/** Never reuse a change script previously disclosed for a JoinBlaket attempt. */
+export function heldJoinBlaketChangeScripts(wallet: ReservationWallet): Set<string> {
+  reservedCoins(wallet); // Includes identity/corruption checks and pending-write exclusion.
+  return new Set([
+    ...Object.values(wallet._joinblaketJournals ?? {}).map(j => j.changeScript),
+    ...Object.values(wallet._joinblaketRetiredAttempts ?? {}),
+  ]);
+}
+export function assertJoinBlaketChangeUnreserved(wallet: ReservationWallet, changeAddress: string): void {
+  const held = heldJoinBlaketChangeScripts(wallet);
+  if (held.size && held.has(Buffer.from(address.toOutputScript(changeAddress)).toString('hex')))
+    throw new Error('Change address reserved by JoinBlaket');
+}
+/** Both protocols share the same write lock; normal sends fail closed while it is held. */
+export async function persistReservationChange(
+  wallet: ReservationWallet,
+  apply: () => void,
+  rollback: () => void,
+  saveDurably: () => Promise<void>,
+): Promise<void> {
+  reservedCoins(wallet);
+  try {
+    apply();
+    reservedCoins(wallet);
+  } catch (error) {
+    rollback();
+    throw error;
+  }
+  pending.add(wallet);
+  try {
+    await saveDurably();
+  } catch (error) {
+    rollback();
+    throw error;
+  } finally {
+    pending.delete(wallet);
+  }
 }
 export function assertUnreserved(wallet: ReservationWallet, inputs: { txid: string; vout: number }[]): void {
   const reserved = reservedCoins(wallet);
@@ -66,24 +130,15 @@ export class WalletJournalStore implements JournalStore {
       )
         throw new Error('Invalid persisted round transition');
     }
-    const records = { ...before, [next.poolId]: next };
-    this.wallet._kilojoinJournals = records;
-    try {
-      reservedCoins(this.wallet);
-    } catch (error) {
-      this.wallet._kilojoinJournals = before;
-      throw error;
-    }
-    pending.add(this.wallet);
-    try {
-      // This callback MUST reject on persistence errors. Do not pass a UI save helper
-      // that catches errors or returns before the durable write finishes.
-      await this.saveDurably();
-    } catch (error) {
-      this.wallet._kilojoinJournals = before;
-      throw error;
-    } finally {
-      pending.delete(this.wallet);
-    }
+    await persistReservationChange(
+      this.wallet,
+      () => {
+        this.wallet._kilojoinJournals = { ...before, [next.poolId]: next };
+      },
+      () => {
+        this.wallet._kilojoinJournals = before;
+      },
+      this.saveDurably,
+    );
   }
 }

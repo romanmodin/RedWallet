@@ -1,3 +1,6 @@
+import { JoinBlaketWalletStore } from './joinblaket/wallet-store';
+import { CommitmentStore } from './joinblaket/commitments';
+import { WalletCommitmentPersistence } from './joinblaket/commitment-wallet-store';
 import { BtcWatchOnlyWallet } from './wallets/btc-watch-only-wallet';
 import { BtcSegwitBech32Wallet } from './wallets/btc-segwit-bech32-wallet';
 import { isBtcWallet } from '../blue_modules/wallet-network';
@@ -81,6 +84,7 @@ export class BlueApp {
   static keys2migrate = [BlueApp.HANDOFF_STORAGE_KEY, BlueApp.DO_NOT_TRACK];
 
   private storageLoadBlocked = false;
+  private readonly joinblaketCommitmentStores = new WeakMap<XbtSegwitBech32Wallet, CommitmentStore>();
 
   public cachedPassword?: false | string;
   public tx_metadata: TTXMetadata;
@@ -583,6 +587,32 @@ export class BlueApp {
     if (!this.wallets.includes(wallet)) throw new Error('CoinJoin wallet is not in active storage');
     return new WalletJournalStore(wallet, async () => {
       if (!this.wallets.includes(wallet)) throw new Error('CoinJoin wallet was removed');
+      await this.saveToDisk(true);
+    });
+  }
+
+  createJoinBlaketCommitmentStore(wallet: XbtSegwitBech32Wallet): CommitmentStore {
+    if (!this.wallets.includes(wallet)) throw new Error('JoinBlaket wallet is not in active storage');
+    let store = this.joinblaketCommitmentStores.get(wallet);
+    if (!store) {
+      store = new CommitmentStore(
+        new WalletCommitmentPersistence(
+          wallet,
+          () => this.saveToDisk(true),
+          () => {
+            if (!this.wallets.includes(wallet)) throw new Error('JoinBlaket wallet was removed');
+          },
+        ),
+      );
+      this.joinblaketCommitmentStores.set(wallet, store);
+    }
+    return store;
+  }
+
+  createJoinBlaketJournalStore(wallet: XbtSegwitBech32Wallet): JoinBlaketWalletStore {
+    if (!this.wallets.includes(wallet)) throw new Error('JoinBlaket wallet is not in active storage');
+    return new JoinBlaketWalletStore(wallet, async () => {
+      if (!this.wallets.includes(wallet)) throw new Error('JoinBlaket wallet was removed');
       await this.saveToDisk(true);
     });
   }
