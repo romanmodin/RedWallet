@@ -373,7 +373,10 @@ const ScanQRCode = () => {
             autoCapitalize="none"
             spellCheck={false}
             selectTextOnFocus={false}
-            keyboardType={Platform.OS === 'android' ? 'visible-password' : 'default'}
+            // UIKit disables smart quotes for email keyboards. QR contents must stay byte-for-byte intact.
+            keyboardType={Platform.OS === 'android' ? 'visible-password' : 'email-address'}
+            textContentType="none"
+            smartInsertDelete={false}
             value={backdoorText}
             onChangeText={setBackdoorText}
           />

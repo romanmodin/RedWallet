@@ -1,12 +1,13 @@
 import React from 'react';
 import { View } from 'react-native';
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { CryptoPSBT } from '@keystonehq/bc-ur-registry';
 import BIP32Factory from 'bip32';
 import ecc from '../../blue_modules/noble_ecc';
 import { createHardwareSigningFixture, verifyHardwareSigningFixture } from '../../scripts/diagnostics/hardware-signing-fixture';
 import { splitQRs } from '../../blue_modules/bbqr/split';
 import { encodeUR as encodeLegacy } from '../../blue_modules/bc-ur/dist';
+import { parseHardwareCheckAccount } from '../../class/hardware/offline-signing';
 import ScanQRCode from '../../screen/send/ScanQRCode';
 
 const mockGoBack = jest.fn();
@@ -296,4 +297,18 @@ test('a throwing consumer cannot crash the scanner or cause a second delivery', 
   } finally {
     warning.mockRestore();
   }
+});
+
+test.each([false, true])('manual public-account handoff preserves punctuation exactly (already curly %s)', async curly => {
+  const original = JSON.stringify(first.account);
+  const entered = curly ? original.replace(/"/g, '\u201d').replace(/'/g, '\u2019') : original;
+  const view = await open();
+  for (let i = 0; i < 6; i++) fireEvent.press(view.getByTestId('ScanQrBackdoorButton'));
+  fireEvent.changeText(view.getByTestId('scanQrBackdoorInput'), entered);
+  fireEvent.press(view.getByTestId('scanQrBackdoorOkButton'));
+  expect(mockOnScanned).toHaveBeenCalledTimes(1);
+  expect(mockOnScanned).toHaveBeenCalledWith(entered, false);
+  expect(mockGoBack).toHaveBeenCalledTimes(1);
+  if (curly) expect(() => parseHardwareCheckAccount(entered)).toThrow();
+  else expect(parseHardwareCheckAccount(entered)).toEqual(first.account);
 });
