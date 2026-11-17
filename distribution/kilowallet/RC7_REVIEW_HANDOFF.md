@@ -40,3 +40,7 @@ This table is factual preparation, not an export-compliance determination or a l
 ## Remaining limits
 
 No RC7 signed upload, Apple processing, TestFlight installation eligibility, native visual approval, physical iPhone installation or real financial transaction is established by this package. RC6 1.0.0 (21) is the last verified distributed build. Current RC6 active notes and privacy URL remain in force until a qualified replacement is ready.
+
+## Complete privacy-policy draft
+
+RC7_PRIVACY_DRAFT.md carries forward RC6 service/export disclosures and adds the source-reviewed own-node RPC data flow, Keychain access policy, local HTTP exposure, certificate verification and remote node retention limits. It is not the active privacy URL. Reconcile existing operator statements before publication; do not silently replace the current submitted policy.
