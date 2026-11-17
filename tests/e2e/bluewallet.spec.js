@@ -234,7 +234,7 @@ describe('RedWallet UI Tests - no wallets', () => {
     await waitForKeyboardToClose();
     await element(by.id('BroadcastButton')).tap();
     await waitForText('OK');
-    // await expect(element(by.text('the transaction was rejected by network rules....'))).toBeVisible();
+    await waitForText('Broadcast failed.');
     await element(by.text('OK')).tap();
     await goBack();
 
