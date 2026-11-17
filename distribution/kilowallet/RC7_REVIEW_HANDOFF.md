@@ -52,3 +52,9 @@ RC7_PRIVACY_DRAFT.md carries forward RC6 service/export disclosures and adds the
 ## Machine-enforced preparation hold
 
 verify_rc7_preparation.py rejects missing/false/non-boolean readyForSigning, outstanding blockers, wrong candidate/run pins and unqualified screenshot/RPC/startup evidence before the credentialed jobs. It runs again before signing. It does not replace the separate native-tree checks, downloaded artifact hashes or manual visual receipt validation. Current committed preparation remains blocked.
+
+## RC7 visual bundle preparation
+
+The signing workflow now invokes verify_rc7_visual_bundle.py in qualification and immediately before signing. It fetches three pinned CI artifacts and verifies current-attempt success, actual checkout trees, API and downloaded ZIP digests, exact screenshot sets, dimensions and reviewed pixel hashes. Native76 images are preserved in their original receipt; only rejected startup09 is explicitly replaced with the successful diagnostic frame. Three RPC states remain pending. The effective reviewed set will contain79 images. Existing RC6 visual receipts/verifiers remain unchanged for the active release.
+
+The committed rc7-visual-review.json is deliberately unapproved. The actual pending manifest is rejected before fetching or signing. All65 offline release safety tests pass; both existing downloaded native and startup ZIPs pass pixel verification. RPC diagnostic fixtures are explicitly attributed to their different source and do not substitute for full native production qualification, device testing or live RPC connectivity.
