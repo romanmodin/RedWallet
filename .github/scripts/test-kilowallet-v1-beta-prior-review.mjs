@@ -5,7 +5,7 @@ import { PRIOR_BUILD, PRIOR_PATH, readPriorReview } from "./kilowallet-v1-beta-p
 import { clients } from "./kilowallet-v1-beta-client.mjs";
 const rel=(type,id)=>({data:{type,id}});
 function fixture(state="WAITING_FOR_REVIEW") {
-  return { data: { type:"builds", id:PRIOR_BUILD, attributes:{version:"8"},
+  return { data: { type:"builds", id:PRIOR_BUILD, attributes:{version:"21"},
     relationships:{ app:rel("apps",APP),preReleaseVersion:rel("preReleaseVersions","train"),
       buildBetaDetail:rel("buildBetaDetails","detail"),
       betaAppReviewSubmission:rel("betaAppReviewSubmissions","review") }},
@@ -28,6 +28,12 @@ test("both active review states block another build; only the fixed prior-build 
 });
 test("approved prior beta is distinguished from pending review",async()=>{
   assert.equal((await readPriorReview(async()=>fixture("APPROVED"))).blocksAnotherBuildReview,false);
+});
+test("unknown or contradictory settled prior review cannot authorize a new submission",async()=>{
+  for (const external of ["NEW_APPLE_STATE","READY_FOR_BETA_SUBMISSION","BETA_REJECTED"]) {
+    const b=fixture("APPROVED"); b.included[2].attributes.externalBuildState=external;
+    await assert.rejects(readPriorReview(async()=>b),/settled prior review/);
+  }
 });
 test("explicit null review is accepted only with consistent beta state",async()=>{
   const b=fixture();b.data.relationships.betaAppReviewSubmission={data:null};
