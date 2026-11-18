@@ -29,6 +29,7 @@ import {
   waitForWalletsList,
 } from './lifecycle-helperz';
 import { launchNativeClean } from './launch-native-clean';
+import { settleIosHostKeyboard } from './tls-host-keyboard';
 import vectors from '../fixtures/native-lifecycle-vectors.json';
 import english from '../../loc/en.json';
 import { XBT_ELECTRUM_PRESETS } from '../../class/xbt/electrum-presets';
@@ -158,7 +159,11 @@ async function configureNative(backend: KnotsFulcrumHarness, testRejections: boo
   await waitForId('ElectrumConnectionEnabledSwitch');
   if (await getSwitchValue('ElectrumConnectionEnabledSwitch')) await element(by.id('ElectrumConnectionEnabledSwitch')).tap();
   await fieldVisible('HostInput');
-  await field('HostInput').replaceText(device.getPlatform() === 'android' ? '10.0.2.2' : '127.0.0.1');
+  const host = device.getPlatform() === 'android' ? '10.0.2.2' : '127.0.0.1';
+  await field('HostInput').replaceText(host);
+  // Wait for keyboard dismissal before scrolling/editing the port, as in the
+  // TLS and hardware flows. Otherwise the moving viewport can clip the field.
+  await settleIosHostKeyboard({ device, element, by, waitFor }, host);
   await fieldVisible('PortInput');
   await element(by.id('PortInput')).replaceText(String(backend.tlsPort));
   await fieldVisible('SSLPortInput');

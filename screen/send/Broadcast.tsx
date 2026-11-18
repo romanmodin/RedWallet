@@ -48,23 +48,24 @@ const Broadcast: React.FC = () => {
     Keyboard.dismiss();
     setBroadcastResult(BROADCAST_RESULT.pending);
     try {
+      // Reject malformed input locally, even when the Electrum server is offline.
+      // Check complete byte pairs because hex decoding can ignore invalid suffixes.
+      if (!txHex || !/^(?:[0-9a-f]{2})+$/i.test(txHex)) throw new Error(loc.errors.broadcast);
+      const newTx = bitcoin.Transaction.fromHex(txHex);
       if (!(await BlueElectrum.ensureConnected())) {
         throw new Error(loc.errors.network);
       }
       const walletObj = new HDSegwitBech32Wallet();
-      if (txHex) {
-        const result = await walletObj.broadcastTx(txHex);
-        if (result) {
-          const newTx = bitcoin.Transaction.fromHex(txHex);
-          const txid = newTx.getId();
-          setTx(txid);
+      const result = await walletObj.broadcastTx(txHex);
+      if (result) {
+        const txid = newTx.getId();
+        setTx(txid);
 
-          setBroadcastResult(BROADCAST_RESULT.success);
-          triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
-          majorTomToGroundControl([], [], [txid]);
-        } else {
-          setBroadcastResult(BROADCAST_RESULT.error);
-        }
+        setBroadcastResult(BROADCAST_RESULT.success);
+        triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
+        majorTomToGroundControl([], [], [txid]);
+      } else {
+        setBroadcastResult(BROADCAST_RESULT.error);
       }
     } catch (error: any) {
       presentAlert({ title: loc.errors.error, message: error.message });

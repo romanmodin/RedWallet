@@ -1,3 +1,11 @@
+import { verifyPublicFundingSeparation } from '../class/xbt/separation-service';
+import {
+  assertStandardHardwareReleased,
+  assertStandardHardwareResult,
+  requestFundingInputs,
+  verifyStandardHardwareFunding,
+} from '../class/xbt/standard-hardware';
+import { Psbt } from 'bitcoinjs-lib';
 import { validateBackupServers, serverKey } from '../class/xbt/server-backups';
 import BigNumber from 'bignumber.js';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -1784,8 +1792,19 @@ async function fetchBlockTipFromServer(): Promise<number | null> {
   return latestBlock.height ?? null;
 }
 
-/** Last server-reported tip, refreshed when possible; never invents blocks from elapsed time. */
-export async function getReportedBlockTip(): Promise<number | null> {
+/** Last reported tip for display, or a fresh connection-bound tip for spend authorization. */
+export async function getReportedBlockTip(requireFresh = false): Promise<number | null> {
+  if (requireFresh) {
+    const client = mainClient;
+    const generation = disconnectGeneration;
+    if (!client) return null;
+    const header = await boundedRequest<{ height: number }>(client.blockchainHeaders_subscribe(), 20000);
+    if (client !== mainClient || generation !== disconnectGeneration)
+      throw new Error('Electrum connection changed during tip verification');
+    if (!Number.isSafeInteger(header?.height) || header.height <= 0) return null;
+    latestBlock = { height: header.height, time: Math.floor(Date.now() / 1000) };
+    return header.height;
+  }
   const height = await fetchBlockTipFromServer();
   return height !== null && Number.isSafeInteger(height) && height > 0 ? height : null;
 }
@@ -1915,3 +1934,31 @@ const semVerToInt = function (semver: string): number {
 
   return ret;
 };
+
+/** Separate, proof-gated transport; existing Unified-only callers remain unchanged. */
+export async function broadcastStandardHardware(hex: string, request: Psbt, assertStillAuthorized: () => void): Promise<string> {
+  assertStandardHardwareReleased();
+  assertStandardHardwareResult(hex, request);
+  const client = mainClient;
+  const generation = disconnectGeneration;
+  if (!client) throw new Error('Electrum client is not connected');
+  const assertCurrent = () => {
+    assertStillAuthorized();
+    if (client !== mainClient || generation !== disconnectGeneration)
+      throw new Error('Electrum connection changed during protection verification');
+  };
+  const checked = async <T>(read: () => Promise<T>): Promise<T> => {
+    assertCurrent();
+    const result = await read();
+    assertCurrent();
+    return result;
+  };
+  await verifyStandardHardwareFunding(requestFundingInputs(request), {
+    raw: ids => checked(() => multiGetTransactionByTxid(ids, false)),
+    history: addresses => checked(() => multiGetHistoryByAddress(addresses)),
+    tip: () => checked(() => getReportedBlockTip(true)),
+    separation: parents => verifyPublicFundingSeparation(parents, assertCurrent),
+  });
+  assertCurrent();
+  return client.blockchainTransaction_broadcast(hex);
+}

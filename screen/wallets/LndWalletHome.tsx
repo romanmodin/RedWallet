@@ -1,3 +1,7 @@
+import CrossChainLightning from '../../components/CrossChainLightning';
+import { bridgeStore } from '../../blue_modules/lightning-bridge/runtime';
+import { SwapRecord } from '../../blue_modules/lightning-bridge/state';
+import { formatMsat } from '../../blue_modules/lightning-bridge/invoice';
 import LndBalanceBreakdown from '../../components/LndBalanceBreakdown';
 import React, { useCallback, useLayoutEffect, useEffect, useRef, useState } from 'react';
 import {
@@ -73,6 +77,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<'transactions' | 'funding'>('transactions');
   const [pages, setPages] = useState<Pages>({});
+  const [crossHistory, setCrossHistory] = useState<{ hash?: string }>();
+  const [crossRecords, setCrossRecords] = useState<Record<string, SwapRecord>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const [message, setMessage] = useState('Checking Lightning connection…');
@@ -133,6 +139,13 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             ...(previous && !more && previous.rows.length > 100 ? { next: previous.next, more: previous.more } : {}),
             rows: merge(previous?.rows ?? [], page.rows),
           };
+        }
+        if (bridge.bridgePayment) {
+          const stored = await bridgeStore.read();
+          if (!focused.current || generation.current !== requestGeneration) return;
+          setCrossRecords(
+            Object.fromEntries(stored.records.filter(item => item.node === wallet.overview?.node).map(item => [item.hash, item])),
+          );
         }
         if (!focused.current || generation.current !== requestGeneration) return;
         setPages(old => ({ ...old, ...updates }));
@@ -225,6 +238,10 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
     }
   };
   const details = (row: LndActivity) => {
+    if (row.direction === 'sent' && crossRecords[row.id]) {
+      setCrossHistory({ hash: row.id });
+      return;
+    }
     const text =
       exactAmount(row.sats) +
       ' · ' +
@@ -253,7 +270,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                       text: 'Cancel invoice',
                       style: 'destructive',
                       onPress: () => {
-                        void cancelInvoice(row);
+                        cancelInvoice(row);
                       },
                     },
                   ],
@@ -291,9 +308,18 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       style={[styles.row, { borderBottomColor: colors.lightBorder }]}
     >
       <View style={styles.rowBody}>
-        <Text style={[styles.rowTitle, { color: isCanceled(item) ? colors.alternativeTextColor : colors.foregroundColor }]}>
+        <Text
+          style={[
+            styles.rowTitle,
+            {
+              color: isCanceled(item) ? colors.alternativeTextColor : colors.foregroundColor,
+            },
+          ]}
+        >
           {item.direction === 'sent'
-            ? '↗ Payment'
+            ? crossRecords[item.id]
+              ? 'Cross-chain Lightning — XBT → SHA256'
+              : '↗ Payment'
             : item.state === 'unpaid'
               ? 'Invoice · Awaiting payment'
               : item.confirmations === undefined && item.state !== 'settled'
@@ -301,7 +327,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                 : '↙ Received'}
         </Text>
         <Text style={{ color: colors.alternativeTextColor }}>
-          {item.state}
+          {item.direction === 'sent' && crossRecords[item.id] ? crossRecords[item.id].state : item.state}
           {item.confirmations !== undefined ? ' · ' + item.confirmations + ' confirmations' : ''} ·{' '}
           {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
         </Text>
@@ -327,12 +353,25 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           },
         ]}
       >
-        {wallet.hideBalance ? '••••' : (isCanceled(item) ? '' : item.direction === 'sent' ? '−' : '+') + formatAmount(item.sats)}
+        {wallet.hideBalance
+          ? '••••'
+          : (isCanceled(item) ? '' : item.direction === 'sent' ? '−' : '+') +
+            (item.direction === 'sent' && crossRecords[item.id]?.quote
+              ? formatMsat(crossRecords[item.id].quote!.payMsat) + ' XBT sats'
+              : formatAmount(item.sats))}
       </Text>
     </Pressable>
   );
   return (
     <View testID="LndWalletHome" style={[styles.root, { backgroundColor: colors.background }]}>
+      {crossHistory && (
+        <CrossChainLightning
+          initialHash={crossHistory.hash}
+          hideHistoryAmounts={wallet.hideBalance}
+          onClose={() => setCrossHistory(undefined)}
+          canSubmit={() => focused.current}
+        />
+      )}
       <View
         style={[
           styles.hero,
@@ -418,6 +457,16 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         contentContainerStyle={{ paddingBottom: 170 + insets.bottom }}
         ListHeaderComponent={
           <>
+            {tab === 'transactions' && bridge.bridgePayment && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cross-chain payment history"
+                style={styles.load}
+                onPress={() => setCrossHistory({})}
+              >
+                <Text style={{ color: colors.foregroundColor }}>Cross-chain payment history</Text>
+              </Pressable>
+            )}
             {!!overview && (
               <LndBalanceBreakdown overview={overview} hidden={wallet.hideBalance === true} stale={!ready} format={formatAmount} />
             )}
@@ -447,18 +496,38 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
               <View style={styles.stack}>
                 <View
                   pointerEvents="none"
-                  style={[styles.stackLayer, styles.stackBack, { backgroundColor: colors.background, borderColor: colors.lightBorder }]}
+                  style={[
+                    styles.stackLayer,
+                    styles.stackBack,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.lightBorder,
+                    },
+                  ]}
                 />
                 <View
                   pointerEvents="none"
-                  style={[styles.stackLayer, styles.stackMiddle, { backgroundColor: colors.background, borderColor: colors.lightBorder }]}
+                  style={[
+                    styles.stackLayer,
+                    styles.stackMiddle,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.lightBorder,
+                    },
+                  ]}
                 />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={'Canceled invoices · ' + canceled.length}
                   accessibilityState={{ expanded: canceledExpanded }}
                   onPress={() => setCanceledExpanded(value => !value)}
-                  style={[styles.stackFront, { backgroundColor: colors.background, borderColor: colors.lightBorder }]}
+                  style={[
+                    styles.stackFront,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.lightBorder,
+                    },
+                  ]}
                 >
                   <Text style={[styles.rowTitle, { color: colors.alternativeTextColor }]}>Canceled invoices · {canceled.length}</Text>
                   <Text style={{ color: colors.alternativeTextColor }}>
@@ -512,7 +581,12 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   stack: { marginHorizontal: 16, marginVertical: 12, paddingBottom: 8 },
-  stackLayer: { position: 'absolute', borderWidth: 1, borderRadius: 14, height: 40 },
+  stackLayer: {
+    position: 'absolute',
+    borderWidth: 1,
+    borderRadius: 14,
+    height: 40,
+  },
   stackBack: { bottom: 0, left: 12, right: 12 },
   stackMiddle: { bottom: 4, left: 6, right: 6 },
   stackFront: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 6 },
@@ -535,12 +609,33 @@ const styles = StyleSheet.create({
   headerLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   label: { flex: 1, minWidth: 0, color: '#FFE7EA', fontSize: 20 },
   balance: { color: '#FFFFFF', fontSize: 36, fontWeight: '700', marginTop: 12 },
-  balanceLabel: { textTransform: 'uppercase', color: '#FFE7EA', fontSize: 12, marginTop: 4 },
+  balanceLabel: {
+    textTransform: 'uppercase',
+    color: '#FFE7EA',
+    fontSize: 12,
+    marginTop: 4,
+  },
   fiat: { color: '#FFFFFF', marginTop: 10 },
-  status: { textTransform: 'uppercase', color: '#FFE7EA', marginTop: 10, fontSize: 12 },
+  status: {
+    textTransform: 'uppercase',
+    color: '#FFE7EA',
+    marginTop: 10,
+    fontSize: 12,
+  },
   tabs: { flexDirection: 'row', borderBottomWidth: 1 },
-  tab: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', paddingVertical: 18, paddingHorizontal: 16 },
-  fundingTab: { flex: 0, minWidth: 76, alignItems: 'center', paddingHorizontal: 12 },
+  tab: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+  },
+  fundingTab: {
+    flex: 0,
+    minWidth: 76,
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
   fundingTabTitle: { fontSize: 12, fontWeight: '600' },
   tabTitle: { fontSize: 24, fontWeight: '700' },
   menu: { padding: 10 },
@@ -560,8 +655,20 @@ const styles = StyleSheet.create({
   fundingAction: { backgroundColor: '#3A3A3C' },
   secondary: { minHeight: 54 },
   secondaryTitle: { textTransform: 'uppercase', fontSize: 15 },
-  actionTitle: { textTransform: 'uppercase', fontSize: 20, fontWeight: '700', textAlign: 'center', color: '#FFFFFF' },
-  actionSubtitle: { textTransform: 'uppercase', fontSize: 12, textAlign: 'center', marginTop: 2, color: '#FFFFFF' },
+  actionTitle: {
+    textTransform: 'uppercase',
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: '#FFFFFF',
+  },
+  actionSubtitle: {
+    textTransform: 'uppercase',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 2,
+    color: '#FFFFFF',
+  },
   footer: {
     position: 'absolute',
     bottom: 0,

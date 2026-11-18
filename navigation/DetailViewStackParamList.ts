@@ -126,6 +126,7 @@ export type DetailViewStackParamList = {
   SelfTest: undefined;
   ReleaseNotes: undefined;
   SettingsTools: undefined;
+  HardwareSigningCheck: undefined;
   ViewEditMultisigCosigners: {
     walletID: string;
     cosigners: string[];

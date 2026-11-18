@@ -345,3 +345,7 @@ Each locale lives in its own file under [`vocabulary/`](vocabulary/). One Markdo
 ## XBT account grouping (2026-11-12)
 
 SegWit and Taproot retain their protocol names. Account means a BIP84/BIP86 derivation account; Russian uses «счёт», grouping «объединить счета», default receive type «тип адреса для получения по умолчанию». Grouping is presentation metadata and does not move funds or combine keys. Other locales fall back to English for the new xbt_accounts section.
+
+## Russian hardware signing check
+
+The offline check uses the existing Russian terms «Отпечаток мастер-ключа» for master fingerprint and «сатоши» for sats. Hardware signing check is «Проверка аппаратной подписи»; change is «Сдача»; fee is «Комиссия». Native SegWit, Sparrow and QR remain protocol/product names. “Chain separation” in this diagnostic means «разделение монет между цепочками», not creation of a new chain. These strings describe a nonspendable test, not a payment.

@@ -3,8 +3,15 @@ on:
   pull_request:
     paths:
       - 'ios/XBTLightning/**'
+      - 'blue_modules/lightning-bridge/**'
+      - 'components/CrossChainLightning.tsx'
+      - 'tests/unit/lightning-bridge.test.ts'
+      - 'tests/integration/lightning-cross-chain-bridge.test.ts'
+      - 'tests/unit/cross-chain-lightning.test.tsx'
       - 'ios/BlueWallet/XBTLightningBridge.*'
       - 'screen/settings/XBTLightning.tsx'
+      - 'components/XBTLightningNodeName.tsx'
+      - 'tests/unit/xbt-lightning-node-name.test.tsx'
       - 'screen/send/psbtWithHardwareWallet.tsx'
       - 'screen/send/SendDetails.tsx'
       - 'class/wallet-import.ts'
@@ -28,16 +35,27 @@ on:
       - 'tests/unit/lnd-payment-status.test.ts'
       - '.github/workflows/xbt-lnd-ios.yml'
       - '.github/scripts/xbt-lnd-regtest-*'
+      - '.github/scripts/test-tor-fee-fetch.sh'
 permissions:
   contents: read
 concurrency:
   group: xbt-lnd-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
+  tor-fee-unit:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - run: bash .github/scripts/test-tor-fee-fetch.sh
   release-policy:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - run: python3 .github/scripts/test-ios-release-gates.py
   regtest:
     strategy:
@@ -48,6 +66,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
           ruby-version: '3.4.10'
@@ -67,7 +87,7 @@ jobs:
           git -C "$dir/peer-src" fetch -q --depth=1 https://github.com/Kilombino/lnd.git cae303b36594a2c48c9ce0cbb238672e3a1b284e
           git -C "$dir/peer-src" checkout -q --detach FETCH_HEAD
           cd "$dir/peer-src"
-          go build -tags="routerrpc invoicesrpc watchtowerrpc wtclientrpc" -o "$dir/ln-bin/" ./cmd/lnd ./cmd/lncli
+          go build -tags="routerrpc invoicesrpc watchtowerrpc wtclientrpc offersrpc" -o "$dir/ln-bin/" ./cmd/lnd ./cmd/lncli
       - name: Start a private compact-filter chain peer
         run: |
           set -euo pipefail
@@ -130,6 +150,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
           ruby-version: '3.4.10'
@@ -149,6 +171,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
         with:
           ruby-version: '3.4.10'

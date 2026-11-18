@@ -5,6 +5,7 @@ import XCTest
 // Disposable simulator identity; no funding, channels, or payments.
 final class MainnetSmokeTests: XCTestCase {
     func testPublicXBTNodeSyncsWithoutHomeServer() async throws {
+        _ = try await RegtestNode.shared.saveNodeName("RedWallet CI")
         try await RegtestNode.shared.startSelectedMainnet(peer: "")
         let selection = try await RegtestNode.shared.savedMainnetPeer()
         XCTAssertEqual(selection, "")
@@ -24,6 +25,14 @@ final class MainnetSmokeTests: XCTestCase {
         }
         XCTAssertTrue(ready, "Public XBT sync did not finish; no funds were used")
         guard ready else { return }
+        let before = try ProtoFields(await XBTLightningNode.info())
+        XCTAssertEqual(try before.string(2), "RedWallet CI")
+        let nameState = try await RegtestNode.shared.saveNodeName("RedWallet CI renamed")
+        XCTAssertEqual(nameState["restartRequired"] as? Bool, true)
+        let after = try ProtoFields(await XBTLightningNode.info())
+        XCTAssertEqual(try after.string(1), try before.string(1))
+        XCTAssertEqual(try after.string(2), "RedWallet CI")
+        _ = try await RegtestNode.shared.saveNodeName("RedWallet CI")
         let detail = try await RegtestNode.shared.details()
         XCTAssertTrue(detail.contains("Synced: yes"))
         let address = try await RegtestNode.shared.fundingAddress()

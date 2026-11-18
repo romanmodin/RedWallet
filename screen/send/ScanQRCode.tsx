@@ -1,7 +1,7 @@
 import { RouteProp, StackActions, useIsFocused, useRoute } from '@react-navigation/native';
 import * as bitcoin from 'bitcoinjs-lib';
 import { sha256 } from '@noble/hashes/sha256';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import Base43 from '../../blue_modules/base43';
 import * as fs from '../../blue_modules/fs';
@@ -19,8 +19,6 @@ import { SendDetailsStackParamList } from '../../navigation/SendDetailsStackPara
 import { BlueSpacing40 } from '../../components/BlueSpacing';
 import { BlueLoading } from '../../components/BlueLoading.tsx';
 import { hexToUint8Array, uint8ArrayToBase64, uint8ArrayToHex, uint8ArrayToString } from '../../blue_modules/uint8array-extras/index.js';
-
-let decoder: BlueURDecoder | undefined;
 
 type RouteProps = RouteProp<SendDetailsStackParamList, 'ScanQRCode'>;
 
@@ -44,8 +42,22 @@ const styles = StyleSheet.create({
     left: '50%',
     transform: [{ translateX: -30 }],
   },
-  backdoorInputWrapper: { position: 'absolute', left: '5%', top: '10%', width: '90%', height: '70%', backgroundColor: 'white' },
-  progressWrapper: { position: 'absolute', alignSelf: 'center', alignItems: 'center', top: '50%', padding: 8, borderRadius: 8 },
+  backdoorInputWrapper: {
+    position: 'absolute',
+    left: '5%',
+    top: '10%',
+    width: '90%',
+    height: '70%',
+    backgroundColor: 'white',
+  },
+  progressWrapper: {
+    position: 'absolute',
+    alignSelf: 'center',
+    alignItems: 'center',
+    top: '50%',
+    padding: 8,
+    borderRadius: 8,
+  },
   backdoorInput: {
     height: '50%',
     marginTop: 5,
@@ -65,7 +77,6 @@ const ScanQRCode = () => {
   const defaultLaunchedBy = previousRoute ? previousRoute.name : undefined;
 
   const { launchedBy = defaultLaunchedBy, showFileImportButton, onBarScanned } = route.params || {};
-  const scannedCache: Record<string, number> = {};
   const { colors } = useTheme();
   const isFocused = useIsFocused();
   const [backdoorPressed, setBackdoorPressed] = useState(0);
@@ -73,14 +84,30 @@ const ScanQRCode = () => {
   const [urHave, setUrHave] = useState(0);
   const [backdoorText, setBackdoorText] = useState('');
   const [backdoorVisible, setBackdoorVisible] = useState(false);
-  const useBBQRRef = useRef(false);
-  const [animatedQRCodeData, setAnimatedQRCodeData] = useState<Record<string, string>>({});
+  // One capability per focused screen. Old camera callbacks and picker promises
+  // retain a closed session even if this same route is focused again later.
+  const session = useMemo(
+    () => ({
+      active: isFocused,
+      completed: false,
+      picking: false,
+      decoder: undefined as BlueURDecoder | undefined,
+      seen: new Set<string>(),
+      legacyParts: {} as Record<string, string>,
+      useBBQR: false,
+    }),
+    [isFocused],
+  );
   const [cameraStatusGranted, setCameraStatusGranted] = useState<boolean | undefined>(undefined);
   const stylesHook = StyleSheet.create({
     openSettingsContainer: {
       backgroundColor: colors.brandingColor,
     },
-    progressWrapper: { backgroundColor: colors.brandingColor, borderColor: colors.foregroundColor, borderWidth: 4 },
+    progressWrapper: {
+      backgroundColor: colors.brandingColor,
+      borderColor: colors.foregroundColor,
+      borderWidth: 4,
+    },
     backdoorInput: {
       borderColor: colors.formBorder,
       borderBottomColor: colors.formBorder,
@@ -90,33 +117,78 @@ const ScanQRCode = () => {
   });
 
   useEffect(() => {
-    isCameraAuthorizationStatusGranted().then(setCameraStatusGranted);
+    let mounted = true;
+    isCameraAuthorizationStatusGranted()
+      .then(granted => {
+        if (mounted) setCameraStatusGranted(granted);
+      })
+      .catch(() => {
+        if (mounted) setCameraStatusGranted(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const HashIt = function (s: string): string {
-    return uint8ArrayToHex(sha256(s));
+  useLayoutEffect(() => {
+    session.active = isFocused;
+    session.completed = false;
+    setIsLoading(false);
+    setUrTotal(0);
+    setUrHave(0);
+    return () => {
+      session.active = false;
+      session.completed = true;
+      session.decoder = undefined;
+      session.seen.clear();
+      session.legacyParts = {};
+    };
+  }, [isFocused, session]);
+
+  const completeScan = (data: string) => {
+    if (!session.active || session.completed) return;
+    // Lock before calling user code: native events may arrive before navigation
+    // finishes, and the callback itself can synchronously trigger another event.
+    session.completed = true;
+    session.decoder = undefined;
+    session.seen.clear();
+    session.legacyParts = {};
+    if (onBarScanned) {
+      try {
+        onBarScanned(data, session.useBBQR);
+      } catch {
+        // The consumer may already have acted before throwing. Do not deliver
+        // again or log its exception, which can contain the scanned contents.
+        console.warn('Unable to handle QR scan result');
+      }
+      navigation.goBack();
+    } else if (launchedBy) {
+      navigation.dispatch(StackActions.popTo(launchedBy, { onBarScanned: data }, { merge: true }));
+    }
+  };
+
+  const resetFragments = () => {
+    session.decoder = undefined;
+    session.seen.clear();
+    session.legacyParts = {};
+    session.useBBQR = false;
+    setUrTotal(0);
+    setUrHave(0);
   };
 
   const _onReadUniformResourceV2 = (part: string) => {
-    if (!decoder) decoder = new BlueURDecoder();
+    if (!session.decoder) session.decoder = new BlueURDecoder();
     try {
-      decoder.receivePart(part);
-      if (decoder.isComplete()) {
-        const data = decoder.toString();
-        decoder = undefined; // nullify for future use (?)
-        if (onBarScanned) {
-          onBarScanned(data, useBBQRRef.current);
-          navigation.goBack();
-        } else if (launchedBy) {
-          navigation.dispatch(StackActions.popTo(launchedBy, { onBarScanned: data }, { merge: true }));
-        }
+      session.decoder.receivePart(part);
+      if (session.decoder.isComplete()) {
+        completeScan(session.decoder.toString());
       } else {
         setUrTotal(100);
-        setUrHave(Math.floor(decoder.estimatedPercentComplete() * 100));
+        setUrHave(Math.floor(session.decoder.estimatedPercentComplete() * 100));
       }
-    } catch (error: any) {
-      console.log('Invalid animated qr code fragment: ' + error.message + ' (continuing scanning)');
-      decoder = undefined;
+    } catch {
+      // Never log scanned contents or decoder exceptions containing payloads.
+      resetFragments();
     }
   };
 
@@ -127,11 +199,11 @@ const ScanQRCode = () => {
   const _onReadUniformResource = (ur: string) => {
     try {
       const [index, total] = extractSingleWorkload(ur);
-      animatedQRCodeData[index + 'of' + total] = ur;
+      session.legacyParts[index + 'of' + total] = ur;
       setUrTotal(total);
-      setUrHave(Object.values(animatedQRCodeData).length);
-      if (Object.values(animatedQRCodeData).length === total) {
-        const payload = decodeUR(Object.values(animatedQRCodeData));
+      setUrHave(Object.values(session.legacyParts).length);
+      if (Object.values(session.legacyParts).length === total) {
+        const payload = decodeUR(Object.values(session.legacyParts));
         // lets look inside that data
         let data: false | string = false;
         if (uint8ArrayToString(hexToUint8Array(String(payload))).startsWith('psbt')) {
@@ -141,27 +213,23 @@ const ScanQRCode = () => {
           // its something else. probably plain text is expected
           data = uint8ArrayToString(hexToUint8Array(String(payload)));
         }
-        if (onBarScanned) {
-          onBarScanned(data, useBBQRRef.current);
-          navigation.goBack();
-        } else if (launchedBy) {
-          navigation.dispatch(StackActions.popTo(launchedBy, { onBarScanned: data }, { merge: true }));
-        }
-      } else {
-        setAnimatedQRCodeData(animatedQRCodeData);
+        completeScan(data);
       }
-    } catch (error: any) {
-      console.log('Invalid animated qr code fragment: ' + error.message + ' (continuing scanning)');
+    } catch {
+      resetFragments();
     }
   };
 
-  const onBarCodeRead = (ret: { data: string }) => {
-    const h = HashIt(ret.data);
-    if (scannedCache[h]) {
+  const onBarCodeRead = (ret: { data: unknown }) => {
+    if (!session.active || session.completed || typeof ret.data !== 'string' || ret.data.length === 0) return;
+    const h = uint8ArrayToHex(sha256(ret.data));
+    if (session.seen.has(h)) {
       // this QR was already scanned by this ScanQRCode, lets prevent firing duplicate callbacks
       return;
     }
-    scannedCache[h] = +new Date();
+    // A long-running fountain QR must not grow the duplicate cache forever.
+    if (session.seen.size >= 2048) session.seen.clear();
+    session.seen.add(h);
 
     if (ret.data.toUpperCase().startsWith('UR:CRYPTO-ACCOUNT')) {
       return _onReadUniformResourceV2(ret.data);
@@ -184,7 +252,7 @@ const ScanQRCode = () => {
     }
 
     if (ret.data.toUpperCase().startsWith('B$')) {
-      useBBQRRef.current = true;
+      session.useBBQR = true;
       return _onReadUniformResourceV2(ret.data);
     }
 
@@ -199,61 +267,48 @@ const ScanQRCode = () => {
       return _onReadUniformResource(ret.data);
     }
 
-    // is it base43? stupid electrum desktop
+    // Electrum desktop's Base43 PSBT transport.
+    let data = ret.data;
     try {
-      const hex = Base43.decode(ret.data);
-      bitcoin.Psbt.fromHex(hex); // if it doesnt throw - all good
-      const data = uint8ArrayToBase64(hexToUint8Array(hex));
-
-      if (onBarScanned) {
-        onBarScanned(data, useBBQRRef.current);
-        navigation.goBack();
-      } else if (launchedBy) {
-        navigation.dispatch(StackActions.popTo(launchedBy, { onBarScanned: data }, { merge: true }));
-      }
-      return;
-    } catch (_) {
-      if (!isLoading) {
-        setIsLoading(true);
-        try {
-          if (onBarScanned) {
-            onBarScanned(ret.data, useBBQRRef.current);
-            navigation.goBack();
-          } else if (launchedBy) {
-            navigation.dispatch(StackActions.popTo(launchedBy, { onBarScanned: ret.data }, { merge: true }));
-          }
-        } catch (e) {
-          console.log(e);
-        }
-      }
+      const hex = Base43.decode(data);
+      bitcoin.Psbt.fromHex(hex);
+      data = uint8ArrayToBase64(hexToUint8Array(hex));
+    } catch {
+      // Plain invoice/address/Base64/file contents are handled by the caller.
     }
-    setIsLoading(false);
+    completeScan(data);
   };
 
-  const showFilePicker = async () => {
+  const readPicker = async (kind: 'file' | 'image') => {
+    if (!session.active || session.completed || session.picking) return;
+    session.picking = true;
     setIsLoading(true);
-    const { data } = await fs.showFilePickerAndReadFile();
-    if (data) onBarCodeRead({ data });
-    setIsLoading(false);
-  };
-
-  const onShowImagePickerButtonPress = () => {
-    if (!isLoading) {
-      setIsLoading(true);
-      fs.showImagePickerAndReadImage()
-        .then(data => {
-          if (data) onBarCodeRead({ data });
-        })
-        .finally(() => setIsLoading(false));
+    try {
+      const data = kind === 'file' ? (await fs.showFilePickerAndReadFile())?.data : await fs.showImagePickerAndReadImage();
+      if (session.active && !session.completed && data) onBarCodeRead({ data });
+    } catch {
+      // Canceling/denying a picker must leave the current scanner usable.
+    } finally {
+      session.picking = false;
+      if (session.active && !session.completed) setIsLoading(false);
     }
   };
+
+  const showFilePicker = () => readPicker('file');
+  const onShowImagePickerButtonPress = () => readPicker('image');
 
   const dismiss = () => {
+    if (!session.active || session.completed) return;
+    session.active = false;
+    session.completed = true;
+    session.decoder = undefined;
+    session.seen.clear();
+    session.legacyParts = {};
     navigation.goBack();
   };
 
   const handleReadCode = (event: any) => {
-    onBarCodeRead({ data: event?.nativeEvent?.codeStringValue });
+    if (!session.picking) onBarCodeRead({ data: event?.nativeEvent?.codeStringValue });
   };
 
   const handleBackdoorOkPress = () => {
@@ -286,7 +341,7 @@ const ScanQRCode = () => {
           <BlueSpacing40 />
           <Button title={loc.wallets.list_long_choose} onPress={onShowImagePickerButtonPress} />
           <BlueSpacing40 />
-          <Button title={loc._.cancel} onPress={dismiss} />
+          <Button title={loc._.cancel} testID="ScanQrCancelButton" onPress={dismiss} />
         </View>
       ) : isFocused && cameraStatusGranted ? (
         <CameraScreen
@@ -318,7 +373,10 @@ const ScanQRCode = () => {
             autoCapitalize="none"
             spellCheck={false}
             selectTextOnFocus={false}
-            keyboardType={Platform.OS === 'android' ? 'visible-password' : 'default'}
+            // UIKit disables smart quotes for email keyboards. QR contents must stay byte-for-byte intact.
+            keyboardType={Platform.OS === 'android' ? 'visible-password' : 'email-address'}
+            textContentType="none"
+            smartInsertDelete={false}
             value={backdoorText}
             onChangeText={setBackdoorText}
           />

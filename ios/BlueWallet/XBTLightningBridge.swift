@@ -1,11 +1,93 @@
 #if os(iOS) && !targetEnvironment(macCatalyst)
 import Foundation
+import UIKit
 import React
 import XBTLightning
 
 @objc(XBTLightningBridge)
 final class XBTLightningBridge: NSObject {
     @objc static func requiresMainQueueSetup() -> Bool { false }
+
+
+    @objc(offers:value:sats:feeLimit:resolver:rejecter:)
+    func offers(_ action: String, value: String, sats: String, feeLimit: String,
+                resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch action {
+                case "create":
+                    guard let amount = UInt64(sats) else { throw Bolt12FailureBridge.invalidAmount }
+                    resolve(try await RegtestNode.shared.createOffer(description: value, sats: amount))
+                case "list":
+                    resolve(try await RegtestNode.shared.listOffers())
+                case "enable", "disable":
+                    try await RegtestNode.shared.setOfferEnabled(id: value, enabled: action == "enable")
+                    resolve(true)
+                case "review":
+                    guard let amount = UInt64(sats), let fee = UInt64(feeLimit) else { throw Bolt12FailureBridge.invalidAmount }
+                    resolve(try await RegtestNode.shared.reviewOffer(value, sats: amount, feeSats: fee))
+                case "pay":
+                    guard await MainActor.run(body: { UIApplication.shared.applicationState == .active }) else {
+                        reject("payment_not_submitted_canceled", "Action canceled. Nothing was submitted.", nil)
+                        return
+                    }
+                    resolve(try await RegtestNode.shared.payOffer(token: value))
+                case "pending":
+                    resolve(try await RegtestNode.shared.savedOfferPayment())
+                case "reset":
+                    try await RegtestNode.shared.resetOfferPayment()
+                    resolve(true)
+                default: reject("unknown_action", "Unknown offer operation.", nil)
+                }
+            } catch let error as PaymentSubmissionFailure { reject(error.code, error.localizedDescription, nil) }
+            catch { reject("offer_error", error.localizedDescription, nil) }
+        }
+    }
+
+    @objc(bridgeRequest:url:method:body:resolver:rejecter:)
+    func bridgeRequest(_ id: String, url: String, method: String, body: String,
+                       resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        BridgeHTTPTransport.shared.request(id: id, url: url, method: method, body: body) { result in
+            switch result {
+            case .success(let response): resolve(response)
+            case .failure: reject("bridge_transport", "Secure bridge request failed or was canceled.", nil)
+            }
+        }
+    }
+
+    @objc(cancelBridgeRequest:)
+    func cancelBridgeRequest(_ id: String) { BridgeHTTPTransport.shared.cancel(id: id) }
+
+    @objc(bridgePayment:value:resolver:rejecter:)
+    func bridgePayment(_ operation: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                       rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch operation {
+                case "review": resolve(try await RegtestNode.shared.reviewBridgePayment(value))
+                case "status": resolve(try await RegtestNode.shared.bridgePaymentStatus(hash: value))
+                case "pay": resolve(try await RegtestNode.shared.payBridgeInvoice(value))
+                default: reject("bridge_operation", "Unknown cross-chain payment operation.", nil)
+                }
+            } catch let error as PaymentSubmissionFailure { reject(error.code, error.localizedDescription, nil) }
+            catch let error as BridgePaymentFailure { reject("bridge_liquidity", error.localizedDescription, nil) }
+            catch { reject("bridge_payment_error", "The XBT node could not verify the bridge payment. Check payment status before trying again.", nil) }
+        }
+    }
+
+    @objc(nodeName:value:resolver:rejecter:)
+    func nodeName(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock,
+                  rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task {
+            do {
+                switch action {
+                case "get": resolve(try await RegtestNode.shared.nodeNameState())
+                case "save": resolve(try await RegtestNode.shared.saveNodeName(value))
+                default: reject("unknown_action", "Unknown node name operation.", nil)
+                }
+            } catch { reject("node_name_failed", error.localizedDescription, nil) }
+        }
+    }
 
     @objc(network:value:resolver:rejecter:)
     func network(_ action: String, value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
@@ -233,5 +315,9 @@ final class XBTLightningBridge: NSObject {
             }
         }
     }
+}
+private enum Bolt12FailureBridge: String, LocalizedError {
+    case invalidAmount = "Enter a valid whole-sat amount and routing fee."
+    var errorDescription: String? { rawValue }
 }
 #endif
