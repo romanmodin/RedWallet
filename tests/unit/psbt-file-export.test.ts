@@ -3,6 +3,7 @@ import RNFS from 'react-native-fs';
 import Share from 'react-native-share';
 import { saveDocuments } from '@react-native-documents/picker';
 import { writeFileAndExport } from '../../blue_modules/fs';
+import presentAlert from '../../components/Alert';
 
 jest.mock('react-native-fs', () => ({
   CachesDirectoryPath: '/cache',
@@ -40,4 +41,16 @@ test.each([false, true])('exports binary PSBT through save/share (%s) without ch
 test('keeps existing text exports UTF-8', async () => {
   await writeFileAndExport('wallet.json', '{"label":"wallet"}', false);
   expect(RNFS.writeFile).toHaveBeenCalledWith(expect.any(String), '{"label":"wallet"}', 'utf8');
+});
+
+test('preserves a native string error when sharing an export fails', async () => {
+  jest.mocked(Share.open).mockRejectedValueOnce('Sharing unavailable');
+  const logError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await writeFileAndExport('example.txt', 'example');
+    expect(presentAlert).toHaveBeenCalledWith({ message: 'Sharing unavailable' });
+    expect(RNFS.unlink).toHaveBeenCalledWith(jest.mocked(RNFS.writeFile).mock.calls[0][0]);
+  } finally {
+    logError.mockRestore();
+  }
 });

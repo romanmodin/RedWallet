@@ -160,7 +160,8 @@ export const writeFileAndExport = async function (
       return;
     }
     console.error(error);
-    presentAlert({ message: error.message });
+    const message = typeof error === 'string' ? error : error?.message;
+    presentAlert({ message: message || 'Could not export the file.' });
   }
 };
 
