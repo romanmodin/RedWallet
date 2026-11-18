@@ -29,6 +29,12 @@ test("both active review states block another build; only the fixed prior-build 
 test("approved prior beta is distinguished from pending review",async()=>{
   assert.equal((await readPriorReview(async()=>fixture("APPROVED"))).blocksAnotherBuildReview,false);
 });
+test("unknown or contradictory settled prior review cannot authorize a new submission",async()=>{
+  for (const external of ["NEW_APPLE_STATE","READY_FOR_BETA_SUBMISSION","BETA_REJECTED"]) {
+    const b=fixture("APPROVED"); b.included[2].attributes.externalBuildState=external;
+    await assert.rejects(readPriorReview(async()=>b),/settled prior review/);
+  }
+});
 test("explicit null review is accepted only with consistent beta state",async()=>{
   const b=fixture();b.data.relationships.betaAppReviewSubmission={data:null};
   b.included=b.included.filter(x=>x.type!=="betaAppReviewSubmissions");

@@ -39,6 +39,12 @@ export async function readPriorReview(get, now = () => Date.now()) {
   // Do not treat an inconsistent or unknown relationship as permission to retry.
   assert.equal(active, ["WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW"]
     .includes(detail.attributes.externalBuildState), "Inconsistent prior review status");
+  if (!active) {
+    const allowed = state === "APPROVED" ? ["READY_FOR_BETA_TESTING", "IN_BETA_TESTING", "EXPIRED"] :
+      state === "REJECTED" ? ["BETA_REJECTED"] : ["READY_FOR_BETA_SUBMISSION"];
+    assert.ok(allowed.includes(detail.attributes.externalBuildState),
+      "Unrecognized or inconsistent settled prior review state");
+  }
   return { complete: true, readOnly: true, observedAt: new Date(now()).toISOString(),
     appId: APP, buildId: PRIOR_BUILD, version: "1.0.0", build: "21",
     externalState: detail.attributes.externalBuildState, reviewId: review?.id || null,
