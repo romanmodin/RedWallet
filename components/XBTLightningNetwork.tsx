@@ -59,7 +59,7 @@ export default function XBTLightningNetwork({ status, busy, run, report, onTorCh
       const requestRevision = revision.current;
       try {
         const nextNetwork = await bridge.network(resume ? 'resume' : 'get', '');
-        if (requestRevision !== revision.current) return;
+        if (!mounted.current || requestRevision !== revision.current) return;
         acceptNetwork(nextNetwork);
         if (status === 'Running') {
           const items = await bridge.watchtower('list', '');
