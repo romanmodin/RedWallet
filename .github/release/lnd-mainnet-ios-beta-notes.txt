@@ -1,5 +1,7 @@
-Watch-only wallet export and hardware signer fingerprint
+RedWallet XBT 8.0.1 (1795014651)
 
-- To restore a missing master fingerprint, scan the original hardware wallet public account QR again and select the matching account. Your existing wallet and its history are retained.
-- Wallet Export keeps the fingerprint and derivation path with Native SegWit public accounts. Copy confirms success and the public export remains pasteable after switching apps.
-- XBT Native SegWit PSBTs include the complete signer fingerprint. XBT external signing requires firmware that supports XBT Unified signatures.
+Please check the Lightning Settings crash fix on iPhone. Open XBT Lightning Settings, expand or refresh a section, then go back. No payment is needed. If RedWallet closes, send the approximate time and build number through TestFlight feedback.
+
+The built-in XBT Lightning wallet can scan a SHA256 invoice and show a Kilombino bridge quote for review. You can cancel before payment. This build also supports reusable XBT Lightning offers, an editable node name, and a short background window for the embedded node.
+
+On Receive, native SegWit is the default and Taproot is available. The hardware signer check uses a request that cannot spend funds.

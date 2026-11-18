@@ -121,7 +121,8 @@ class BetaHandoffTests(unittest.TestCase):
 
     def test_new_release_requires_hardware_tor_smoke_and_standalone_tor_fee(self):
         qualification = module['qualification']
-        ids = {**module['GATE_RUNS'], 'HARDWARE_IOS_RUN_ID': '88'}
+        ids = {'CI_RUN_ID': '81', 'IOS_RUN_ID': '82', 'FUNDED_IOS_RUN_ID': '83',
+               'LND_IOS_RUN_ID': '84', 'HARDWARE_IOS_RUN_ID': '88'}
         rules = module['gates']['required_gates'](mainnet=True, tor_smoke=True, tor_fee_unit=True, standard_hardware=True)
         records = {}
         for name, path, names in rules:
@@ -135,7 +136,7 @@ class BetaHandoffTests(unittest.TestCase):
         with patch.dict(scope, api=fetch):
             self.assertEqual(len(qualification(ids, legacy=False)), 5)
             with self.assertRaises(ValueError):
-                qualification(module['GATE_RUNS'], legacy=False)
+                qualification({key: value for key, value in ids.items() if key != 'HARDWARE_IOS_RUN_ID'}, legacy=False)
             for name, required in [('HARDWARE_IOS_RUN_ID', 'Watch-only signing on iOS simulator'), ('LND_IOS_RUN_ID', 'tor-smoke'),
                                    ('LND_IOS_RUN_ID', 'tor-fee-unit')]:
                 bad = next(j for j in records[ids[name]][1] if j['name'] == required)
