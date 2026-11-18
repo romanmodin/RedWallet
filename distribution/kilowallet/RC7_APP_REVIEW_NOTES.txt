@@ -1,4 +1,4 @@
-Kilowallet 1.0.0 (30) is a self-custody wallet for the Bitcoin BLAKE2b (XBT) chain. Its on-chain balance is separate from SHA-256 Bitcoin. No account or sign-in is required.
+Kilowallet 1.0.0 build 30 is a self-custody wallet for the Bitcoin BLAKE2b (XBT) chain. Its on-chain balance is separate from SHA-256 Bitcoin. No account or sign-in is required.
 
 Review with an empty wallet: create a new wallet on the test device, open Receive to inspect its address and QR code, then open Settings > BTC node & explorer. No funds, existing recovery words, node credentials or transaction are needed for this walkthrough.
 
@@ -7,3 +7,5 @@ This build fixes an iOS Lightning engine call used by payments, channel operatio
 The optional Lightning bridge quotes XBT payments to SHA-256 Lightning invoices. Collaborative rounds require the app to stay open; iOS permits only limited background execution. Wallet backups are user-directed and can contain recovery material. These flows are optional and no payment is required for review.
 
 Publisher source: https://github.com/romanmodin/kilowallet-ios/tree/3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3
+
+The publisher tested synthetic wallets. These tests do not verify physical iPhone installation or live payments; no real JoinBlaket payment was performed in testing. PAY THROUGH JOINBLAKET is optional.

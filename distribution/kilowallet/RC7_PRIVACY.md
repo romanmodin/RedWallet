@@ -1,0 +1,75 @@
+# Kilowallet privacy information
+
+Kilowallet 1.0.0 build 30. Original creator: Kilombino. iOS distribution: romanmodin.
+
+## Data on your iPhone
+
+Recovery words and an optional BIP-39 passphrase are kept in a separate device-only Keychain item for each hot wallet. Watch-only wallets do not store recovery words. Real-device reads require Face ID, Touch ID or the device passcode. Wallet names, the selected wallet, transaction labels/notes, saved recipient names/addresses, frozen output IDs, backup-check timestamps, display units, the hide-amounts preference, public account keys, shared server settings, accepted certificate fingerprints, receive/change-address progress and an unresolved signed transaction are stored locally in app preferences. A signed transaction is public transaction data, not a recovery secret. Local preferences may be included in operating-system backups; the recovery Keychain item is marked device-only.
+
+Recovery words are brought into memory when you choose to reveal them, sign, or authenticate a written-backup check. The written-backup check derives the public account locally from the entered words and passphrase; it stores only the successful-check timestamp, not those entries. The app obscures its interface while inactive and dismisses secret screens in the background. These controls do not guarantee that all screenshots, screen recording, memory copies or a compromised device can be prevented.
+
+## Electrum servers and public transactions
+
+The app connects to your selected Electrum server over TLS. The bundled default is `fulcrum.kilombino.com:17717`. On a direct connection that server receives your network address. It receives queried address script hashes and wallet-history requests, and any transaction you submit. These queries can be linked to your wallet. The server is operated separately from this distribution; the operator controls its logging and retention. You can choose your own compatible server in Settings.
+
+Transactions broadcast to the network can become public blockchain records. Removing a wallet from the app does not erase blockchain records or data previously received by a server.
+
+## Optional own-node RPC
+
+You can choose a compatible Bitcoin Knots node on the BLAKE2b chain in Settings > BTC node & explorer. The app can scan a connection QR code or accept typed/pasted connection details. The connection list, including RPC usernames, passwords and trusted certificate fingerprints, is stored through a separate device-only iOS Keychain item. It is readable after the device's first unlock without a new Face ID or passcode prompt so the app can query the node. This protection differs from the user-presence requirement for recovery secrets.
+
+When this backend is enabled, the app sends authenticated RPC requests to the selected node. It creates or loads a watch-only wallet and imports public receive/change descriptors. The node can associate those addresses, balances and transaction history with one wallet, and it receives transactions submitted through that backend. The RPC import does not include recovery words or private spending keys. First scanning/import may take several minutes. Any node operator and its network providers may retain data according to their own configuration and policies; selecting your own node is not a guarantee that it keeps no logs.
+
+HTTPS connections require you to compare and explicitly trust the server certificate fingerprint before the app sends the RPC login. A changed fingerprint is refused. Plain HTTP is permitted for local-network and onion endpoints; other endpoints require HTTPS. Local HTTP does not encrypt the RPC credentials or requests on the local network. Onion connections use the app's built-in Tor. On direct connections the node can see your network address. Multiple saved connections are tried in order.
+
+Using RPC does not route every app service through that node. Kilojoin and JoinBlaket continue to use the selected Electrum server for their chain queries. The relay, market preview, Lightning bridge, watchtower and Ark retain the separate behavior described below. Removing a connection or an on-phone wallet does not erase the watch-only wallet, imported descriptors or logs already stored on a remote node. Manage those records on the node separately. Do not include RPC connection QR codes, passwords or complete authenticated URLs in support reports.
+
+## Camera, clipboard and external links
+
+Camera access is requested for QR scanning. The reviewed app decodes QR content locally; no image-upload path was identified. Paste/copy actions use the system clipboard. Avoid copying recovery secrets to the clipboard. Explorer and website links open only after you tap them; those sites apply their own privacy practices.
+
+## Analytics and deletion
+
+No first-party analytics, advertising or crash-reporting endpoint was identified in the reviewed app source. This statement does not cover operating-system diagnostics or independent server/website behavior. Removing a wallet deletes its Keychain secret, transaction labels/notes, saved recipients, frozen output policy, backup-check time and active wallet identity; retained server pins and per-wallet public progress/pending-transaction records support safe recovery and are not a promise of full local-data erasure. Back up your recovery words before removal.
+
+Source, issue-reporting guidance and updates are available at https://github.com/romanmodin/kilowallet-ios . Do not include recovery words, passphrases, private keys or other secrets in a public report.
+
+## Optional history exports
+
+Labels and notes stay in local preferences unless you explicitly export them. They may be
+included in operating-system backups, but recovery words alone do not restore them. CSV export
+includes the selected wallet name, loaded transaction history, amounts, labels/notes and the
+snapshot time. Hidden amounts are included after an explicit export confirmation. A protected
+temporary file is passed to the iOS share sheet; you choose the recipient or storage location.
+The app deletes its temporary copy after sharing/cancellation, or on next launch if interrupted.
+Copies saved or sent by you are outside the app's control. Exports do not contain recovery
+words, passphrases or public account keys. The last successful sync time is session-only.
+
+## Optional payment-request sharing
+
+Receive's share action presents the system share sheet with a public address/payment URI and
+its QR image, including an amount when requested. You choose the destination; it may retain
+the shared data. This action does not include wallet names, history, account keys or recovery
+secrets. The shared text identifies XBT BLAKE2b; another wallet may ignore a URI chain label.
+
+## Optional network services in 1.0
+
+Kilojoin uses a relay to coordinate collaborative transactions. The relay processes coordination messages; retention depends on its operator. Public pool announcements are visible to other participants. With the app's Tor running, this candidate connects to the relay's onion service first and falls back to the public relay through Tor. It fails if both Tor routes fail; it does not fall back to a direct connection in that case. With Tor off, Kilojoin connects directly. Tor routing is not a guarantee of anonymity or background execution. The public relay and price endpoint use Cloudflare, which processes connection data.
+
+The Lightning bridge is optional. This iPhone release candidate contacts the bridge via HTTPS through Cloudflare, even if the Lightning node uses Tor. The operator can process IP addresses, payment hashes, amounts, expiry times and proof tokens. The bridge can retain a long-lived swap journal, including payment hash, destination invoice (containing the recipient's node ID), amounts, preimage and state. An internal monitor retains hashes and states for operator alerts. There is no payer account.
+
+The operator's Lightning watchtower is onion-only. It stores a session public key, encrypted breach-remedy records and a short breach identifier until the client deletes the session after its channels close.
+
+The default Ark server, ark.paperclippool.xyz, is operated by Paperclip Holdings LLC. Its disclosed data types include IP logs, public keys, VTXO identifiers, invoices, hashes, amounts and recovery data. Retention depends on purpose; signing and recovery records can be long-lived. See [Paperclip's privacy notice](https://pool.paperclippool.xyz/privacy) and [terms](https://pool.paperclippool.xyz/terms), or contact contact@paperclippool.xyz.
+
+## Optional PAY THROUGH JOINBLAKET
+
+For one payment to a native SegWit (bc1q) address, PAY THROUGH JOINBLAKET can act as a JoinMarket taker. The SEND screen refreshes an aggregate market preview every 30 seconds from https://mempool.kilombino.com/joinblaket/market.json using the platform HTTPS client. The published summary contains offer ranges, fees and aggregate fidelity-bond values. Source comments state that it contains no maker nicknames or bond UTXOs. The endpoint and its network providers can still process connection data.
+
+An actual payment reaches the JoinBlaket directory through the app's Tor engine and its onion service. If Tor cannot provide that connection, the payment fails rather than falling back to a direct directory connection. The selected Electrum server receives the public chain queries used to verify maker bonds, inputs and SPV proofs. Makers participating in a round receive the transaction information needed by the JoinMarket protocol. A completed transaction can become a public blockchain record.
+
+Used PoDLE commitment history is stored in the selected wallet's local preferences to prevent reuse. A password-protected .kab backup includes that wallet-scoped history. A running payment also stores pending round state locally and reserves its selected coins and change address so other sends and Kilojoin rounds cannot use them. iOS supplies only limited background execution time; the app tells the user to keep it open until the payment finishes.
+
+## Wallet and node backups
+
+A password-protected .kab backup is distinct from a CSV export. It contains wallet recovery material and can include Ark data and a static Lightning channel backup. A separate Lightning move file can contain a live node's channel state. Anyone with the file and its password may be able to access funds. Backups saved or shared by the user are outside the app's control. Removing an on-chain wallet is not proof that all native node files, local copies or remote records were erased.
