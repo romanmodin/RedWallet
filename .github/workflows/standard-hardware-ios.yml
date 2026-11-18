@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.head_ref == 'feat/xbt-standard-hardware-20261114' || github.ref == 'refs/heads/feat/xbt-standard-hardware-20261114' || github.head_ref == 'feat/xbt-hardware-change-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-change-20261116' || github.head_ref == 'feat/xbt-hardware-https-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-https-20261116' || github.head_ref == 'fix/hardware-qr-session-20261116' || github.ref == 'refs/heads/fix/hardware-qr-session-20261116' || github.head_ref == 'feat/hardware-signing-check-20261116' || github.ref == 'refs/heads/feat/hardware-signing-check-20261116' || github.head_ref == 'release/ios-combined-lightning-hardware-20261116' || github.ref == 'refs/heads/release/ios-combined-lightning-hardware-20261116'
+    if: github.head_ref == 'feat/xbt-standard-hardware-20261114' || github.ref == 'refs/heads/feat/xbt-standard-hardware-20261114' || github.head_ref == 'feat/xbt-hardware-change-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-change-20261116' || github.head_ref == 'feat/xbt-hardware-https-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-https-20261116' || github.head_ref == 'fix/hardware-qr-session-20261116' || github.ref == 'refs/heads/fix/hardware-qr-session-20261116' || github.head_ref == 'feat/hardware-signing-check-20261116' || github.ref == 'refs/heads/feat/hardware-signing-check-20261116' || startsWith(github.head_ref, 'release/ios-combined-lightning-') || startsWith(github.ref, 'refs/heads/release/ios-combined-lightning-')
     timeout-minutes: 90
     runs-on: macos-26
     env:
@@ -65,9 +65,9 @@ jobs:
             ios/Pods
             ~/Library/Caches/CocoaPods
             ~/.cocoapods/repos
-          key: ${{ runner.os }}-pods-prebuilt-${{ hashFiles('ios/Podfile.lock') }}
+          key: ${{ runner.os }}-pods-source-rncore-${{ hashFiles('ios/Podfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pods-prebuilt-
+            ${{ runner.os }}-pods-source-rncore-
 
       - name: Install ccache
         run: brew install ccache
@@ -130,7 +130,6 @@ jobs:
       - name: Install CocoaPods dependencies
         env:
           RCT_USE_RN_DEP: "1"
-          RCT_USE_PREBUILT_RNCORE: "1"
           USE_CCACHE: "1"
         run: bundle exec fastlane ios install_pods || bundle exec fastlane ios install_pods
 

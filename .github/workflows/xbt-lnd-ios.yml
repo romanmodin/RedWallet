@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'ios/XBTLightning/**'
+      - 'ios/Podfile'
+      - 'ios/Podfile.lock'
+      - 'patches/react-native+*.patch'
       - 'blue_modules/lightning-bridge/**'
       - 'components/CrossChainLightning.tsx'
       - 'tests/unit/lightning-bridge.test.ts'

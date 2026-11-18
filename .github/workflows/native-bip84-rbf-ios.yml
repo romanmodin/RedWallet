@@ -51,9 +51,9 @@ jobs:
             ios/Pods
             ~/Library/Caches/CocoaPods
             ~/.cocoapods/repos
-          key: ${{ runner.os }}-pods-prebuilt-${{ hashFiles('ios/Podfile.lock') }}
+          key: ${{ runner.os }}-pods-source-rncore-${{ hashFiles('ios/Podfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pods-prebuilt-
+            ${{ runner.os }}-pods-source-rncore-
 
       - name: Install ccache
         run: brew install ccache
@@ -120,7 +120,6 @@ jobs:
       - name: Install CocoaPods dependencies
         env:
           RCT_USE_RN_DEP: '1'
-          RCT_USE_PREBUILT_RNCORE: '1'
           USE_CCACHE: '1'
         run: bundle exec fastlane ios install_pods || bundle exec fastlane ios install_pods
 

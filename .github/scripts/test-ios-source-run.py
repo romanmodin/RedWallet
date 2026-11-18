@@ -9,6 +9,9 @@ guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
 REPO = "romanmodin/RedWallet"
 SHA = "a" * 40
+CREATED = "2026-11-18T05:00:02Z"
+UPLOAD = {"name": "Upload simulator app", "conclusion": "success",
+          "started_at": "2026-11-18T05:00:01Z", "completed_at": CREATED}
 
 
 class SourceValidationTests(unittest.TestCase):
@@ -38,6 +41,39 @@ class SourceValidationTests(unittest.TestCase):
             source[field] = value
             with self.subTest(field=field, value=value), self.assertRaises(AssertionError):
                 guard.validate_source(source, "release", REPO, "main", SHA)
+
+    def test_simulator_variant_uses_original_build_steps(self):
+        for result, required in [("success", False), ("success", True), ("skipped", False)]:
+            job = {"name": "build", "conclusion": "success", "steps": [
+                UPLOAD,
+                {"name": "Enable the iOS 16 Lightning regtest variant", "conclusion": result},
+            ]}
+            with self.subTest(result=result, required=required):
+                self.assertEqual(guard.simulator_lightning_variant([job], required, CREATED), result)
+
+    def test_test_only_retry_preserves_the_actual_artifact_producer(self):
+        enable = {"name": "Enable the iOS 16 Lightning regtest variant", "conclusion": "success"}
+        original = {"name": "build", "conclusion": "success", "steps": [UPLOAD, enable]}
+        older = dict(original, steps=[dict(UPLOAD, completed_at=UPLOAD["started_at"]), dict(enable, conclusion="skipped")])
+        rerun = {"name": "test", "conclusion": "success", "steps": []}
+        self.assertEqual(guard.simulator_lightning_variant([older, original, rerun], True, CREATED), "success")
+
+    def test_rejects_incomplete_or_incompatible_simulator_evidence(self):
+        upload = UPLOAD
+        enable = {"name": "Enable the iOS 16 Lightning regtest variant", "conclusion": "success"}
+        build = {"name": "build", "conclusion": "success", "steps": [upload, enable]}
+        cases = [
+            [], [build, build], [dict(build, conclusion="failure")],
+            [dict(build, steps=[dict(upload, completed_at=upload["started_at"]), enable])],
+            [dict(build, steps=[upload])], [dict(build, steps=[enable])],
+            [dict(build, steps=[dict(upload, conclusion="failure"), enable])],
+            [dict(build, steps=[upload, enable, enable])],
+            [dict(build, steps=[upload, dict(enable, conclusion="skipped")])],
+            [dict(build, steps=[upload, dict(enable, conclusion="failure")])],
+        ]
+        for jobs in cases:
+            with self.subTest(jobs=jobs), self.assertRaises(ValueError):
+                guard.simulator_lightning_variant(jobs, True, CREATED)
 
     def test_simulator_accepts_completed_source_pending_only_app_diff_validation(self):
         source = self.source("simulator")
