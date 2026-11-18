@@ -30,7 +30,9 @@ static NSDictionary *exercise(NSInteger count, NSInteger actual, NSInteger reque
     if (container != nil && [container.subviews isEqualToArray:siblings]) {
       [siblings removeObjectAtIndex:actual];
       [parent unmountChildComponentView:child index:requested];
-      result[@"passed"] = @(child.superview == nil && [container.subviews isEqualToArray:siblings]);
+      // Box as a Foundation boolean so the JSON report contains true or false.
+      BOOL removedOnlyTarget = child.superview == nil && [container.subviews isEqualToArray:siblings];
+      result[@"passed"] = [NSNumber numberWithBool:removedOnlyTarget];
     }
   } @catch (NSException *exception) {
     result[@"exception"] = exception.name;
