@@ -1,0 +1,76 @@
+{
+  "beta": {
+    "app": "6824331953",
+    "buildId": "7633bcb4-4902-4198-81d3-d9a64087a633",
+    "build": "30",
+    "marketingVersion": "1.0.0",
+    "sourceCommit": "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3",
+    "ipaSha256": "c9a14033af78ee52cb955ec9dfaf55694d999340035acd5f00480ef0859d47ad",
+    "memberships": [
+      {
+        "id": "8f0948f4-86ef-4f7a-aa47-830a6e8f4eae",
+        "buildSide": true,
+        "groupSide": true
+      },
+      {
+        "id": "f4f2520c-3eaf-46f9-a31a-a36d38b74c53",
+        "buildSide": true,
+        "groupSide": true
+      }
+    ],
+    "internalState": "IN_BETA_TESTING",
+    "externalState": "IN_BETA_TESTING",
+    "review": {
+      "buildId": "7633bcb4-4902-4198-81d3-d9a64087a633",
+      "state": "APPROVED"
+    },
+    "available": true,
+    "propagationPending": false,
+    "writes": [],
+    "status": "AVAILABLE_TO_TESTERS",
+    "changed": true,
+    "action": "apply",
+    "coordinatorCommit": "4423cf3b0842518e56af7e7c1ae95bba37f0406b",
+    "coordinatorRun": "44275838101",
+    "coordinatorAttempt": 1,
+    "observedAt": "2026-11-18T09:27:34.822Z",
+    "complete": true,
+    "readOnly": false,
+    "uploadRunId": 44199784070,
+    "uploadRunAttempt": 1
+  },
+  "upload": {
+    "uploadVerified": true,
+    "currentNativeGatesVerified": true,
+    "app": "6824331953",
+    "appleBuildId": "7633bcb4-4902-4198-81d3-d9a64087a633",
+    "sourceCommit": "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3",
+    "ipaSha256": "c9a14033af78ee52cb955ec9dfaf55694d999340035acd5f00480ef0859d47ad",
+    "runId": 44199784070,
+    "runAttempt": 1,
+    "marketingVersion": "1.0.0",
+    "build": "30",
+    "signature": "verified",
+    "usesNonExemptEncryption": false,
+    "artifactId": 14386469136,
+    "artifactSha256": "359452ec3d20301d59252e65048939d0aa8f37fb97331f086dab89e7931e138e",
+    "originalRunConclusion": "failure",
+    "testerMembershipVerified": false,
+    "inspection": {
+      "run": 44249365858,
+      "attempt": 1,
+      "head": "4fd5c01785297c5de61880f1939aa8aa855464c9",
+      "artifact": 14403631744,
+      "digest": "sha256:efbac39886a04c6d157a3f0b6d62d7f97525c1f6c0b6e101d492866049f78c3f",
+      "memberSha256": "40786db9718f2ee700b36434d83ed4607350bb45be7b10a5235c6b37e5cbc293",
+      "observedAt": "2026-11-18T06:11:20.479Z"
+    }
+  },
+  "betaArtifactId": 14415470107,
+  "betaArtifactSHA256": "c5bfc4b538a2024897988db4b2f6e98702af9efbfda1cae20b8f7d42d9f4563b",
+  "betaResultSHA256": "4d7430119daeadf3cd08642873469773cf6e4e3c1a17f21274d231275627738d",
+  "listingFiles": {
+    "RC7_APP_REVIEW_NOTES.txt": "ad314d47b4d2a84f2f909f2d792b435853585ed9b84e69b7062020490a16db16",
+    "RC7_APP_STORE_DESCRIPTION.txt": "7979fe877c85d7c98ed7bf931f576961ee53997f356ad4b1ef42a6e126b10b9c"
+  }
+}
