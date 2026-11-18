@@ -1,15 +1,9 @@
-Kilowallet 1.0.0 (21) — RC6 publisher candidate
+Kilowallet 1.0.0 (30) — RC7
 
-Please use synthetic or empty test wallets only. First verify upgrade preservation: wallet identities and receive-address progress, labels, frozen coins, pending transactions, wallet-scoped Ark data, Lightning state/backups, and JoinBlaket commitment history. Check wallet switching and reopening the app. Never send recovery words, passwords, private keys, or backup files in feedback.
+This build fixes the iOS Lightning bridge behind the “no such LND call: routerSendPaymentV2” error. The fix also applies to calls for opening, closing and resizing channels, tracking payments and receiving invoices.
 
-RC6 adds PAY THROUGH JOINBLAKET for one payment to a native SegWit (bc1q) address. The SEND screen shows a read-only market summary refreshed about every 30 seconds. Eligible coins need at least five confirmations and at least 20 percent of the payment amount. After unlock, review each maker fee, the estimated mining fee, and the fee ceiling before confirming.
+Settings → BTC node & explorer now lets you scan or enter your own Knots (BLAKE2b) node. With this option on, the node receives watch-only public descriptors and can link your wallet’s addresses and history. Your recovery words and spending keys stay on the phone. The RPC login is stored in the iOS Keychain. For HTTPS, compare the certificate fingerprint on your node before trusting it. Onion connections use the built-in Tor. Kilojoin and JoinBlaket continue to use Electrum.
 
-An actual JoinBlaket payment uses the app's Tor engine for the directory onion service. Maker coins and fidelity bonds are checked through the selected Electrum server with SPV proofs. Maker signatures are checked before the wallet signs. Current wallet identity, reserved/frozen/pending inputs, change allocation, fee ceiling, signatures, and broadcast state are rechecked and fail closed. Used PoDLE commitment history is wallet-scoped and included in the password-protected backup.
+Test with an empty or synthetic wallet. Update in place; keep your current wallet installed. Check that switching wallets and reopening the app preserves receive addresses, frozen/reserved coins, pending activity, and wallet-specific Ark and Lightning state. To try the RPC screen, use an isolated test node. Do not send real funds, open or close real channels, or include recovery words, RPC passwords or backup files in feedback.
 
-Keep the app open until a JoinBlaket payment finishes. iOS provides only short background execution time, not a continuous background service. A signed transaction that could not be broadcast remains pending and may be rebroadcast; conflicting work stays blocked until it resolves.
-
-Kilojoin supports v1–v6. Signed inputs remain reserved while their outcome is unresolved. Completion and conflicting-spend release require six confirmations; reorgs and failed broadcasts trigger retries. Transaction details follow live confirmations, and a normal send is refused if a selected coin becomes reserved by a closing/signing Kilojoin round while review is open.
-
-The candidate also includes on-chain Taproot, PSBT signing, coin controls and fee bumping; Ark; on-device Lightning; built-in Tor; encrypted .kab backups and Lightning move files. Lightning uses Tor by default. Its optional cross-network bridge uses HTTPS through Cloudflare. Ark is separately operated. Background alerts and Ark renewal depend on iOS scheduling.
-
-Native CI, migration fixtures, simulator visuals, and live empty-wallet engine probes passed. The current candidate has not been installed on a physical iPhone, no real JoinBlaket payment or other financial transaction was performed, and no funded Lightning-channel recovery or completed live Kilojoin round is claimed. Report build 21, the screen, and exact reproduction steps.
+The publisher verified automated migration tests, native simulator tests, and the iPhone Release build. Live payments and physical-device node connectivity have not been verified for this build.

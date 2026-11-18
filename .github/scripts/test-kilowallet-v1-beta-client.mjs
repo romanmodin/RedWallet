@@ -63,7 +63,7 @@ function fixture() {
     let result;
     if (path === "/v1/builds/" + PRIOR_BUILD) {
       if (state.priorReadFails) throw Error("Prior review unavailable");
-      result = one("builds", PRIOR_BUILD, {version:"8"}, {
+      result = one("builds", PRIOR_BUILD, {version:"21"}, {
         app:rel("apps",APP),preReleaseVersion:rel("preReleaseVersions","prior-train"),
         buildBetaDetail:rel("buildBetaDetails","prior-detail"),
         betaAppReviewSubmission:rel("betaAppReviewSubmissions","prior-review")});

@@ -3,7 +3,7 @@ import { APP } from "./kilowallet-v1-beta-plan.mjs";
 
 // Previous qualified 1.0.0 build, already submitted to external beta review.
 // This module accepts a GET reader only and never withdraws or changes a review.
-export const PRIOR_BUILD = "efc0adfd-12df-4c95-8fa5-479b1e516563";
+export const PRIOR_BUILD = "39bccc02-a2e3-4a30-a890-ddd0eb9273af";
 export const PRIOR_PATH = "/v1/builds/" + PRIOR_BUILD +
   "?include=app,preReleaseVersion,buildBetaDetail,betaAppReviewSubmission";
 
@@ -11,7 +11,7 @@ export async function readPriorReview(get, now = () => Date.now()) {
   const body = await get(PRIOR_PATH), build = body?.data;
   assert.equal(build?.type, "builds");
   assert.equal(build.id, PRIOR_BUILD);
-  assert.equal(build.attributes?.version, "8");
+  assert.equal(build.attributes?.version, "21");
   assert.ok(Array.isArray(body.included));
   const included = (name, type) => {
     const ref = build.relationships?.[name]?.data;
@@ -39,8 +39,14 @@ export async function readPriorReview(get, now = () => Date.now()) {
   // Do not treat an inconsistent or unknown relationship as permission to retry.
   assert.equal(active, ["WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW"]
     .includes(detail.attributes.externalBuildState), "Inconsistent prior review status");
+  if (!active) {
+    const allowed = state === "APPROVED" ? ["READY_FOR_BETA_TESTING", "IN_BETA_TESTING", "EXPIRED"] :
+      state === "REJECTED" ? ["BETA_REJECTED"] : ["READY_FOR_BETA_SUBMISSION"];
+    assert.ok(allowed.includes(detail.attributes.externalBuildState),
+      "Unrecognized or inconsistent settled prior review state");
+  }
   return { complete: true, readOnly: true, observedAt: new Date(now()).toISOString(),
-    appId: APP, buildId: PRIOR_BUILD, version: "1.0.0", build: "8",
+    appId: APP, buildId: PRIOR_BUILD, version: "1.0.0", build: "21",
     externalState: detail.attributes.externalBuildState, reviewId: review?.id || null,
     reviewState: state, blocksAnotherBuildReview: active };
 }

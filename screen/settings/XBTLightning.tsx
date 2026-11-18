@@ -663,7 +663,7 @@ export default function XBTLightning({
             onPress={() => node('setup')}
           />
         )}
-        <SettingsListItem title="Refresh status" disabled={busy} onPress={() => node('status')} />
+        <SettingsListItem testID="LightningRefreshStatus" title="Refresh status" disabled={busy} onPress={() => node('status')} />
       </SettingsSection>
       <View
         testID="LightningActivityPanel"

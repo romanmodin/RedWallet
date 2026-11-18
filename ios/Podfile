@@ -6,6 +6,9 @@ def node_require(script)
       {paths: [process.argv[1]]},
     )", __dir__]).strip
 end
+# The 0.85.3 binary predates the Fabric unmount fix in react-native#57865.
+# Compile the patched renderer installed by patch-package for every iOS build.
+ENV['RCT_USE_PREBUILT_RNCORE'] = '0'
 node_require('react-native/scripts/react_native_pods.rb')
 node_require('react-native-permissions/scripts/setup.rb')
 
@@ -38,6 +41,9 @@ target 'BlueWallet' do
 end
 
 post_install do |installer|
+  if installer.pod_targets.any? { |target| target.pod_name == 'React-Core-prebuilt' }
+    raise 'The prebuilt renderer does not include the RedWallet Fabric unmount fix.'
+  end
   react_native_post_install(
     installer,
     :mac_catalyst_enabled => true,
