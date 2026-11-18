@@ -35,6 +35,7 @@ const SettingsTools: React.FC = () => {
         {!!NativeModules.XBTLightningBridge && (
           <SettingsListItem
             title="XBT Lightning"
+            testID="XBTLightningSettingsTool"
             iconName="lightning"
             subtitle="On-device test node · Regtest"
             onPress={() => navigation.navigate('XBTLightning')}

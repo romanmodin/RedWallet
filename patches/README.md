@@ -7,6 +7,17 @@ When upstream ships an equivalent fix, drop the patch here and bump the dependen
 
 ---
 
+## `react-native+0.85.3.patch`
+
+Backports the bounds check from https://github.com/facebook/react-native/pull/57865 to
+`RCTViewComponentView.mm`. Without it, formatting the unmount assertion indexes past the end of
+`subviews` and crashes (see #257). The stock prebuilt RN core predates the fix, so `ios/Podfile`
+forces `RCT_USE_PREBUILT_RNCORE=0` and raises if `React-Core-prebuilt` is resolved.
+
+**Remove this patch and the Podfile override once React Native is bumped to a release containing #57865.**
+
+---
+
 ## `react-native-tcp-socket+6.4.1.patch`
 
 **What:** in `TcpSockets.m onConnect:`, read the socket addresses once and

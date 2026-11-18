@@ -88,6 +88,48 @@ describe('RedWallet UI Tests - no wallets', () => {
     await waitForWalletsList();
   });
 
+  const lightningSettingsCase = process.env.REDWALLET_LIGHTNING_SETTINGS_EXIT === 'success' ? it : it.skip;
+  lightningSettingsCase('can leave XBT Lightning Settings after native view changes', async () => {
+    await device.launchApp({ newInstance: true });
+    await waitForWalletsList();
+    await element(by.id('SettingsButton')).tap();
+    await waitFor(element(by.id('Tools')))
+      .toBeVisible()
+      .whileElement(by.id('SettingsRoot'))
+      .scroll(250, 'down');
+    await element(by.id('Tools')).tap();
+    const entry = element(by.id('XBTLightningSettingsTool'));
+    const screen = element(by.id('XBTLightningScreen'));
+    await waitFor(entry).toBeVisible().withTimeout(15000);
+
+    // Keep the disposable node stopped. Explicit screen assertions let Back
+    // overlap the initial read, refresh, or addition/removal of an explanation.
+    await device.disableSynchronization();
+    try {
+      for (const action of ['open', 'refresh', 'toggle', 'toggle']) {
+        await entry.tap();
+        await waitFor(screen).toBeVisible().withTimeout(15000);
+        if (action === 'refresh') {
+          const refresh = element(by.id('LightningRefreshStatus'));
+          await waitFor(refresh).toBeVisible().whileElement(by.id('XBTLightningScreen')).scroll(150, 'down');
+          await refresh.tap();
+        } else if (action === 'toggle') {
+          const explanation = element(by.id('SettingsExplanation-lightning.node-peers'));
+          await waitFor(explanation).toBeVisible().withTimeout(10000);
+          await explanation.tap();
+        }
+        await goBack();
+        await waitFor(screen).not.toExist().withTimeout(15000);
+        await waitFor(entry).toBeVisible().withTimeout(15000);
+      }
+    } finally {
+      await device.enableSynchronization();
+    }
+    await goBack();
+    await goBack();
+    await waitForWalletsList();
+  });
+
   it('all settings screens work', async () => {
     const lockFile = '/tmp/travislock.' + hashIt('t2');
     if (process.env.CI) {
