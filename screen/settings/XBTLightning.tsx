@@ -222,6 +222,7 @@ export default function XBTLightning({
   const [selectedOffer, setSelectedOffer] = useState<SavedOffer>();
   const [lightningPeer, setLightningPeer] = useState('');
   const [outgoing, setOutgoing] = useState('');
+  const [invoiceFocused, setInvoiceFocused] = useState(false);
   const [review, setReview] = useState<Review>();
   const [crossPayment, setCrossPayment] = useState<{ invoice?: string }>();
   const [channels, setChannels] = useState<Channel[]>();
@@ -1116,16 +1117,20 @@ export default function XBTLightning({
                 placeholderTextColor={colors.alternativeTextColor2}
                 style={[
                   styles.input,
+                  styles.payInvoiceInput,
+                  !busy && (invoiceFocused ? styles.invoiceGlowFocused : styles.invoiceGlow),
                   {
                     color: busy ? informationColor : colors.foregroundColor,
                     backgroundColor: panelBackground,
-                    borderColor: colors.hdborderColor,
+                    borderColor: !busy && invoiceFocused ? colors.primary : colors.hdborderColor,
                   },
                 ]}
                 accessibilityLabel="Invoice to pay"
                 placeholder={bridge.offers ? 'Paste a Lightning invoice or BOLT12 offer' : 'Paste a Lightning invoice'}
                 autoCapitalize="none"
                 autoCorrect={false}
+                onFocus={() => setInvoiceFocused(true)}
+                onBlur={() => setInvoiceFocused(false)}
                 value={outgoing}
                 onChangeText={value => {
                   setReview(undefined);
@@ -1662,6 +1667,13 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   fundingQR: { alignItems: 'center', padding: 16, gap: 16 },
+  payInvoiceInput: { minHeight: 50, paddingVertical: 15 },
+  invoiceGlow: {
+    boxShadow: [{ offsetX: 0, offsetY: 0, blurRadius: 6, spreadDistance: 1, color: 'rgba(244, 54, 104, 0.28)' }],
+  },
+  invoiceGlowFocused: {
+    boxShadow: [{ offsetX: 0, offsetY: 0, blurRadius: 9, spreadDistance: 1, color: 'rgba(244, 54, 104, 0.46)' }],
+  },
   input: {
     marginHorizontal: 12,
     marginVertical: 6,

@@ -1,7 +1,7 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import React from 'react';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
-import { Alert, AppState, AppStateStatus, NativeModules } from 'react-native';
+import { Alert, AppState, AppStateStatus, NativeModules, StyleSheet } from 'react-native';
 
 const mockStorage: { wallets: { type: string; hideBalance: boolean }[] } = {
   wallets: [],
@@ -81,6 +81,24 @@ const bridge = {
 };
 NativeModules.XBTLightningBridge = bridge;
 const XBTLightning = require('../../screen/settings/XBTLightning').default;
+
+test('the Pay invoice field highlights on focus and returns to its idle glow on blur', async () => {
+  const screen = render(<XBTLightning route={{ params: { mode: 'pay' } }} />);
+  await act(async () => {});
+  const field = screen.getByLabelText('Invoice to pay');
+  const idleStyle = StyleSheet.flatten(field.props.style);
+  expect(idleStyle.minHeight).toBe(50);
+  expect(idleStyle.boxShadow).toBeDefined();
+
+  fireEvent(field, 'focus');
+  const focusedStyle = StyleSheet.flatten(field.props.style);
+  expect(focusedStyle.boxShadow).not.toEqual(idleStyle.boxShadow);
+  expect(focusedStyle.borderColor).not.toEqual(idleStyle.borderColor);
+
+  fireEvent(field, 'blur');
+  expect(StyleSheet.flatten(field.props.style)).toEqual(idleStyle);
+  expect(bridge.invoice).not.toHaveBeenCalled();
+});
 
 test.each([false, true])('review binds the amount, hash and one submission even with hidden balances: %s', async hidden => {
   mockStorage.wallets = [{ type: 'lndWallet', hideBalance: hidden }];
