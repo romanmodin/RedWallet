@@ -107,6 +107,14 @@ final class TorFeeFetch {
     static func retryable(_ error: Error) -> Bool {
         let error = error as NSError
         guard error.domain == NSURLErrorDomain else { return false }
+        // CFNetwork reports a SOCKS CONNECT refusal as badURL + POSIX EINVAL
+        // on this fixed HTTPS endpoint (verified simulator job 134288881429).
+        // Do not retry ordinary malformed URLs or unrelated badURL failures.
+        if error.code == URLError.badURL.rawValue {
+            return (error.userInfo["_kCFStreamErrorDomainKey"] as? NSNumber)?.intValue == 1
+                && (error.userInfo["_kCFStreamErrorCodeKey"] as? NSNumber)?.intValue == 22
+        }
+
         return [URLError.cannotFindHost, .cannotConnectToHost,
                 .networkConnectionLost, .dnsLookupFailed, .notConnectedToInternet]
             .contains { $0.rawValue == error.code }

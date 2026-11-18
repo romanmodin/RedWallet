@@ -46,6 +46,44 @@ final class TorFeeFetchTests: XCTestCase {
         queue.sync { XCTAssertEqual(calls, 1) }
     }
 
+    func testObservedSOCKSRefusalRetriesThenSucceeds() async {
+        let done = expectation(description: "SOCKS recovery")
+        var calls = 0
+        let stream: [String: Any] = [
+            "_kCFStreamErrorDomainKey": NSNumber(value: 1),
+            "_kCFStreamErrorCodeKey": NSNumber(value: 22)
+        ]
+        var info = stream
+        info[NSUnderlyingErrorKey] = NSError(domain: "kCFErrorDomainCFNetwork", code: -1000, userInfo: stream)
+        let refusal = NSError(domain: NSURLErrorDomain, code: -1000, userInfo: info)
+        let fetch = TorFeeFetch(queue: queue, policy: policy, ready: { true }, transport: { _, reply in
+            calls += 1
+            reply(calls == 1 ? .failure(refusal) : .success(self.data))
+            return {}
+        }, completion: { result in
+            XCTAssertEqual(try? result.get(), self.data); done.fulfill()
+        })
+        fetch.start()
+        await fulfillment(of: [done], timeout: 2)
+        queue.sync { XCTAssertEqual(calls, 2) }
+    }
+
+    func testUnrelatedBadURLErrorsRemainNonRetryable() {
+        XCTAssertFalse(TorFeeFetch.retryable(URLError(.badURL)))
+        for stream in [
+            ["_kCFStreamErrorDomainKey": 1, "_kCFStreamErrorCodeKey": 21],
+            ["_kCFStreamErrorDomainKey": 3, "_kCFStreamErrorCodeKey": 22],
+            ["_kCFStreamErrorCodeKey": 22],
+            ["_kCFStreamErrorDomainKey": 1]
+        ] {
+            XCTAssertFalse(TorFeeFetch.retryable(
+                NSError(domain: NSURLErrorDomain, code: -1000, userInfo: stream)))
+        }
+        XCTAssertFalse(TorFeeFetch.retryable(NSError(domain: NSURLErrorDomain,
+            code: URLError.serverCertificateUntrusted.rawValue,
+            userInfo: ["_kCFStreamErrorDomainKey": 1, "_kCFStreamErrorCodeKey": 22])))
+    }
+
     func testStoppedTorDoesNotStartTransport() async {
         let done = expectation(description: "stopped")
         let fetch = TorFeeFetch(queue: queue, policy: policy, ready: { false }, transport: { _, _ in
