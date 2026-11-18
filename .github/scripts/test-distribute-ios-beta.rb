@@ -6,6 +6,7 @@ require_relative 'distribute-ios-beta'
 class FixtureBetaRelease < RedWalletBetaRelease
   attr_reader :writes, :assigned
   attr_accessor :wrong_app, :wrong_group, :wrong_build, :expired, :compliance, :review_state, :existing, :external_state, :internal_state, :missing_group, :duplicate_group, :incomplete_groups
+  attr_accessor :final_attributes, :final_build_id
   def initialize(notes_path:, receipt_path:)
     super(key_path: nil, notes_path: notes_path, receipt_path: receipt_path, token: Object.new)
     @writes = []; @assigned = []; @compliance = false; @review_state = 'WAITING_FOR_REVIEW'
@@ -46,7 +47,8 @@ class FixtureBetaRelease < RedWalletBetaRelease
       ids = existing ? GROUPS.map { |g| g[:id] } : assigned
       external = external_state || (review_state == 'APPROVED' ? 'IN_BETA_TESTING' :
                                    review_state.nil? ? 'READY_FOR_BETA_SUBMISSION' : 'WAITING_FOR_BETA_REVIEW')
-      return { 'data' => { 'attributes' => { 'processingState' => 'VALID' } }, 'included' =>
+      attributes = { 'processingState' => 'VALID', 'expired' => false, 'version' => BUILD }.merge(final_attributes || {})
+      return { 'data' => { 'id' => final_build_id || 'fixture-build', 'attributes' => attributes }, 'included' =>
         [{ 'type' => 'buildBetaDetails', 'attributes' => { 'internalBuildState' => internal_state || 'IN_BETA_TESTING',
               'externalBuildState' => external } },
          { 'type' => 'betaAppReviewSubmissions', 'attributes' => { 'betaReviewState' => review_state } }] +
@@ -93,6 +95,25 @@ Dir.mktmpdir('redwallet-beta-fixtures') do |dir|
     release = factory.call; release.existing = true; release.run
     check(release.writes.all? { |w| w[0] == 'PATCH' }, 'Idempotent run reassigned groups or submitted review')
     check(report.call['groups'].all? { |g| g['assigned'] && g['internal'] }, 'Receipt lost internal group confirmation')
+    [{ 'expired' => true }, { 'expired' => nil }, { 'processingState' => 'INVALID' },
+     { 'version' => 'different' }].each do |attributes|
+      release = factory.call
+      release.final_attributes = attributes
+      begin
+        release.run
+        raise "Final Apple state accepted: #{attributes.inspect}"
+      rescue BetaReleaseError
+        check(report.call['status'] == 'BLOCKED', 'Stale final build state must block availability')
+      end
+    end
+    release = factory.call
+    release.final_build_id = 'different-build'
+    begin
+      release.run
+      raise 'Readback for a different Apple build was accepted'
+    rescue BetaReleaseError
+      check(report.call['status'] == 'BLOCKED', 'Readback must identify the assigned build')
+    end
     release = factory.call; release.internal_state = 'READY_FOR_BETA_TESTING'; release.run
     check(report.call['status'] == 'TESTER_STATE_PROPAGATION_PENDING', 'Ready state falsely claims active availability')
     release = factory.call; release.review_state = 'REJECTED'; release.run

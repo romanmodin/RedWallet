@@ -149,6 +149,12 @@ class RedWalletBetaRelease
     info = nil
     6.times do
       info = build_info(build_id)
+      data = info.fetch('data')
+      attrs = data.fetch('attributes')
+      unless data['id'] == build_id && attrs['version'] == BUILD &&
+             attrs['processingState'] == 'VALID' && attrs['expired'] == false
+        raise BetaReleaseError, 'Final Apple status does not confirm the expected valid, unexpired build'
+      end
       included = info.fetch('included', [])
       beta = included.find { |item| item['type'] == 'buildBetaDetails' }
       break if beta&.dig('attributes', 'internalBuildState') == 'IN_BETA_TESTING'
