@@ -201,7 +201,7 @@ jobs:
         import json,os
         from pathlib import Path
         p=Path('ios-ipa-verification.json');r=json.loads(p.read_text());r.update(json.loads(Path('reviewed-source-verification.json').read_text()))
-        r['qualification']=json.loads(Path('ios-release-gates.json').read_text());r['sourceCommit']=os.environ['SOURCE_COMMIT'];r['orchestrationCommit']=os.environ['GITHUB_SHA'];r['sourceRunId']=os.environ['GITHUB_RUN_ID']
+        r['qualification']=json.loads(Path('ios-release-gates.json').read_text());r['sourceCommit']=os.environ['SOURCE_COMMIT'];r['orchestrationCommit']=os.environ['GITHUB_SHA'];r['sourceRunId']=os.environ['GITHUB_RUN_ID'];r['sourceRunAttempt']=int(os.environ['GITHUB_RUN_ATTEMPT'])
         p.write_text(json.dumps(r,indent=2)+'\n')
         PYCODE
     - name: Encrypt private tester package
@@ -278,22 +278,12 @@ jobs:
         bundle config path vendor/bundle
         bundle install --jobs 4 --retry 3 --quiet
     - name: Validate source release run
+      id: signing_source
       if: inputs.source_run_id != ''
       env:
         GH_TOKEN: ${{ github.token }}
         SOURCE_RUN_ID: ${{ inputs.source_run_id }}
-      run: |-
-        python3 - <<'PYCODE'
-        import json,os,re,subprocess
-        repo=os.environ['GITHUB_REPOSITORY'];rid=os.environ['SOURCE_RUN_ID']
-        assert rid.isdecimal(),'Source run must be numeric'
-        r=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{rid}']))
-        assert r['repository']['full_name']==repo and r['head_repository']['full_name']==repo,'Wrong source repository'
-        assert r['path']=='.github/workflows/build-ios-approved-source.yml','Wrong source workflow'
-        assert r['status']=='completed' and r['conclusion']=='success','Source build must have succeeded'
-        assert r['event']=='workflow_dispatch' and r['head_branch']=='main','Source must be an approved main dispatch'
-        assert r['head_sha']==os.environ['GITHUB_SHA'],'Source must match this approved workflow commit'
-        PYCODE
+      run: python3 -I .reviewed-orchestration/.github/scripts/link-ios-upload-receipt.py --source-run-attempt
     - name: Download original signing receipt
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -350,6 +340,7 @@ jobs:
     - name: Verify the upload matches the signed package
       env:
         SIGNING_RUN_ID: ${{ inputs.source_run_id || github.run_id }}
+        SIGNING_RUN_ATTEMPT: ${{ steps.signing_source.outputs.attempt || github.run_attempt }}
       run: python3 -I .reviewed-orchestration/.github/scripts/link-ios-upload-receipt.py signing-receipt/ios-ipa-verification.json ios-ipa-verification.json
     - name: Save package verification receipt
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
