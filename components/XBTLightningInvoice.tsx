@@ -55,8 +55,8 @@ export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }:
           };
           await NativeShare.open({ ...attachment, failOnCancel: false });
         } else {
-          const { writeFileAndExport } = await import('../blue_modules/fs');
-          await writeFileAndExport('xbt-lightning-' + noun + '.gif', base64, true, 'base64');
+          const { shareTemporaryFile } = await import('../blue_modules/fs');
+          await shareTemporaryFile('xbt-lightning-' + noun + '.gif', base64, 'base64');
         }
       }
     } catch {

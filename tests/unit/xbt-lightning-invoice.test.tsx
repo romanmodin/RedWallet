@@ -115,6 +115,31 @@ test('share failure offers copy without losing the invoice', async () => {
   }
 });
 
+test.each(['file write', 'share sheet'])('iOS QR %s failure cleans up the file and offers Copy', async failure => {
+  jest.mocked(RNFS.exists).mockResolvedValueOnce(true);
+  if (failure === 'file write') {
+    jest.mocked(RNFS.writeFile).mockRejectedValueOnce(new Error('Write failed'));
+  } else {
+    jest.mocked(NativeShare.open).mockRejectedValueOnce(new Error('Share failed'));
+  }
+  const screen = render(<XBTLightningInvoice invoice={invoice} sats="1000000" />);
+  await act(async () => fireEvent.press(screen.getByText('Share QR image')));
+  expect(screen.getByText(/Could not open sharing/)).toBeTruthy();
+  const path = jest.mocked(RNFS.writeFile).mock.lastCall?.[0];
+  expect(RNFS.unlink).toHaveBeenLastCalledWith(path);
+  fireEvent.press(screen.getByText('Copy invoice'));
+  expect(Clipboard.setString).toHaveBeenLastCalledWith(invoice);
+});
+
+test('canceling the iOS share sheet quietly removes the temporary QR', async () => {
+  jest.mocked(RNFS.exists).mockResolvedValueOnce(true);
+  jest.mocked(NativeShare.open).mockRejectedValueOnce(new Error('CANCELLED'));
+  const screen = render(<XBTLightningInvoice invoice={invoice} sats="1000000" />);
+  await act(async () => fireEvent.press(screen.getByText('Share QR image')));
+  expect(screen.queryByText(/Could not open sharing/)).toBeNull();
+  expect(RNFS.unlink).toHaveBeenLastCalledWith(jest.mocked(RNFS.writeFile).mock.lastCall?.[0]);
+});
+
 test('requests too large for an image can still be shared as complete text', async () => {
   const longRequest = 'lnbc1' + 'q'.repeat(6000);
   const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction });
