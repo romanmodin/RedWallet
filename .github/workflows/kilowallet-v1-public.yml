@@ -119,6 +119,17 @@ jobs:
           echo "4d7430119daeadf3cd08642873469773cf6e4e3c1a17f21274d231275627738d  beta-receipt/kilowallet-v1-beta-result.json" | sha256sum -c -
           cmp beta-receipt/kilowallet-upload-qualification.json kilowallet-upload-qualification.json
           cp beta-receipt/kilowallet-v1-beta-result.json .
+      - name: Verify the public policy is reachable and matches the reviewed copy
+        if: ${{ inputs.action == 'withdraw' || inputs.action == 'submit' }}
+        run: |
+          set -euo pipefail
+          policy=distribution/kilowallet/RC7_PRIVACY.md
+          visible=$(curl -sS --max-time 30 --output /dev/null --write-out '%{http_code}' "https://github.com/romanmodin/RedWallet/blob/main/$policy")
+          test "$visible" = 200
+          raw="$RUNNER_TEMP/kilowallet-public-policy.md"
+          code=$(curl -fsS --max-time 30 --output "$raw" --write-out '%{http_code}' "https://raw.githubusercontent.com/romanmodin/RedWallet/main/$policy")
+          test "$code" = 200
+          cmp "$raw" "$policy"
       - name: Read or mutate only the exact Kilowallet 1.0 public release
         env:
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
