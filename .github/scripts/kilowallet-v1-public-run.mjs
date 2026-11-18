@@ -14,16 +14,16 @@ export const APP = "6824331953";
 export const BUNDLE = "com.kilombino.kilowallet";
 export const VERSION = "1.0.0";
 export const VERSION_ID = "1ca23695-4563-4a0e-b20e-d1a6457f4f8b";
-export const SOURCE = "9dfdcf864e92bde8a1c04485ff93294d2b731965";
-export const OLD_BUILD = "964f117a-f5e1-400f-9aac-d3145407560a";
-export const BUILD = "39bccc02-a2e3-4a30-a890-ddd0eb9273af";
-export const BUILD_NUMBER = "21";
+export const SOURCE = "3f5beee29cfbbd257a5d967f6d2e505bfec4c1b3";
+export const OLD_BUILD = "39bccc02-a2e3-4a30-a890-ddd0eb9273af";
+export const BUILD = "7633bcb4-4902-4198-81d3-d9a64087a633";
+export const BUILD_NUMBER = "30";
 export const LOCALE_ID = "07229a9a-bc87-4458-a3f6-37c7a6a046df";
 export const REVIEW_DETAIL_ID = "6446acd7-d950-4856-a412-0ba44fef5dfb";
 export const APP_INFO_ID = "1b43fae1-2f76-4309-b4cb-58192371c956";
 export const POLICY_LOCALE_ID = "d681427f-1723-4231-ac7f-b0ac69dff973";
 export const POLICY_URL =
-  "https://github.com/romanmodin/RedWallet/blob/main/distribution/kilowallet/RC6_PRIVACY.md";
+  "https://github.com/romanmodin/RedWallet/blob/main/distribution/kilowallet/RC7_PRIVACY.md";
 export const GROUPS = [
   "8f0948f4-86ef-4f7a-aa47-830a6e8f4eae",
   "f4f2520c-3eaf-46f9-a31a-a36d38b74c53",
@@ -66,10 +66,10 @@ export function validateCandidate(upload, beta) {
       build: BUILD_NUMBER,
       marketingVersion: VERSION,
       appleBuildId: BUILD,
-      ipaSha256: "3ed229d51d125a0259baed04dc804587d2d6e41d0ca5d7cc9f1d50e15f1a0539",
-      artifactId: 14168451071,
-      artifactSha256: "81f6d00d3e72de2e40656f53911be5b78495c6bba7898289428fc93d391c7359",
-      runId: 43728038899,
+      ipaSha256: "c9a14033af78ee52cb955ec9dfaf55694d999340035acd5f00480ef0859d47ad",
+      artifactId: 14386469136,
+      artifactSha256: "359452ec3d20301d59252e65048939d0aa8f37fb97331f086dab89e7931e138e",
+      runId: 44199784070,
       runAttempt: 1,
       signature: "verified",
       uploadVerified: true,
@@ -86,9 +86,9 @@ export function validateCandidate(upload, beta) {
   assert.equal(beta.ipaSha256, upload.ipaSha256);
   assert.equal(beta.uploadRunId, upload.runId);
   assert.equal(beta.uploadRunAttempt, 1);
-  assert.equal(beta.coordinatorRun, "43738317682");
+  assert.equal(beta.coordinatorRun, "44275838101");
   assert.equal(beta.coordinatorAttempt, 1);
-  assert.equal(beta.coordinatorCommit, "342b838c92399e0a73b82ed9f3c9bd4484480a8f");
+  assert.equal(beta.coordinatorCommit, "4423cf3b0842518e56af7e7c1ae95bba37f0406b");
   assert.equal(beta.complete, true);
   assert.equal(beta.available, true);
   assert.equal(beta.propagationPending, false);
@@ -293,6 +293,7 @@ export function client(token, candidate, journal, request = fetch) {
 async function collection(api, path, query = {}) {
   const result = await api("GET", path, undefined, { limit: "200", ...query });
   assert.ok(Array.isArray(result.data));
+  assert.ok(!result.links?.next, "Incomplete paginated review snapshot");
   return result.data;
 }
 
@@ -438,6 +439,7 @@ export function planPublic(snapshot, action, metadata) {
     assert.ok(SUBMITTED.has(snapshot.versionState));
     assert.ok(snapshot.activeReview);
     assert.ok(SUBMITTED.has(snapshot.activeReview.state));
+    assert.ok(validId(snapshot.activeReview.itemId), "Missing exact prior review item");
     return {
       status: "WITHDRAWAL_REQUIRED",
       writes: [{ action: "withdraw-review", reviewId: snapshot.activeReview.id }],
@@ -657,7 +659,7 @@ export async function execute(env, upload, beta, metadata, dependencies = {}) {
     description: cleanText(metadata.description, 4000),
   };
   assert.ok(metadata.notes.includes(SOURCE));
-  assert.ok(metadata.notes.includes("build 21"));
+  assert.ok(metadata.notes.includes("build 30"));
   assert.ok(metadata.notes.includes("synthetic"));
   assert.ok(metadata.description.includes("PAY THROUGH JOINBLAKET"));
   const journal = dependencies.journal || durableJournal;
@@ -705,9 +707,9 @@ async function main() {
     const upload = JSON.parse(readFileSync("kilowallet-upload-qualification.json", "utf8"));
     const beta = JSON.parse(readFileSync("kilowallet-v1-beta-result.json", "utf8"));
     const metadata = {
-      notes: readFileSync("distribution/kilowallet/RC6_APP_REVIEW_NOTES.txt", "utf8").trim(),
+      notes: readFileSync("distribution/kilowallet/RC7_APP_REVIEW_NOTES.txt", "utf8").trim(),
       description: readFileSync(
-        "distribution/kilowallet/RC6_APP_STORE_DESCRIPTION.txt",
+        "distribution/kilowallet/RC7_APP_STORE_DESCRIPTION.txt",
         "utf8",
       ).trim(),
     };

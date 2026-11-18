@@ -21,10 +21,10 @@ function receipts() {
     build: BUILD_NUMBER,
     marketingVersion: "1.0.0",
     appleBuildId: BUILD,
-    ipaSha256: "3ed229d51d125a0259baed04dc804587d2d6e41d0ca5d7cc9f1d50e15f1a0539",
-    artifactId: 14168451071,
-    artifactSha256: "81f6d00d3e72de2e40656f53911be5b78495c6bba7898289428fc93d391c7359",
-    runId: 43728038899,
+    ipaSha256: "c9a14033af78ee52cb955ec9dfaf55694d999340035acd5f00480ef0859d47ad",
+    artifactId: 14386469136,
+    artifactSha256: "359452ec3d20301d59252e65048939d0aa8f37fb97331f086dab89e7931e138e",
+    runId: 44199784070,
     runAttempt: 1,
     signature: "verified",
     uploadVerified: true,
@@ -39,8 +39,8 @@ function receipts() {
     buildId: BUILD,
     complete: true,
     coordinatorAttempt: 1,
-    coordinatorCommit: "342b838c92399e0a73b82ed9f3c9bd4484480a8f",
-    coordinatorRun: "43738317682",
+    coordinatorCommit: "4423cf3b0842518e56af7e7c1ae95bba37f0406b",
+    coordinatorRun: "44275838101",
     externalState: "IN_BETA_TESTING",
     internalState: "IN_BETA_TESTING",
     ipaSha256: upload.ipaSha256,
@@ -54,13 +54,13 @@ function receipts() {
     sourceCommit: SOURCE,
     status: "AVAILABLE_TO_TESTERS",
     uploadRunAttempt: 1,
-    uploadRunId: 43728038899,
+    uploadRunId: 44199784070,
   };
   return { upload, beta };
 }
 
 const metadata = {
-  notes: "build 21 exact " + SOURCE + " synthetic",
+  notes: "build 30 exact " + SOURCE + " synthetic",
   description: "PAY THROUGH JOINBLAKET",
 };
 
@@ -109,6 +109,7 @@ test("withdrawal planner preserves the active exact version until qualified repl
     status: "WITHDRAWAL_REQUIRED",
     writes: [{ action: "withdraw-review", reviewId: "review-1" }],
   });
+  assert.throws(() => planPublic({ ...snapshot, activeReview: { ...snapshot.activeReview, itemId: null } }, "withdraw", metadata));
   assert.throws(() =>
     planPublic({ ...snapshot, selectedBuild: "unexpected" }, "withdraw", metadata),
   );
@@ -151,7 +152,7 @@ test("submission planner changes only the build and three metadata fields before
   });
 });
 
-test("submission planner safely resumes only the exact build-21 review draft", () => {
+test("submission planner safely resumes only the exact build-30 review draft", () => {
   const draft = {
     versionState: "PREPARE_FOR_SUBMISSION",
     selectedBuild: BUILD,
@@ -220,20 +221,20 @@ test("Apple client rejects other apps, deletion, agreements, availability and pr
   assert.equal(calls, 0);
 });
 
-test("reviewed metadata is bounded and accurately discloses RC6 limits", () => {
-  const notes = readFileSync("distribution/kilowallet/RC6_APP_REVIEW_NOTES.txt", "utf8");
+test("reviewed metadata is bounded and accurately discloses RC7 limits", () => {
+  const notes = readFileSync("distribution/kilowallet/RC7_APP_REVIEW_NOTES.txt", "utf8");
   const description = readFileSync(
-    "distribution/kilowallet/RC6_APP_STORE_DESCRIPTION.txt",
+    "distribution/kilowallet/RC7_APP_STORE_DESCRIPTION.txt",
     "utf8",
   );
-  const privacy = readFileSync("distribution/kilowallet/RC6_PRIVACY.md", "utf8");
+  const privacy = readFileSync("distribution/kilowallet/RC7_PRIVACY.md", "utf8");
   assert.ok(notes.length <= 4000);
   assert.ok(description.length <= 4000);
   for (const text of [notes, description, privacy]) {
     assert.match(text, /PAY THROUGH JOINBLAKET/);
   }
   assert.match(notes, /synthetic wallets/);
-  assert.match(notes, /not been installed on a physical iPhone/);
+  assert.match(notes, /do not verify physical iPhone installation/);
   assert.match(notes, /no real JoinBlaket payment/);
   assert.match(privacy, /wallet-scoped history/);
   assert.match(privacy, /fails rather than falling back to a direct directory connection/);
