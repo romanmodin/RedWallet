@@ -54,6 +54,29 @@ class ReleaseGateTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Tor smoke qualification requires mainnet"):
             verifier["required_gates"](regtest=True, tor_smoke=True)
 
+    def test_tor_fee_policy_is_opt_in_and_rejects_missing_or_nonpassing_job(self):
+        base = verifier["required_gates"](mainnet=True, tor_smoke=True)[-1]
+        gate = verifier["required_gates"](mainnet=True, tor_smoke=True, tor_fee_unit=True)[-1]
+        self.assertEqual(gate[2] - base[2], {"tor-fee-unit"})
+        repo = {"full_name": "romanmodin/RedWallet"}
+        run = {"id": 1, "html_url": "fixture", "run_attempt": 2,
+               "repository": repo, "head_repository": repo, "head_sha": "fixture",
+               "path": gate[1], "status": "completed", "conclusion": "success"}
+        jobs = [{"name": name, "status": "completed", "conclusion": "success"} for name in base[2]]
+        with self.assertRaisesRegex(RuntimeError, "jobs are missing"):
+            verifier["validate_gate"](run, jobs, "fixture", gate[1], gate[2])
+        for status, conclusion in (("completed", "skipped"), ("completed", "failure"),
+                                   ("completed", "cancelled"), ("in_progress", None)):
+            job = {"name": "tor-fee-unit", "status": status, "conclusion": conclusion}
+            with self.subTest(status=status, conclusion=conclusion), self.assertRaisesRegex(RuntimeError, "Required job did not pass"):
+                verifier["validate_gate"](run, jobs + [job], "fixture", gate[1], gate[2])
+        jobs.append({"name": "tor-fee-unit", "status": "completed", "conclusion": "success"})
+        self.assertEqual(verifier["validate_gate"](run, jobs, "fixture", gate[1], gate[2])["runAttempt"], 2)
+
+    def test_tor_fee_policy_requires_mainnet(self):
+        with self.assertRaisesRegex(RuntimeError, "Tor fee qualification requires mainnet"):
+            verifier["required_gates"](tor_fee_unit=True)
+
     def test_network_selection_is_explicit(self):
         with self.assertRaises(RuntimeError):
             verifier["required_gates"](mainnet=True, regtest=True)
@@ -102,7 +125,7 @@ class ReleaseGateTests(unittest.TestCase):
                 verifier["validate_gate"](changed, jobs, "a" * 40, gate[1], gate[2])
 
     def test_invalid_release_flags_fail_before_network_access(self):
-        for variable in ("REQUIRE_STANDARD_HARDWARE_IOS", "REQUIRE_XBT_TOR_SMOKE"):
+        for variable in ("REQUIRE_STANDARD_HARDWARE_IOS", "REQUIRE_XBT_TOR_SMOKE", "REQUIRE_XBT_TOR_FEE_UNIT"):
             with self.subTest(variable=variable), patch.dict(os.environ, {"SOURCE_COMMIT": "a" * 40, variable: "true"}, clear=True), \
                  patch.object(sys, "argv", ["verify-ios-release-gates.py"]), \
                  patch.dict(verifier["main"].__globals__, {"api": Mock(side_effect=AssertionError("Unexpected network access"))}), \
@@ -111,9 +134,10 @@ class ReleaseGateTests(unittest.TestCase):
 
     def test_enabled_hardware_gate_is_verified_before_receipt_is_written(self):
         source = "a" * 40
-        gates = verifier["required_gates"](mainnet=True, tor_smoke=True, standard_hardware=True)
+        gates = verifier["required_gates"](mainnet=True, tor_smoke=True, standard_hardware=True, tor_fee_unit=True)
         env = {"SOURCE_COMMIT": source, "VERIFY_LND_MAINNET_IPA": "1",
-               "REQUIRE_XBT_TOR_SMOKE": "1", "REQUIRE_STANDARD_HARDWARE_IOS": "1"}
+               "REQUIRE_XBT_TOR_SMOKE": "1", "REQUIRE_STANDARD_HARDWARE_IOS": "1",
+               "REQUIRE_XBT_TOR_FEE_UNIT": "1"}
         for index, gate in enumerate(gates, 1):
             env[gate[0]] = str(index)
         hardware_success = False
