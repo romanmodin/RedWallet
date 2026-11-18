@@ -35,12 +35,21 @@ on:
       - 'tests/unit/lnd-payment-status.test.ts'
       - '.github/workflows/xbt-lnd-ios.yml'
       - '.github/scripts/xbt-lnd-regtest-*'
+      - '.github/scripts/test-tor-fee-fetch.sh'
 permissions:
   contents: read
 concurrency:
   group: xbt-lnd-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
+  tor-fee-unit:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - run: bash .github/scripts/test-tor-fee-fetch.sh
   release-policy:
     runs-on: ubuntu-24.04
     steps:

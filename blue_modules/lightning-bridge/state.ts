@@ -47,6 +47,10 @@ export interface BridgeBackend {
   pay(record: SwapRecord): Promise<NodePayment>;
 }
 const unresolved = new Set<SwapState>(['submitting', 'pending', 'unknown']);
+const disposableQuotes = new Set<SwapState>(['requesting', 'quoted', 'quote_failed', 'canceled', 'quote_expired']);
+function reservationEnds(record: SwapRecord): number {
+  return record.quote ? record.quote.expiresAt * 1000 + 60000 : record.createdAt + 600000;
+}
 const validState = new Set<SwapState>([
   'requesting',
   'quote_failed',
@@ -231,14 +235,20 @@ export class BridgeController {
       const existing = journal.records.find(r => r.hash === original.hash && r.node === node);
       if (existing && (unresolved.has(existing.state) || existing.state === 'settled'))
         throw new Error('This payment is pending, uncertain or already paid. Check its status; do not pay again.');
-      if (existing && this.now() < (existing.quote ? existing.quote.expiresAt * 1000 + 60000 : existing.createdAt + 600000))
+      if (existing && this.now() < reservationEnds(existing))
         throw new Error('A quote for this invoice already exists. Wait before requesting another.');
       const previous = await this.backend.status(original.hash);
       if (!['not_found', 'failed'].includes(previous.state))
         throw new Error('LND already knows this payment. Check its status before proceeding.');
       journal.requests = journal.requests.filter(t => this.now() - t < 600000);
       if (journal.requests.length >= 6) throw new Error('Six quote requests per ten minutes. Please wait.');
-      if (!existing && journal.records.length >= 200) throw new Error('Bridge payment history is full. No new payment was created.');
+      let replaced = existing;
+      if (!existing && journal.records.length >= 200) {
+        replaced = journal.records
+          .filter(record => disposableQuotes.has(record.state) && reservationEnds(record) <= this.now())
+          .sort((a, b) => a.updatedAt - b.updatedAt)[0];
+        if (!replaced) throw new Error('Bridge payment history is full. No new payment was created.');
+      }
       if (signal.aborted) throw new Error('Quote canceled.');
       const market = await provider.info(signal);
       if (!market.open) throw new Error('This processor is unavailable for XBT → SHA256.');
@@ -253,7 +263,7 @@ export class BridgeController {
         updatedAt: this.now(),
         feeLimit,
       };
-      journal.records = journal.records.filter(r => r !== existing);
+      journal.records = journal.records.filter(r => r !== replaced);
       journal.records.push(record);
       journal.requests.push(this.now());
       // Persist the reservation before the quote request. A crash cannot silently bypass the limit.
