@@ -30,6 +30,8 @@ concurrency:
 jobs:
   build:
     if: ${{ !inputs.source_run_id }}
+    outputs:
+      lightning_variant: ${{ steps.lightning_variant.outcome }}
     runs-on: macos-26
     env:
       BUILD_CONFIGURATION: Release
@@ -127,6 +129,7 @@ jobs:
           rm -f ios/BlueWallet.xcodeproj/xcshareddata/xcschemes/Stickers.xcscheme
 
       - name: Enable the iOS 16 Lightning regtest variant
+        id: lightning_variant
         if: github.head_ref == 'feat/lightning-wallet-home' || github.head_ref == 'feat/lightning-splice' || github.head_ref == 'feat/lightning-tor' || github.head_ref == 'feat/xbt-lnd-ios' || github.head_ref == 'fix/lnd-startup-feedback' || (startsWith(github.head_ref, 'release/ios-combined-lightning-') || startsWith(github.head_ref, 'feat/lightning-cross-chain-bridge-'))
         run: bundle exec ruby .github/scripts/enable-xbt-lightning-regtest.rb
 
@@ -296,6 +299,8 @@ jobs:
           xcrun simctl spawn booted notifyutil -p com.apple.Accessibility.ReduceMotionStatusDidChange
 
       - name: Run pristine startup and wallet tests
+        env:
+          REDWALLET_LIGHTNING_SETTINGS_EXIT: ${{ needs.build.outputs.lightning_variant }}
         timeout-minutes: 90
         run: |
           WALLET_TEST_RESULT=0
