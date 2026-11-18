@@ -96,6 +96,30 @@ class UploadHandoffTests(unittest.TestCase):
             self.assertEqual([c.args[0][-1] for c in api.call_args_list],
                              [endpoint, endpoint + "/attempts/2/jobs?per_page=100"] * 2)
 
+    def test_combined_upload_retry_reuses_the_verified_build_from_attempt_one(self):
+        self.signed["sourceRunAttempt"] = 1
+        job = {"name": "build", "status": "completed", "conclusion": "success", "run_id": 71, "run_attempt": 1,
+               "head_sha": self.orchestration, "steps": [{"name": "Save signing verification receipt", "conclusion": "success"}]}
+        with patch("subprocess.check_output", return_value=json.dumps({"jobs": [job]})) as api:
+            attempt = module["combined_signing_attempt"](self.signed, "71", 2, self.orchestration, "1")
+        self.assertIn("/attempts/1/jobs?", api.call_args.args[0][-1])
+        linked = link(self.signed, self.package, "71", "71", self.source, self.orchestration, attempt, 2)
+        self.assertEqual((linked["sourceRunAttempt"], linked["uploadRunAttempt"]), (1, 2))
+        for change in ({"conclusion": "skipped"}, {"head_sha": "f" * 40}, {"steps": []}, {"run_attempt": 2},
+                       {"run_id": 99}, {"name": "testflight-upload"}):
+            with self.subTest(change=change), patch("subprocess.check_output", return_value=json.dumps({"jobs": [{**job, **change}]})):
+                with self.assertRaisesRegex(ValueError, "did not save"):
+                    module["combined_signing_attempt"](self.signed, "71", 2, self.orchestration)
+
+    def test_combined_upload_rejects_superseded_or_future_build_before_lookup(self):
+        with patch("subprocess.check_output", side_effect=AssertionError("Unexpected network access")):
+            with self.assertRaisesRegex(ValueError, "different build attempt"):
+                module["combined_signing_attempt"](self.signed, "71", 3, self.orchestration, "3")
+            with self.assertRaisesRegex(ValueError, "Invalid signing attempt"):
+                module["combined_signing_attempt"](self.signed, "71", 1, self.orchestration)
+            with self.assertRaisesRegex(ValueError, "Invalid signing attempt"):
+                module["combined_signing_attempt"](self.signed, "73", 3, self.orchestration)
+
     def test_requalification_or_missing_proof_blocks_upload(self):
         self.package["qualification"]["gates"][0]["runAttempt"] = 3
         with self.assertRaisesRegex(ValueError, "gate attempts"):

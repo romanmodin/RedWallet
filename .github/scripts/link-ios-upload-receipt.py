@@ -34,6 +34,24 @@ def record_signing_attempt():
         print(f"attempt={verified}", file=output)
 
 
+def combined_signing_attempt(signed, run_id, upload_attempt, orchestration, producer_attempt=""):
+    attempt = signed["sourceRunAttempt"]
+    if signed["sourceRunId"] != run_id or type(attempt) is not int or not 1 <= attempt <= upload_attempt:
+        raise ValueError("Invalid signing attempt for the current run")
+    if producer_attempt and str(attempt) != producer_attempt:
+        raise ValueError("Receipt belongs to a different build attempt")
+    endpoint = f"repos/romanmodin/RedWallet/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100"
+    jobs = json.loads(subprocess.check_output(["gh", "api", endpoint]))["jobs"]
+    for job in jobs:
+        if (job["name"] == "build" and job["status"] == "completed" and job["conclusion"] == "success"
+                and str(job["run_id"]) == run_id and job["run_attempt"] == attempt and job["head_sha"] == orchestration):
+            saved = any(step["name"] == "Save signing verification receipt" and step["conclusion"] == "success"
+                        for step in job["steps"])
+            if saved:
+                return attempt
+    raise ValueError("The selected build attempt did not save a verified signing receipt")
+
+
 def link_receipts(signed, package, signing_run, upload_run, source, orchestration, source_attempt, upload_attempt):
     if not all(re.fullmatch(r"[1-9][0-9]*", run) for run in (signing_run, upload_run)):
         raise ValueError("Expected numeric signing and upload run IDs")
@@ -67,10 +85,15 @@ if __name__ == "__main__":
         record_signing_attempt()
         sys.exit(0)
     signed_path, upload_path = map(Path, sys.argv[1:])
-    linked = link_receipts(
-        json.loads(signed_path.read_text()), json.loads(upload_path.read_text()),
-        os.environ["SIGNING_RUN_ID"], os.environ["GITHUB_RUN_ID"],
-        os.environ["SOURCE_COMMIT"], os.environ["GITHUB_SHA"],
-        int(os.environ["SIGNING_RUN_ATTEMPT"]), int(os.environ["GITHUB_RUN_ATTEMPT"]),
-    )
+    signed = json.loads(signed_path.read_text())
+    signing_run, upload_run = os.environ["SIGNING_RUN_ID"], os.environ["GITHUB_RUN_ID"]
+    upload_attempt = int(os.environ["GITHUB_RUN_ATTEMPT"])
+    orchestration = os.environ["GITHUB_SHA"]
+    if signing_run == upload_run:
+        source_attempt = combined_signing_attempt(
+            signed, upload_run, upload_attempt, orchestration, os.environ.get("PRODUCER_ATTEMPT", ""))
+    else:
+        source_attempt = int(os.environ["SIGNING_RUN_ATTEMPT"])
+    linked = link_receipts(signed, json.loads(upload_path.read_text()), signing_run, upload_run,
+                           os.environ["SOURCE_COMMIT"], orchestration, source_attempt, upload_attempt)
     upload_path.write_text(json.dumps(linked, indent=2) + "\n")
