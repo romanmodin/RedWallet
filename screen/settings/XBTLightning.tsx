@@ -237,6 +237,7 @@ export default function XBTLightning({
     if (channelError) setMessage('Channel refresh failed. Refresh channels before using these details or actions.');
   }, [channels, selectedPoint, activityTitle, channelError]);
   const selectedChannel = channels?.find(channel => channel.point === selectedPoint);
+  const receiveResult = activityTitle === 'Invoice to receive' && !activityError;
   // Native results and errors are opaque strings that can include balances,
   // amounts and fees. Never render or copy them while the wallet is hidden.
   // Peer identity remains useful and can be reconstructed without its balance.
@@ -718,14 +719,18 @@ export default function XBTLightning({
               {feedbackTitle || (activityError ? activityTitle + ' · Error' : activityTitle)}
             </Text>
             {busy && <ActivityIndicator accessibilityLabel="Lightning operation in progress" color={colors.foregroundColor} />}
-            {!!message && !busy && !hideBalances && (
+            {!!message && !busy && !hideBalances && (!receiveResult || !!incoming) && (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Copy activity result"
+                accessibilityLabel={receiveResult ? 'Copy receive request' : 'Copy activity result'}
                 style={[styles.copyButton, { backgroundColor: colors.buttonBackgroundColor }]}
                 onPress={() => {
                   if (privacy.current || lightningWallet?.hideBalance) return;
-                  Clipboard.setString(paymentReceipt ? message + '\n' + paymentReceipt : message);
+                  if (receiveResult && incoming) {
+                    Clipboard.setString(incoming.invoice);
+                  } else {
+                    Clipboard.setString(paymentReceipt ? message + '\n' + paymentReceipt : message);
+                  }
                   setCopied(true);
                 }}
               >
@@ -1014,9 +1019,12 @@ export default function XBTLightning({
                 }
                 onPress={() =>
                   run('Invoice to receive', async () => {
+                    setIncoming(undefined);
+                    setSelectedOffer(undefined);
                     const requestedSats = amount;
                     if (receiveOffer) {
                       const item = await bridge.offers('create', offerDescription.trim(), amount || '0', '');
+                      if (!item.offer?.trim()) throw new Error('The node returned an empty offer.');
                       if (mounted.current) {
                         setSelectedOffer(item);
                         setIncoming({
@@ -1029,6 +1037,7 @@ export default function XBTLightning({
                       return;
                     }
                     const invoice = await bridge.invoice('receive', '', '', requestedSats);
+                    if (!invoice?.trim()) throw new Error('The node returned an empty invoice.');
                     if (mounted.current) {
                       setIncoming({ invoice, sats: requestedSats });
                       setMessage('Invoice ready to receive ' + requestedSats + ' sats. QR code below.');

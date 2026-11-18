@@ -336,10 +336,27 @@ test('created receive invoices and empty channel results are surfaced in the act
   await act(async () => fireEvent.press(screen.getByText('Create invoice')));
   expect(panel.getByText('Invoice ready to receive 500 sats. QR code below.')).toBeTruthy();
   expect(screen.getByText('Receive 500 sats')).toBeTruthy();
+  fireEvent.press(panel.getByLabelText('Copy receive request'));
+  expect(Clipboard.setString).toHaveBeenLastCalledWith('ln-xbt-invoice');
   bridge.manage.mockResolvedValueOnce([]);
   await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Refresh channels' })));
   expect(panel.getByText('No open or pending channels.')).toBeTruthy();
   expect(panel.queryByText('ln-xbt-invoice')).toBeNull();
+  screen.unmount();
+});
+
+test('a failed replacement invoice cannot share the previous request', async () => {
+  const screen = render(<XBTLightning route={{ params: { mode: 'invoice' } }} />);
+  await act(async () => {});
+  fireEvent.changeText(screen.getByLabelText('Sats to receive'), '500');
+  bridge.invoice.mockResolvedValueOnce('ln-xbt-first');
+  await act(async () => fireEvent.press(screen.getByText('Create invoice')));
+  expect(screen.getByText('Share QR image')).toBeTruthy();
+  bridge.invoice.mockResolvedValueOnce('');
+  await act(async () => fireEvent.press(screen.getByText('Create invoice')));
+  expect(screen.getByText('The node returned an empty invoice.')).toBeTruthy();
+  expect(screen.queryByLabelText('Copy receive request')).toBeNull();
+  expect(screen.queryByText('Share QR image')).toBeNull();
   screen.unmount();
 });
 
@@ -1437,6 +1454,8 @@ test('reusable receiving offers support open amounts, copy, and disabling', asyn
     await act(async () => fireEvent.press(screen.getByText('Create reusable offer')));
     expect(offers).toHaveBeenCalledWith('create', 'Tips', '0', '');
     expect(screen.getByText('Receive any amount')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Copy receive request'));
+    expect(Clipboard.setString).toHaveBeenLastCalledWith(offerFixture.offer);
     fireEvent.press(screen.getByText('Copy offer'));
     expect(Clipboard.setString).toHaveBeenLastCalledWith('lno1qpz');
     await act(async () => fireEvent.press(screen.getByText('Disable offer')));

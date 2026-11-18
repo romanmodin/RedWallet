@@ -1,6 +1,9 @@
 import Clipboard from '@react-native-clipboard/clipboard';
-import React, { useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Buffer } from 'buffer';
+import { encodeQR } from 'qr';
+import React, { useRef, useState } from 'react';
+import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import NativeShare from 'react-native-share';
 
 import QRCode from './QRCode';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
@@ -13,7 +16,7 @@ export type LightningReceiveInvoice = {
 };
 
 // Tapping switches presentation; dragging remains owned by the parent scroll
-// view. Copy/share always use the complete, unchanged native invoice.
+// view. The selected presentation is also the outgoing share format.
 export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }: LightningReceiveInvoice) {
   const { colors } = useTheme();
   const noun = kind === 'offer' ? 'offer' : 'invoice';
@@ -21,6 +24,47 @@ export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }:
   const [showText, setShowText] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareError, setShareError] = useState(false);
+  const sharing = useRef(false);
+  const switchFormat = () => {
+    setShareError(false);
+    setShowText(value => !value);
+  };
+
+  const share = async () => {
+    if (sharing.current) return;
+    sharing.current = true;
+    setShareError(false);
+    try {
+      if (showText) {
+        await Share.share({ message: invoice });
+      } else {
+        // Export the request itself with a four-module quiet zone. A screen capture
+        // could include wallet details or an unlaid-out view.
+        const bytes = encodeQR(invoice.toUpperCase(), 'gif', {
+          ecc: 'medium',
+          border: 4,
+          scale: 8,
+        });
+        const base64 = Buffer.from(bytes).toString('base64');
+        if (Platform.OS === 'android') {
+          // The receiving app may read the attachment after Android closes its chooser.
+          const attachment = {
+            type: 'image/gif',
+            url: 'data:image/gif;base64,' + base64,
+            useInternalStorage: true,
+          };
+          await NativeShare.open({ ...attachment, failOnCancel: false });
+        } else {
+          const { writeFileAndExport } = await import('../blue_modules/fs');
+          await writeFileAndExport('xbt-lightning-' + noun + '.gif', base64, true, 'base64');
+        }
+      }
+    } catch {
+      setShareError(true);
+    } finally {
+      sharing.current = false;
+    }
+  };
   const size = Math.min(320, Math.max(0, width - 64));
 
   return (
@@ -38,7 +82,7 @@ export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }:
         accessibilityRole="button"
         accessibilityLabel={showText ? 'Show ' + noun + ' QR code' : 'Show ' + noun + ' text'}
         accessibilityHint={'Tap to switch between the QR code and ' + noun + ' text'}
-        onPress={() => setShowText(value => !value)}
+        onPress={switchFormat}
         style={[styles.plate, { minHeight: size + 56 }]}
       >
         {showText ? (
@@ -58,9 +102,7 @@ export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }:
         ) : null}
       </Pressable>
       <SettingsFootnote style={styles.explanation}>
-        {showText
-          ? 'Tap the text to show the QR code. Copy or Share includes the full ' + noun + '.'
-          : 'Tap the QR code to show ' + noun + ' text.'}
+        {showText ? 'Share sends the full ' + noun + ' text.' : 'Share sends a scannable QR image.'}
       </SettingsFootnote>
       <SettingsListItem
         title={copied ? (kind === 'offer' ? 'Offer copied' : 'Invoice copied') : 'Copy ' + noun}
@@ -69,17 +111,14 @@ export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }:
           setCopied(true);
         }}
       />
-      <SettingsListItem
-        title={'Share ' + noun}
-        onPress={async () => {
-          setShareError(false);
-          try {
-            await Share.share({ message: invoice });
-          } catch {
-            setShareError(true);
-          }
-        }}
-      />
+      <View style={styles.shareActions}>
+        <View style={styles.shareAction}>
+          <SettingsListItem title={showText ? 'Share ' + noun + ' text' : 'Share QR image'} onPress={share} />
+        </View>
+        <View style={styles.shareAction}>
+          <SettingsListItem title={showText ? 'Switch to QR' : 'Switch to text'} onPress={switchFormat} />
+        </View>
+      </View>
       {shareError && (
         <SettingsFootnote style={styles.explanation}>{'Could not open sharing. Use Copy ' + noun + ' instead.'}</SettingsFootnote>
       )}
@@ -88,6 +127,8 @@ export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }:
 }
 
 const styles = StyleSheet.create({
+  shareActions: { flexDirection: 'row', flexWrap: 'wrap' },
+  shareAction: { flexGrow: 1, flexBasis: 130 },
   amount: {
     fontSize: 20,
     fontWeight: '600',
