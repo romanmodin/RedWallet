@@ -6,7 +6,7 @@ module.exports = {
     '^.+\\.(ts|tsx)$': 'ts-jest',
   },
   moduleFileExtensions: ['js', 'json', 'ts', 'tsx'],
-  transformIgnorePatterns: ['node_modules/(?!((jest-)?react-native(-.*)?|@react-native(-community)?)|silent-payments|@arkade-os)/'],
+  transformIgnorePatterns: ['node_modules/(?!((jest-)?react-native(-.*)?|@react-native(-community)?)|qr|silent-payments|@arkade-os)/'],
   moduleNameMapper: {
     '^.*\\/separation-http$': '<rootDir>/class/xbt/separation-http.ts',
     '^expo/fetch$': '<rootDir>/util/expo-fetch-nodejs.js',

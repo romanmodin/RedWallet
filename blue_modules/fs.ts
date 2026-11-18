@@ -17,7 +17,7 @@ const _sanitizeFileName = (fileName: string) => {
 };
 
 export const isCancel = (err: any): boolean => {
-  return err.code && err.code === errorCodes.OPERATION_CANCELED;
+  return err?.code != null && err.code === errorCodes.OPERATION_CANCELED;
 };
 
 const _safeUnlink = async (filePath: string) => {
@@ -107,24 +107,19 @@ const _pickSingleFileAndKeepLocalCopy = async (type: string[] = [types.allFiles]
   };
 };
 
-const _shareOpen = async (filePath: string, showShareDialog: boolean = false) => {
+export async function shareTemporaryFile(fileName: string, contents: string, encoding: 'utf8' | 'base64') {
+  const filePath = _createTempExportPath(_sanitizeFileName(fileName));
   try {
-    await Share.open({
-      url: 'file://' + filePath,
-      saveToFiles: isDesktop || !showShareDialog,
-      failOnCancel: false,
-    });
+    await RNFS.writeFile(filePath, contents, encoding);
+    await Share.open({ url: _toFileUri(filePath), saveToFiles: isDesktop, failOnCancel: false });
   } catch (error: any) {
-    console.log(error);
-    // If user cancels sharing, we dont want to show an error. for some reason we get 'CANCELLED' string as error
-    const errorMessage = typeof error === 'string' ? error : error?.message;
-    if (errorMessage !== 'CANCELLED') {
-      presentAlert({ message: errorMessage });
-    }
+    // Some native share extensions reject with CANCELLED despite failOnCancel.
+    const message = typeof error === 'string' ? error : error?.message;
+    if (message !== 'CANCELLED' && !isCancel(error)) throw error;
   } finally {
     await _safeUnlink(filePath);
   }
-};
+}
 
 /**
  * Writes a file to fs, and triggers an OS sharing dialog, so user can decide where to put this file (share to cloud
@@ -159,15 +154,14 @@ export const writeFileAndExport = async function (
       return;
     }
 
-    const filePath = _createTempExportPath(sanitizedFileName);
-    await RNFS.writeFile(filePath, contents, encoding);
-    await _shareOpen(filePath, true);
+    await shareTemporaryFile(sanitizedFileName, contents, encoding);
   } catch (error: any) {
     if (isCancel(error)) {
       return;
     }
     console.error(error);
-    presentAlert({ message: error.message });
+    const message = typeof error === 'string' ? error : error?.message;
+    presentAlert({ message: message || 'Could not export the file.' });
   }
 };
 
