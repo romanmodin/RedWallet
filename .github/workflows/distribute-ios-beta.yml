@@ -5,6 +5,8 @@ name: Assign verified BTC and XBT Lightning internal iOS beta
       - ".github/scripts/distribute-ios-beta.rb"
       - ".github/scripts/test-distribute-ios-beta.rb"
       - ".github/scripts/verify-uploaded-beta.py"
+      - ".github/scripts/test-ios-beta-handoff.py"
+      - ".github/scripts/link-ios-upload-receipt.py"
       - ".github/scripts/verify-ios-release-gates.py"
       - ".github/release/lnd-mainnet-ios-beta-notes.txt"
       - ".github/workflows/distribute-ios-beta.yml"
@@ -43,7 +45,7 @@ jobs:
         run: |
           bundle exec ruby -c .github/scripts/distribute-ios-beta.rb
           bundle exec ruby .github/scripts/test-distribute-ios-beta.rb
-          python3 -m py_compile .github/scripts/verify-uploaded-beta.py
+          python3 -I .github/scripts/test-ios-beta-handoff.py
   distribute:
     needs: verify
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
