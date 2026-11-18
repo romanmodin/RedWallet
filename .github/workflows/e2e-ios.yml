@@ -137,6 +137,7 @@ jobs:
         run: bundle exec fastlane ios install_pods || bundle exec fastlane ios install_pods
 
       - name: Verify patched renderer is a CocoaPods build input
+        if: hashFiles('patches/react-native+0.85.3.patch') != '' || github.head_ref == 'release/ios-combined-lightning-fabric-unmount-20261118'
         run: |
           git apply --reverse --check patches/react-native+0.85.3.patch
           bundle exec ruby -rxcodeproj -e '
@@ -151,6 +152,7 @@ jobs:
           cmp ios/Podfile.lock ios/Pods/Manifest.lock
 
       - name: Save resolved simulator pod lock
+        if: hashFiles('patches/react-native+0.85.3.patch') != '' || github.head_ref == 'release/ios-combined-lightning-fabric-unmount-20261118'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ios-fabric-pod-lock
@@ -206,6 +208,7 @@ jobs:
           if-no-files-found: error
 
       - name: Exercise Fabric unmounts in a disposable simulator
+        if: hashFiles('.github/scripts/test-ios-fabric-unmount.rb') != '' || github.head_ref == 'release/ios-combined-lightning-fabric-unmount-20261118'
         env:
           RCT_NO_LAUNCH_PACKAGER: "1"
           CCACHE_BINARY: /opt/homebrew/bin/ccache

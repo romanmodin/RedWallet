@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.head_ref == 'feat/xbt-standard-hardware-20261114' || github.ref == 'refs/heads/feat/xbt-standard-hardware-20261114' || github.head_ref == 'feat/xbt-hardware-change-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-change-20261116' || github.head_ref == 'feat/xbt-hardware-https-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-https-20261116' || github.head_ref == 'fix/hardware-qr-session-20261116' || github.ref == 'refs/heads/fix/hardware-qr-session-20261116' || github.head_ref == 'feat/hardware-signing-check-20261116' || github.ref == 'refs/heads/feat/hardware-signing-check-20261116' || github.head_ref == 'release/ios-combined-lightning-hardware-20261116' || github.ref == 'refs/heads/release/ios-combined-lightning-hardware-20261116'
+    if: github.head_ref == 'feat/xbt-standard-hardware-20261114' || github.ref == 'refs/heads/feat/xbt-standard-hardware-20261114' || github.head_ref == 'feat/xbt-hardware-change-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-change-20261116' || github.head_ref == 'feat/xbt-hardware-https-20261116' || github.ref == 'refs/heads/feat/xbt-hardware-https-20261116' || github.head_ref == 'fix/hardware-qr-session-20261116' || github.ref == 'refs/heads/fix/hardware-qr-session-20261116' || github.head_ref == 'feat/hardware-signing-check-20261116' || github.ref == 'refs/heads/feat/hardware-signing-check-20261116' || startsWith(github.head_ref, 'release/ios-combined-lightning-') || startsWith(github.ref, 'refs/heads/release/ios-combined-lightning-')
     timeout-minutes: 90
     runs-on: macos-26
     env:
