@@ -107,14 +107,18 @@ def api(path, raw=False):
     return data if raw else json.loads(data)
 
 
-def main():
+def verified_original():
     run = api(f"repos/{REPO}/actions/runs/{RUN}")
     page = api(f"repos/{REPO}/actions/runs/{RUN}/attempts/1/jobs?per_page=100")
     require(page["total_count"] == len(page["jobs"]), "Incomplete job listing")
     attempt = validate_attempt(run, page["jobs"])
     meta = api(f"repos/{REPO}/actions/artifacts/{ARTIFACT}")
     receipts = validate_archive(meta, api(f"repos/{REPO}/actions/artifacts/{ARTIFACT}/zip", True))
-    result = summarize(receipts, attempt)
+    return receipts, summarize(receipts, attempt)
+
+
+def main():
+    _, result = verified_original()
     Path("kilowallet-rc7-original-upload-evidence.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
 
