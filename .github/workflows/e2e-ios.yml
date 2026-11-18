@@ -153,6 +153,7 @@ jobs:
             abort "Unexpected prebuilt React" if pods.targets.any? { |t| t.name == "React-Core-prebuilt" }
           '
           cmp ios/Podfile.lock ios/Pods/Manifest.lock
+          git diff --exit-code -- ios/Podfile.lock
 
       - name: Save resolved simulator pod lock
         if: hashFiles('patches/react-native+0.85.3.patch') != '' || github.head_ref == 'release/ios-combined-lightning-fabric-unmount-20261118'
