@@ -64,9 +64,9 @@ jobs:
             ios/Pods
             ~/Library/Caches/CocoaPods
             ~/.cocoapods/repos
-          key: ${{ runner.os }}-pods-prebuilt-${{ hashFiles('ios/Podfile.lock') }}
+          key: ${{ runner.os }}-pods-source-rncore-${{ hashFiles('ios/Podfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pods-prebuilt-
+            ${{ runner.os }}-pods-source-rncore-
 
       - name: Install ccache
         run: brew install ccache
@@ -133,9 +133,30 @@ jobs:
       - name: Install CocoaPods dependencies
         env:
           RCT_USE_RN_DEP: "1"
-          RCT_USE_PREBUILT_RNCORE: "1"
           USE_CCACHE: "1"
         run: bundle exec fastlane ios install_pods || bundle exec fastlane ios install_pods
+
+      - name: Verify patched renderer is a CocoaPods build input
+        run: |
+          git apply --reverse --check patches/react-native+0.85.3.patch
+          bundle exec ruby -rxcodeproj -e '
+            pods = Xcodeproj::Project.open("ios/Pods/Pods.xcodeproj")
+            fabric = pods.targets.find { |t| t.name == "React-RCTFabric" } or abort "No Fabric source target"
+            files = fabric.source_build_phase.files_references
+            patched = "node_modules/react-native/React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm"
+            compiled = files.compact.any? { |f| f.real_path.basename.to_s == "RCTViewComponentView.mm" && File.identical?(f.real_path, patched) }
+            abort "Patched Fabric source missing from compiler inputs" unless compiled
+            abort "Unexpected prebuilt React" if pods.targets.any? { |t| t.name == "React-Core-prebuilt" }
+          '
+          cmp ios/Podfile.lock ios/Pods/Manifest.lock
+
+      - name: Save resolved simulator pod lock
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ios-fabric-pod-lock
+          path: ios/Podfile.lock
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Reset ccache stats
         run: ccache -z || true
@@ -183,6 +204,12 @@ jobs:
           retention-days: 3
           compression-level: 0
           if-no-files-found: error
+
+      - name: Exercise Fabric unmounts in a disposable simulator
+        env:
+          RCT_NO_LAUNCH_PACKAGER: "1"
+          CCACHE_BINARY: /opt/homebrew/bin/ccache
+        run: bundle exec ruby .github/scripts/test-ios-fabric-unmount.rb
 
   test:
     if: ${{ always() && !cancelled() && (needs.build.result == 'success' || inputs.source_run_id != '') }}
