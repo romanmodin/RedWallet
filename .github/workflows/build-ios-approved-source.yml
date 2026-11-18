@@ -294,6 +294,13 @@ jobs:
         assert r['event']=='workflow_dispatch' and r['head_branch']=='main','Source must be an approved main dispatch'
         assert r['head_sha']==os.environ['GITHUB_SHA'],'Source must match this approved workflow commit'
         PYCODE
+    - name: Download original signing receipt
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: ios-build-verification
+        path: signing-receipt
+        run-id: ${{ inputs.source_run_id || github.run_id }}
+        github-token: ${{ github.token }}
     - name: Download IPA from Artifact
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
       with:
@@ -340,6 +347,10 @@ jobs:
         from pathlib import Path
         p=Path('ios-ipa-verification.json');r=json.loads(p.read_text());r.update(json.loads(Path('reviewed-source-verification.json').read_text()));r['qualification']=json.loads(Path('ios-release-gates.json').read_text());r['sourceCommit']=os.environ['SOURCE_COMMIT'];r['orchestrationCommit']=os.environ['GITHUB_SHA'];p.write_text(json.dumps(r,indent=2)+'\n')
         PYCODE
+    - name: Verify the upload matches the signed package
+      env:
+        SIGNING_RUN_ID: ${{ inputs.source_run_id || github.run_id }}
+      run: python3 -I .reviewed-orchestration/.github/scripts/link-ios-upload-receipt.py signing-receipt/ios-ipa-verification.json ios-ipa-verification.json
     - name: Save package verification receipt
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
