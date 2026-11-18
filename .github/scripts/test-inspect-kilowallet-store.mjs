@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   inspect,
+  inspectRc7Processing,
+  RC7_QUERY,
   failureSummary,
   readClient,
   APP,
@@ -10,6 +12,7 @@ import {
 } from "./inspect-kilowallet-store.mjs";
 function fixture(missingAvailability = false) {
   return async (path) => {
+    if (path.startsWith("/v1/builds?")) return {data:[]};
     if (path === "/v1/apps/" + APP)
       return {
         data: { id: APP, attributes: { bundleId: "com.kilombino.kilowallet" } },
@@ -121,4 +124,35 @@ test("credential and network errors never disclose exception messages or fake HT
     assert.deepEqual(failureSummary(error, stage),
       {stage, kind:"ReadOrRuntimeError", httpStatus:null});
   }
+});
+
+
+test("RC7 processing validates exact build/train and does not claim membership", async () => {
+  const body = {data:[{type:"builds",id:"build30",attributes:{version:"30",processingState:"VALID",expired:false},
+    relationships:{app:{data:{type:"apps",id:APP}},preReleaseVersion:{data:{type:"preReleaseVersions",id:"train"}}}}],
+    included:[{type:"preReleaseVersions",id:"train",attributes:{version:"1.0.0",platform:"IOS"}}]};
+  const result = await inspectRc7Processing(async () => body);
+  assert.equal(result.processingState,"VALID");
+  assert.equal(result.testerMembershipVerified,false);
+  for (const mutate of [
+    b=>b.data.push(b.data[0]), b=>b.links={next:"next"},
+    b=>b.data[0].attributes.version="21", b=>b.data[0].relationships.app.data.id="foreign",
+    b=>b.included=[], b=>b.included[0].attributes.platform="MAC_OS"
+  ]) {
+    const bad=structuredClone(body); mutate(bad);
+    await assert.rejects(inspectRc7Processing(async()=>bad));
+  }
+  body.data[0].attributes.processingState="PROCESSING";
+  assert.equal((await inspectRc7Processing(async()=>body)).processingState,"PROCESSING");
+});
+test("RC7 build query is GET-only and rejects changed scope", async () => {
+  let calls=0;
+  const get=readClient("synthetic",async(u,o)=>{
+    calls++; assert.equal(o.method,"GET"); return {ok:true,json:async()=>({data:[]})};
+  });
+  const path="/v1/builds?"+new URLSearchParams(RC7_QUERY);
+  await get(path);
+  await assert.rejects(get(path.replace("30","31")));
+  await assert.rejects(get(path+"&extra=1"));
+  assert.equal(calls,1);
 });
