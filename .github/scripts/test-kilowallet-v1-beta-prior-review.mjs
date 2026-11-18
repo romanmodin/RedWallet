@@ -5,7 +5,7 @@ import { PRIOR_BUILD, PRIOR_PATH, readPriorReview } from "./kilowallet-v1-beta-p
 import { clients } from "./kilowallet-v1-beta-client.mjs";
 const rel=(type,id)=>({data:{type,id}});
 function fixture(state="WAITING_FOR_REVIEW") {
-  return { data: { type:"builds", id:PRIOR_BUILD, attributes:{version:"8"},
+  return { data: { type:"builds", id:PRIOR_BUILD, attributes:{version:"21"},
     relationships:{ app:rel("apps",APP),preReleaseVersion:rel("preReleaseVersions","train"),
       buildBetaDetail:rel("buildBetaDetails","detail"),
       betaAppReviewSubmission:rel("betaAppReviewSubmissions","review") }},
