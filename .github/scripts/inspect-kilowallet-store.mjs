@@ -24,6 +24,7 @@ export function readClient(token, request = fetch) {
         url.pathname === "/v1/apps/" + APP ||
         url.pathname.startsWith("/v1/apps/" + APP + "/") ||
         url.pathname === "/v1/builds/" + BUILD ||
+        (url.pathname === "/v1/builds" && url.searchParams.toString() === new URLSearchParams(RC7_QUERY).toString()) ||
         (url.pathname === "/v1/appEncryptionDeclarations" &&
           url.searchParams.get("filter[app]") === APP) ||
         /^\/v2\/appAvailabilities\/[A-Za-z0-9-]+\/territoryAvailabilities$/.test(
@@ -80,6 +81,29 @@ const declarationSummary = (d) => ({
     ].map((k) => [k, d.attributes?.[k]]),
   ),
 });
+export const RC7_QUERY = {
+  "filter[app]": APP, "filter[version]": "30",
+  "filter[preReleaseVersion.version]": "1.0.0",
+  "filter[preReleaseVersion.platform]": "IOS",
+  include: "app,preReleaseVersion", limit: "2"
+};
+export async function inspectRc7Processing(get) {
+  const page = await get("/v1/builds?" + new URLSearchParams(RC7_QUERY));
+  if (!Array.isArray(page.data) || page.data.length > 1 || page.links?.next)
+    throw Error("Ambiguous RC7 response");
+  if (!page.data.length) return {build:"30",version:"1.0.0",found:false,testerMembershipVerified:false};
+  const b = page.data[0], a = b.attributes, rel = b.relationships;
+  const train = rel?.preReleaseVersion?.data;
+  const included = (page.included || []).filter(d => d.type === "preReleaseVersions" && d.id === train?.id);
+  if (b.type !== "builds" || !/^[A-Za-z0-9-]+$/.test(b.id || "") ||
+      a?.version !== "30" || rel?.app?.data?.type !== "apps" || rel.app.data.id !== APP ||
+      train?.type !== "preReleaseVersions" || included.length !== 1 ||
+      included[0].attributes?.version !== "1.0.0" || included[0].attributes?.platform !== "IOS")
+    throw Error("Wrong RC7 identity");
+  return {id:b.id,build:a.version,version:"1.0.0",platform:"IOS",found:true,
+    processingState:a.processingState,expired:a.expired,usesNonExemptEncryption:a.usesNonExemptEncryption,
+    testerMembershipVerified:false};
+}
 export async function inspect(get) {
   const report = {
     appId: APP,
@@ -106,6 +130,7 @@ export async function inspect(get) {
       });
     }
   }
+  await observe("rc7Processing", () => inspectRc7Processing(get));
   await observe("publicReview", async () => {
     const versions = await collection(get, `/v1/apps/${APP}/appStoreVersions?limit=200`);
     const version = versions.find(v => v.id === STORE_VERSION);
