@@ -33,7 +33,7 @@ export default function LndBalanceBreakdown({
   ];
   return (
     <View testID="LndBalanceBreakdown" style={styles.root}>
-      <Text style={[styles.title, { color: colors.foregroundColor }]}>BALANCE DETAILS{stale ? ' · LAST OBSERVED' : ''}</Text>
+      <Text style={[styles.title, { color: colors.foregroundColor }]}>Balance Details{stale ? ' · Last Observed' : ''}</Text>
       {rows.map(([label, value]) => (
         <View key={label} style={styles.row}>
           <Text style={{ color: colors.alternativeTextColor }}>{label}</Text>
