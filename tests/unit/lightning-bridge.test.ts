@@ -419,3 +419,76 @@ test('capacity cleanup respects the quote cooldown and persists before quoting',
   expect(e.records().some(r => r.hash === records[42].hash)).toBe(false);
   expect(e.backend.pay).not.toHaveBeenCalled();
 });
+
+describe('durable quote diagnostics', () => {
+  it('keeps a proof timeout and a later manual attempt in order across restart, without recording raw errors', async () => {
+    const e = environment();
+    jest.mocked(e.provider.quote).mockRejectedValueOnce(new Error('Bridge proof of work took too long. No payment was sent.'));
+    await expect(quoted(e)).rejects.toThrow('proof of work');
+    e.setTime(NOW + 1000);
+    await expect(quoted(e)).rejects.toThrow('already exists');
+    e.setTime(NOW + 601000);
+    jest.mocked(e.provider.quote).mockRejectedValueOnce(new Error('private transport detail ?t=synthetic-private-token'));
+    await expect(quoted(e)).rejects.toThrow('private transport detail');
+    const [entry] = await e.controller().history();
+    expect(entry.record?.state).toBe('quote_failed');
+    expect(entry.issues.map(({ reason, at }) => [reason, at])).toEqual([
+      ['quoteRequest', NOW + 601000],
+      ['existingQuote', NOW + 1000],
+      ['proofTimeout', NOW],
+    ]);
+    expect(JSON.stringify(await e.store.read())).not.toContain('synthetic-private-token');
+    expect(e.backend.pay).not.toHaveBeenCalled();
+  });
+
+  it('shows an availability failure before reservation without imposing a cooldown or leaking across nodes', async () => {
+    const e = environment();
+    jest.mocked(e.provider.info).mockRejectedValueOnce(new Error('Bridge unavailable or request refused.'));
+    await expect(quoted(e)).rejects.toThrow('request refused');
+    expect(await e.controller().list()).toEqual([]);
+    expect((await e.store.read()).requests).toEqual([]);
+    const [entry] = await e.controller().history();
+    expect(entry.record).toBeUndefined();
+    expect(entry.issues[0]).toMatchObject({
+      at: NOW,
+      reason: 'processorRefused',
+    });
+    jest.mocked(e.backend.identity).mockResolvedValueOnce('03' + '22'.repeat(32));
+    expect(await e.controller().history()).toEqual([]);
+    await quoted(e);
+    expect((await e.controller().history())[0].issues).toHaveLength(1);
+    expect(e.backend.pay).not.toHaveBeenCalled();
+  });
+
+  it('persists expiry during approval review before submission', async () => {
+    const e = environment();
+    const { c, r } = await quoted(e);
+    jest.mocked(e.backend.review).mockImplementationOnce(async () => {
+      e.setTime(NOW + 110000);
+      return {};
+    });
+    await expect(c.approve(hash, r.quote!.holdInvoice, () => true)).rejects.toThrow('expired');
+    const [entry] = await e.controller().history();
+    expect(entry.record?.state).toBe('quote_expired');
+    expect(entry.issues[0]).toMatchObject({
+      reason: 'approvalExpired',
+      at: NOW + 110000,
+    });
+    expect(e.backend.pay).not.toHaveBeenCalled();
+  });
+
+  it('preserves an uncertain payment across duplicate quote requests and keeps diagnostics bounded', async () => {
+    const e = environment();
+    const { c, r } = await quoted(e);
+    jest.mocked(e.backend.pay).mockRejectedValueOnce(new Error('connection lost after submission'));
+    expect((await c.approve(hash, r.quote!.holdInvoice, () => true)).state).toBe('unknown');
+    for (let i = 0; i < 102; i++) {
+      await expect(c.quote('test', original(), '10', signal())).rejects.toThrow('uncertain');
+    }
+    const [entry] = await e.controller().history();
+    expect(entry.record?.state).toBe('unknown');
+    expect(entry.issues).toHaveLength(100);
+    expect(entry.issues.every(issue => issue.reason === 'existingPayment')).toBe(true);
+    expect(e.backend.pay).toHaveBeenCalledTimes(1);
+  });
+});
