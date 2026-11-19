@@ -1,0 +1,50 @@
+{
+  "status": "PREPARED_NOT_APPLIED",
+  "appId": "6824331953",
+  "versionId": "1ca23695-4563-4a0e-b20e-d1a6457f4f8b",
+  "expectedCurrentBuild": {
+    "id": "bccd1b6c-e89b-45e9-909e-0936bd558994",
+    "build": "10",
+    "processingState": "VALID"
+  },
+  "candidate": {
+    "version": "1.0.0",
+    "build": "15",
+    "appleBuildId": "964f117a-f5e1-400f-9aac-d3145407560a",
+    "sourceCommit": "68148c8c5741c7b84b37f33322e67273f7208a19",
+    "ipaSha256": "b09b7c9eab7c63a7697d5604b91ab82d83e60ff55c03d54e6d9acdc9ab12f7de"
+  },
+  "reviewDetailId": "6446acd7-d950-4856-a412-0ba44fef5dfb",
+  "reviewNotesFile": "review-notes.txt",
+  "reviewNotesSha256": "0b0aaae264366327c383a0d8f667fdb0fd9c3b5eaf610e8a476f52e0bb443446",
+  "privacyPolicy": {
+    "localizationId": "d681427f-1723-4231-ac7f-b0ac69dff973",
+    "url": "https://github.com/romanmodin/kilowallet-ios/blob/68148c8c5741c7b84b37f33322e67273f7208a19/PRIVACY.md",
+    "contentUnchangedFromPriorSource": "5ac15b5eeb26296d69008a39e7ff1b4e23d4f8c5",
+    "questionnaireVerified": false
+  },
+  "listingChanges": {},
+  "screenshot": {
+    "file": "kilowallet-rc5-store-receive.png",
+    "displayType": "APP_IPHONE_61",
+    "width": 1170,
+    "height": 2532,
+    "sourceRun": 43372119378,
+    "sourceAttempt": 1,
+    "sourceArtifact": 14013297598,
+    "sourceArtifactSha256": "9a588b20e13cd198774a808a2cbadc96e0b84c88f9bccd9b8220356dab42a5bc",
+    "sourcePngSha256": "c0f80503a6b4a2d0c95f76a64bdd6a660990d026364b0a46a35d0db187463223",
+    "uploadPngSha256": "0365fed04c568d4294c419ba858277d8d65cc6c489174e80f305a86f3e11a829",
+    "normalization": "Opaque RGBA to RGB; exact decoded pixels and metadata preserved; no resize or UI editing",
+    "syntheticWallet": true,
+    "physicalDeviceCapture": false,
+    "existingScreenshotId": "4b2b666e-c703-48ae-8cc8-737fbb006e79"
+  },
+  "blockingChecks": [
+    "Live App Store privacy questionnaire requires authenticated access",
+    "Inspect exact current review submission and version association immediately before any withdrawal",
+    "Revalidate build15 qualification and both TestFlight groups before replacement",
+    "Upload screenshot and verify COMPLETE before removing superseded screenshot; no public-version deletion",
+    "Re-read applied metadata/build association before submitting"
+  ]
+}
