@@ -1,3 +1,4 @@
+import { BridgeHistoryIssue, HistoryReason, historyReason, maxHistoryIssues, savedIssues } from './history';
 import { BridgeInvoice, ceilSats, hashPattern, nodePattern, provesPayment, readBridgeInvoice } from './invoice';
 import { BridgeQuote, LightningBridgeProvider, validateQuote } from './provider';
 
@@ -25,11 +26,21 @@ export type SwapRecord = {
   actualFeeMsat?: string;
   bridgeState?: string;
 };
+export type BridgeHistoryEntry = {
+  hash: string;
+  record?: SwapRecord;
+  at: number;
+  issues: BridgeHistoryIssue[];
+};
 export type BridgeJournal = {
   version: 1;
   records: SwapRecord[];
   requests: number[];
+  issues?: BridgeHistoryIssue[];
 };
+function appendHistoryIssue(journal: BridgeJournal, issue: BridgeHistoryIssue) {
+  journal.issues = [...savedIssues(journal.issues).slice(1 - maxHistoryIssues), issue];
+}
 export interface BridgeStore {
   read(): Promise<BridgeJournal>;
   write(journal: BridgeJournal): Promise<void>;
@@ -215,6 +226,48 @@ export class BridgeController {
     });
   }
 
+  history(): Promise<BridgeHistoryEntry[]> {
+    return this.exclusive(async () => {
+      const node = await this.identity();
+      const journal = await this.load();
+      const entries = new Map<string, BridgeHistoryEntry>();
+      for (const record of journal.records) {
+        if (record.node === node)
+          entries.set(record.hash, {
+            hash: record.hash,
+            record,
+            at: record.createdAt,
+            issues: [],
+          });
+      }
+      for (const issue of savedIssues(journal.issues).reverse()) {
+        if (issue.node !== node) continue;
+        const entry: BridgeHistoryEntry = entries.get(issue.hash) ?? {
+          hash: issue.hash,
+          at: issue.at,
+          issues: [],
+        };
+        entry.issues.push(issue);
+        entry.at = Math.max(entry.at, issue.at);
+        entries.set(issue.hash, entry);
+      }
+      return Array.from(entries.values()).sort((a, b) => b.at - a.at);
+    });
+  }
+
+  private async rememberIssue(issue: BridgeHistoryIssue): Promise<void> {
+    try {
+      await this.exclusive(async () => {
+        // Reload after the operation. Never persist a partially written payment to save a diagnostic.
+        const journal = await this.load();
+        appendHistoryIssue(journal, issue);
+        await this.store.write(journal);
+      });
+    } catch {
+      // Keep the original error and payment outcome if diagnostic storage is unavailable.
+    }
+  }
+
   async blocksNormalPayment(hash: string): Promise<boolean> {
     return this.exclusive(async () => {
       const node = await this.identity();
@@ -225,6 +278,8 @@ export class BridgeController {
   }
 
   quote(providerId: string, original: BridgeInvoice, feeLimit: string, signal: AbortSignal): Promise<SwapRecord> {
+    let historyNode: string | undefined;
+    let fallback: HistoryReason = 'quoteRequest';
     return this.exclusive(async () => {
       if (original.chain !== 'SHA256' || original.expiresAt * 1000 <= this.now())
         throw new Error('Original invoice expired or is for the wrong chain.');
@@ -232,6 +287,7 @@ export class BridgeController {
       const provider = this.provider(providerId),
         node = await this.identity(),
         journal = await this.load();
+      historyNode = node;
       const existing = journal.records.find(r => r.hash === original.hash && r.node === node);
       if (existing && (unresolved.has(existing.state) || existing.state === 'settled'))
         throw new Error('This payment is pending, uncertain or already paid. Check its status; do not pay again.');
@@ -272,6 +328,7 @@ export class BridgeController {
         record.quote = checkedQuote(await provider.quote(original, signal), original, provider, this.now());
         if (signal.aborted) throw new Error('Quote canceled.');
         if (record.quote.provider !== providerId || record.quote.hash !== original.hash) throw new Error('Wrong processor quote.');
+        fallback = 'quoteReview';
         const review = await this.backend.review(record);
         if (review.estimatedFeeMsat !== undefined) {
           if (!validAmount(review.estimatedFeeMsat)) throw new Error('Invalid routing fee estimate.');
@@ -281,12 +338,31 @@ export class BridgeController {
       } catch (error) {
         record.state = record.quote ? 'canceled' : 'quote_failed';
         record.updatedAt = this.now();
+        appendHistoryIssue(journal, {
+          node,
+          hash: original.hash,
+          provider: providerId,
+          at: record.updatedAt,
+          reason: historyReason(error, fallback),
+        });
         await this.store.write(journal);
+        historyNode = undefined;
         throw error;
       }
       record.updatedAt = this.now();
       await this.store.write(journal);
       return JSON.parse(JSON.stringify(record));
+    }).catch(async (error: unknown) => {
+      if (historyNode) {
+        await this.rememberIssue({
+          node: historyNode,
+          hash: original.hash,
+          provider: providerId,
+          at: this.now(),
+          reason: historyReason(error, fallback),
+        });
+      }
+      throw error;
     });
   }
 
@@ -304,23 +380,31 @@ export class BridgeController {
   }
 
   approve(hash: string, expectedQuote: string, canSubmit: () => boolean): Promise<SwapRecord> {
+    let preflight: Pick<SwapRecord, 'node' | 'provider'> | undefined;
     return this.exclusive(async () => {
       const node = await this.identity(),
         journal = await this.load(),
         r = journal.records.find(x => x.hash === hash && x.node === node);
       if (!r || r.state !== 'quoted' || !r.quote || r.quote.holdInvoice !== expectedQuote)
         throw new Error('Review this quote again before paying.');
-      if (r.quote.expiresAt * 1000 - this.now() < 15000 || readBridgeInvoice(r.quote.original).expiresAt * 1000 - this.now() < 15000) {
+      preflight = { node, provider: r.provider };
+      const expiresAt = Math.min(r.quote.expiresAt, readBridgeInvoice(r.quote.original).expiresAt) * 1000;
+      const expire = async () => {
         r.state = 'quote_expired';
+        r.updatedAt = this.now();
+        appendHistoryIssue(journal, { node, hash, provider: r.provider, at: r.updatedAt, reason: 'approvalExpired' });
         await this.store.write(journal);
+        preflight = undefined;
         throw new Error('Quote expired. Nothing was sent.');
-      }
+      };
+      if (expiresAt - this.now() < 15000) await expire();
       r.quote = checkedQuote(r.quote, readBridgeInvoice(r.quote.original), this.provider(r.provider), this.now());
       const state = await this.backend.status(hash);
       if (state.state !== 'not_found' && state.state !== 'failed') throw new Error('Payment already exists or its result is unknown.');
       await this.backend.review(r);
       if (!canSubmit()) throw new Error('Action canceled. Nothing was submitted.');
-      if (r.quote.expiresAt * 1000 - this.now() < 15000) throw new Error('Quote expired. Nothing was sent.');
+      if (expiresAt - this.now() < 15000) await expire();
+      preflight = undefined;
       r.state = 'submitting';
       r.updatedAt = this.now();
       await this.store.write(journal);
@@ -334,6 +418,15 @@ export class BridgeController {
       r.updatedAt = this.now();
       await this.store.write(journal);
       return JSON.parse(JSON.stringify(r));
+    }).catch(async (error: unknown) => {
+      if (preflight)
+        await this.rememberIssue({
+          ...preflight,
+          hash,
+          at: this.now(),
+          reason: historyReason(error, 'approvalCheck'),
+        });
+      throw error;
     });
   }
 

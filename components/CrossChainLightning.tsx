@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
 import { useTheme } from './themes';
-import { BridgeController, SwapRecord } from '../blue_modules/lightning-bridge/state';
+import { BridgeController, BridgeHistoryEntry, SwapRecord } from '../blue_modules/lightning-bridge/state';
+import { historyReasons } from '../blue_modules/lightning-bridge/history';
 import { crossChainBridge } from '../blue_modules/lightning-bridge/runtime';
 import { formatMsat, readBridgeInvoice } from '../blue_modules/lightning-bridge/invoice';
 import { LightningBridgeProvider, lightningBridgeProviders, priceMsat } from '../blue_modules/lightning-bridge/provider';
@@ -30,7 +31,8 @@ export const bridgeStatusText = (r: SwapRecord) => {
   if (pending(r)) return 'Payment pending or uncertain. Do not pay again. Reconnect to this XBT node to check settlement.';
   if (r.state === 'canceled') return 'Canceled before submission. No payment sent.';
   if (r.state === 'quote_expired') return 'Quote expired before submission. No payment sent.';
-  if (r.state === 'requesting' || r.state === 'quote_failed') return 'Quote request incomplete. No payment submitted by RedWallet.';
+  if (r.state === 'requesting') return 'RedWallet saved the quote request. No quote result or payment submission was recorded.';
+  if (r.state === 'quote_failed') return 'Quote request failed. No payment submitted by RedWallet.';
   return 'Quote ready. Payment requires your confirmation.';
 };
 
@@ -50,7 +52,8 @@ export default function CrossChainLightning({
   const settledColor = '#147648';
   const [selected, setSelected] = useState<string>();
   const [record, setRecord] = useState<SwapRecord>();
-  const [history, setHistory] = useState<SwapRecord[]>([]);
+  const [history, setHistory] = useState<BridgeHistoryEntry[]>([]);
+  const [opened, setOpened] = useState<BridgeHistoryEntry>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [now, setNow] = useState(Date.now());
@@ -68,22 +71,30 @@ export default function CrossChainLightning({
     polling.current = true;
     try {
       const next = await controller.refresh(item.hash, new AbortController().signal);
-      if (alive.current) setRecord(next);
+      if (alive.current && current.current?.hash === item.hash && current.current?.node === item.node) setRecord(next);
     } catch {
-      if (alive.current) setMessage('Status unavailable. No payment will be retried.');
+      if (alive.current && current.current?.hash === item.hash && current.current?.node === item.node)
+        setMessage('Status unavailable. No payment will be retried.');
     } finally {
       polling.current = false;
     }
+  };
+  const openHistory = (entry: BridgeHistoryEntry) => {
+    current.current = entry.record;
+    setRecord(entry.record);
+    setOpened(entry);
+    setMessage('');
   };
   useEffect(() => {
     alive.current = true;
     if (!invoice)
       controller
-        .list()
+        .history()
         .then(items => {
           if (alive.current) {
-            setHistory(items.slice().reverse());
-            if (initialHash) setRecord(items.find(item => item.hash === initialHash));
+            setHistory(items);
+            const entry = items.find(item => item.hash === initialHash);
+            if (entry) openHistory(entry);
           }
         })
         .catch(() => {
@@ -177,6 +188,7 @@ export default function CrossChainLightning({
     }
   };
   const q = record?.quote;
+  const providerName = (id: string) => providers.find(provider => provider.id === id)?.name ?? id;
   const seconds = q ? Math.max(0, Math.floor(q.expiresAt - now / 1000)) : 0;
   const hidden = !invoice && hideHistoryAmounts;
   const field = (label: string, value: string) => (
@@ -195,7 +207,13 @@ export default function CrossChainLightning({
       <View style={[styles.modal, { backgroundColor: colors.background }]}>
         <ScrollView contentContainerStyle={styles.content}>
           <Text accessibilityRole="header" style={[styles.heading, { color: colors.foregroundColor }]}>
-            {record ? 'Pay SHA256 Lightning' : invoice ? 'Choose Lightning processor' : 'Cross-chain Lightning history'}
+            {opened
+              ? 'Cross-chain payment details'
+              : record
+                ? 'Pay SHA256 Lightning'
+                : invoice
+                  ? 'Choose Lightning processor'
+                  : 'Cross-chain Lightning history'}
           </Text>
           {!record && invoice && (
             <>
@@ -232,14 +250,14 @@ export default function CrossChainLightning({
               <SettingsListItem title="Get quote" disabled={!selected || busy} onPress={getQuote} />
             </>
           )}
-          {!record &&
+          {!opened &&
             !invoice &&
             history.map(item => (
               <SettingsListItem
-                key={item.node + item.hash}
-                title={'Cross-chain Lightning — XBT → SHA256 · ' + item.state}
-                subtitle={new Date(item.createdAt).toLocaleString()}
-                onPress={() => setRecord(item)}
+                key={item.hash}
+                title={'Cross-chain Lightning — XBT → SHA256 · ' + (item.record?.state ?? 'Quote request')}
+                subtitle={hidden ? '••••' : new Date(item.at).toLocaleString()}
+                onPress={() => openHistory(item)}
               />
             ))}
           {record && (
@@ -254,6 +272,11 @@ export default function CrossChainLightning({
               >
                 {bridgeStatusText(record)}
               </Text>
+              <Text style={[styles.line, { color: colors.foregroundColor }]}>Processor: {providerName(record.provider)}</Text>
+              {field('Time', new Date(record.createdAt).toLocaleString())}
+              {opened && !q && !opened.issues.some(issue => issue.at >= record.createdAt) && (
+                <SettingsFootnote>No further details were saved for this attempt.</SettingsFootnote>
+              )}
               {q && (
                 <>
                   {field('Recipient invoice amount', formatMsat(q.originalMsat) + ' SHA256 sats')}
@@ -271,15 +294,12 @@ export default function CrossChainLightning({
                   {field('Maximum routing fee', record.feeLimit + ' XBT sats')}
                   {field('Maximum total XBT required', coin(BigInt(q.payMsat) + BigInt(record.feeLimit) * 1000n))}
                   {record.actualFeeMsat !== undefined && field('Actual routing fee', formatMsat(record.actualFeeMsat) + ' XBT sats')}
-                  <Text style={[styles.line, { color: colors.foregroundColor }]}>
-                    Processor: {providers.find(p => p.id === record.provider)?.name ?? record.provider}
-                  </Text>
                   {record.state === 'quoted' && (
                     <Text style={[styles.line, { color: colors.foregroundColor }]}>
                       Quote expires in {seconds} s · Confirm needs at least 15 s remaining
                     </Text>
                   )}
-                  {field('Time', new Date(record.createdAt).toLocaleString())}
+                  {opened && field('Quote expires', new Date(q.expiresAt * 1000).toLocaleString())}
                   {field('Original invoice', q.original)}
                   {field('Payment reference', record.hash)}
                   <SettingsFootnote>
@@ -294,6 +314,39 @@ export default function CrossChainLightning({
               )}
               {pending(record) && <SettingsListItem title="Check settlement" disabled={busy} onPress={refresh} />}
             </>
+          )}
+          {opened && opened.issues.length > 0 && (
+            <>
+              <Text accessibilityRole="header" style={[styles.status, { color: colors.foregroundColor }]}>
+                Recent attempts for this invoice
+              </Text>
+              {opened.issues.map((issue, index) => (
+                <View key={issue.at + '-' + index}>
+                  <Text style={[styles.line, { color: colors.foregroundColor }]}>
+                    {providerName(issue.provider)} · {hidden ? '••••' : new Date(issue.at).toLocaleString()}
+                  </Text>
+                  <SettingsFootnote>{historyReasons[issue.reason]}</SettingsFootnote>
+                </View>
+              ))}
+            </>
+          )}
+          {opened && !initialHash && (
+            <SettingsListItem
+              title="Back to history"
+              disabled={busy}
+              onPress={async () => {
+                current.current = undefined;
+                setRecord(undefined);
+                setOpened(undefined);
+                setMessage('');
+                try {
+                  const entries = await controller.history();
+                  if (alive.current) setHistory(entries);
+                } catch {
+                  if (alive.current) setMessage('Could not refresh cross-chain history.');
+                }
+              }}
+            />
           )}
           {!!message && <SettingsFootnote>{message}</SettingsFootnote>}
           {busy && <ActivityIndicator accessibilityLabel="Processing bridge request" />}
