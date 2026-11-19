@@ -5,7 +5,9 @@ export const historyReasons = {
   proofTimeout: 'The phone ran out of time solving the processor’s proof of work.',
   processorRefused: 'The processor was unavailable or refused the request.',
   rateLimit: 'The quote request limit was reached.',
-  existingQuote: 'A quote was already reserved for this invoice.',
+  quoteResponseTimeout:
+    'The quote response timed out. The processor may have reserved this invoice; RedWallet submitted no payment. Wait up to ten minutes before trying again.',
+  existingQuote: 'The processor had already reserved this invoice; RedWallet submitted no payment.',
   existingPayment: 'An earlier payment must be checked before another attempt.',
   unavailable: 'The processor was unavailable for this direction.',
   outsideLimits: 'The invoice amount was outside the processor’s limits.',
@@ -35,6 +37,10 @@ const knownErrors = new Map<string, HistoryReason>([
   ['Bridge unavailable or request refused.', 'processorRefused'],
   ['Bridge quote limit reached. Wait before requesting another quote.', 'rateLimit'],
   ['Six quote requests per ten minutes. Please wait.', 'rateLimit'],
+  [
+    'Quote response timed out. The processor may have reserved this invoice. No payment was submitted. Wait for the reservation to expire before trying again.',
+    'quoteResponseTimeout',
+  ],
   ['A quote for this invoice already exists. Wait before requesting another.', 'existingQuote'],
   ['This payment is pending, uncertain or already paid. Check its status; do not pay again.', 'existingPayment'],
   ['LND already knows this payment. Check its status before proceeding.', 'existingPayment'],

@@ -9,6 +9,7 @@ import {
   parseMarket,
   priceMsat,
   ProofTimeoutError,
+  QuoteResponseTimeoutError,
   solveProof,
   validateQuote,
 } from '../../blue_modules/lightning-bridge/provider';
@@ -421,6 +422,30 @@ test('capacity cleanup respects the quote cooldown and persists before quoting',
 });
 
 describe('durable quote diagnostics', () => {
+  it('preserves a quote-response timeout and blocks duplicate attempts until the ten-minute reservation expires', async () => {
+    const e = environment();
+    jest.mocked(e.provider.quote).mockRejectedValueOnce(new QuoteResponseTimeoutError());
+    await expect(quoted(e)).rejects.toThrow('processor may have reserved this invoice');
+    expect(e.backend.pay).not.toHaveBeenCalled();
+
+    e.setTime(NOW + 1000);
+    await expect(quoted(e)).rejects.toThrow('already exists');
+    expect(e.provider.quote).toHaveBeenCalledTimes(1);
+
+    e.setTime(NOW + 600001);
+    jest.mocked(e.provider.quote).mockRejectedValueOnce(new Error('Bridge unavailable or request refused.'));
+    await expect(quoted(e)).rejects.toThrow('request refused');
+    expect(e.provider.quote).toHaveBeenCalledTimes(2);
+    expect(e.backend.pay).not.toHaveBeenCalled();
+
+    const [entry] = await e.controller().history();
+    expect(entry.issues.map(({ reason, at }) => [reason, at])).toEqual([
+      ['processorRefused', NOW + 600001],
+      ['existingQuote', NOW + 1000],
+      ['quoteResponseTimeout', NOW],
+    ]);
+  });
+
   it('keeps a proof timeout and a later manual attempt in order across restart, without recording raw errors', async () => {
     const e = environment();
     jest.mocked(e.provider.quote).mockRejectedValueOnce(new Error('Bridge proof of work took too long. No payment was sent.'));

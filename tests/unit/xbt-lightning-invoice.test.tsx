@@ -45,6 +45,7 @@ test('long invoice is collapsed; QR fits a narrow card and leaves scroll gesture
   expect(text.props.numberOfLines).toBe(8);
   expect(screen.queryByTestId('EncodedInvoiceQR')).toBeNull();
   expect(StyleSheet.flatten(text.props.style).fontSize).toBe(12);
+  expect(screen.getByText(/Social apps may reject long requests; use the QR image for X/)).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Show invoice QR code'));
   expect(screen.queryByText(invoice)).toBeNull();
   expect(screen.getByTestId('EncodedInvoiceQR').props.value.toLowerCase()).toBe(invoice);
