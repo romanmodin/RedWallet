@@ -149,6 +149,12 @@ export function leadingZeroBits(hash: Uint8Array): number {
   }
   return bits;
 }
+export class ProofTimeoutError extends Error {
+  constructor() {
+    super('Proof of work timed out before the quote request. No payment was sent. You can request a new quote.');
+  }
+}
+
 export async function solveProof(
   value: unknown,
   hash: string,
@@ -169,16 +175,24 @@ export async function solveProof(
     ttl <= 0
   )
     throw new Error('Invalid bridge proof-of-work challenge.');
-  // Bound CPU time, not difficulty. Use precisely the server-supplied bit count.
-  const deadline = now() + Math.min(ttl * 1000, 30000);
+  const start = now();
+  const deadline = start + Math.min(ttl * 1000, 120000);
+  let yieldAt = start + 8;
+  const prefix = sha256.create().update(Buffer.from(challenge + ':' + hash + ':'));
   for (let nonce = 0; Number.isSafeInteger(nonce); nonce++) {
-    if (nonce % 256 === 0) {
+    if (nonce % 64 === 0) {
+      if (now() >= yieldAt) {
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        yieldAt = now() + 8;
+      }
       if (signal.aborted) throw new Error('Quote canceled.');
-      if (now() >= deadline) throw new Error('Bridge proof of work took too long. No payment was sent.');
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      if (now() >= deadline) throw new ProofTimeoutError();
     }
     const text = nonce.toString(36);
-    if (leadingZeroBits(sha256(Buffer.from(challenge + ':' + hash + ':' + text))) >= bits) return { challenge, nonce: text };
+    if (leadingZeroBits(prefix.clone().update(text).digest()) >= bits) {
+      if (now() >= deadline) throw new ProofTimeoutError();
+      return { challenge, nonce: text };
+    }
   }
   throw new Error('Proof of work exhausted.');
 }
