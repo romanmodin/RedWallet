@@ -95,14 +95,14 @@ test.each([
         };
         break;
       case '/api/check':
-        value = { hash, sat: 100.001 };
+        value = { direction: 'toSHA256', hash, sat: 100.001, wait_s: 0 };
         break;
       case '/api/pow':
         value = { challenge: 'mock-challenge', bits: 0, ttl_s: 120 };
         break;
       case '/api/quote':
         value = {
-          dir: 'toSHA256',
+          [paperclip ? 'direction' : 'dir']: 'toSHA256',
           hash,
           sat: 100.001,
           hold_invoice: hold,

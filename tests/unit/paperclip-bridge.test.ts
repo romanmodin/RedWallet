@@ -1,3 +1,4 @@
+import type { BridgeInvoice } from '../../blue_modules/lightning-bridge/invoice';
 import { lightningBridgeProviders, PaperclipProvider } from '../../blue_modules/lightning-bridge/provider';
 
 const market = {
@@ -11,9 +12,23 @@ const market = {
   max_sat: 100000,
 };
 const signal = new AbortController().signal;
+const recipient = (): BridgeInvoice => ({
+  chain: 'SHA256',
+  invoice: 'synthetic',
+  hash: 'aa'.repeat(32),
+  msat: '1000',
+  expiresAt: Math.ceil(Date.now() / 1000) + 60,
+  destination: '02' + '33'.repeat(32),
+  cltv: 18,
+});
 
 it('reads the Paperclip bridge direction and its live limits', async () => {
-  const request = jest.fn(async () => ({ ok: true, status: 200, url: '', text: async () => JSON.stringify(market) }));
+  const request = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    url: '',
+    text: async () => JSON.stringify(market),
+  }));
   await expect(new PaperclipProvider(request).info(signal)).resolves.toMatchObject({ open: true, minSat: 1000, maxSat: 100000 });
   expect(request).toHaveBeenCalledWith(
     'https://lightning.paperclip-xbt.xyz/bridge/api/info?direction=toSHA256',
@@ -21,7 +36,12 @@ it('reads the Paperclip bridge direction and its live limits', async () => {
   );
 });
 it('refuses a reversed response and excludes unqualified processors from payment', async () => {
-  const request = async () => ({ ok: true, status: 200, url: '', text: async () => JSON.stringify({ ...market, direction: 'toBLAKE2b' }) });
+  const request = async () => ({
+    ok: true,
+    status: 200,
+    url: '',
+    text: async () => JSON.stringify({ ...market, direction: 'toBLAKE2b' }),
+  });
   await expect(new PaperclipProvider(request).info(signal)).rejects.toThrow('market');
   expect(lightningBridgeProviders.map(p => p.id)).not.toContain('paperclip');
 });
@@ -31,19 +51,41 @@ it('stops before proof or quote if Paperclip previews a different payment hash',
     ok: true,
     status: 200,
     url: '',
-    text: async () => JSON.stringify({ sat: 1, hash: 'bb'.repeat(32) }),
+    text: async () => JSON.stringify({ direction: 'toSHA256', sat: 1, hash: 'bb'.repeat(32) }),
   }));
-  const invoice = {
-    chain: 'SHA256',
-    invoice: 'synthetic',
-    hash: 'aa'.repeat(32),
-    msat: '1000',
-    expiresAt: Math.ceil(Date.now() / 1000) + 60,
-  } as const;
-  await expect(new PaperclipProvider(request).quote(invoice as Parameters<PaperclipProvider['quote']>[0], signal)).rejects.toThrow(
-    'confirm',
-  );
+  await expect(new PaperclipProvider(request).quote(recipient(), signal)).rejects.toThrow('confirm');
   expect(request).toHaveBeenCalledTimes(1);
+});
+
+describe.each([
+  ['missing', {}],
+  ['reversed', { direction: 'toBLAKE2b' }],
+  ['conflicting', { direction: 'toSHA256', dir: 'toBLAKE2b' }],
+  ['alias only', { dir: 'toSHA256' }],
+] as const)('Paperclip with %s direction', (_, fields) => {
+  const response = (body: unknown) => ({
+    ok: true,
+    status: 200,
+    url: '',
+    text: async () => JSON.stringify(body),
+  });
+
+  it('rejects the preview before requesting proof', async () => {
+    const invoice = recipient();
+    const request = jest.fn(async () => response({ ...fields, hash: invoice.hash, sat: 1 }));
+    await expect(new PaperclipProvider(request).quote(invoice, signal)).rejects.toThrow('confirm');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects the quote after a valid preview', async () => {
+    const invoice = recipient();
+    const request = jest
+      .fn(async () => response(fields))
+      .mockResolvedValueOnce(response({ direction: 'toSHA256', hash: invoice.hash, sat: 1 }))
+      .mockResolvedValueOnce(response({ challenge: 'mock', bits: 0, ttl_s: 120 }));
+    await expect(new PaperclipProvider(request).quote(invoice, signal)).rejects.toThrow('quote direction');
+    expect(request).toHaveBeenCalledTimes(3);
+  });
 });
 
 it('polls only the Paperclip swap bound to the original hash and token', async () => {

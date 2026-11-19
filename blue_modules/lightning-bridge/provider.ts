@@ -255,6 +255,10 @@ export class KilombinoProvider extends HoldInvoiceProvider {
 
 }
 
+function isPaperclipToSha256(response: Record<string, unknown>): boolean {
+  return response.direction === 'toSHA256' && (response.dir === undefined || response.dir === response.direction);
+}
+
 // Qualification only. Keep this adapter outside the payment registry until native
 // transport, signed quotes and settlement/recovery have passed integration tests.
 export class PaperclipProvider extends HoldInvoiceProvider {
@@ -265,7 +269,7 @@ export class PaperclipProvider extends HoldInvoiceProvider {
 
   async info(signal: AbortSignal): Promise<BridgeMarket> {
     const info = object(await this.call('/api/info?direction=toSHA256', signal));
-    if (info.direction !== 'toSHA256' || info.cap_unit !== 'SHA256 sats') throw new Error('Unexpected Paperclip market.');
+    if (!isPaperclipToSha256(info) || info.cap_unit !== 'SHA256 sats') throw new Error('Unexpected Paperclip market.');
     return parseMarket({ dirs: { toSHA256: { ...info, open: info.open === true && info.payments_enabled === true } } });
   }
 
@@ -273,10 +277,18 @@ export class PaperclipProvider extends HoldInvoiceProvider {
     if (invoice.chain !== 'SHA256' || invoice.expiresAt * 1000 <= Date.now()) throw new Error('Invalid Paperclip recipient invoice.');
     const body = { invoice: invoice.invoice, direction: 'toSHA256' };
     const preview = object(await this.call('/api/check', signal, body));
-    if (preview.hash !== invoice.hash || preview.sat !== Number(invoice.msat) / 1000 || preview.error || preview.wait_s)
+    if (
+      !isPaperclipToSha256(preview) ||
+      preview.hash !== invoice.hash ||
+      preview.sat !== Number(invoice.msat) / 1000 ||
+      preview.error ||
+      preview.wait_s
+    )
       throw new Error('Paperclip could not confirm this invoice.');
     const pow = await solveProof(await this.call('/api/pow', signal), invoice.hash, signal);
-    return validateQuote(await this.call('/api/quote', signal, { ...body, pow }), invoice, this);
+    const quote = object(await this.call('/api/quote', signal, { ...body, pow }));
+    if (!isPaperclipToSha256(quote)) throw new Error('Unexpected Paperclip quote direction.');
+    return validateQuote({ ...quote, dir: quote.direction }, invoice, this);
   }
 }
 // Only implemented providers appear in the processor picker. No automatic fallback.
