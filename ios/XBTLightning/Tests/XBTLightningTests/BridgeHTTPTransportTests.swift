@@ -48,6 +48,39 @@ final class BridgeHTTPTransportTests: XCTestCase {
         let status = origin + "/api/swap/" + String(repeating: "ab", count: 32) + "?t=" + String(repeating: "cd", count: 16)
         XCTAssertNoThrow(try BridgeHTTPTransport.request(url: status, method: "GET", body: ""))
     }
+    func testPaperclipBuildsOnlyTheDocumentedXBTToSHA256Requests() throws {
+        let api = "https://lightning.paperclip-xbt.xyz/bridge/api/"
+        let preview = #"{"invoice":"lnbc1fixture","direction":"toSHA256"}"#
+        let quote = #"{"invoice":"lnbc1fixture","direction":"toSHA256","pow":{"challenge":"challenge","nonce":"0"}}"#
+        let swap = "swap/" + String(repeating: "ab", count: 32) + "?t=" + String(repeating: "cd", count: 16)
+        for endpoint in ["info?direction=toSHA256", "pow", swap] {
+            let get = try BridgeHTTPTransport.request(url: api + endpoint, method: "GET", body: "")
+            XCTAssertEqual(get.url?.absoluteString, api + endpoint)
+            XCTAssertNil(get.httpBody)
+        }
+        for (endpoint, payload) in [("check", preview), ("quote", quote)] {
+            let post = try BridgeHTTPTransport.request(url: api + endpoint, method: "POST", body: payload)
+            XCTAssertEqual(post.httpBody, Data(payload.utf8))
+            XCTAssertEqual(post.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            XCTAssertFalse(post.httpShouldHandleCookies)
+        }
+    }
+    func testProviderPathsAndPayloadsCannotBeInterchanged() {
+        let base = "https://lightning.paperclip-xbt.xyz"
+        let api = base + "/bridge/api/"
+        let preview = #"{"invoice":"lnbc1fixture","direction":"toSHA256"}"#
+        for path in ["/api/pow", "/bridge/api/info", "/bridge/api/info?direction=toBLAKE2b",
+                     "/bridge/api/pow?direction=toSHA256", "/bridge/api/%70ow"] {
+            XCTAssertThrowsError(try BridgeHTTPTransport.request(url: base + path, method: "GET", body: ""))
+        }
+        XCTAssertThrowsError(try BridgeHTTPTransport.request(url: origin + "/api/check", method: "POST", body: preview))
+        XCTAssertThrowsError(try BridgeHTTPTransport.request(url: api + "quote", method: "POST", body: quoteBody))
+        XCTAssertThrowsError(try BridgeHTTPTransport.request(url: api + "quote", method: "POST", body: preview))
+        for payload in [#"{"invoice":"lnbc1fixture","direction":"toBLAKE2b"}"#,
+                        #"{"invoice":"lnbc1fixture","direction":"toSHA256","extra":"fixture"}"#] {
+            XCTAssertThrowsError(try BridgeHTTPTransport.request(url: api + "check", method: "POST", body: payload))
+        }
+    }
     func testRedirectIsRefusedBeforeAnyFollowUpRequest() {
         let transport = client()
         defer { transport.invalidate() }
