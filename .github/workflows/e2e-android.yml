@@ -180,6 +180,20 @@ jobs:
         sha256sum --check --strict android-e2e-apks.sha256
         echo "APK artifact source and checksums verified: $artifact_source" >> "$GITHUB_STEP_SUMMARY"
 
+    - name: Stage the Android test runner from the workflow commit
+      shell: bash
+      run: |
+        # The workflow can be newer than the app checkout on a pull request.
+        if [[ ! "$GITHUB_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error::Invalid workflow commit"
+          exit 1
+        fi
+        if ! git cat-file -e "$GITHUB_WORKFLOW_SHA^{commit}" 2>/dev/null; then
+          git fetch --no-tags --depth=1 origin "$GITHUB_WORKFLOW_SHA"
+        fi
+        git show "$GITHUB_WORKFLOW_SHA:.github/scripts/run-android-e2e.sh" > "$RUNNER_TEMP/run-android-e2e.sh"
+        echo "Android test runner from workflow commit $GITHUB_WORKFLOW_SHA" >> "$GITHUB_STEP_SUMMARY"
+
     - name: Run tests
       timeout-minutes: 65
       uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
@@ -195,7 +209,7 @@ jobs:
         # bluewallet2 depends on a funded Bitcoin fixture; unsupported cases in bluewallet.spec are explicit skips.
         # Successful run 44005503201 completed the entire test job in 28 minutes.
         # Bound each suite separately; timeout/forced termination must remain a failure.
-        script: bash .github/scripts/run-android-e2e.sh "${{ github.workspace }}/artifacts"
+        script: bash "$RUNNER_TEMP/run-android-e2e.sh" "$GITHUB_WORKSPACE/artifacts"
 
     - name: Stop remaining emulator services
       if: always()
