@@ -8,7 +8,7 @@ export default function WalletNetworkIndicator(props: React.ComponentProps<typeo
   if (state === 'inactive') return <ChainFreshnessIndicator {...props} />;
   return (
     <Text accessibilityRole="text" style={styles.status}>
-      {state === 'connected' ? '● BTC CONNECTED' : '○ BTC SELECTED'}
+      {state === 'connected' ? '● SHA-256 CONNECTED' : '○ SHA-256 SELECTED'}
     </Text>
   );
 }
