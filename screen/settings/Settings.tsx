@@ -17,7 +17,7 @@ const Settings = () => {
   const { language } = useSettings(); // Subscribe to language changes to trigger re-render
   useLayoutEffect(() => {
     // Only the title needs refreshing on language change; header styling comes from the route options
-    setOptions({ title: loc.settings.header.toUpperCase() });
+    setOptions({ title: loc.settings.header });
   }, [setOptions, language]);
 
   const handleDonatePress = useCallback(() => {
@@ -75,7 +75,7 @@ const Settings = () => {
           testID="GeneralSettings"
           chevron
         />
-        <SettingsListItem title="XBT price" iconName="currency" onPress={() => navigate('XbtPrice')} testID="XbtPriceSettings" chevron />
+        <SettingsListItem title="XBT Price" iconName="currency" onPress={() => navigate('XbtPrice')} testID="XbtPriceSettings" chevron />
         {XBT_PROFILE.fiatEnabled && (
           <SettingsListItem
             title={loc.settings.currency}

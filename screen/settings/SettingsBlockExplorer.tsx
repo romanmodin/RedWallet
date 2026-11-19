@@ -5,7 +5,7 @@ const SettingsBlockExplorer: React.FC = () => (
   <SettingsScrollView>
     <SettingsSection>
       <SettingsListItem
-        title="Explorer unavailable"
+        title="Explorer Unavailable"
         subtitle="An XBT explorer is not available in this release. You can copy transaction IDs from transaction details."
         subtitleNumberOfLines={0}
         disabled

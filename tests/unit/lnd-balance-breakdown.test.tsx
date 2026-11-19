@@ -37,7 +37,7 @@ test('masks every amount and marks cached data as last observed', () => {
   render(<LndBalanceBreakdown overview={overview} hidden stale format={value => value.toString()} />);
   expect(screen.getAllByText('••••')).toHaveLength(7);
   expect(screen.queryByText('1000000')).toBeNull();
-  expect(screen.getByText('BALANCE DETAILS · LAST OBSERVED')).toBeTruthy();
+  expect(screen.getByText('Balance Details · Last Observed')).toBeTruthy();
 });
 
 jest.mock('../../components/themes', () => {
