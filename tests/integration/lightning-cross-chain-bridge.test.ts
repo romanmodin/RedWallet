@@ -156,9 +156,13 @@ test.each([
     expect(otherRequest).not.toHaveBeenCalled();
 
     const restarted = new BridgeController(store, embeddedXbtBridgeBackend, [other, provider], () => now);
-    const unproven = await restarted.refresh(hash, signal);
-    expect(unproven.state).toBe('pending');
-    expect(unproven.bridgeState).toBeUndefined();
+    for (const invalidProof of ['ff'.repeat(32), '']) {
+      remoteProof = invalidProof;
+      const unproven = await restarted.refresh(hash, signal);
+      expect(unproven.state).toBe('pending');
+      expect(unproven.bridgeState).toBeUndefined();
+      expect(stored.records[0].bridgeState).toBeUndefined();
+    }
     remoteProof = preimage;
     const remoteSettled = await restarted.refresh(hash, signal);
     expect(remoteSettled).toMatchObject({ provider: id, state: 'pending', bridgeState: 'settled' });
