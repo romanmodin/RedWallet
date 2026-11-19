@@ -1,6 +1,16 @@
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react-native';
-import { Alert, FlatList, NativeModules, RefreshControl, StyleSheet, View } from 'react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  AppState,
+  AppStateStatus,
+  FlatList,
+  NativeModules,
+  RefreshControl,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { LndWallet, LndOverview } from '../../class/wallets/lnd-wallet';
 import { XbtPriceQuote, createNeoxexXbtPriceQuote } from '../../blue_modules/xbt-price';
 
@@ -165,6 +175,141 @@ test('header details start collapsed and keep the balance and history available 
   expect(screen.getByText('Test payment')).toBeTruthy();
   expect(mockNavigation.navigate).not.toHaveBeenCalled();
   screen.unmount();
+});
+
+describe('Lightning connection clock', () => {
+  const originalAppState = AppState.currentState;
+  const name = 'Connecting to Lightning';
+  beforeEach(() => {
+    jest.useFakeTimers();
+    AppState.currentState = 'active';
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  });
+  afterEach(() => {
+    AppState.currentState = originalAppState;
+    jest.useRealTimers();
+  });
+
+  test('an elapsed estimate keeps waiting for both sync and a peer, and a warm refresh adds no sample', async () => {
+    const wallet = new LndWallet();
+    wallet.recordConnectionDuration(4000);
+    wallet.recordConnectionDuration(4000);
+    const record = jest.spyOn(wallet, 'recordConnectionDuration');
+    const observed = { ...overview, synced: false };
+    bridge.wallet.mockImplementation(async kind => (kind === 'overview' ? observed : defaultWallet(kind)));
+    const screen = render(<LndWalletHome wallet={wallet} />);
+    await act(async () => {});
+    const clock = () => screen.getByRole('progressbar', { name });
+    const pull = () => act(async () => fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh'));
+    expect(clock().props.accessibilityValue.text).toContain('4 seconds');
+    expect(within(clock()).queryByText(/[0-9]/)).toBeNull();
+    const reads = bridge.run.mock.calls.length;
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+    });
+    expect(clock().props.accessibilityValue.text).toContain('longer than your recent average');
+    expect(bridge.run).toHaveBeenCalledTimes(reads);
+    observed.synced = true;
+    observed.peers = '0';
+    await pull();
+    expect(clock()).toBeTruthy();
+    expect(record).not.toHaveBeenCalled();
+    observed.peers = '1';
+    await pull();
+    expect(screen.queryByRole('progressbar', { name })).toBeNull();
+    expect(screen.getByLabelText('LND · Connected')).toBeTruthy();
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(record).toHaveBeenCalledWith(5000);
+    await pull();
+    expect(record).toHaveBeenCalledTimes(1);
+    screen.unmount();
+  });
+
+  test('shows a stationary ring with Reduce Motion and stops it when the node is locked or unavailable', async () => {
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    const timers = jest.spyOn(global, 'setInterval');
+    const wallet = new LndWallet();
+    const record = jest.spyOn(wallet, 'recordConnectionDuration');
+    bridge.run.mockResolvedValue('Tor connecting');
+    const screen = render(<LndWalletHome wallet={wallet} />);
+    await act(async () => {});
+    expect(screen.getByRole('progressbar', { name }).props.accessibilityValue.text).toMatch(/learning/i);
+    expect(timers.mock.calls.some(([, delay]) => delay === 500)).toBe(false);
+    bridge.run.mockResolvedValue('Locked');
+    const pull = () => act(async () => fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh'));
+    await pull();
+    expect(screen.queryByRole('progressbar', { name })).toBeNull();
+    bridge.run.mockResolvedValue('Syncing');
+    await pull();
+    expect(screen.getByRole('progressbar', { name })).toBeTruthy();
+    bridge.run.mockRejectedValueOnce(new Error('Synthetic offline result'));
+    await pull();
+    expect(screen.queryByRole('progressbar', { name })).toBeNull();
+    expect(record).not.toHaveBeenCalled();
+    screen.unmount();
+  });
+
+  test('saves a successful connection time even when the following history read fails', async () => {
+    const wallet = new LndWallet();
+    const record = jest.spyOn(wallet, 'recordConnectionDuration');
+    bridge.run.mockResolvedValueOnce('Starting');
+    const screen = render(<LndWalletHome wallet={wallet} />);
+    await act(async () => {});
+    expect(screen.getByRole('progressbar', { name }).props.accessibilityValue.text).toMatch(/learning/i);
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+    bridge.wallet.mockImplementation(async kind => {
+      if (kind === 'payments') throw new Error('Synthetic history read failure');
+      return defaultWallet(kind);
+    });
+    await act(async () => fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh'));
+    expect(record).toHaveBeenCalledWith(2000);
+    expect(mockStorage.saveToDisk).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('progressbar', { name })).toBeNull();
+    expect(screen.getByLabelText('LND · Connected')).toBeTruthy();
+    screen.unmount();
+  });
+
+  test('background time and a status reply from a previous foreground session never enter the average', async () => {
+    const listeners = new Set<(state: AppStateStatus) => void>();
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      listeners.add(listener);
+      return { remove: () => listeners.delete(listener) };
+    });
+    const changeState = (state: AppStateStatus) =>
+      act(async () => {
+        AppState.currentState = state;
+        listeners.forEach(listener => listener(state));
+      });
+    const wallet = new LndWallet();
+    const record = jest.spyOn(wallet, 'recordConnectionDuration');
+    bridge.run.mockResolvedValueOnce('Starting');
+    const screen = render(<LndWalletHome wallet={wallet} />);
+    await act(async () => {});
+    expect(screen.getByRole('progressbar', { name })).toBeTruthy();
+    let complete!: (status: string) => void;
+    bridge.run.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          complete = resolve;
+        }),
+    );
+    await act(async () => {
+      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+    });
+    await changeState('background');
+    expect(screen.queryByRole('progressbar', { name })).toBeNull();
+    await act(async () => {
+      jest.advanceTimersByTime(60000);
+    });
+    await changeState('active');
+    await act(async () => complete('Running'));
+    expect(screen.getByLabelText('LND · Connected')).toBeTruthy();
+    expect(screen.queryByRole('progressbar', { name })).toBeNull();
+    expect(record).not.toHaveBeenCalled();
+    screen.unmount();
+  });
 });
 
 test.each([

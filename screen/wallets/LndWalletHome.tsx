@@ -24,6 +24,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { LndActivity, LndActivityPage, LndWallet } from '../../class/wallets/lnd-wallet';
 import WalletGradient from '../../class/wallet-gradient';
 import LndConnectionBadge from '../../components/LndConnectionBadge';
+import LndConnectionClock from '../../components/LndConnectionClock';
 import { useTheme } from '../../components/themes';
 import XbtFiatEstimate from '../../components/XbtFiatEstimate';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -33,6 +34,8 @@ import { formatLndAmount, nextLndDisplayUnit } from '../../blue_modules/lnd-disp
 
 const bridge = NativeModules.XBTLightningBridge;
 const connectedMessage = 'Connected · Updates while this screen is open';
+const refreshFailedMessage = 'Refresh failed. Showing last known data. Pull down to retry.';
+const connectingStatuses = new Set(['Starting', 'Tor connecting', 'Unlocked', 'RPC ready', 'Syncing', 'Running']);
 type Pages = Partial<Record<'payments' | 'invoices' | 'funding', LndActivityPage>>;
 const merge = (old: LndActivity[], next: LndActivity[]) => [
   ...new Map([...old, ...next].map(row => [row.direction + row.id, row])).values(),
@@ -90,6 +93,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const queuedRefresh = useRef<'pull' | 'automatic' | undefined>(undefined);
   const focused = useRef(false);
   const generation = useRef(0);
+  const observedConnectionStart = useRef<number | undefined>(undefined);
+  const [clockStart, setClockStart] = useState<number>();
   const open = useCallback((mode?: 'pay' | 'invoice' | 'send' | 'receive') => navigation.navigate('XBTLightning', { mode }), [navigation]);
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -121,10 +126,32 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       }
       pending.current = true;
       const requestGeneration = generation.current;
+      const isCurrent = () => canRefresh() && generation.current === requestGeneration;
+      const requestStartedAt = performance.now();
+      let shouldSave = false;
       setRefreshing(true);
       try {
-        await wallet.fetchBalance();
-        if (!focused.current || generation.current !== requestGeneration) return;
+        await wallet.fetchBalance().catch(error => {
+          if (isCurrent()) {
+            observedConnectionStart.current = undefined;
+            setClockStart(undefined);
+          }
+          throw error;
+        });
+        if (!isCurrent()) return;
+        if (wallet.connection() === 'connected') {
+          if (observedConnectionStart.current !== undefined) {
+            wallet.recordConnectionDuration(performance.now() - observedConnectionStart.current);
+            shouldSave = true;
+          }
+          observedConnectionStart.current = undefined;
+        } else if (connectingStatuses.has(wallet.status)) {
+          // An already-connected first response is a warm open, not a timed startup.
+          observedConnectionStart.current ??= requestStartedAt;
+        } else {
+          observedConnectionStart.current = undefined;
+        }
+        setClockStart(observedConnectionStart.current);
         redraw(value => value + 1);
         if (wallet.status !== 'Running') {
           setMessage('Node: ' + wallet.status + '. Open wallet settings to start or unlock it.');
@@ -154,10 +181,17 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         setPages(old => ({ ...old, ...updates }));
         if (updates.payments && updates.invoices) wallet.activity = [...updates.payments.rows, ...updates.invoices.rows];
         setMessage(wallet.connection() === 'connected' ? connectedMessage : 'Waiting for sync or Lightning peers');
-        await saveToDisk();
-      } catch (error) {
-        if (focused.current) setMessage('Refresh failed. Showing last known data. Pull down to retry.');
+        shouldSave = true;
+      } catch {
+        if (isCurrent()) setMessage(refreshFailedMessage);
       } finally {
+        if (shouldSave) {
+          try {
+            await saveToDisk();
+          } catch {
+            if (isCurrent()) setMessage(refreshFailedMessage);
+          }
+        }
         pending.current = false;
         const next = canRefresh() ? queuedRefresh.current : undefined;
         queuedRefresh.current = undefined;
@@ -181,16 +215,30 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       focused.current = true;
       setPullRefreshing(false);
       generation.current += 1;
-      refreshRef.current();
+      let appState = AppState.currentState;
+      const checkOnOpen = () => {
+        const mayConnect = wallet.status === 'Checking' || connectingStatuses.has(wallet.status);
+        setClockStart(mayConnect && wallet.connection() !== 'connected' ? performance.now() : undefined);
+        refreshRef.current();
+      };
+      if (appState !== 'background' && appState !== 'inactive') checkOnOpen();
       const timer = setInterval(() => refreshRef.current(), 15000);
       const subscription = AppState.addEventListener('change', state => {
+        if (state === appState) return;
+        appState = state;
+        generation.current += 1;
+        observedConnectionStart.current = undefined;
+        queuedRefresh.current = undefined;
         wallet.observedAt = 0;
+        if (state === 'active') checkOnOpen();
+        else setClockStart(undefined);
         redraw(value => value + 1);
-        if (state === 'active') refreshRef.current();
       });
       return () => {
         focused.current = false;
         queuedRefresh.current = undefined;
+        observedConnectionStart.current = undefined;
+        setClockStart(undefined);
         generation.current += 1;
         wallet.observedAt = 0;
         clearInterval(timer);
@@ -388,7 +436,10 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           <Text numberOfLines={1} style={styles.label}>
             {wallet.getLabel()}
           </Text>
-          <LndConnectionBadge wallet={wallet} />
+          {clockStart !== undefined && <LndConnectionClock startedAt={clockStart} averageMs={wallet.averageConnectionDuration()} />}
+          <View style={clockStart !== undefined ? styles.badgeBesideClock : undefined}>
+            <LndConnectionBadge wallet={wallet} />
+          </View>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -638,7 +689,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  headerLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerLine: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 32 },
+  badgeBesideClock: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
   label: { flex: 1, minWidth: 0, color: '#FFE7EA', fontSize: 20 },
   balance: { color: '#FFFFFF', fontSize: 36, fontWeight: '700', marginTop: 12 },
   balanceLabel: {
