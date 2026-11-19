@@ -245,28 +245,36 @@ export async function helperCreateWallet(walletName, walletFormat = 'segwit', op
     await sleep(200); // Wait until bounce animation finishes.
     await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'WalletNameInput');
   }
-  await element(by.id('WalletNameInput')).replaceText(walletName || 'cr34t3d');
-  await waitForId('ActivateBitcoinButton');
-  await element(by.id('ActivateBitcoinButton')).tap();
-  await element(by.id('ActivateBitcoinButton')).tap();
-  // why tf we need 2 taps for it to work..? mystery
-
-  if (walletFormat === 'taproot') await element(by.id('ToggleXbtWalletFormat')).tap();
-  if (walletFormat === 'btc') {
-    await element(by.id('ActivateBtcButton')).tap();
-    await expect(element(by.id('XbtWalletFormat'))).toHaveText('BTC · SHA-256 · Native SegWit (BIP84)');
-  }
-
-  // iOS 26 liquid glass: the navigation transition after tapping "Create" triggers
-  // glass animations that never fully settle, keeping the app in a "busy" state.
-  // Detox synchronization waits for idle before proceeding, causing an infinite hang.
-  // Disable sync for the remainder of wallet creation and re-enable once we're back
-  // on the home screen where the glass animations have settled.
+  // The native failure screenshot showed a ready Add Wallet screen, but Detox
+  // stayed busy on one iOS 26 layer animation at ActivateBitcoinButton. The
+  // screenshot driver already handles this before calling this shared helper.
+  // Keep bounded readiness checks through naming/selection as well as Create.
   const isIOS = device.getPlatform() === 'ios';
-  if (isIOS) {
-    await device.disableSynchronization();
-  }
+  if (isIOS) await device.disableSynchronization();
   try {
+    await element(by.id('WalletNameInput')).replaceText(walletName || 'cr34t3d');
+    await waitForId('ActivateBitcoinButton');
+    await element(by.id('ActivateBitcoinButton')).tap();
+    if (!isIOS) await element(by.id('ActivateBitcoinButton')).tap();
+    await waitForKeyboardToClose();
+    await waitForId('ToggleXbtWalletFormat');
+    await waitFor(element(by.id('XbtWalletFormat')))
+      .toHaveText('Native SegWit (BIP84)')
+      .withTimeout(5000);
+
+    if (walletFormat === 'taproot') {
+      await element(by.id('ToggleXbtWalletFormat')).tap();
+      await waitFor(element(by.id('XbtWalletFormat')))
+        .toHaveText('Taproot (BIP86)')
+        .withTimeout(5000);
+    }
+    if (walletFormat === 'btc') {
+      await element(by.id('ActivateBtcButton')).tap();
+      await waitFor(element(by.id('XbtWalletFormat')))
+        .toHaveText('BTC · SHA-256 · Native SegWit (BIP84)')
+        .withTimeout(5000);
+    }
+
     await element(by.id('Create')).tap();
     // Wait for the backup screen to mount after the asynchronous storage write.
     // Its scroll content can exceed the viewport; visibility is checked on OK.
