@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { Pressable, ScrollView, StyleProp, StyleSheet, Text, TextProps, View, ViewStyle } from 'react-native';
+import { Pressable, ScrollView, StyleProp, StyleSheet, Text, TextProps, TextStyle, View, ViewStyle } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
 
 import BlueText from './BlueText';
@@ -143,22 +143,29 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({ title, headerR
   );
 };
 
+const descriptionWidthScale = 0.94;
+// Measure the extra line width before compressing it around the center of the column.
+const compactDescription: TextStyle = {
+  alignSelf: 'center',
+  width: `${100 / descriptionWidthScale}%`,
+  transform: [{ scaleX: descriptionWidthScale }],
+};
+
 const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 20,
   },
   footnote: {
+    ...compactDescription,
     fontSize: 13,
     lineHeight: 19,
-    textTransform: 'uppercase',
   },
   menuTitle: {
     fontSize: 14,
-    textTransform: 'uppercase',
   },
   menuSubtitle: {
+    ...compactDescription,
     fontSize: 13,
-    textTransform: 'uppercase',
   },
   cardContent: {
     padding: 16,
@@ -189,7 +196,6 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 15,
     fontWeight: '400',
-    textTransform: 'uppercase',
     flexShrink: 1,
   },
   headerPressed: {

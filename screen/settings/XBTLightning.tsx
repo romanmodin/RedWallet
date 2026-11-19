@@ -618,7 +618,7 @@ export default function XBTLightning({
     >
       <SettingsSection>
         {tools && (
-          <SettingsExplanation id="lightning.node-peers" title="About this Lightning node">
+          <SettingsExplanation id="lightning.node-peers" title="About This Lightning Node">
             XBT Lightning runs on this phone and connects to public XBT chain peers. Leave the peer blank to use the built-in list, or enter
             your own compact-filter chain peer as host:port. Your home node is optional.
           </SettingsExplanation>
@@ -874,7 +874,7 @@ export default function XBTLightning({
                 editable={!busy}
                 onChangeText={setChannelSats}
               />
-              <SettingsFootnote>FUNDING FEE RATE (SAT/VB)</SettingsFootnote>
+              <SettingsFootnote>Funding Fee Rate (sat/vB)</SettingsFootnote>
               <TextInput
                 accessibilityLabel="New channel fee rate"
                 style={[
@@ -1222,7 +1222,7 @@ export default function XBTLightning({
 
               {bridge.payInvoice && (
                 <>
-                  <SettingsFootnote>MAXIMUM ROUTING FEE (SATS)</SettingsFootnote>
+                  <SettingsFootnote>Maximum Routing Fee (sats)</SettingsFootnote>
                   <TextInput
                     accessibilityLabel="Maximum routing fee sats"
                     style={[
@@ -1370,7 +1370,7 @@ export default function XBTLightning({
       )}
       {status === 'Running' && (tools || mode === 'send') && (
         <SettingsSection>
-          <SettingsExplanation id="lightning.channel-management" title="About channel management">
+          <SettingsExplanation id="lightning.channel-management" title="About Channel Management">
             Manage channels and withdraw the Lightning node’s on-chain balance. Closing a channel requires its peer online and a
             confirmation before withdrawing the returned funds. Withdrawals currently support SegWit and Taproot addresses beginning with
             bc1.
@@ -1408,7 +1408,7 @@ export default function XBTLightning({
                   })
                 }
               />
-              <SettingsExplanation id="lightning.channel-selection" title="How to select a channel">
+              <SettingsExplanation id="lightning.channel-selection" title="How To Select A Channel">
                 Tap a channel to select it and show its peer identity above. Actions apply only to the selected channel. Inactive channels
                 remain listed; pending channels are still opening.
               </SettingsExplanation>
@@ -1548,7 +1548,7 @@ export default function XBTLightning({
       )}
       {tools && ['Needs setup', 'Running'].includes(status) && (
         <SettingsSection>
-          <SettingsExplanation id="lightning.recovery" title="About Lightning recovery">
+          <SettingsExplanation id="lightning.recovery" title="About Lightning Recovery">
             Portable Lightning recovery saves the wallet seed and static channel backup together. Keep the passphrase separately. Export
             again after channel changes.
           </SettingsExplanation>

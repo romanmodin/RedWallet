@@ -235,7 +235,7 @@ const EnabledNotificationSettings: React.FC = () => {
             </View>
 
             <BlueSpacing20 />
-            <Button onPress={enqueueTestPush} title="Enqueue test push notification" disabled={isLoading} />
+            <Button onPress={enqueueTestPush} title="Enqueue Test Push Notification" disabled={isLoading} />
           </View>
         </SettingsSection>
       )}
@@ -254,7 +254,7 @@ const NotificationSettings: React.FC = () =>
     <SettingsScrollView>
       <SettingsSection>
         <SettingsListItem
-          title="Notifications unavailable"
+          title="Notifications Unavailable"
           subtitle="Payment notifications are not available for XBT in this release."
           subtitleNumberOfLines={0}
           disabled
