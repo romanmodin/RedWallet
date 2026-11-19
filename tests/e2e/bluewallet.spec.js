@@ -156,16 +156,28 @@ describe('RedWallet UI Tests - no wallets', () => {
     // Legacy BTC currency selection is hidden; XBT quotes use the separate price setting.
     await expect(element(by.id('Currency'))).not.toExist();
 
-    // language
-    // change language to Chinese (ZH), test it and switch back to English
-    await element(by.id('Language')).tap();
-    await element(by.id('LanguageFlatList')).scroll(250, 'down');
-    await element(by.text('Chinese (ZH)')).tap();
-    await goBack();
-    await expect(element(by.text('语言'))).toBeVisible();
-    await element(by.id('Language')).tap();
-    await element(by.text('English')).tap();
-    await goBack();
+    // Verify the translated Settings row after both selections.
+    for (const [option, translatedTitle, direction] of [
+      ['Chinese (ZH)', '语言', 'down'],
+      ['English', 'Language', 'up'],
+    ]) {
+      await element(by.id('Language')).tap();
+      await waitForId('LanguageFlatList');
+      const choice = element(by.text(option));
+      await waitFor(choice).toBeVisible().whileElement(by.id('LanguageFlatList')).scroll(150, direction);
+      await choice.tap();
+      // Android persists the selection asynchronously. Observe the new picker title before leaving.
+      if (device.getPlatform() === 'android') {
+        await waitFor(element(by.text(translatedTitle)))
+          .toBeVisible()
+          .withTimeout(10000);
+      }
+      await goBack();
+      await waitForId('SettingsRoot');
+      await waitFor(element(by.text(translatedTitle)))
+        .toBeVisible()
+        .withTimeout(10000);
+    }
 
     // security
     await element(by.id('SecurityButton')).tap();
