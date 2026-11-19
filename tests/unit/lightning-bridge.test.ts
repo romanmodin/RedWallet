@@ -8,6 +8,7 @@ import {
   leadingZeroBits,
   parseMarket,
   priceMsat,
+  ProofTimeoutError,
   solveProof,
   validateQuote,
 } from '../../blue_modules/lightning-bridge/provider';
@@ -153,6 +154,23 @@ describe('signed bridge invoices and provider protocol', () => {
     abort.abort();
     await expect(solveProof({ challenge: 'c', bits: 256 }, hash, abort.signal)).rejects.toThrow('canceled');
     await expect(solveProof({ challenge: 'c', bits: 257 }, hash, signal())).rejects.toThrow();
+  });
+  it('matches the independent 18-bit SHA-256 reference nonce', async () => {
+    const result = await solveProof({ challenge: 'redwallet-synthetic', bits: 18, ttl_s: 120 }, hash, signal());
+    expect(result.nonce).toBe('7cnk');
+  }, 120000);
+  it('honors the challenge lifetime beyond thirty seconds and stops at expiry', async () => {
+    const clock = (elapsed: number) => jest.fn(() => NOW + elapsed).mockReturnValueOnce(NOW);
+    await expect(solveProof({ challenge: 'c', bits: 0, ttl_s: 120 }, hash, signal(), clock(31000))).resolves.toHaveProperty('nonce', '0');
+    await expect(solveProof({ challenge: 'c', bits: 0, ttl_s: 5 }, hash, signal(), clock(5000))).rejects.toBeInstanceOf(ProofTimeoutError);
+  });
+  it('allows a manual retry after local proof expiry across restart but guards an ambiguous quote submission', async () => {
+    const e = environment();
+    jest.mocked(e.provider.quote).mockRejectedValueOnce(new ProofTimeoutError()).mockRejectedValueOnce(new Error('Connection lost'));
+    await expect(quoted(e)).rejects.toBeInstanceOf(ProofTimeoutError);
+    await expect(quoted(e)).rejects.toThrow('Connection lost');
+    await expect(quoted(e)).rejects.toThrow('already exists');
+    expect(e.backend.pay).not.toHaveBeenCalled();
   });
   it('verifies exact preimages and refuses false success proofs', () => {
     expect(provesPayment(preimage, hash)).toBe(true);

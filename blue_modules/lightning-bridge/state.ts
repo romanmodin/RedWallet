@@ -1,5 +1,5 @@
 import { BridgeInvoice, ceilSats, hashPattern, nodePattern, provesPayment, readBridgeInvoice } from './invoice';
-import { BridgeQuote, LightningBridgeProvider, validateQuote } from './provider';
+import { BridgeQuote, LightningBridgeProvider, ProofTimeoutError, validateQuote } from './provider';
 
 export type SwapState =
   | 'requesting'
@@ -21,6 +21,7 @@ export type SwapRecord = {
   updatedAt: number;
   quote?: BridgeQuote;
   feeLimit: string;
+  proofTimedOut?: true;
   estimatedFeeMsat?: string;
   actualFeeMsat?: string;
   bridgeState?: string;
@@ -49,6 +50,7 @@ export interface BridgeBackend {
 const unresolved = new Set<SwapState>(['submitting', 'pending', 'unknown']);
 const disposableQuotes = new Set<SwapState>(['requesting', 'quoted', 'quote_failed', 'canceled', 'quote_expired']);
 function reservationEnds(record: SwapRecord): number {
+  if (record.state === 'quote_failed' && !record.quote && record.proofTimedOut === true) return record.updatedAt;
   return record.quote ? record.quote.expiresAt * 1000 + 60000 : record.createdAt + 600000;
 }
 const validState = new Set<SwapState>([
@@ -279,6 +281,7 @@ export class BridgeController {
         }
         record.state = signal.aborted ? 'canceled' : 'quoted';
       } catch (error) {
+        if (error instanceof ProofTimeoutError && !record.quote) record.proofTimedOut = true;
         record.state = record.quote ? 'canceled' : 'quote_failed';
         record.updatedAt = this.now();
         await this.store.write(journal);
