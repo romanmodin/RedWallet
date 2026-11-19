@@ -1,7 +1,7 @@
 import { encode, sign } from 'bolt11';
 import { sha256 } from '@noble/hashes/sha256';
 import { NativeModules } from 'react-native';
-import { KilombinoProvider } from '../../blue_modules/lightning-bridge/provider';
+import { KilombinoProvider, PaperclipProvider } from '../../blue_modules/lightning-bridge/provider';
 import { BridgeController, BridgeJournal, BridgeStore } from '../../blue_modules/lightning-bridge/state';
 import { embeddedXbtBridgeBackend } from '../../blue_modules/lightning-bridge/runtime';
 import { readBridgeInvoice } from '../../blue_modules/lightning-bridge/invoice';
@@ -26,7 +26,20 @@ const makeInvoice = (msat: string, xbt = false) =>
     '01'.padStart(64, '0'),
   ).paymentRequest!;
 
-test('HTTP quote → explicit approval → native XBT submission → restart → local proof settlement', async () => {
+test.each([
+  {
+    id: 'kilombino',
+    Provider: KilombinoProvider,
+    OtherProvider: PaperclipProvider,
+    origin: 'https://bridge.kilombino.com',
+  },
+  {
+    id: 'paperclip',
+    Provider: PaperclipProvider,
+    OtherProvider: KilombinoProvider,
+    origin: 'https://lightning.paperclip-xbt.xyz/bridge',
+  },
+])('$id quotes, recovers after restart, and never resubmits through another processor', async ({ id, Provider, OtherProvider, origin }) => {
   const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
   const previousNative = NativeModules.XBTLightningBridge;
   const original = makeInvoice('100001');
@@ -59,50 +72,100 @@ test('HTTP quote → explicit approval → native XBT submission → restart →
     },
   };
   const calls: { path: string; body?: unknown; headers: unknown }[] = [];
+  const market = { open: true, rate: 0.003, spread: 0.02, min_sat: 1, max_sat: 100000 };
+  const paperclip = id === 'paperclip';
+  const statusPath = '/api/swap/' + hash + '?t=' + 'ab'.repeat(16);
+  let remoteProof = 'ff'.repeat(32);
   const request = jest.fn(async (url: string | URL | Request, options?: RequestInit) => {
-    const path = String(url).replace('https://bridge.kilombino.com', '');
+    expect(String(url).startsWith(origin + '/')).toBe(true);
+    const path = String(url).slice(origin.length);
     const body = options?.body ? JSON.parse(options.body as string) : undefined;
     calls.push({ path, body, headers: options?.headers });
-    const value =
-      path === '/api/info'
-        ? { dirs: { toSHA256: { open: true, rate: 0.003, spread: 0.02, min_sat: 1, max_sat: 100000 } } }
-        : path === '/api/pow'
-          ? { challenge: 'mock-challenge', bits: 0, ttl_s: 120 }
-          : path === '/api/quote'
-            ? {
-                dir: 'toSHA256',
-                hash,
-                sat: 100.001,
-                hold_invoice: hold,
-                pay_sat: 34001,
-                rate: 0.003,
-                spread: 0.02,
-                expires_at: now / 1000 + 120,
-                node,
-                cltv: 1200,
-                token: 'ab'.repeat(16),
-              }
-            : { state: 'settled', preimage };
+    let value: unknown;
+    switch (path) {
+      case '/api/info':
+        value = { dirs: { toSHA256: market } };
+        break;
+      case '/api/info?direction=toSHA256':
+        value = {
+          ...market,
+          direction: 'toSHA256',
+          cap_unit: 'SHA256 sats',
+          payments_enabled: true,
+        };
+        break;
+      case '/api/check':
+        value = { hash, sat: 100.001 };
+        break;
+      case '/api/pow':
+        value = { challenge: 'mock-challenge', bits: 0, ttl_s: 120 };
+        break;
+      case '/api/quote':
+        value = {
+          dir: 'toSHA256',
+          hash,
+          sat: 100.001,
+          hold_invoice: hold,
+          pay_sat: 34001,
+          rate: 0.003,
+          spread: 0.02,
+          expires_at: now / 1000 + 120,
+          node,
+          cltv: 1200,
+          token: 'ab'.repeat(16),
+        };
+        break;
+      case statusPath:
+        value = { state: 'settled', preimage: remoteProof };
+        break;
+      default:
+        throw new Error('Unexpected request to the simulated processor');
+    }
     return { ok: true, url: String(url), text: async () => JSON.stringify(value) } as Response;
   }) as jest.MockedFunction<typeof fetch>;
-  const provider = new KilombinoProvider(request);
-  // Test authority only: the real Kilombino private key is neither needed nor available.
+  const provider = new Provider(request);
+  const otherRequest = jest.fn(async () => {
+    throw new Error('Unselected processor was contacted');
+  });
+  const other = new OtherProvider(otherRequest);
+  // Only the unfunded fixture signer can sign these synthetic hold invoices.
   Object.defineProperty(provider, 'node', { value: node });
   const controller = new BridgeController(store, embeddedXbtBridgeBackend, [provider], () => now);
   try {
     expect(calls).toHaveLength(0);
-    const quoted = await controller.quote('kilombino', readBridgeInvoice(original), '10', new AbortController().signal);
-    expect(calls.map(c => c.path)).toEqual(['/api/info', '/api/pow', '/api/quote']);
-    expect(calls[2].body).toEqual({ invoice: original, pow: { challenge: 'mock-challenge', nonce: '0' } });
+    const recipient = readBridgeInvoice(original);
+    const signal = new AbortController().signal;
+    const quoted = await controller.quote(id, recipient, '10', signal);
+    const expectedQuote = { invoice: original, pow: { challenge: 'mock-challenge', nonce: '0' } };
+    if (paperclip) {
+      expect(calls.map(c => c.path)).toEqual(['/api/info?direction=toSHA256', '/api/check', '/api/pow', '/api/quote']);
+      expect(calls[1].body).toEqual({ invoice: original, direction: 'toSHA256' });
+      expect(calls[3].body).toEqual({ ...expectedQuote, direction: 'toSHA256' });
+    } else {
+      expect(calls.map(c => c.path)).toEqual(['/api/info', '/api/pow', '/api/quote']);
+      expect(calls[2].body).toEqual(expectedQuote);
+    }
+    expect(quoted.provider).toBe(id);
     expect(calls[0].headers).toMatchObject({ 'User-Agent': 'RedWallet' });
     expect(native.bridgePayment.mock.calls.some(c => c[0] === 'pay')).toBe(false);
     expect((await controller.approve(hash, quoted.quote!.holdInvoice, () => true)).state).toBe('pending');
-    const remoteSettled = await controller.refresh(hash, new AbortController().signal);
-    expect(remoteSettled.state).toBe('pending');
-    expect(calls[calls.length - 1].path).toBe('/api/swap/' + hash + '?t=' + 'ab'.repeat(16));
+    // The provider can be unavailable on restart. Never redirect a status token or a pending payment.
+    const unavailable = new BridgeController(store, embeddedXbtBridgeBackend, [other], () => now);
+    expect((await unavailable.refresh(hash, signal)).state).toBe('pending');
+    await expect(unavailable.quote(other.id, recipient, '10', signal)).rejects.toThrow('pending');
+    expect(otherRequest).not.toHaveBeenCalled();
+
+    const restarted = new BridgeController(store, embeddedXbtBridgeBackend, [other, provider], () => now);
+    const unproven = await restarted.refresh(hash, signal);
+    expect(unproven.state).toBe('pending');
+    expect(unproven.bridgeState).toBeUndefined();
+    remoteProof = preimage;
+    const remoteSettled = await restarted.refresh(hash, signal);
+    expect(remoteSettled).toMatchObject({ provider: id, state: 'pending', bridgeState: 'settled' });
+    expect(calls[calls.length - 1].path).toBe(statusPath);
     localState = 'settled';
-    const restarted = new BridgeController(store, embeddedXbtBridgeBackend, [provider], () => now);
-    const final = await restarted.refresh(hash, new AbortController().signal);
+    const final = await restarted.refresh(hash, signal);
+    expect(otherRequest).not.toHaveBeenCalled();
     expect(final.state).toBe('settled');
     expect(final.actualFeeMsat).toBe('1300');
     expect(native.bridgePayment.mock.calls.filter(c => c[0] === 'pay')).toHaveLength(1);
