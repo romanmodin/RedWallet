@@ -1,3 +1,12 @@
+def regtestAar = project.findProperty("xbtRegtestAar")
+def mainnetAar = project.findProperty("xbtMainnetAar")
+if (regtestAar && mainnetAar) throw new GradleException("Choose exactly one Lightning network")
+def lightningAar = mainnetAar ?: regtestAar
+// Store updates retain the original package; isolated Lightning betas stay side by side.
+def mainnetStoreUpdate = project.findProperty("xbtMainnetStoreUpdate") == "true"
+if (mainnetStoreUpdate && !mainnetAar) throw new GradleException("A Lightning store update requires xbtMainnetAar")
+if (mainnetStoreUpdate && !project.findProperty("redwalletVersionCode")) throw new GradleException("A Lightning store update requires an explicit redwalletVersionCode")
+
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
@@ -72,11 +81,6 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
-def regtestAar = project.findProperty("xbtRegtestAar")
-def mainnetAar = project.findProperty("xbtMainnetAar")
-if (regtestAar && mainnetAar) throw new GradleException("Choose exactly one Lightning network")
-def lightningAar = mainnetAar ?: regtestAar
-
 android {
     androidResources {
         noCompress += ["bundle"]
@@ -91,9 +95,9 @@ android {
         applicationId "com.romanmodin.redwallet"
         minSdkVersion rootProject.ext.minSdkVersion
         if (regtestAar) applicationIdSuffix ".regtest"
-        if (mainnetAar) applicationIdSuffix ".lightning"
+        if (mainnetAar && !mainnetStoreUpdate) applicationIdSuffix ".lightning"
         buildConfigField "boolean", "XBT_LIGHTNING_MAINNET", mainnetAar ? "true" : "false"
-        manifestPlaceholders.redwalletAppLabel = mainnetAar ? "RedWallet Lightning" : (regtestAar ? "RedWallet Lightning Test" : "@string/app_name")
+        manifestPlaceholders.redwalletAppLabel = (mainnetAar && !mainnetStoreUpdate) ? "RedWallet Lightning" : (regtestAar ? "RedWallet Lightning Test" : "@string/app_name")
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = (project.findProperty("redwalletVersionCode") ?: "1").toInteger()
         versionName "8.0.1"
@@ -144,6 +148,8 @@ dependencies {
     if (lightningAar) {
         implementation files(lightningAar)
         implementation 'com.google.protobuf:protobuf-javalite:3.25.5'
+        // The native disabled-Firebase regression calls the SDK directly.
+        androidTestImplementation "com.google.firebase:firebase-messaging:${rootProject.ext.firebaseVersion}"
     }
 		androidTestImplementation('com.wix:detox:+')
     // The version of react-native is set by the React Native Gradle Plugin

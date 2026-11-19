@@ -2,12 +2,25 @@ package io.bluewallet.bluewallet.lightning
 
 import androidx.test.platform.app.InstrumentationRegistry
 import com.facebook.react.bridge.ReadableMap
+import com.google.firebase.FirebaseApp
+import com.wix.reactnativenotifications.fcm.FcmToken
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
 
 class MainnetDeviceTest {
     private val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+    @Test fun firebaseDisabledRefreshIsSafe() {
+        assertTrue("This build must not configure optional Firebase", FirebaseApp.getApps(ctx).isEmpty())
+        val token = FcmToken.get(ctx)
+        // New-token refresh also covers jobs queued by an older installed APK.
+        // Without the guard this calls FirebaseMessaging.getInstance() and throws.
+        token.onNewTokenReady()
+        token.onAppReady()
+        token.onManualRefresh()
+        assertTrue(FirebaseApp.getApps(ctx).isEmpty())
+    }
+
     @Test fun publicSync() {
         assertTrue(MainnetConfiguration.live)
         assertEquals("example.com:8333",MainnetConfiguration.endpoint("EXAMPLE.com:8333"))
