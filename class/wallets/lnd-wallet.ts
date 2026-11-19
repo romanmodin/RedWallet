@@ -42,6 +42,9 @@ const sats = (value: string): number => {
   return Number(value);
 };
 
+const recentConnectionLimit = 5;
+const isConnectionDuration = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+
 /** A card referencing the ONE embedded node. Keys and channel state remain native.
  * Never use inherited on-chain signing/address APIs: all sends use the native review flow.
  */
@@ -56,6 +59,7 @@ export class LndWallet extends LegacyWallet {
   status = 'Checking';
   activity: LndActivity[] = [];
   displayUnit?: LndDisplayUnit;
+  private connectionDurationsMs: number[] = [];
 
   static fromJson(raw: string): LndWallet {
     const stored = JSON.parse(raw);
@@ -71,6 +75,9 @@ export class LndWallet extends LegacyWallet {
       wallet.getBalance(); // Fail closed on invalid serialized amounts.
     }
     if (Array.isArray(stored.activity)) wallet.activity = stored.activity;
+    if (Array.isArray(stored.connectionDurationsMs)) {
+      wallet.connectionDurationsMs = stored.connectionDurationsMs.slice(-recentConnectionLimit).filter(isConnectionDuration);
+    }
     return wallet; // never restore connection timestamps or a native secret
   }
 
@@ -82,6 +89,17 @@ export class LndWallet extends LegacyWallet {
 
   getDisplayUnit(): LndDisplayUnit {
     return this.displayUnit ?? (this.getPreferredBalanceUnit() === BitcoinUnit.SATS ? 'sats' : 'XBT');
+  }
+
+  recordConnectionDuration(elapsedMs: number): void {
+    const duration = Math.round(elapsedMs);
+    if (isConnectionDuration(duration))
+      this.connectionDurationsMs = [...this.connectionDurationsMs, duration].slice(-recentConnectionLimit);
+  }
+
+  averageConnectionDuration(): number | undefined {
+    if (this.connectionDurationsMs.length < 2) return undefined;
+    return this.connectionDurationsMs.reduce((total, duration) => total + duration, 0) / this.connectionDurationsMs.length;
   }
 
   setDisplayUnit(unit: LndDisplayUnit): void {

@@ -212,7 +212,7 @@
     "problem_with_psbt": "Problem with PSBT"
   },
   "settings": {
-    "backup_title": "Backup XBT servers",
+    "backup_title": "Backup XBT Servers",
     "backup_add": "Test and add as backup",
     "backup_notice": "Backups are tried in order when the preferred server is unavailable. Each must pass TLS and XBT compatibility checks. Every server you add can see your address queries. Server history is never used automatically. Enter a TLS server below, then choose Test and add as backup.",
     "backup_remove": "Tap to remove this backup",
@@ -222,10 +222,10 @@
     "about_backup": "Always backup your keys!",
     "about_free": "RedWallet is a free and open-source project. Crafted by Bitcoin users.",
     "about_license": "MIT License",
-    "about_release_notes": "Release notes",
+    "about_release_notes": "Release Notes",
     "performance_score": "Performance score: {num}",
-    "run_performance_test": "Test performance",
-    "about_selftest": "Run self-test",
+    "run_performance_test": "Test Performance",
+    "about_selftest": "Run Self-Test",
     "about_selftest_electrum_disabled": "Self-testing is not available with Electrum Offline Mode. Please disable offline mode and try again.",
     "about_selftest_ok": "All internal tests have passed successfully. The wallet works well.",
     "about_sm_github": "GitHub",
@@ -325,7 +325,7 @@
   "notifications": {
     "would_you_like_to_receive_notifications": "Would you like to receive notifications when you get incoming payments?",
     "notifications_subtitle": "Incoming payments and transaction confirmations",
-    "redact_notifications": "Hide payment details",
+    "redact_notifications": "Hide Payment Details",
     "redact_notifications_subtitle": "Notifications won't show amounts or transaction info on your lock screen.",
     "no_and_dont_ask": "No, and do not ask me again.",
     "permission_denied_message": "You have denied permission to send you notifications. If you would like to receive notifications, please enable them in your device settings."
@@ -618,7 +618,7 @@
     "ms_help_5": "By default, RedWallet will generate a 2-of-3 Vault. To create a different quorum or change the address type, activate Advanced Mode in the Settings."
   },
   "is_it_my_address": {
-    "title": "Is it my address?",
+    "title": "Is It My Address?",
     "owns": "{label} owns {address}",
     "enter_address": "Enter address",
     "check_address": "Check address",
@@ -626,7 +626,7 @@
     "view_qrcode": "View QR Code"
   },
   "autofill_word": {
-    "title": "Seed final word",
+    "title": "Seed Final Word",
     "enter": "Enter your partial mnemonic phrase",
     "generate_word": "Generate the final word",
     "error": "The input is not an 11- or 23-word partial mnemonic. Please try again."
@@ -751,7 +751,7 @@
     "receive_type_unavailable": "To use the other type, add or link its account in wallet options. Watch-only wallets need its public account imported from the signing device."
   },
   "hardware_check": {
-    "title": "Hardware signing check",
+    "title": "Hardware Signing Check",
     "subtitle": "Offline test · No funds",
     "heading": "Offline hardware check",
     "intro": "This checks QR transfer and a signature without spending funds. The test transaction cannot be broadcast successfully.",

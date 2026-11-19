@@ -3,7 +3,7 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 import { encode, sign } from 'bolt11';
 import { AppState, AppStateStatus } from 'react-native';
 import CrossChainLightning from '../../components/CrossChainLightning';
-import { BridgeController, SwapRecord } from '../../blue_modules/lightning-bridge/state';
+import { BridgeController, BridgeHistoryEntry, SwapRecord } from '../../blue_modules/lightning-bridge/state';
 import { LightningBridgeProvider } from '../../blue_modules/lightning-bridge/provider';
 
 jest.mock('../../components/themes', () => {
@@ -52,7 +52,10 @@ const providers = [
   { id: 'first', name: 'Processor one', website: 'https://one.invalid' },
   { id: 'second', name: 'Processor two', website: 'https://two.invalid' },
 ] as LightningBridgeProvider[];
-function setup(props: Partial<React.ComponentProps<typeof CrossChainLightning>> = {}) {
+function setup(
+  props: Partial<React.ComponentProps<typeof CrossChainLightning>> = {},
+  entries: BridgeHistoryEntry[] = [{ hash: item.hash, at: item.createdAt, record: item, issues: [] }],
+) {
   const fake = {
     quote: jest.fn(async () => item),
     approve: jest.fn<ReturnType<BridgeController['approve']>, Parameters<BridgeController['approve']>>(async () => ({
@@ -61,6 +64,7 @@ function setup(props: Partial<React.ComponentProps<typeof CrossChainLightning>> 
     })),
     cancel: jest.fn(async () => undefined),
     list: jest.fn(async () => [item]),
+    history: jest.fn(async () => entries),
     refresh: jest.fn(async () => item),
   };
   const close = jest.fn(),
@@ -172,7 +176,7 @@ test('leaving and returning to the app during payment checks cannot revive appro
 test('reopening history exposes pending status and masks invoice and amounts when hidden', async () => {
   const { view, fake } = setup({ invoice: undefined, initialHash: item.hash, hideHistoryAmounts: true, authorize: undefined });
   await act(async () => {});
-  expect(fake.list).toHaveBeenCalledTimes(1);
+  expect(fake.history).toHaveBeenCalledTimes(1);
   expect(view.queryByText('Confirm and pay')).toBeNull();
   expect(view.getByText('Original invoice: ••••')).toBeTruthy();
   expect(view.queryByText(original)).toBeNull();
@@ -203,5 +207,48 @@ test('an unreadable journal after an approval error never leaves a Pay button vi
   expect(view.getByText(/Payment pending or uncertain/)).toBeTruthy();
   expect(view.queryByText('Confirm and pay')).toBeNull();
   expect(fake.approve).toHaveBeenCalledTimes(1);
+  view.unmount();
+});
+
+test('history shows saved processor and time for an old incomplete quote without inventing a reason', async () => {
+  const partial: SwapRecord = {
+    ...item,
+    state: 'quote_failed',
+    quote: undefined,
+  };
+  const { view, fake } = setup({ invoice: undefined }, [{ hash: item.hash, at: now, record: partial, issues: [] }]);
+  await act(async () => {});
+  fireEvent.press(view.getByText(/XBT → SHA256 · quote_failed/));
+  expect(view.getByText('Cross-chain payment details')).toBeTruthy();
+  expect(view.getByText('Processor: Processor two')).toBeTruthy();
+  expect(view.getByText('Time: ' + new Date(now).toLocaleString())).toBeTruthy();
+  expect(view.getByText('No further details were saved for this attempt.')).toBeTruthy();
+  expect(view.queryByText('Check settlement')).toBeNull();
+  expect(view.queryByText('Confirm and pay')).toBeNull();
+  await act(async () => fireEvent.press(view.getByText('Back to history')));
+  expect(view.getByText('Cross-chain Lightning history')).toBeTruthy();
+  expect(fake.approve).not.toHaveBeenCalled();
+  view.unmount();
+});
+
+test('a pre-quote refusal has readable history even without a swap; hidden dates and identifiers stay private', async () => {
+  const issue = {
+    hash: item.hash,
+    node: item.node,
+    provider: item.provider,
+    at: now,
+    reason: 'processorRefused' as const,
+  };
+  const { view, fake } = setup({ invoice: undefined, initialHash: item.hash, hideHistoryAmounts: true }, [
+    { hash: item.hash, at: now, issues: [issue] },
+  ]);
+  await act(async () => {});
+  expect(view.getByText('Processor two · ••••')).toBeTruthy();
+  expect(view.getByText('The processor was unavailable or refused the request.')).toBeTruthy();
+  expect(view.queryByText(/Quote ready|Confirm and pay|Check settlement/)).toBeNull();
+  expect(view.queryByText(new RegExp(item.hash))).toBeNull();
+  expect(view.queryByText(new Date(now).toLocaleString())).toBeNull();
+  expect(fake.quote).not.toHaveBeenCalled();
+  expect(fake.approve).not.toHaveBeenCalled();
   view.unmount();
 });

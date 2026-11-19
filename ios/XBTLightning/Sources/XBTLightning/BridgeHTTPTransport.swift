@@ -5,6 +5,10 @@ import Foundation
 public final class BridgeHTTPTransport: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     public static let shared = BridgeHTTPTransport()
     static let limit = 32768
+    static let requestTimeout: TimeInterval = 15
+    // Slightly exceeds the JavaScript 60-second quote deadline so JavaScript can persist a fixed,
+    // non-sensitive timeout reason before the native transport closes.
+    static let quoteTimeout: TimeInterval = 65
     private struct Pending {
         let id: String
         let url: URL
@@ -24,8 +28,8 @@ public final class BridgeHTTPTransport: NSObject, URLSessionDataDelegate, @unche
         config.urlCredentialStorage = nil
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.timeoutIntervalForRequest = 15
-        config.timeoutIntervalForResource = 15
+        config.timeoutIntervalForRequest = quoteTimeout
+        config.timeoutIntervalForResource = quoteTimeout
         return config
     }
     // The configuration override is internal for offline URLProtocol tests only.
@@ -52,7 +56,11 @@ public final class BridgeHTTPTransport: NSObject, URLSessionDataDelegate, @unche
                   let challenge = pow["challenge"], !challenge.isEmpty, challenge.count <= 200,
                   let nonce = pow["nonce"], nonce.range(of: "^[0-9a-z]{1,32}$", options: .regularExpression) != nil else { throw NodeFailure.invalidReply }
         }
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: isQuote ? quoteTimeout : requestTimeout
+        )
         request.httpMethod = method
         request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")

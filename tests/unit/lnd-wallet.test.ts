@@ -52,6 +52,23 @@ test('green requires fresh synced RPC evidence and an actual Lightning peer', as
   expect(wallet.connection()).toBe('checking');
 });
 
+test('the connection estimate learns from the last five completed durations and survives a wallet reload', () => {
+  const wallet = LndWallet.fromJson('{}');
+  expect(wallet.averageConnectionDuration()).toBeUndefined();
+  wallet.recordConnectionDuration(1000);
+  expect(wallet.averageConnectionDuration()).toBeUndefined();
+  wallet.recordConnectionDuration(2000);
+  expect(wallet.averageConnectionDuration()).toBe(1500);
+  for (const duration of [3000, 4000, 5000, 6000, 0, -1, NaN]) wallet.recordConnectionDuration(duration);
+  const stored = JSON.parse(JSON.stringify(wallet));
+  expect(stored.connectionDurationsMs).toEqual([2000, 3000, 4000, 5000, 6000]);
+  const restored = LndWallet.fromJson(JSON.stringify(stored));
+  expect(restored.averageConnectionDuration()).toBe(4000);
+  expect(restored.connection()).toBe('disconnected');
+  const invalid = LndWallet.fromJson(JSON.stringify({ connectionDurationsMs: [null, -5, 0, '3000', 1000] }));
+  expect(invalid.averageConnectionDuration()).toBeUndefined();
+});
+
 test('restored card retains balances and identity, never a green LED, injected methods, seed or state', async () => {
   const wallet = new LndWallet().setLabel('My LND');
   await wallet.fetchBalance();

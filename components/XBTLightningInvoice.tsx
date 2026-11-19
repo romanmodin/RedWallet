@@ -66,6 +66,7 @@ export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }:
     }
   };
   const size = Math.min(320, Math.max(0, width - 64));
+  const exceedsShortPostLimit = invoice.length > 280;
 
   return (
     <View testID="XBTLightningReceiveInvoice" onLayout={event => setWidth(event.nativeEvent.layout.width)}>
@@ -102,7 +103,11 @@ export default function XBTLightningInvoice({ invoice, sats, kind = 'invoice' }:
         ) : null}
       </Pressable>
       <SettingsFootnote style={styles.explanation}>
-        {showText ? 'Share sends the full ' + noun + ' text.' : 'Share sends a scannable QR image.'}
+        {showText
+          ? exceedsShortPostLimit
+            ? 'Share sends the full ' + noun + ' text. Social apps may reject long requests; use the QR image for X.'
+            : 'Share sends the full ' + noun + ' text.'
+          : 'Share sends a scannable QR image.'}
       </SettingsFootnote>
       <SettingsListItem
         title={copied ? (kind === 'offer' ? 'Offer copied' : 'Invoice copied') : 'Copy ' + noun}

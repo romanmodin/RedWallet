@@ -1,6 +1,6 @@
 import { NativeModules } from 'react-native';
 import { nativeBridgeRequest } from '../../blue_modules/lightning-bridge/http';
-import { KilombinoProvider } from '../../blue_modules/lightning-bridge/provider';
+import { bridgeQuoteResponseTimeoutMs, KilombinoProvider } from '../../blue_modules/lightning-bridge/provider';
 
 const url = 'https://bridge.kilombino.com/api/info';
 const original = NativeModules.XBTLightningBridge;
@@ -77,4 +77,47 @@ test('native rejection cleans up cancellation listener', async () => {
   await expect(nativeBridgeRequest(url, { signal: abort.signal })).rejects.toThrow('transport failed');
   abort.abort();
   expect(native.cancelBridgeRequest).not.toHaveBeenCalled();
+});
+
+test('quote responses get a longer bound while read-only requests retain the short timeout', async () => {
+  jest.useFakeTimers();
+  try {
+    const request = jest.fn(
+      (_requestUrl: string, options: { signal?: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          options.signal?.addEventListener('abort', () => reject(new Error('canceled')), { once: true });
+        }),
+    );
+    const provider = new KilombinoProvider(request);
+    const call = (
+      provider as unknown as {
+        call(path: string, signal: AbortSignal, body?: unknown): Promise<unknown>;
+      }
+    ).call.bind(provider);
+
+    let quoteSettled = false;
+    const quoteResult = call('/api/quote', new AbortController().signal, { invoice: 'fixture' }).catch(error => error);
+    quoteResult.then(() => {
+      quoteSettled = true;
+    });
+    await jest.advanceTimersByTimeAsync(15000);
+    expect(quoteSettled).toBe(false);
+    await jest.advanceTimersByTimeAsync(bridgeQuoteResponseTimeoutMs - 15001);
+    expect(quoteSettled).toBe(false);
+    await jest.advanceTimersByTimeAsync(1);
+    await expect(quoteResult).resolves.toThrow('processor may have reserved this invoice');
+
+    let infoSettled = false;
+    const infoResult = call('/api/info', new AbortController().signal).catch(error => error);
+    infoResult.then(() => {
+      infoSettled = true;
+    });
+    await jest.advanceTimersByTimeAsync(14999);
+    expect(infoSettled).toBe(false);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(infoSettled).toBe(true);
+    await expect(infoResult).resolves.not.toThrow('processor may have reserved this invoice');
+  } finally {
+    jest.useRealTimers();
+  }
 });

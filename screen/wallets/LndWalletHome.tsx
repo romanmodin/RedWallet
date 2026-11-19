@@ -16,6 +16,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import Ionicons from '@react-native-vector-icons/ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -23,6 +24,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { LndActivity, LndActivityPage, LndWallet } from '../../class/wallets/lnd-wallet';
 import WalletGradient from '../../class/wallet-gradient';
 import LndConnectionBadge from '../../components/LndConnectionBadge';
+import LndConnectionClock from '../../components/LndConnectionClock';
 import { useTheme } from '../../components/themes';
 import XbtFiatEstimate from '../../components/XbtFiatEstimate';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -31,6 +33,9 @@ import { useSettings } from '../../hooks/context/useSettings';
 import { formatLndAmount, nextLndDisplayUnit } from '../../blue_modules/lnd-display-amount';
 
 const bridge = NativeModules.XBTLightningBridge;
+const connectedMessage = 'Connected · Updates while this screen is open';
+const refreshFailedMessage = 'Refresh failed. Showing last known data. Pull down to retry.';
+const connectingStatuses = new Set(['Starting', 'Tor connecting', 'Unlocked', 'RPC ready', 'Syncing', 'Running']);
 type Pages = Partial<Record<'payments' | 'invoices' | 'funding', LndActivityPage>>;
 const merge = (old: LndActivity[], next: LndActivity[]) => [
   ...new Map([...old, ...next].map(row => [row.direction + row.id, row])).values(),
@@ -76,6 +81,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   };
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<'transactions' | 'funding'>('transactions');
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [pages, setPages] = useState<Pages>({});
   const [crossHistory, setCrossHistory] = useState<{ hash?: string }>();
   const [crossRecords, setCrossRecords] = useState<Record<string, SwapRecord>>({});
@@ -87,6 +93,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const queuedRefresh = useRef<'pull' | 'automatic' | undefined>(undefined);
   const focused = useRef(false);
   const generation = useRef(0);
+  const observedConnectionStart = useRef<number | undefined>(undefined);
+  const [clockStart, setClockStart] = useState<number>();
   const open = useCallback((mode?: 'pay' | 'invoice' | 'send' | 'receive') => navigation.navigate('XBTLightning', { mode }), [navigation]);
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -118,10 +126,32 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       }
       pending.current = true;
       const requestGeneration = generation.current;
+      const isCurrent = () => canRefresh() && generation.current === requestGeneration;
+      const requestStartedAt = performance.now();
+      let shouldSave = false;
       setRefreshing(true);
       try {
-        await wallet.fetchBalance();
-        if (!focused.current || generation.current !== requestGeneration) return;
+        await wallet.fetchBalance().catch(error => {
+          if (isCurrent()) {
+            observedConnectionStart.current = undefined;
+            setClockStart(undefined);
+          }
+          throw error;
+        });
+        if (!isCurrent()) return;
+        if (wallet.connection() === 'connected') {
+          if (observedConnectionStart.current !== undefined) {
+            wallet.recordConnectionDuration(performance.now() - observedConnectionStart.current);
+            shouldSave = true;
+          }
+          observedConnectionStart.current = undefined;
+        } else if (connectingStatuses.has(wallet.status)) {
+          // An already-connected first response is a warm open, not a timed startup.
+          observedConnectionStart.current ??= requestStartedAt;
+        } else {
+          observedConnectionStart.current = undefined;
+        }
+        setClockStart(observedConnectionStart.current);
         redraw(value => value + 1);
         if (wallet.status !== 'Running') {
           setMessage('Node: ' + wallet.status + '. Open wallet settings to start or unlock it.');
@@ -150,13 +180,18 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         if (!focused.current || generation.current !== requestGeneration) return;
         setPages(old => ({ ...old, ...updates }));
         if (updates.payments && updates.invoices) wallet.activity = [...updates.payments.rows, ...updates.invoices.rows];
-        setMessage(
-          wallet.connection() === 'connected' ? 'Connected · Updates while this screen is open' : 'Waiting for sync or Lightning peers',
-        );
-        await saveToDisk();
-      } catch (error) {
-        if (focused.current) setMessage('Refresh failed. Showing last known data. Pull down to retry.');
+        setMessage(wallet.connection() === 'connected' ? connectedMessage : 'Waiting for sync or Lightning peers');
+        shouldSave = true;
+      } catch {
+        if (isCurrent()) setMessage(refreshFailedMessage);
       } finally {
+        if (shouldSave) {
+          try {
+            await saveToDisk();
+          } catch {
+            if (isCurrent()) setMessage(refreshFailedMessage);
+          }
+        }
         pending.current = false;
         const next = canRefresh() ? queuedRefresh.current : undefined;
         queuedRefresh.current = undefined;
@@ -180,16 +215,30 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       focused.current = true;
       setPullRefreshing(false);
       generation.current += 1;
-      refreshRef.current();
+      let appState = AppState.currentState;
+      const checkOnOpen = () => {
+        const mayConnect = wallet.status === 'Checking' || connectingStatuses.has(wallet.status);
+        setClockStart(mayConnect && wallet.connection() !== 'connected' ? performance.now() : undefined);
+        refreshRef.current();
+      };
+      if (appState !== 'background' && appState !== 'inactive') checkOnOpen();
       const timer = setInterval(() => refreshRef.current(), 15000);
       const subscription = AppState.addEventListener('change', state => {
+        if (state === appState) return;
+        appState = state;
+        generation.current += 1;
+        observedConnectionStart.current = undefined;
+        queuedRefresh.current = undefined;
         wallet.observedAt = 0;
+        if (state === 'active') checkOnOpen();
+        else setClockStart(undefined);
         redraw(value => value + 1);
-        if (state === 'active') refreshRef.current();
       });
       return () => {
         focused.current = false;
         queuedRefresh.current = undefined;
+        observedConnectionStart.current = undefined;
+        setClockStart(undefined);
         generation.current += 1;
         wallet.observedAt = 0;
         clearInterval(timer);
@@ -387,7 +436,10 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           <Text numberOfLines={1} style={styles.label}>
             {wallet.getLabel()}
           </Text>
-          <LndConnectionBadge wallet={wallet} />
+          {clockStart !== undefined && <LndConnectionClock startedAt={clockStart} averageMs={wallet.averageConnectionDuration()} />}
+          <View style={clockStart !== undefined ? styles.badgeBesideClock : undefined}>
+            <LndConnectionBadge wallet={wallet} />
+          </View>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -402,17 +454,44 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             {wallet.hideBalance ? '••••' : formatAmount(wallet.getBalance())}
           </Text>
         </Pressable>
-        <Text style={styles.balanceLabel}>Total balance · funding and channels</Text>
-        {!!overview && !wallet.hideBalance && (
-          <Text style={styles.status}>
-            Lightning: {formatAmount(overview.lightningLocal)} · Funding: {formatAmount(overview.fundingTotal)}
+        <View style={styles.detailsBar}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={detailsExpanded ? 'Collapse Details' : 'Expand Details'}
+            accessibilityState={{ expanded: detailsExpanded }}
+            onPress={() => setDetailsExpanded(expanded => !expanded)}
+            style={styles.detailsToggle}
+          >
+            <Text style={styles.detailsTitle}>{detailsExpanded ? 'Collapse Details' : 'Expand Details'}</Text>
+            <Ionicons name={detailsExpanded ? 'chevron-up' : 'chevron-down'} size={16} color="#FFE7EA" importantForAccessibility="no" />
+          </Pressable>
+          <View testID="LndRefreshStatus" style={styles.refreshStatus}>
+            {refreshing && <ActivityIndicator size="small" color="#FFFFFF" />}
+          </View>
+        </View>
+        {detailsExpanded && (
+          <>
+            <Text style={styles.balanceLabel}>Total balance · funding and channels</Text>
+            {!!overview && !wallet.hideBalance && (
+              <Text style={styles.status}>
+                Lightning: {formatAmount(overview.lightningLocal)} · Funding: {formatAmount(overview.fundingTotal)}
+              </Text>
+            )}
+            {!wallet.hideBalance && <XbtFiatEstimate satoshis={wallet.getBalance()} style={styles.fiat} />}
+          </>
+        )}
+        {(detailsExpanded || message !== connectedMessage) && (
+          <Text accessibilityLiveRegion="polite" style={styles.status}>
+            {message}
           </Text>
         )}
-        {!wallet.hideBalance && <XbtFiatEstimate satoshis={wallet.getBalance()} style={styles.fiat} />}
-        <Text accessibilityLiveRegion="polite" style={styles.status}>
-          {message}
-        </Text>
-        <Text style={styles.status}>{overview ? overview.activeChannels + ' active channel(s)' : 'Node balance not yet available'}</Text>
+        {detailsExpanded && (
+          <Text style={styles.status}>
+            {overview
+              ? overview.activeChannels + (overview.activeChannels === '1' ? ' active channel' : ' active channels')
+              : 'Node balance not yet available'}
+          </Text>
+        )}
         <View pointerEvents="none" style={[styles.sectionCurve, { backgroundColor: colors.background }]} />
       </View>
       <View style={[styles.tabs, { borderBottomColor: colors.lightBorder }]}>
@@ -454,7 +533,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         contentInsetAdjustmentBehavior="never"
         keyExtractor={row => row.direction + row.id}
         refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => refresh(false, true)} />}
-        contentContainerStyle={{ paddingBottom: 170 + insets.bottom }}
+        contentContainerStyle={styles.historyContent}
         ListHeaderComponent={
           <>
             {tab === 'transactions' && bridge.bridgePayment && (
@@ -467,7 +546,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                 <Text style={{ color: colors.foregroundColor }}>Cross-chain payment history</Text>
               </Pressable>
             )}
-            {!!overview && (
+            {tab === 'funding' && !!overview && (
               <LndBalanceBreakdown overview={overview} hidden={wallet.hideBalance === true} stale={!ready} format={formatAmount} />
             )}
             {tab === 'funding' && (
@@ -554,11 +633,14 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         }
       />
       <View
+        testID="LndWalletActions"
         style={[
           styles.footer,
           {
             backgroundColor: colors.background,
-            paddingBottom: Math.max(insets.bottom, 16),
+            paddingBottom: Math.max(insets.bottom, 16) + 12,
+            paddingLeft: 16 + insets.left,
+            paddingRight: 16 + insets.right,
           },
         ]}
       >
@@ -570,9 +652,6 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         <View style={styles.actions}>
           {tab === 'funding' ? action('Receive on-chain', 'receive', true) : action('Receive (create invoice)', 'invoice')}
           {tab === 'funding' ? action('Send on-chain', 'send', true) : action('Pay (invoice)', 'pay')}
-        </View>
-        <View testID="LndRefreshStatus" style={styles.refreshStatus}>
-          {refreshing && <ActivityIndicator color={colors.foregroundColor} />}
         </View>
       </View>
     </View>
@@ -592,7 +671,11 @@ const styles = StyleSheet.create({
   stackFront: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 6 },
   stackHint: { fontSize: 11, fontWeight: '600', marginTop: 4 },
   history: { flex: 1, minHeight: 0 },
-  refreshStatus: { height: 20, alignItems: 'center', justifyContent: 'center' },
+  historyContent: { paddingBottom: 8 },
+  detailsBar: { flexDirection: 'row', alignItems: 'center' },
+  detailsToggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44 },
+  detailsTitle: { color: '#FFE7EA', fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  refreshStatus: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
   fundingHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   disabled: { opacity: 0.5 },
   selectedTab: { borderBottomWidth: 3 },
@@ -606,18 +689,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  headerLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerLine: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 32 },
+  badgeBesideClock: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
   label: { flex: 1, minWidth: 0, color: '#FFE7EA', fontSize: 20 },
   balance: { color: '#FFFFFF', fontSize: 36, fontWeight: '700', marginTop: 12 },
   balanceLabel: {
-    textTransform: 'uppercase',
     color: '#FFE7EA',
     fontSize: 12,
     marginTop: 4,
   },
   fiat: { color: '#FFFFFF', marginTop: 10 },
   status: {
-    textTransform: 'uppercase',
     color: '#FFE7EA',
     marginTop: 10,
     fontSize: 12,
@@ -641,7 +723,7 @@ const styles = StyleSheet.create({
   menu: { padding: 10 },
   menuText: { color: '#FFFFFF', fontSize: 20, fontWeight: '700' },
   funding: { padding: 16, gap: 8 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  actions: { flexDirection: 'row', gap: 10 },
   action: {
     flex: 1,
     minHeight: 68,
@@ -670,11 +752,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
+    flexShrink: 0,
+    paddingTop: 8,
     gap: 6,
   },
   empty: { textAlign: 'center', padding: 28, fontSize: 16 },

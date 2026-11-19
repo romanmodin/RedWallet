@@ -154,6 +154,15 @@ export class ProofTimeoutError extends Error {
     super('Proof of work timed out before the quote request. No payment was sent. You can request a new quote.');
   }
 }
+export class QuoteResponseTimeoutError extends Error {
+  constructor() {
+    super(
+      'Quote response timed out. The processor may have reserved this invoice. No payment was submitted. Wait for the reservation to expire before trying again.',
+    );
+  }
+}
+const bridgeRequestTimeoutMs = 15000;
+export const bridgeQuoteResponseTimeoutMs = 60000;
 
 export async function solveProof(
   value: unknown,
@@ -212,8 +221,16 @@ export class KilombinoProvider implements LightningBridgeProvider {
   private async call(path: string, signal: AbortSignal, body?: unknown): Promise<unknown> {
     const controller = new AbortController();
     const abort = () => controller.abort();
+    const isQuoteRequest = path === '/api/quote' && body !== undefined;
+    let timedOut = false;
     signal.addEventListener('abort', abort);
-    const timer = setTimeout(abort, 15000);
+    const timer = setTimeout(
+      () => {
+        timedOut = true;
+        abort();
+      },
+      isQuoteRequest ? bridgeQuoteResponseTimeoutMs : bridgeRequestTimeoutMs,
+    );
     try {
       if (signal.aborted) throw new Error('Quote canceled.');
       const response = await this.request(this.website + path, {
@@ -238,6 +255,9 @@ export class KilombinoProvider implements LightningBridgeProvider {
       const text = await response.text();
       if (text.length > 32768) throw new Error('Oversized bridge response.');
       return JSON.parse(text);
+    } catch (error) {
+      if (timedOut && !signal.aborted && isQuoteRequest) throw new QuoteResponseTimeoutError();
+      throw error;
     } finally {
       clearTimeout(timer);
       signal.removeEventListener('abort', abort);

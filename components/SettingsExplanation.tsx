@@ -55,6 +55,6 @@ export default function SettingsExplanation({ id, title, children }: { id: strin
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 16, paddingVertical: 12 },
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  title: { fontSize: 13, fontWeight: '500', textTransform: 'uppercase', flexShrink: 1 },
+  title: { fontSize: 13, fontWeight: '500', flexShrink: 1 },
   body: { paddingTop: 8 },
 });
