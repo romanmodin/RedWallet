@@ -19,13 +19,7 @@ const key = '01'.padStart(64, '0');
 const node = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
 const preimage = '11'.repeat(32);
 const hash = Buffer.from(sha256(Buffer.from(preimage, 'hex'))).toString('hex');
-const market: BridgeMarket = {
-  open: true,
-  rate: 0.001,
-  spread: 0.02,
-  minSat: 1,
-  maxSat: 100000,
-};
+const market: BridgeMarket = { open: true, rate: 0.001, spread: 0.02, minSat: 1, maxSat: 100000 };
 function invoice({ xbt = false, msat = '100000', paymentHash = hash, expiry = 3600, timestamp = NOW / 1000, cltv = 18 } = {}): string {
   return sign(
     encode({
@@ -36,17 +30,7 @@ function invoice({ xbt = false, msat = '100000', paymentHash = hash, expiry = 36
         { tagName: 'description', data: 'test only' },
         { tagName: 'expire_time', data: expiry },
         { tagName: 'min_final_cltv_expiry', data: cltv },
-        ...(xbt
-          ? [
-              {
-                tagName: 'feature_bits',
-                data: {
-                  word_length: 103,
-                  extra_bits: { start_bit: 512, bits: [true] },
-                },
-              },
-            ]
-          : []),
+        ...(xbt ? [{ tagName: 'feature_bits', data: { word_length: 103, extra_bits: { start_bit: 512, bits: [true] } } }] : []),
       ],
     }),
     key,
@@ -58,12 +42,7 @@ function quoteRaw(extra: Record<string, unknown> = {}) {
     dir: 'toSHA256',
     hash,
     sat: 100,
-    hold_invoice: invoice({
-      xbt: true,
-      msat: '102000000',
-      expiry: 120,
-      cltv: 1200,
-    }),
+    hold_invoice: invoice({ xbt: true, msat: '102000000', expiry: 120, cltv: 1200 }),
     pay_sat: 102000,
     rate: 0.001,
     spread: 0.02,
@@ -88,12 +67,7 @@ function environment() {
     identity: jest.fn(async () => node),
     review: jest.fn(async () => ({ estimatedFeeMsat: '1500' })),
     status: jest.fn(async () => nodeResult),
-    pay: jest.fn(async () => ({
-      state: 'settled' as const,
-      proofVerified: true,
-      msat: '102000000',
-      feeMsat: '1250',
-    })),
+    pay: jest.fn(async () => ({ state: 'settled' as const, proofVerified: true, msat: '102000000', feeMsat: '1250' })),
   };
   const provider: LightningBridgeProvider = {
     id: 'test',
@@ -146,24 +120,8 @@ describe('signed bridge invoices and provider protocol', () => {
       { rate: 0.1 },
       { spread: -1 },
       { token: 'invalid' },
-      {
-        hold_invoice: invoice({
-          xbt: true,
-          msat: '102000001',
-          paymentHash: '22'.repeat(32),
-          expiry: 120,
-          cltv: 1200,
-        }),
-      },
-      {
-        hold_invoice: invoice({
-          xbt: true,
-          msat: '102000000',
-          expiry: 120,
-          cltv: 2017,
-        }),
-        cltv: 2017,
-      },
+      { hold_invoice: invoice({ xbt: true, msat: '102000001', paymentHash: '22'.repeat(32), expiry: 120, cltv: 1200 }) },
+      { hold_invoice: invoice({ xbt: true, msat: '102000000', expiry: 120, cltv: 2017 }), cltv: 2017 },
     ])
       expect(() => validateQuote(quoteRaw(extra), original(), { id: 'test', node }, NOW)).toThrow();
     expect(() => validateQuote(quoteRaw(), original(), { id: 'test', node: '03' + '22'.repeat(32) }, NOW)).toThrow();
@@ -175,12 +133,7 @@ describe('signed bridge invoices and provider protocol', () => {
       sat: 100.001,
       rate: 0.003,
       pay_sat: Number((BigInt(amount) + 999n) / 1000n),
-      hold_invoice: invoice({
-        xbt: true,
-        msat: amount,
-        expiry: 120,
-        cltv: 1200,
-      }),
+      hold_invoice: invoice({ xbt: true, msat: amount, expiry: 120, cltv: 1200 }),
     });
     const q = validateQuote(raw, src, { id: 'test', node }, NOW);
     expect(q.payMsat).toBe('34000340');
@@ -189,26 +142,8 @@ describe('signed bridge invoices and provider protocol', () => {
   });
   it('uses the direction-specific availability and limits, not top-level fields', () => {
     expect(
-      parseMarket({
-        open: true,
-        rate: 9,
-        dirs: {
-          toSHA256: {
-            open: false,
-            rate: 0.001,
-            spread: 0.02,
-            min_sat: 2,
-            max_sat: 99,
-          },
-        },
-      }),
-    ).toEqual({
-      open: false,
-      rate: 0.001,
-      spread: 0.02,
-      minSat: 2,
-      maxSat: 99,
-    });
+      parseMarket({ open: true, rate: 9, dirs: { toSHA256: { open: false, rate: 0.001, spread: 0.02, min_sat: 2, max_sat: 99 } } }),
+    ).toEqual({ open: false, rate: 0.001, spread: 0.02, minSat: 2, maxSat: 99 });
     expect(() => parseMarket({ open: true })).toThrow();
   });
   it('solves the supplied PoW bits with a lowercase base36 nonce and supports cancellation', async () => {
@@ -251,11 +186,7 @@ describe('signed bridge invoices and provider protocol', () => {
     await p.swap(hash, 'ab'.repeat(16), signal());
     const [url, options] = request.mock.calls[0];
     expect(url).toBe('https://bridge.kilombino.com/api/swap/' + hash + '?t=' + 'ab'.repeat(16));
-    expect(options).toMatchObject({
-      credentials: 'omit',
-      redirect: 'error',
-      method: 'GET',
-    });
+    expect(options).toMatchObject({ credentials: 'omit', redirect: 'error', method: 'GET' });
     expect(JSON.stringify(options)).not.toMatch(/macaroon|seed|private/i);
   });
 });
@@ -290,10 +221,7 @@ describe('durable cross-chain state machine', () => {
   });
   it('handles unavailable processors and insufficient Lightning liquidity without submitting', async () => {
     const e = environment();
-    (e.provider.info as jest.Mock).mockResolvedValueOnce({
-      ...market,
-      open: false,
-    });
+    (e.provider.info as jest.Mock).mockResolvedValueOnce({ ...market, open: false });
     await expect(e.controller().quote('test', original(), '10', signal())).rejects.toThrow('unavailable');
     (e.backend.review as jest.Mock).mockRejectedValueOnce(new Error('Insufficient liquidity'));
     await expect(e.controller().quote('test', original(), '10', signal())).rejects.toThrow('liquidity');
@@ -342,12 +270,7 @@ describe('durable cross-chain state machine', () => {
       { c, r } = await quoted(e);
     (e.backend.pay as jest.Mock).mockResolvedValueOnce({ state: 'pending' });
     expect((await c.approve(hash, r.quote!.holdInvoice, () => true)).state).toBe('pending');
-    e.setStatus({
-      state: 'settled',
-      proofVerified: true,
-      msat: '102000000',
-      feeMsat: '1200',
-    });
+    e.setStatus({ state: 'settled', proofVerified: true, msat: '102000000', feeMsat: '1200' });
     expect((await e.controller().refresh(hash, signal())).state).toBe('settled');
     expect(e.backend.pay).toHaveBeenCalledTimes(1);
   });
@@ -368,10 +291,7 @@ describe('durable cross-chain state machine', () => {
     await c.approve(hash, r.quote!.holdInvoice, () => true);
     e.setStatus({ state: 'pending' });
     for (const state of ['settled', 'failed', 'expired', 'lost']) {
-      (e.provider.swap as jest.Mock).mockResolvedValueOnce({
-        state,
-        preimage: state === 'settled' ? preimage : '',
-      });
+      (e.provider.swap as jest.Mock).mockResolvedValueOnce({ state, preimage: state === 'settled' ? preimage : '' });
       expect((await c.refresh(hash, signal())).state).toBe('pending');
     }
     e.setStatus({ state: 'failed' });
@@ -430,9 +350,7 @@ test('an unchecked provider adapter cannot bypass the central invoice boundary',
 test('a native refusal before SendPaymentV2 is distinct from an ambiguous submission', async () => {
   const e = environment(),
     { c, r } = await quoted(e);
-  (e.backend.pay as jest.Mock).mockResolvedValueOnce({
-    state: 'not_submitted',
-  });
+  (e.backend.pay as jest.Mock).mockResolvedValueOnce({ state: 'not_submitted' });
   expect((await c.approve(hash, r.quote!.holdInvoice, () => true)).state).toBe('canceled');
 });
 
@@ -442,21 +360,11 @@ test('terminal persistence failure is recovered from the node without another se
   const save = e.store.write;
   (e.backend.pay as jest.Mock).mockImplementationOnce(async () => {
     (save as jest.Mock).mockRejectedValueOnce(new Error('locked after send'));
-    return {
-      state: 'settled',
-      proofVerified: true,
-      msat: '102000000',
-      feeMsat: '1200',
-    };
+    return { state: 'settled', proofVerified: true, msat: '102000000', feeMsat: '1200' };
   });
   await expect(c.approve(hash, r.quote!.holdInvoice, () => true)).rejects.toThrow('locked');
   expect(e.records()[0].state).toBe('submitting');
-  e.setStatus({
-    state: 'settled',
-    proofVerified: true,
-    msat: '102000000',
-    feeMsat: '1200',
-  });
+  e.setStatus({ state: 'settled', proofVerified: true, msat: '102000000', feeMsat: '1200' });
   expect((await e.controller().refresh(hash, signal())).state).toBe('settled');
   expect(e.backend.pay).toHaveBeenCalledTimes(1);
 });
