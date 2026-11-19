@@ -1,9 +1,5 @@
-RedWallet XBT 8.0.1 (1795050850)
+RedWallet XBT 8.0.1 (1795082047)
 
-Invoice sharing opens with a QR image. Switch to text before sharing to send the invoice string. In Pay, try the larger, softly glowing invoice field.
+The iPhone uses the bridge's proof-of-work challenge lifetime, up to two minutes, when requesting a SHA-256 Lightning quote. If the proof expires before RedWallet sends the request, you can manually get a fresh quote. Payment still requires your confirmation.
 
-Please check the Lightning Settings crash fix on iPhone. Open XBT Lightning Settings, expand or refresh a section, then go back. No payment is needed. If RedWallet closes, send the approximate time and build number through TestFlight feedback.
-
-The built-in XBT Lightning wallet can scan a SHA-256 invoice and show a Kilombino bridge quote for review. You can cancel before payment. This build also supports reusable XBT Lightning offers, an editable node name, and a short background window for the embedded node.
-
-On Receive, native SegWit is the default and Taproot is available. The hardware signer check uses a request that cannot spend funds.
+Invoice sharing opens with a QR image. Switch to text to share the invoice string. The Pay screen has a larger, softly glowing invoice field.
