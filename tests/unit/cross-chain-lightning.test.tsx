@@ -218,7 +218,7 @@ test('history shows saved processor and time for an old incomplete quote without
   };
   const { view, fake } = setup({ invoice: undefined }, [{ hash: item.hash, at: now, record: partial, issues: [] }]);
   await act(async () => {});
-  fireEvent.press(view.getByText(/XBT → SHA256 · quote_failed/));
+  fireEvent.press(view.getByText('XBT → SHA-256 · quote_failed'));
   expect(view.getByText('Cross-chain payment details')).toBeTruthy();
   expect(view.getByText('Processor: Processor two')).toBeTruthy();
   expect(view.getByText('Time: ' + new Date(now).toLocaleString())).toBeTruthy();

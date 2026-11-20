@@ -7,6 +7,7 @@ import {
   AppStateStatus,
   FlatList,
   NativeModules,
+  Platform,
   RefreshControl,
   StyleSheet,
   View,
@@ -20,9 +21,13 @@ jest.mock('@react-navigation/native', () => ({
     require('react').useEffect(callback, [callback]);
   },
 }));
+jest.mock('@react-navigation/elements', () => ({
+  HeaderHeightContext: require('react').createContext(110),
+}));
+let mockTopInset = 0;
 let mockBottomInset = 0;
 jest.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: mockBottomInset }),
+  useSafeAreaInsets: () => ({ top: mockTopInset, left: 0, right: 0, bottom: mockBottomInset }),
 }));
 jest.mock('../../components/themes', () => {
   const real = jest.requireActual('../../components/themes');
@@ -105,6 +110,7 @@ const LndWalletHome = require('../../screen/wallets/LndWalletHome').default;
 beforeEach(() => {
   jest.clearAllMocks();
   mockSettings.xbtPriceQuote = null;
+  mockTopInset = 0;
   mockBottomInset = 0;
   bridge.run.mockResolvedValue('Running');
   bridge.wallet.mockImplementation(defaultWallet);
@@ -160,6 +166,7 @@ test('header details start collapsed and keep the balance and history available 
   await act(async () => {});
   const toggle = screen.getByRole('button', { name: 'Expand Details' });
   expect(toggle.props.accessibilityState.expanded).toBe(false);
+  expect(screen.queryByText('XBT Lightning')).toBeNull();
   expect(screen.getByTestId('LndWalletBalance')).toBeTruthy();
   expect(screen.getByLabelText('LND · Connected')).toBeTruthy();
   expect(screen.queryByTestId('XbtPriceEstimate')).toBeNull();
@@ -188,6 +195,27 @@ describe('Lightning connection clock', () => {
   afterEach(() => {
     AppState.currentState = originalAppState;
     jest.useRealTimers();
+  });
+
+  test('the large clock floats across the top of the wallet without intercepting touches', async () => {
+    mockTopInset = 59;
+    bridge.run.mockResolvedValue('Tor connecting');
+    const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+    await act(async () => {});
+    const overlay = screen.getByTestId('LndConnectionClockOverlay');
+    expect(StyleSheet.flatten(overlay.props.style)).toMatchObject({
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+      top: 88,
+    });
+    expect(overlay.props.pointerEvents).toBe('none');
+    expect(within(overlay).getByTestId('svg-Svg').props).toMatchObject({ width: 112, height: 112 });
+    expect(mockNavigation.setOptions).toHaveBeenCalledWith(expect.objectContaining({ headerTransparent: true }));
+    fireEvent.press(screen.getByRole('button', { name: 'Expand Details' }));
+    expect(screen.getByRole('button', { name: 'Collapse Details' })).toBeTruthy();
+    screen.unmount();
   });
 
   test('an elapsed estimate keeps waiting for both sync and a peer, and a warm refresh adds no sample', async () => {
@@ -313,8 +341,9 @@ describe('Lightning connection clock', () => {
 });
 
 test.each([
-  [0, 28],
-  [34, 46],
+  [0, 12],
+  [21, 13],
+  [34, 26],
 ])('the action bar reserves its own space above a %i-point bottom inset', async (inset, bottomPadding) => {
   mockBottomInset = inset;
   const screen = render(<LndWalletHome wallet={new LndWallet()} />);
@@ -326,12 +355,27 @@ test.each([
   screen.unmount();
 });
 
-test('three-dot menu opens the original node tools; connected badge needs fresh peer evidence', async () => {
-  const wallet = new LndWallet();
+test('Android retains the full system navigation inset', async () => {
+  const platform = jest.replaceProperty(Platform, 'OS', 'android');
+  try {
+    mockBottomInset = 34;
+    const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+    await act(async () => {});
+    expect(StyleSheet.flatten(screen.getByTestId('LndWalletActions').props.style).paddingBottom).toBe(34);
+    screen.unmount();
+  } finally {
+    platform.restore();
+  }
+});
+
+test('navigation shows the wallet name once and the three-dot menu opens node tools', async () => {
+  const wallet = new LndWallet().setLabel('Travel Lightning');
   const screen = render(<LndWalletHome wallet={wallet} />);
   await act(async () => {});
   expect(screen.getByLabelText('LND · Connected')).toBeTruthy();
   const options = mockNavigation.setOptions.mock.calls.at(-1)![0];
+  expect(options.title).toBe('Travel Lightning');
+  expect(screen.queryByText('Travel Lightning')).toBeNull();
   const menu = render(<View>{options.headerRight()}</View>);
   fireEvent.press(menu.getByLabelText('Lightning wallet settings'));
   expect(mockNavigation.navigate).toHaveBeenLastCalledWith('XBTLightning', {
@@ -393,6 +437,7 @@ test('unpaid invoice cancellation requires confirmation and uses its exact hash'
   );
   const screen = render(<LndWalletHome wallet={new LndWallet()} />);
   await act(async () => {});
+  expect(screen.getByText('Invoice · Awaiting payment')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Received · unpaid'));
   const cancel = alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Cancel invoice')!;
   expect(bridge.invoice).not.toHaveBeenCalled();
@@ -408,6 +453,35 @@ test('unpaid invoice cancellation requires confirmation and uses its exact hash'
   await act(async () => finish(true));
   expect(screen.getByLabelText('Canceled invoices · 1')).toBeTruthy();
   expect(alert).toHaveBeenCalledWith('Invoice canceled', expect.any(String));
+  screen.unmount();
+});
+
+test('ordinary settled rows show direction beside the amount and honor hidden balances for VoiceOver', async () => {
+  bridge.wallet.mockImplementation(async kind => {
+    if (kind !== 'payments') return defaultWallet(kind);
+    return {
+      rows: [
+        { id: 'outgoing', direction: 'sent', state: 'settled', sats: '700', feeSats: '0', timestamp: 1700000200, memo: 'Sample send' },
+      ],
+      next: '0',
+      more: false,
+    };
+  });
+  const wallet = new LndWallet();
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  const received = screen.getByRole('button', { name: 'Received · settled' });
+  const sent = screen.getByRole('button', { name: 'Sent · settled' });
+  expect(within(received).getByText('↙')).toBeTruthy();
+  expect(within(sent).getByText('↗')).toBeTruthy();
+  expect(screen.queryByText('↙ Received')).toBeNull();
+  expect(screen.queryByText('↗ Payment')).toBeNull();
+  expect(received.props.accessibilityValue.text).toBe('+0.000005 XBT');
+  expect(sent.props.accessibilityValue.text).toBe('−0.000007 XBT');
+  wallet.hideBalance = true;
+  screen.rerender(<LndWalletHome wallet={wallet} />);
+  expect(screen.getByLabelText('Sent · settled').props.accessibilityValue.text).toBe('Amount hidden');
+  expect(screen.queryByText('Sample send')).toBeNull();
   screen.unmount();
 });
 

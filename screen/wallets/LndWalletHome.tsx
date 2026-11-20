@@ -10,6 +10,7 @@ import {
   AppState,
   FlatList,
   NativeModules,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -17,6 +18,7 @@ import {
   View,
 } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
+import { HeaderHeightContext } from '@react-navigation/elements';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -24,7 +26,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { LndActivity, LndActivityPage, LndWallet } from '../../class/wallets/lnd-wallet';
 import WalletGradient from '../../class/wallet-gradient';
 import LndConnectionBadge from '../../components/LndConnectionBadge';
-import LndConnectionClock from '../../components/LndConnectionClock';
+import LndConnectionClock, { connectionClockDiameter } from '../../components/LndConnectionClock';
 import { useTheme } from '../../components/themes';
 import XbtFiatEstimate from '../../components/XbtFiatEstimate';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -40,6 +42,15 @@ type Pages = Partial<Record<'payments' | 'invoices' | 'funding', LndActivityPage
 const merge = (old: LndActivity[], next: LndActivity[]) => [
   ...new Map([...old, ...next].map(row => [row.direction + row.id, row])).values(),
 ];
+
+function activityTitle(item: LndActivity, crossChain: boolean) {
+  if (crossChain) return 'XBT → SHA-256';
+  if (item.confirmations === undefined && item.state === 'settled') return undefined;
+  if (item.direction === 'sent') return '↗ Payment';
+  if (item.state === 'unpaid') return 'Invoice · Awaiting payment';
+  if (item.confirmations === undefined) return 'Invoice · ' + item.state;
+  return '↙ Received';
+}
 
 export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const { colors, dark } = useTheme();
@@ -80,6 +91,9 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
     }
   };
   const insets = useSafeAreaInsets();
+  const headerOverlayHeight = React.useContext(HeaderHeightContext) ?? insets.top;
+  // The clock sits just above the midpoint of the 44-point balance row, including its 18-point top margin.
+  const clockTop = Math.max(insets.top, headerOverlayHeight + 34 - connectionClockDiameter / 2);
   const [tab, setTab] = useState<'transactions' | 'funding'>('transactions');
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [pages, setPages] = useState<Pages>({});
@@ -99,8 +113,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: wallet.getLabel(),
-      headerTransparent: false,
-      headerStyle: { backgroundColor: WalletGradient.xbtWallet[0] },
+      headerTransparent: true,
+      headerStyle: { backgroundColor: 'transparent' },
       headerTintColor: '#FFFFFF',
       headerLargeTitle: false,
       unstable_headerRightItems: undefined,
@@ -349,68 +363,64 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       {mode === 'invoice' && <Text style={styles.actionSubtitle}>Create invoice</Text>}
     </Pressable>
   );
-  const renderActivity = (item: LndActivity) => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={(item.direction === 'sent' ? 'Sent' : 'Received') + ' · ' + item.state}
-      onPress={() => details(item)}
-      style={[styles.row, { borderBottomColor: colors.lightBorder }]}
-    >
-      <View style={styles.rowBody}>
-        <Text
-          style={[
-            styles.rowTitle,
-            {
-              color: isCanceled(item) ? colors.alternativeTextColor : colors.foregroundColor,
-            },
-          ]}
-        >
-          {item.direction === 'sent'
-            ? crossRecords[item.id]
-              ? 'Cross-chain Lightning — XBT → SHA256'
-              : '↗ Payment'
-            : item.state === 'unpaid'
-              ? 'Invoice · Awaiting payment'
-              : item.confirmations === undefined && item.state !== 'settled'
-                ? 'Invoice · ' + item.state
-                : '↙ Received'}
-        </Text>
-        <Text style={{ color: colors.alternativeTextColor }}>
-          {item.direction === 'sent' && crossRecords[item.id] ? crossRecords[item.id].state : item.state}
-          {item.confirmations !== undefined ? ' · ' + item.confirmations + ' confirmations' : ''} ·{' '}
-          {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
-        </Text>
-        {!wallet.hideBalance && !!item.memo && (
-          <Text numberOfLines={1} style={{ color: colors.alternativeTextColor }}>
-            {item.memo}
-          </Text>
-        )}
-      </View>
-      <Text
-        style={[
-          styles.amount,
-          {
-            color: isCanceled(item)
-              ? colors.alternativeTextColor
-              : item.direction === 'sent'
-                ? dark
-                  ? '#FF8D96'
-                  : '#B42318'
-                : item.direction === 'received' && ['settled', 'confirmed'].includes(item.state)
-                  ? colors.successColor
-                  : colors.foregroundColor,
-          },
-        ]}
+  const renderActivity = (item: LndActivity) => {
+    const sent = item.direction === 'sent';
+    const swap = sent ? crossRecords[item.id] : undefined;
+    const title = activityTitle(item, !!swap);
+    const canceledInvoice = isCanceled(item);
+    const amountColor = canceledInvoice
+      ? colors.alternativeTextColor
+      : sent
+        ? dark
+          ? '#FF8D96'
+          : '#B42318'
+        : ['settled', 'confirmed'].includes(item.state)
+          ? colors.successColor
+          : colors.foregroundColor;
+    const amount = wallet.hideBalance
+      ? '••••'
+      : (canceledInvoice ? '' : sent ? '−' : '+') + (swap?.quote ? formatMsat(swap.quote.payMsat) + ' XBT sats' : formatAmount(item.sats));
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={(sent ? 'Sent' : 'Received') + ' · ' + item.state}
+        accessibilityValue={{
+          text: wallet.hideBalance ? 'Amount hidden' : amount,
+        }}
+        onPress={() => details(item)}
+        style={[styles.row, { borderBottomColor: colors.lightBorder }]}
       >
-        {wallet.hideBalance
-          ? '••••'
-          : (isCanceled(item) ? '' : item.direction === 'sent' ? '−' : '+') +
-            (item.direction === 'sent' && crossRecords[item.id]?.quote
-              ? formatMsat(crossRecords[item.id].quote!.payMsat) + ' XBT sats'
-              : formatAmount(item.sats))}
-      </Text>
-    </Pressable>
-  );
+        <View style={styles.rowBody}>
+          {title && (
+            <Text
+              style={[
+                styles.rowTitle,
+                {
+                  color: canceledInvoice ? colors.alternativeTextColor : colors.foregroundColor,
+                },
+              ]}
+            >
+              {title}
+            </Text>
+          )}
+          <Text style={{ color: colors.alternativeTextColor }}>
+            {swap?.state ?? item.state}
+            {item.confirmations !== undefined ? ' · ' + item.confirmations + ' confirmations' : ''} ·{' '}
+            {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
+          </Text>
+          {!wallet.hideBalance && !!item.memo && (
+            <Text numberOfLines={1} style={{ color: colors.alternativeTextColor }}>
+              {item.memo}
+            </Text>
+          )}
+        </View>
+        <View style={styles.rowValue}>
+          {!title && <Text style={{ color: amountColor }}>{sent ? '↗' : '↙'}</Text>}
+          <Text style={[styles.amount, { color: amountColor }]}>{amount}</Text>
+        </View>
+      </Pressable>
+    );
+  };
   return (
     <View testID="LndWalletHome" style={[styles.root, { backgroundColor: colors.background }]}>
       {crossHistory && (
@@ -426,34 +436,39 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           styles.hero,
           {
             backgroundColor: WalletGradient.xbtWallet[0],
+            paddingTop: headerOverlayHeight + 18,
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },
         ]}
       >
-        <LinearGradient colors={WalletGradient.xbtWallet} style={StyleSheet.absoluteFill} pointerEvents="none" />
-        <View style={styles.headerLine}>
-          <Text numberOfLines={1} style={styles.label}>
-            {wallet.getLabel()}
-          </Text>
-          {clockStart !== undefined && <LndConnectionClock startedAt={clockStart} averageMs={wallet.averageConnectionDuration()} />}
-          <View style={clockStart !== undefined ? styles.badgeBesideClock : undefined}>
-            <LndConnectionBadge wallet={wallet} />
+        <LinearGradient
+          colors={WalletGradient.xbtWallet}
+          style={[StyleSheet.absoluteFill, { top: headerOverlayHeight }]}
+          pointerEvents="none"
+        />
+        {clockStart !== undefined && (
+          <View testID="LndConnectionClockOverlay" pointerEvents="none" style={[styles.clockOverlay, { top: clockTop }]}>
+            <LndConnectionClock startedAt={clockStart} averageMs={wallet.averageConnectionDuration()} />
           </View>
+        )}
+        <View style={styles.balanceRow}>
+          <Pressable
+            style={styles.balanceButton}
+            accessibilityRole="button"
+            accessibilityLabel="Change wallet display unit"
+            accessibilityHint="Cycles XBT, sats, the exchange-rate estimate, and hidden amounts. Tap hidden amounts to show XBT again."
+            accessibilityValue={{
+              text: wallet.hideBalance ? 'Amounts hidden' : displayUnit === 'quote' ? (xbtPriceQuote?.currency ?? 'Fiat') : displayUnit,
+            }}
+            onPress={changeDisplayUnit}
+          >
+            <Text testID="LndWalletBalance" style={styles.balance} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+              {wallet.hideBalance ? '••••' : formatAmount(wallet.getBalance())}
+            </Text>
+          </Pressable>
+          <LndConnectionBadge wallet={wallet} />
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Change wallet display unit"
-          accessibilityHint="Cycles XBT, sats, the exchange-rate estimate, and hidden amounts. Tap hidden amounts to show XBT again."
-          accessibilityValue={{
-            text: wallet.hideBalance ? 'Amounts hidden' : displayUnit === 'quote' ? (xbtPriceQuote?.currency ?? 'Fiat') : displayUnit,
-          }}
-          onPress={changeDisplayUnit}
-        >
-          <Text testID="LndWalletBalance" style={styles.balance} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-            {wallet.hideBalance ? '••••' : formatAmount(wallet.getBalance())}
-          </Text>
-        </Pressable>
         <View style={styles.detailsBar}>
           <Pressable
             accessibilityRole="button"
@@ -638,7 +653,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           styles.footer,
           {
             backgroundColor: colors.background,
-            paddingBottom: Math.max(insets.bottom, 16) + 12,
+            // The lowest 8 points can overlap the iOS inset while even a 54-point Funding button has 46 points above it.
+            paddingBottom: Platform.OS === 'ios' ? Math.max(12, insets.bottom - 8) : Math.max(insets.bottom, 16),
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },
@@ -679,7 +695,7 @@ const styles = StyleSheet.create({
   fundingHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   disabled: { opacity: 0.5 },
   selectedTab: { borderBottomWidth: 3 },
-  hero: { alignSelf: 'stretch', paddingTop: 24, paddingBottom: 28 },
+  hero: { alignSelf: 'stretch', paddingBottom: 24 },
   sectionCurve: {
     position: 'absolute',
     left: 0,
@@ -689,10 +705,21 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  headerLine: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 32 },
-  badgeBesideClock: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
-  label: { flex: 1, minWidth: 0, color: '#FFE7EA', fontSize: 20 },
-  balance: { color: '#FFFFFF', fontSize: 36, fontWeight: '700', marginTop: 12 },
+  clockOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  balanceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  balanceButton: {
+    flex: 1,
+    maxWidth: '75%',
+    minWidth: 0,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  balance: { color: '#FFFFFF', fontSize: 36, fontWeight: '700', textAlign: 'left' },
   balanceLabel: {
     color: '#FFE7EA',
     fontSize: 12,
@@ -709,7 +736,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'flex-start',
     justifyContent: 'center',
-    paddingVertical: 18,
+    minHeight: 44,
+    paddingVertical: 12,
     paddingHorizontal: 16,
   },
   fundingTab: {
@@ -758,14 +786,28 @@ const styles = StyleSheet.create({
   },
   empty: { textAlign: 'center', padding: 28, fontSize: 16 },
   row: {
-    padding: 16,
+    minHeight: 48,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     borderBottomWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  rowBody: { flex: 1, gap: 4 },
+  rowBody: { flex: 1, minWidth: 0, gap: 2 },
+  rowValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    maxWidth: '58%',
+  },
   rowTitle: { fontSize: 16, fontWeight: '600' },
-  amount: { fontWeight: '700', flexShrink: 1 },
-  load: { padding: 20, alignItems: 'center' },
+  amount: { fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  load: {
+    minHeight: 44,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

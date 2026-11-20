@@ -255,7 +255,7 @@ export default function CrossChainLightning({
             history.map(item => (
               <SettingsListItem
                 key={item.hash}
-                title={'Cross-chain Lightning — XBT → SHA256 · ' + (item.record?.state ?? 'Quote request')}
+                title={'XBT → SHA-256 · ' + (item.record?.state ?? 'Quote request')}
                 subtitle={hidden ? '••••' : new Date(item.at).toLocaleString()}
                 onPress={() => openHistory(item)}
               />

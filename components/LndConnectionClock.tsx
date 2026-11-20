@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AccessibilityInfo, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+export const connectionClockDiameter = 112;
 const tickCount = 36;
 const tickPaths = Array.from({ length: tickCount }, (_, index) => {
   const angle = -Math.PI / 2 - (2 * Math.PI * index) / tickCount;
@@ -65,7 +66,7 @@ export default function LndConnectionClock({ startedAt, averageMs }: { startedAt
   const litTicks = wrappedTicks.slice(offset, offset + count).join(' ');
   return (
     <View accessible accessibilityRole="progressbar" accessibilityLabel="Connecting to Lightning" accessibilityValue={{ text: value }}>
-      <Svg width={32} height={32} viewBox="0 0 36 36" accessible={false}>
+      <Svg width={connectionClockDiameter} height={connectionClockDiameter} viewBox="0 0 36 36" accessible={false}>
         <Path d={track} fill="none" stroke="#C4C9D0" strokeOpacity={0.45} strokeWidth={1.5} />
         <Path d={litTicks} fill="none" stroke="#D8E2F2" strokeOpacity={0.28} strokeWidth={2.8} />
         <Path d={litTicks} fill="none" stroke="#F3F6FB" strokeWidth={1.5} />
