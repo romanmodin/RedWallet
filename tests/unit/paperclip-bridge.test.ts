@@ -35,7 +35,7 @@ it('reads the Paperclip bridge direction and its live limits', async () => {
     expect.objectContaining({ method: 'GET', credentials: 'omit' }),
   );
 });
-it('refuses a reversed response and excludes unqualified processors from payment', async () => {
+it('refuses a reversed market response', async () => {
   const request = async () => ({
     ok: true,
     status: 200,
@@ -43,7 +43,10 @@ it('refuses a reversed response and excludes unqualified processors from payment
     text: async () => JSON.stringify({ ...market, direction: 'toBLAKE2b' }),
   });
   await expect(new PaperclipProvider(request).info(signal)).rejects.toThrow('market');
-  expect(lightningBridgeProviders.map(p => p.id)).not.toContain('paperclip');
+});
+
+it('offers Paperclip after Kilombino in the iOS payment picker', () => {
+  expect(lightningBridgeProviders.map(p => p.id)).toEqual(['kilombino', 'paperclip']);
 });
 
 it('stops before proof or quote if Paperclip previews a different payment hash', async () => {

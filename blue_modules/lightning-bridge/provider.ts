@@ -1,4 +1,5 @@
 import { sha256 } from '@noble/hashes/sha256';
+import { Platform } from 'react-native';
 import { BridgeRequest, nativeBridgeRequest } from './http';
 import { BridgeInvoice, ceilSats, hashPattern, readBridgeInvoice } from './invoice';
 
@@ -293,8 +294,6 @@ function isPaperclipToSha256(response: Record<string, unknown>): boolean {
   return response.direction === 'toSHA256' && (response.dir === undefined || response.dir === response.direction);
 }
 
-// Qualification only. Keep this adapter outside the payment registry until native
-// transport, signed quotes and settlement/recovery have passed integration tests.
 export class PaperclipProvider extends HoldInvoiceProvider {
   readonly id = 'paperclip';
   readonly name = 'Connor’s Lab / Paperclip';
@@ -326,4 +325,6 @@ export class PaperclipProvider extends HoldInvoiceProvider {
   }
 }
 // Only implemented providers appear in the processor picker. No automatic fallback.
-export const lightningBridgeProviders: readonly LightningBridgeProvider[] = [new KilombinoProvider()];
+export const lightningBridgeProviders: readonly LightningBridgeProvider[] = Platform.OS === 'ios'
+  ? [new KilombinoProvider(), new PaperclipProvider()]
+  : [new KilombinoProvider()];
