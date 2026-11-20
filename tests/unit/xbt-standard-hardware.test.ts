@@ -14,17 +14,17 @@ jest.mock('../../class/xbt/standard-hardware', () => ({
 
 const ECPair = ECPairFactory(ecc);
 const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-function fixture() {
+function fixture(parentTag = 1, receiveIndex = 0) {
   const cold = new XbtSegwitBech32Wallet();
   cold.setSecret(mnemonic);
   const watch = new WatchOnlyWallet();
   watch.setSecret('[445a39f0/84h/0h/0h]' + cold.getXpub());
   watch.init();
   watch.setUseWithHardwareWalletEnabled(true);
-  const receive = watch._getExternalAddressByIndex(0);
+  const receive = watch._getExternalAddressByIndex(receiveIndex);
   const key = ECPair.fromWIF(cold._getWifForAddress(receive)!);
   const ancestor = new bitcoin.Transaction();
-  ancestor.addInput(Buffer.alloc(32, 1), 0);
+  ancestor.addInput(Buffer.alloc(32, parentTag), 0);
   ancestor.addOutput(bitcoin.address.toOutputScript(receive), 200000n);
   const funding = new bitcoin.Psbt();
   funding.addInput({ hash: ancestor.getId(), index: 0, witnessUtxo: ancestor.outs[0], sighashType: 0x21 });
@@ -210,6 +210,136 @@ it('requires a separation verifier even after Unified funding checks pass', asyn
     }),
   ).rejects.toThrow('conflict not confirmed');
 });
+
+async function threeInputRequest() {
+  const fixtures = [1, 2, 3].map((tag, index) => fixture(tag, index));
+  const { watch, cold, change } = fixtures[0];
+  const raws = Object.assign({}, ...fixtures.map((f) => f.raws));
+  const coins = fixtures.flatMap((f) => f.coins);
+  const histories = Object.assign({}, ...fixtures.map(f => f.histories));
+  jest
+    .spyOn(BlueElectrum, 'multiGetTransactionByTxid')
+    .mockImplementation(async (ids) =>
+      Object.fromEntries(ids.map((id) => [id, raws[id]])),
+    );
+  jest
+    .spyOn(BlueElectrum, 'multiGetHistoryByAddress')
+    .mockResolvedValue(histories);
+  jest.spyOn(BlueElectrum, 'getReportedBlockTip').mockResolvedValue(1000009);
+  jest
+    .spyOn(watch._hdWalletInstance!, 'getTransactions')
+    .mockReturnValue(
+      fixtures.map((f) => ({
+        txid: f.parent.getId(),
+        rawHex: f.parent.toHex(),
+        confirmations: 10,
+      })) as any,
+    );
+  watch.setHardwareSigningMode('standard');
+  const recipient = cold._getExternalAddressByIndex(1);
+  const { psbt } = await watch.createStandardHardwareTransaction(
+    coins,
+    [{ address: recipient, value: 450000 }],
+    1,
+    change,
+  );
+  return { watch, cold, change, fixtures, psbt };
+}
+
+it('reviews three full parents and identifies change in a standard hardware Send request', async () => {
+  const { watch, cold, change, fixtures, psbt } = await threeInputRequest();
+  expect(psbt.txInputs).toHaveLength(3);
+  psbt.data.inputs.forEach((input, index) => {
+    const parent = bitcoin.Transaction.fromBuffer(input.nonWitnessUtxo!);
+    expect(parent.getHash()).toEqual(psbt.txInputs[index].hash);
+  });
+  const changeIndex = psbt.txOutputs.findIndex(
+    (output) => output.address === change,
+  );
+  expect(changeIndex).toBeGreaterThanOrEqual(0);
+  expect(psbt.data.outputs[changeIndex].bip32Derivation?.[0].path).toMatch(
+    /\/1\/0$/,
+  );
+  const returned = bitcoin.Psbt.fromBase64(psbt.toBase64());
+  for (const { key } of fixtures) returned.signAllInputs(key);
+  const tx = watch.combinePsbt(psbt, returned);
+  expect(tx.ins.every((input) => input.witness.length === 2)).toBe(true);
+  expect(() => assertStandardHardwareResult(tx.toHex(), psbt)).not.toThrow();
+  expect(bitcoin.address.fromOutputScript(tx.outs[changeIndex].script)).toBe(change);
+  const redirected = tx.clone();
+  redirected.outs[changeIndex].script = bitcoin.address.toOutputScript(cold._getExternalAddressByIndex(9));
+  expect(() => assertStandardHardwareResult(redirected.toHex(), psbt)).toThrow('changed');
+  const swappedKeys = tx.clone();
+  swappedKeys.ins[0].witness = tx.ins[1].witness;
+  expect(() => assertStandardHardwareResult(swappedKeys.toHex(), psbt)).toThrow();
+  tx.outs[changeIndex].value -= 1n;
+  expect(() => assertStandardHardwareResult(tx.toHex(), psbt)).toThrow(
+    'changed',
+  );
+});
+
+it('accepts a three-input return stripped of non-witness data and rejects it once an input is unsigned', async () => {
+  const { watch, fixtures, psbt } = await threeInputRequest();
+  const returned = bitcoin.Psbt.fromBase64(psbt.toBase64());
+  for (const { key } of fixtures) returned.signAllInputs(key);
+  const stripped = new bitcoin.Psbt().setVersion(returned.version).setLocktime(returned.locktime);
+  returned.txInputs.forEach(outpoint => stripped.addInput(outpoint));
+  returned.txOutputs.forEach(({ script, value }) => stripped.addOutput({ script, value }));
+  returned.data.inputs.forEach(({ partialSig }, index) => {
+    expect(partialSig).toHaveLength(1);
+    stripped.updateInput(index, { partialSig });
+  });
+  const tx = watch.combinePsbt(psbt, bitcoin.Psbt.fromBase64(stripped.toBase64()));
+  expect(tx.ins).toHaveLength(3);
+  expect(tx.ins.every(input => input.witness.length === 2)).toBe(true);
+  expect(() => assertStandardHardwareResult(tx.toHex(), psbt)).not.toThrow();
+
+  const partial = bitcoin.Psbt.fromBase64(psbt.toBase64());
+  for (const index of [0, 2]) {
+    const parent = bitcoin.Transaction.fromBuffer(psbt.data.inputs[index].nonWitnessUtxo!);
+    partial.signInput(index, fixtures.find(f => f.parent.getId() === parent.getId())!.key);
+  }
+  expect(() => watch.combinePsbt(psbt, partial)).toThrow();
+});
+
+it('accepts an already finalized three-input return and rejects a finalized one with a tampered output', async () => {
+  const { watch, fixtures, psbt } = await threeInputRequest();
+  const returned = bitcoin.Psbt.fromBase64(psbt.toBase64());
+  for (const { key } of fixtures) returned.signAllInputs(key);
+  returned.finalizeAllInputs();
+  expect(returned.data.inputs.every(input => input.finalScriptWitness && !input.partialSig)).toBe(true);
+  const tx = watch.combinePsbt(psbt, returned);
+  expect(tx.ins.every(input => input.witness.length === 2)).toBe(true);
+  expect(() => assertStandardHardwareResult(tx.toHex(), psbt)).not.toThrow();
+
+  const tampered = tx.clone();
+  tampered.outs[0].value -= 1n;
+  expect(() => assertStandardHardwareResult(tampered.toHex(), psbt)).toThrow(
+    'Signed BTC transaction changed the reviewed recipient, amount, inputs, sequence or locktime.',
+  );
+});
+
+it('rejects a three-input return whose inputs were reordered', async () => {
+  const { watch, fixtures, psbt } = await threeInputRequest();
+  const signed = bitcoin.Psbt.fromBase64(psbt.toBase64());
+  for (const { key } of fixtures) signed.signAllInputs(key);
+  const accepted = watch.combinePsbt(psbt, signed);
+
+  const reordered = new bitcoin.Transaction();
+  reordered.version = accepted.version;
+  reordered.locktime = accepted.locktime;
+  const order = [1, 0, 2];
+  order.forEach(index => reordered.addInput(accepted.ins[index].hash, accepted.ins[index].index, accepted.ins[index].sequence));
+  accepted.outs.forEach(output => reordered.addOutput(output.script, output.value));
+  order.forEach((index, position) => {
+    reordered.ins[position].witness = accepted.ins[index].witness;
+  });
+  expect(reordered.toHex()).not.toBe(accepted.toHex());
+  expect(() => assertStandardHardwareResult(reordered.toHex(), psbt)).toThrow(
+    'Signed BTC transaction changed the reviewed recipient, amount, inputs, sequence or locktime.',
+  );
+});
+
 
 it('checks only selected inputs when constructing a standard request', async () => {
   const f = fixture();

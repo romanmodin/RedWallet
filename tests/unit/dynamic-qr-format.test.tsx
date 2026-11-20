@@ -36,3 +36,12 @@ test('switching from a later UR frame to shorter BBQr resets the frame and remai
   clear.mockRestore();
   jest.useRealTimers();
 });
+
+test('a signer requiring URv2 keeps frame navigation without a format override', () => {
+  const view = render(<DynamicQRCode value="70736274ff" hideControls={false} forceProtocol="URv2" />);
+  expect(view.queryByText('BBQr format')).toBeNull();
+  expect(view.getByText('UR:FIRST')).toBeTruthy();
+  fireEvent.press(view.getByText('Next'));
+  expect(view.getByText('UR:SECOND')).toBeTruthy();
+  view.unmount();
+});

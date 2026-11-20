@@ -34,6 +34,7 @@ const PsbtWithHardwareWallet = () => {
   const route = useRoute<RouteProp<SendDetailsStackParamList, 'PsbtWithHardwareWallet'>>();
   const { walletID, memo, psbt, deepLinkPSBT, launchedBy } = route.params;
   const wallet = wallets.find(w => w.getID() === walletID) as WatchOnlyWallet;
+  const standardXbt = wallet?.type === WatchOnlyWallet.type && wallet.getHardwareSigningMode() === 'standard';
   const routeParamsPSBT = useRef(route.params.psbt);
   const routeParamsTXHex = route.params.txhex;
   const { colors } = useTheme();
@@ -326,7 +327,7 @@ const PsbtWithHardwareWallet = () => {
     <ActivityIndicator />
   ) : (
     <View style={styles.container}>
-      {wallet.type === WatchOnlyWallet.type && wallet.getHardwareSigningMode() === 'standard' && (
+      {standardXbt && (
         <BlueCard>
           <BlueText testID="StandardHardwareSigningNotice">XBT · Standard hardware signing (0x01)</BlueText>
           <BlueText>
@@ -362,7 +363,7 @@ const PsbtWithHardwareWallet = () => {
             value={psbt.toHex()}
             ref={dynamicQRCode}
             walletID={walletID}
-            forceProtocol={wallet instanceof BtcWatchOnlyWallet ? 'URv2' : undefined}
+            forceProtocol={standardXbt || wallet instanceof BtcWatchOnlyWallet ? 'URv2' : undefined}
           />
         )}
         <BlueSpacing20 />

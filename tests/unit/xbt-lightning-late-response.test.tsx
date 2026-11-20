@@ -577,9 +577,15 @@ describe('XBTLightningNetwork: late network and watchtower responses', () => {
 });
 
 describe('Lightning home: late refresh responses after leaving', () => {
-  test.each(['resolve', 'reject'] as const)('fetchBalance that %ss after leaving does not save or update state', async outcome => {
+  const runningWallet = () => {
     const wallet = new LndWallet();
     wallet.status = 'Running';
+    wallet.overview = { ...overview };
+    return wallet;
+  };
+
+  test.each(['resolve', 'reject'] as const)('fetchBalance that %ss after leaving does not save or update state', async outcome => {
+    const wallet = runningWallet();
     const fetched = deferred<void>();
     jest.spyOn(wallet, 'fetchBalance').mockImplementation(() => fetched.promise);
     const screen = render(<LndWalletHome wallet={wallet} />);
@@ -595,26 +601,26 @@ describe('Lightning home: late refresh responses after leaving', () => {
   });
 
   test.each(['resolve', 'reject'] as const)('wallet page read that %ss after leaving does not save or update state', async outcome => {
-    const wallet = new LndWallet();
-    wallet.status = 'Running';
+    const wallet = runningWallet();
     jest.spyOn(wallet, 'fetchBalance').mockResolvedValue(undefined);
     const page = deferred<unknown>();
     bridge.wallet.mockImplementation(async kind => (kind === 'overview' ? overview : page.promise));
     const screen = render(<LndWalletHome wallet={wallet} />);
     await flush();
+    expect(bridge.wallet).toHaveBeenCalledWith('payments', '0');
     screen.unmount();
     await act(async () => {
       if (outcome === 'resolve') page.resolve({ rows: [], next: '0', more: false });
       else page.reject(new Error('page read failed'));
       await page.promise.catch(() => {});
     });
+    expect(bridge.wallet).not.toHaveBeenCalledWith('invoices', '0');
     expect(mockStorage.saveToDisk).not.toHaveBeenCalled();
     await expectQuiet();
   });
 
   test.each(['resolve', 'reject'] as const)('saveToDisk that %ss after leaving is ignored quietly', async outcome => {
-    const wallet = new LndWallet();
-    wallet.status = 'Running';
+    const wallet = runningWallet();
     jest.spyOn(wallet, 'fetchBalance').mockResolvedValue(undefined);
     const saved = deferred<void>();
     mockStorage.saveToDisk = jest.fn(() => saved.promise);
@@ -631,8 +637,7 @@ describe('Lightning home: late refresh responses after leaving', () => {
   });
 
   test('a queued refresh is not started after leaving, and the poll timer is released', async () => {
-    const wallet = new LndWallet();
-    wallet.status = 'Running';
+    const wallet = runningWallet();
     const fetched = deferred<void>();
     const fetchBalance = jest.spyOn(wallet, 'fetchBalance').mockImplementation(() => fetched.promise);
     const screen = render(<LndWalletHome wallet={wallet} />);
@@ -654,8 +659,7 @@ describe('Lightning home: late refresh responses after leaving', () => {
   });
 
   test('a read from the first visit does not paint over the second visit', async () => {
-    const wallet = new LndWallet();
-    wallet.status = 'Running';
+    const wallet = runningWallet();
     const first = deferred<void>();
     let calls = 0;
     jest.spyOn(wallet, 'fetchBalance').mockImplementation(() => {

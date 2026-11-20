@@ -39,6 +39,32 @@ export type BridgeJournal = {
   requests: number[];
   issues?: BridgeHistoryIssue[];
 };
+
+export function historyForNode(journal: BridgeJournal, node: string): BridgeHistoryEntry[] {
+  const entries = new Map<string, BridgeHistoryEntry>();
+  for (const record of journal.records) {
+    if (record.node === node)
+      entries.set(record.hash, {
+        hash: record.hash,
+        record,
+        at: record.createdAt,
+        issues: [],
+      });
+  }
+  for (const issue of savedIssues(journal.issues).reverse()) {
+    if (issue.node !== node) continue;
+    const entry: BridgeHistoryEntry = entries.get(issue.hash) ?? {
+      hash: issue.hash,
+      at: issue.at,
+      issues: [],
+    };
+    entry.issues.push(issue);
+    entry.at = Math.max(entry.at, issue.at);
+    entries.set(issue.hash, entry);
+  }
+  return Array.from(entries.values()).sort((a, b) => b.at - a.at);
+}
+
 function appendHistoryIssue(journal: BridgeJournal, issue: BridgeHistoryIssue) {
   journal.issues = [...savedIssues(journal.issues).slice(1 - maxHistoryIssues), issue];
 }
@@ -232,28 +258,7 @@ export class BridgeController {
     return this.exclusive(async () => {
       const node = await this.identity();
       const journal = await this.load();
-      const entries = new Map<string, BridgeHistoryEntry>();
-      for (const record of journal.records) {
-        if (record.node === node)
-          entries.set(record.hash, {
-            hash: record.hash,
-            record,
-            at: record.createdAt,
-            issues: [],
-          });
-      }
-      for (const issue of savedIssues(journal.issues).reverse()) {
-        if (issue.node !== node) continue;
-        const entry: BridgeHistoryEntry = entries.get(issue.hash) ?? {
-          hash: issue.hash,
-          at: issue.at,
-          issues: [],
-        };
-        entry.issues.push(issue);
-        entry.at = Math.max(entry.at, issue.at);
-        entries.set(issue.hash, entry);
-      }
-      return Array.from(entries.values()).sort((a, b) => b.at - a.at);
+      return historyForNode(journal, node);
     });
   }
 
@@ -473,7 +478,9 @@ export class BridgeController {
         if (r.quote && unresolved.has(r.state)) {
           try {
             const remote = await this.provider(r.provider).swap(hash, r.quote.token, signal);
-            if (remote.preimage && !provesPayment(remote.preimage, hash)) throw new Error('Invalid bridge payment proof.');
+            if ((remote.state === 'settled' || remote.preimage !== '') && !provesPayment(remote.preimage, hash)) {
+              throw new Error('Invalid bridge payment proof.');
+            }
             // Remote terminal state alone never establishes local settlement or released HTLCs.
             r.bridgeState = remote.state;
           } catch {

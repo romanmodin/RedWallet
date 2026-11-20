@@ -210,14 +210,16 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
               </TouchableOpacity>
             </View>
 
-            <View style={animatedQRCodeStyle.controller2}>
-              <TouchableOpacity accessibilityRole="button" style={animatedQRCodeStyle.buttonUseFormat} onPress={this.forceUseBBQR}>
-                <Text style={animatedQRCodeStyle.text}>BBQr format</Text>
-              </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" style={animatedQRCodeStyle.buttonUseFormat} onPress={this.forceUseURv2}>
-                <Text style={animatedQRCodeStyle.text}>UR v2 format</Text>
-              </TouchableOpacity>
-            </View>
+            {!this.props.forceProtocol && (
+              <View style={animatedQRCodeStyle.controller2}>
+                <TouchableOpacity accessibilityRole="button" style={animatedQRCodeStyle.buttonUseFormat} onPress={this.forceUseBBQR}>
+                  <Text style={animatedQRCodeStyle.text}>BBQr format</Text>
+                </TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" style={animatedQRCodeStyle.buttonUseFormat} onPress={this.forceUseURv2}>
+                  <Text style={animatedQRCodeStyle.text}>UR v2 format</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
       </View>
