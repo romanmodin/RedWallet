@@ -14,7 +14,7 @@ jest.mock('../../class/xbt/standard-hardware', () => ({
 
 const ECPair = ECPairFactory(ecc);
 const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-function fixture() {
+function fixture(parentTag = 1) {
   const cold = new XbtSegwitBech32Wallet();
   cold.setSecret(mnemonic);
   const watch = new WatchOnlyWallet();
@@ -24,7 +24,7 @@ function fixture() {
   const receive = watch._getExternalAddressByIndex(0);
   const key = ECPair.fromWIF(cold._getWifForAddress(receive)!);
   const ancestor = new bitcoin.Transaction();
-  ancestor.addInput(Buffer.alloc(32, 1), 0);
+  ancestor.addInput(Buffer.alloc(32, parentTag), 0);
   ancestor.addOutput(bitcoin.address.toOutputScript(receive), 200000n);
   const funding = new bitcoin.Psbt();
   funding.addInput({ hash: ancestor.getId(), index: 0, witnessUtxo: ancestor.outs[0], sighashType: 0x21 });
@@ -209,6 +209,60 @@ it('requires a separation verifier even after Unified funding checks pass', asyn
       },
     }),
   ).rejects.toThrow('conflict not confirmed');
+});
+
+it('reviews three full parents and identifies change in a standard hardware Send request', async () => {
+  const fixtures = [1, 2, 3].map((tag) => fixture(tag));
+  const { watch, cold, receive, change, key } = fixtures[0];
+  const raws = Object.assign({}, ...fixtures.map((f) => f.raws));
+  const coins = fixtures.flatMap((f) => f.coins);
+  const history = fixtures.flatMap((f) => f.histories[receive]);
+  jest
+    .spyOn(BlueElectrum, 'multiGetTransactionByTxid')
+    .mockImplementation(async (ids) =>
+      Object.fromEntries(ids.map((id) => [id, raws[id]])),
+    );
+  jest
+    .spyOn(BlueElectrum, 'multiGetHistoryByAddress')
+    .mockResolvedValue({ [receive]: history } as any);
+  jest.spyOn(BlueElectrum, 'getReportedBlockTip').mockResolvedValue(1000009);
+  jest
+    .spyOn(watch._hdWalletInstance!, 'getTransactions')
+    .mockReturnValue(
+      fixtures.map((f) => ({
+        txid: f.parent.getId(),
+        rawHex: f.parent.toHex(),
+        confirmations: 10,
+      })) as any,
+    );
+  watch.setHardwareSigningMode('standard');
+  const recipient = cold._getExternalAddressByIndex(1);
+  const { psbt } = await watch.createStandardHardwareTransaction(
+    coins,
+    [{ address: recipient, value: 450000 }],
+    1,
+    change,
+  );
+  expect(psbt.txInputs).toHaveLength(3);
+  psbt.data.inputs.forEach((input, index) => {
+    const parent = bitcoin.Transaction.fromBuffer(input.nonWitnessUtxo!);
+    expect(parent.getHash()).toEqual(psbt.txInputs[index].hash);
+  });
+  const changeIndex = psbt.txOutputs.findIndex(
+    (output) => output.address === change,
+  );
+  expect(changeIndex).toBeGreaterThanOrEqual(0);
+  expect(psbt.data.outputs[changeIndex].bip32Derivation?.[0].path).toMatch(
+    /\/1\/0$/,
+  );
+  const returned = bitcoin.Psbt.fromBase64(psbt.toBase64());
+  returned.signAllInputs(key);
+  const tx = watch.combinePsbt(psbt, returned);
+  expect(tx.ins.every((input) => input.witness.length === 2)).toBe(true);
+  tx.outs[changeIndex].value -= 1n;
+  expect(() => assertStandardHardwareResult(tx.toHex(), psbt)).toThrow(
+    'changed',
+  );
 });
 
 it('checks only selected inputs when constructing a standard request', async () => {
