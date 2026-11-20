@@ -380,7 +380,9 @@ export class BridgeController {
         if (r.quote && unresolved.has(r.state)) {
           try {
             const remote = await this.provider(r.provider).swap(hash, r.quote.token, signal);
-            if (remote.preimage && !provesPayment(remote.preimage, hash)) throw new Error('Invalid bridge payment proof.');
+            if ((remote.state === 'settled' || remote.preimage !== '') && !provesPayment(remote.preimage, hash)) {
+              throw new Error('Invalid bridge payment proof.');
+            }
             // Remote terminal state alone never establishes local settlement or released HTLCs.
             r.bridgeState = remote.state;
           } catch {
