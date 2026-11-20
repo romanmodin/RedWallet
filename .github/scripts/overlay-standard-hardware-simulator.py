@@ -13,7 +13,7 @@ REPLACEMENTS = {
     # never scanned contents, account data or exception messages.
     "screen/settings/HardwareSigningCheck.tsx": {
         "          try {\n            if (kind === 'account') {": "          let diagnosticStage = 'parse';\n          try {\n            if (kind === 'account') {",
-        "              const fixture = createHardwareSigningFixture(account);": "              diagnosticStage = 'fixture';\n              const fixture = createHardwareSigningFixture(account);\n              diagnosticStage = 'serialize';",
+        "              const fixture = createHardwareSigningFixture(account, 'send');": "              diagnosticStage = 'fixture';\n              const fixture = createHardwareSigningFixture(account, 'send');\n              diagnosticStage = 'serialize';",
         "          } catch {\n            if (kind === 'signature')": "          } catch (error) {\n            if (kind === 'signature')",
         "            else setError(loc.hardware_check.invalid_account);": "            else {\n              const name = error instanceof Error && ['Error', 'TypeError', 'RangeError', 'SyntaxError'].includes(error.name) ? error.name : 'unknown';\n              const positions = error instanceof Error ? (error.stack?.match(/:\\d+:\\d+/g) || []).slice(0, 8).join(',') : '';\n              setError('SIMULATOR ONLY: ' + diagnosticStage + ' / ' + name + ' / ' + positions);\n            }"
     },
@@ -64,6 +64,7 @@ def main():
         ".github/scripts/overlay-standard-hardware-simulator.py",
         "screen/send/ScanQRCode.tsx", "components/CameraScreen.tsx",
         "screen/settings/HardwareSigningCheck.tsx", "class/hardware/offline-signing.ts",
+        "screen/send/psbtWithHardwareWallet.tsx", "class/hardware/signed-scan.ts", "class/btc/psbt.ts",
     ]
     for filename in tracked_transport:
         if filename not in contents:

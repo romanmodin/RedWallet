@@ -81,7 +81,7 @@ jest.mock('../../class/wallets/multisig-hd-wallet', () => ({
 }));
 
 // Public disposable test keys; never a user account or real funds.
-function fixture(seed: number) {
+function fixture(seed: number, mode: 'single' | 'send' = 'single') {
   const master = BIP32Factory(ecc).fromSeed(Buffer.alloc(32, seed));
   const accountPath = "m/84'/0'/0'";
   const node = master.derivePath(accountPath);
@@ -90,7 +90,8 @@ function fixture(seed: number) {
     accountPath,
     xpub: node.neutered().toBase58(),
   };
-  const signed = createHardwareSigningFixture(account).request.signInput(0, node.derive(0).derive(0));
+  const signed = createHardwareSigningFixture(account, mode).request;
+  signed.txInputs.forEach((_, index) => signed.signInput(index, node.derive(0).derive(index)));
   const encoder = new CryptoPSBT(Buffer.from(signed.toBuffer())).toUREncoder(120);
   const parts = Array.from({ length: encoder.fragmentsLength }, () => encoder.nextPart().toUpperCase());
   return { account, signed, parts };
@@ -116,22 +117,24 @@ beforeEach(() => {
   mockImagePicker.mockReset();
 });
 
-test('actual animated signed PSBT yields one exact verified result despite repeats and rerenders', async () => {
+test.each(['single', 'send'] as const)('animated %s PSBT yields one verified result despite repeats and rerenders', async mode => {
+  const sample = fixture(1, mode);
   const view = await open();
   const handler = view.getByTestId('Camera').props.onReadCode;
-  for (const part of [...first.parts].reverse()) {
+  for (const part of [...sample.parts].reverse()) {
     feed(view, part);
     view.rerender(<ScanQRCode />);
   }
   act(() => {
-    for (const part of first.parts) handler({ nativeEvent: { codeStringValue: part } });
+    for (const part of sample.parts) handler({ nativeEvent: { codeStringValue: part } });
   });
   expect(mockOnScanned).toHaveBeenCalledTimes(1);
   expect(mockGoBack).toHaveBeenCalledTimes(1);
   const returned = mockOnScanned.mock.calls[0][0];
-  expect(returned).toBe(first.signed.toBase64());
-  expect(verifyHardwareSigningFixture(first.account, Buffer.from(returned))).toMatchObject({
+  expect(returned).toBe(sample.signed.toBase64());
+  expect(verifyHardwareSigningFixture(sample.account, Buffer.from(returned), mode)).toMatchObject({
     status: 'offline-fixture-signature-verified',
+    verifiedInputs: mode === 'send' ? 3 : 1,
   });
 });
 

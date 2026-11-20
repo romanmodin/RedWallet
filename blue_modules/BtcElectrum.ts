@@ -1,7 +1,9 @@
 import * as bitcoin from 'bitcoinjs-lib';
+import { assertBitcoinPayment } from '../class/btc/psbt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeCertificatePem } from './tls-certificate';
 import type * as XbtElectrum from './BlueElectrum';
+export { assertBitcoinPayment } from '../class/btc/psbt';
 
 const ElectrumClient = require('electrum-client');
 const net = require('net');
@@ -304,18 +306,6 @@ const sats = (n: number, signed = false) => {
   if (!Number.isSafeInteger(n) || Math.abs(n) > 2_100_000_000_000_000 || (!signed && n < 0)) throw new Error('Invalid Bitcoin amount');
   return n;
 };
-
-export function assertBitcoinPayment(hex: string): void {
-  const tx = bitcoin.Transaction.fromHex(hex);
-  if (!tx.ins.length || !tx.outs.length) throw new Error('Bitcoin broadcast requires a signed transaction');
-  for (const input of tx.ins) {
-    if (input.script.length || input.witness.length !== 2) throw new Error('Bitcoin wallet requires Native SegWit inputs');
-    const [signature, pubkey] = input.witness;
-    if (bitcoin.script.signature.decode(signature).hashType !== bitcoin.Transaction.SIGHASH_ALL || pubkey.length !== 33) {
-      throw new Error('Bitcoin broadcast refuses nonstandard or XBT Unified signatures');
-    }
-  }
-}
 
 /** Each method is bound to the wallet ID, so an old screen cannot use another wallet's session. */
 export function forWallet(walletID: string) {

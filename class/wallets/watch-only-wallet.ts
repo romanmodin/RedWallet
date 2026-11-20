@@ -6,6 +6,7 @@ import {
   FundingProof,
   verifyStandardHardwareFunding,
   assertStandardHardwareResult,
+  combineStandardHardwareResult,
   requestFundingInputs,
 } from '../xbt/standard-hardware';
 import BIP32Factory from 'bip32';
@@ -329,11 +330,7 @@ export class WatchOnlyWallet extends LegacyWallet {
         throw new Error('PSBT does not match the current reviewed signing request');
       this.requireStandardProof(expected, false);
       const signed = typeof two === 'string' ? bitcoin.Psbt.fromBase64(two) : two.clone();
-      const combined = expected.clone().combine(signed);
-      combined.data.inputs.forEach((input, index) => {
-        if (!input.finalScriptWitness) combined.finalizeInput(index);
-      });
-      const tx = assertStandardHardwareResult(combined.extractTransaction().toHex(), expected);
+      const tx = combineStandardHardwareResult(expected, signed);
       approvedExternalTransactions.set(this, tx.toHex());
       return tx;
     }

@@ -184,3 +184,12 @@ export function assertStandardHardwareResult(hex: string, request: Psbt): Transa
   });
   return assertSignedBtcTransaction(hex, request);
 }
+
+/** Reattach the reviewed input data before validating every returned signature. */
+export function combineStandardHardwareResult(request: Psbt, signed: Psbt): Transaction {
+  const combined = request.clone().combine(signed);
+  combined.data.inputs.forEach((input, index) => {
+    if (!input.finalScriptWitness) combined.finalizeInput(index);
+  });
+  return assertStandardHardwareResult(combined.extractTransaction().toHex(), request);
+}

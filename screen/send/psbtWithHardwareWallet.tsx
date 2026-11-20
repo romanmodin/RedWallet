@@ -24,6 +24,7 @@ import { BlueSpacing20 } from '../../components/BlueSpacing';
 import { SendDetailsStackParamList } from '../../navigation/SendDetailsStackParamList';
 import confirm from '../../helpers/confirm';
 import { requiresHighFeeApproval } from '../../class/xbt/fee-policy';
+import { parseSignedScan } from '../../class/hardware/signed-scan';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 
 const PsbtWithHardwareWallet = () => {
@@ -80,22 +81,14 @@ const PsbtWithHardwareWallet = () => {
   const onBarScanned = useCallback(
     (ret: string | { data: string }) => {
       const data = typeof ret === 'string' ? ret : ret.data;
-      if (data.toUpperCase().startsWith('UR')) {
-        presentAlert({
-          message: 'Finish scanning all QR fragments before importing the signature.',
-        });
-        return;
-      }
       try {
-        const trimmed = data.trim();
-        const isHex = /^(?:[0-9a-fA-F]{2})+$/.test(trimmed);
-        const received = isHex && trimmed.toLowerCase().startsWith('70736274ff') ? bitcoin.Psbt.fromHex(trimmed) : trimmed;
+        const scanned = parseSignedScan(data);
         const Tx =
-          isHex && !trimmed.toLowerCase().startsWith('70736274ff')
+          scanned.kind === 'transaction'
             ? wallet instanceof BtcWatchOnlyWallet && psbt
-              ? wallet.acceptSignedTransaction(trimmed, psbt)
+              ? wallet.acceptSignedTransaction(scanned.hex, psbt)
               : undefined
-            : _combinePSBT(received);
+            : _combinePSBT(scanned.psbt);
         if (!Tx) throw new Error('Scan a signed PSBT for the current transaction.');
         setTxHex(Tx?.toHex());
         if (launchedBy) {
