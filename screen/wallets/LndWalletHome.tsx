@@ -587,7 +587,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           </Text>
         )}
       </View>
-      <LndHistoryTabs selected={tab} onSelect={setTab} />
+      <LndHistoryTabs selected={tab} onSelect={setTab} receiveColor={styles.receiveAction.backgroundColor} />
       {tab === 'funding' && (
         <Text style={[styles.fundingHeading, { color: colors.foregroundColor }]}>On-chain deposits and withdrawals</Text>
       )}

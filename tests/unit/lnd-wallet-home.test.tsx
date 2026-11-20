@@ -184,7 +184,7 @@ test('each tab overlaps its neighbors while the two outer corners reveal the wal
   for (const [selected] of tabs) {
     await act(async () => fireEvent.press(screen.getByRole('tab', { name: selected })));
     expect(stripStyle().height).toBe(height);
-    const inactiveColors = ['#D7EFE2', '#DBEDFC'];
+    const inactiveColors = ['#18794E', '#2166A5'];
     const faces = tabs.map(([name, iconName]) => {
       const button = screen.getByRole('tab', { name });
       const style = StyleSheet.flatten(button.props.style);
@@ -200,7 +200,7 @@ test('each tab overlaps its neighbors while the two outer corners reveal the wal
         expect(button.findAllByType(Ionicons)).toHaveLength(0);
       } else {
         expect(within(button).queryByText(name)).toBeNull();
-        expect(button.findByType(Ionicons).props.name).toBe(iconName);
+        expect(button.findByType(Ionicons).props).toMatchObject({ name: iconName, color: '#FFFFFF' });
       }
       return { ...face, zIndex: style.zIndex };
     });
@@ -376,10 +376,10 @@ describe('Lightning connection clock', () => {
       left: 0,
       right: 0,
       alignItems: 'center',
-      top: 78,
+      top: 84,
     });
     expect(overlay.props.pointerEvents).toBe('none');
-    expect(within(overlay).getByTestId('svg-Svg').props).toMatchObject({ width: 112, height: 112 });
+    expect(within(overlay).getByTestId('svg-Svg').props).toMatchObject({ width: 100, height: 100 });
     expect(mockNavigation.setOptions).toHaveBeenCalledWith(expect.objectContaining({ headerTransparent: true }));
     fireEvent.press(screen.getByRole('button', { name: 'Expand Details' }));
     expect(screen.getByRole('button', { name: 'Collapse Details' })).toBeTruthy();
