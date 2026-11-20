@@ -197,6 +197,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           const previous = pages[kind];
           if (more && previous && !previous.more) continue;
           const page: LndActivityPage = await bridge.wallet(kind, more ? (previous?.next ?? '0') : '0');
+          if (!isCurrent()) return;
           if (more && previous && page.more && page.next === previous.next) throw new Error('History cursor did not advance.');
           updates[kind] = {
             ...page,

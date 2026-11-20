@@ -1,50 +1,29 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
-import { useTheme } from './themes';
+import WalletGradient from '../class/wallet-gradient';
 
 const tabs = [
-  {
-    id: 'transactions',
-    label: 'Transactions',
-    icon: 'list-outline',
-    light: '#FFFAF7',
-    dark: '#332C2E',
-  },
-  {
-    id: 'crossChain',
-    label: 'Cross-chain payments',
-    icon: 'swap-horizontal-outline',
-    light: '#F5E6E9',
-    dark: '#46313A',
-  },
-  {
-    id: 'funding',
-    label: 'Funding',
-    icon: 'wallet-outline',
-    light: '#E7DADF',
-    dark: '#4E4049',
-  },
+  { id: 'transactions', label: 'Transactions', icon: 'list-outline' },
+  { id: 'crossChain', label: 'Cross-chain payments', icon: 'swap-horizontal-outline' },
+  { id: 'funding', label: 'Funding', icon: 'wallet-outline' },
 ] as const;
+
+const tabInk = '#351D25';
+const cornerRadius = 13.25;
 
 export type LndHistoryTab = (typeof tabs)[number]['id'];
 
 export default function LndHistoryTabs({ selected, onSelect }: { selected: LndHistoryTab; onSelect: (tab: LndHistoryTab) => void }) {
-  const { colors, dark } = useTheme();
   const { fontScale } = useWindowDimensions();
-  const underlineColor = dark ? '#F3A9B6' : '#A81F35';
-  const fill = dark ? 'dark' : 'light';
-  const leftBacking = selected === 'crossChain' ? tabs[0] : tabs[1];
-  const rightBacking = selected === 'crossChain' ? tabs[2] : tabs[1];
+  const selectedIndex = tabs.findIndex(tab => tab.id === selected);
+  const mintIndex = selectedIndex === 0 ? 1 : 0;
   return (
     <View testID="LndHistoryTabs" accessibilityRole="tablist" style={[styles.strip, { height: Math.ceil(52 * Math.max(1, fontScale)) }]}>
-      {/* The rear colors run straight under the rounded face, including both upper corners. */}
-      <View pointerEvents="none" accessible={false} style={styles.backing}>
-        <View style={[styles.half, { backgroundColor: leftBacking[fill] }]} />
-        <View style={[styles.half, { backgroundColor: rightBacking[fill] }]} />
-      </View>
-      {tabs.map(tab => {
-        const active = tab.id === selected;
+      {tabs.map((tab, index) => {
+        const active = index === selectedIndex;
+        const face = active ? styles.selectedFace : index < selectedIndex ? styles.beforeSelected : styles.afterSelected;
+        const color = active ? styles.white : index === mintIndex ? styles.mint : styles.sky;
         return (
           <Pressable
             key={tab.id}
@@ -52,15 +31,13 @@ export default function LndHistoryTabs({ selected, onSelect }: { selected: LndHi
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: active }}
             onPress={() => onSelect(tab.id)}
-            style={[styles.tab, active && styles.active, { backgroundColor: tab[fill] }]}
+            style={[styles.tab, active && styles.active, { zIndex: tabs.length - Math.abs(index - selectedIndex) }]}
           >
+            <View testID="LndHistoryTabFace" pointerEvents="none" accessible={false} style={[StyleSheet.absoluteFill, face, color]} />
             {active ? (
-              <>
-                <Text style={[styles.label, { color: colors.foregroundColor }]}>{tab.label}</Text>
-                <View pointerEvents="none" style={[styles.underline, { backgroundColor: underlineColor }]} />
-              </>
+              <Text style={styles.label}>{tab.label}</Text>
             ) : (
-              <Ionicons name={tab.icon} size={22} color={colors.foregroundColor} importantForAccessibility="no" />
+              <Ionicons name={tab.icon} size={22} color={tabInk} importantForAccessibility="no" />
             )}
           </Pressable>
         );
@@ -70,7 +47,7 @@ export default function LndHistoryTabs({ selected, onSelect }: { selected: LndHi
 }
 
 const styles = StyleSheet.create({
-  strip: { flexDirection: 'row' },
+  strip: { flexDirection: 'row', backgroundColor: WalletGradient.xbtWallet[WalletGradient.xbtWallet.length - 1] },
   tab: {
     flexBasis: '18%',
     minWidth: 44,
@@ -78,14 +55,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  backing: { ...StyleSheet.absoluteFill, flexDirection: 'row' },
-  half: { flex: 1 },
-  active: {
-    flexBasis: '64%',
-    flexShrink: 1,
-    borderTopLeftRadius: 13.25,
-    borderTopRightRadius: 13.25,
-  },
-  underline: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2 },
-  label: { fontSize: 21, fontWeight: '700', textAlign: 'center' },
+  active: { flexBasis: '64%', flexShrink: 1 },
+  // Only the painted face extends under its neighbor. The pressable keeps its own bounds.
+  beforeSelected: { right: -cornerRadius, borderTopLeftRadius: cornerRadius },
+  afterSelected: { left: -cornerRadius, borderTopRightRadius: cornerRadius },
+  selectedFace: { borderTopLeftRadius: cornerRadius, borderTopRightRadius: cornerRadius },
+  white: { backgroundColor: '#FFFFFF' },
+  mint: { backgroundColor: '#D7EFE2' },
+  sky: { backgroundColor: '#DBEDFC' },
+  label: { color: tabInk, fontSize: 21, fontWeight: '700', textAlign: 'center' },
 });

@@ -169,7 +169,7 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   screen.unmount();
 });
 
-test('each selection brings forward one curved title over a level row of two icon tabs', async () => {
+test('each tab overlaps its neighbors while the two outer corners reveal the wallet header', async () => {
   const screen = render(<LndWalletHome wallet={new LndWallet()} />);
   await act(async () => {});
   const tabs = [
@@ -177,25 +177,46 @@ test('each selection brings forward one curved title over a level row of two ico
     ['Cross-chain payments', 'swap-horizontal-outline'],
     ['Funding', 'wallet-outline'],
   ] as const;
-  const height = () => StyleSheet.flatten(screen.getByTestId('LndHistoryTabs').props.style).height;
-  const initialHeight = height();
+  const stripStyle = () => StyleSheet.flatten(screen.getByTestId('LndHistoryTabs').props.style);
+  const height = stripStyle().height;
+  expect(stripStyle().backgroundColor).toBe('#741B2A');
+  const radius = 13.25;
   for (const [selected] of tabs) {
     await act(async () => fireEvent.press(screen.getByRole('tab', { name: selected })));
-    expect(height()).toBe(initialHeight);
-    for (const [name, iconName] of tabs) {
+    expect(stripStyle().height).toBe(height);
+    const inactiveColors = ['#D7EFE2', '#DBEDFC'];
+    const faces = tabs.map(([name, iconName]) => {
       const button = screen.getByRole('tab', { name });
       const style = StyleSheet.flatten(button.props.style);
-      if (name === selected) {
-        expect(button.props.accessibilityState.selected).toBe(true);
-        expect(style).toMatchObject({ flexBasis: '64%', borderTopLeftRadius: 13.25, borderTopRightRadius: 13.25 });
+      const face = StyleSheet.flatten(within(button).getByTestId('LndHistoryTabFace').props.style);
+      const active = name === selected;
+      expect(button.props.accessibilityState.selected).toBe(active);
+      expect(style.flexBasis).toBe(active ? '64%' : '18%');
+      expect(face.backgroundColor).toBe(active ? '#FFFFFF' : inactiveColors.shift());
+      expect(face.borderBottomWidth ?? 0).toBe(0);
+      expect(style.borderBottomWidth ?? 0).toBe(0);
+      if (active) {
         expect(StyleSheet.flatten(within(button).getByText(name).props.style).fontSize).toBe(21);
         expect(button.findAllByType(Ionicons)).toHaveLength(0);
       } else {
-        expect(style.flexBasis).toBe('18%');
-        expect(style.borderTopLeftRadius).toBeUndefined();
-        expect(style.borderTopRightRadius).toBeUndefined();
         expect(within(button).queryByText(name)).toBeNull();
         expect(button.findByType(Ionicons).props.name).toBe(iconName);
+      }
+      return { ...face, zIndex: style.zIndex };
+    });
+    expect(faces[0]).toMatchObject({ left: 0, borderTopLeftRadius: radius });
+    expect(faces[2]).toMatchObject({ right: 0, borderTopRightRadius: radius });
+    for (const [left, right] of [
+      [faces[0], faces[1]],
+      [faces[1], faces[2]],
+    ]) {
+      if (left.zIndex > right.zIndex) {
+        expect(left).toMatchObject({ right: 0, borderTopRightRadius: radius });
+        expect(right.left).toBe(-radius);
+      } else {
+        expect(right.zIndex).toBeGreaterThan(left.zIndex);
+        expect(right).toMatchObject({ left: 0, borderTopLeftRadius: radius });
+        expect(left.right).toBe(-radius);
       }
     }
   }
@@ -281,6 +302,16 @@ test('the middle tab scopes records and quote attempts to this node and only set
   await act(async () => fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh'));
   expect(screen.queryByText('XBT → SHA-256')).toBeNull();
   expect(screen.getByText(/Start or unlock/)).toBeTruthy();
+  screen.unmount();
+});
+
+test('a running wallet must supply its node identity before activity is read', async () => {
+  bridge.wallet.mockImplementation(async kind => (kind === 'overview' ? { ...overview, node: '' } : defaultWallet(kind)));
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  expect(screen.getByText(/Refresh failed/)).toBeTruthy();
+  expect(bridge.wallet).not.toHaveBeenCalledWith('payments', '0');
+  expect(bridgeStore.read).not.toHaveBeenCalled();
   screen.unmount();
 });
 
