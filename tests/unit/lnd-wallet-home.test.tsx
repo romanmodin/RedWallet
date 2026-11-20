@@ -1,4 +1,5 @@
 import React from 'react';
+import Ionicons from '@react-native-vector-icons/ionicons';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import {
   AccessibilityInfo,
@@ -13,8 +14,14 @@ import {
   View,
 } from 'react-native';
 import { LndWallet, LndOverview } from '../../class/wallets/lnd-wallet';
+import { bridgeStore } from '../../blue_modules/lightning-bridge/runtime';
+import type { BridgeJournal, SwapRecord } from '../../blue_modules/lightning-bridge/state';
 import { XbtPriceQuote, createNeoxexXbtPriceQuote } from '../../blue_modules/xbt-price';
 
+jest.mock('../../blue_modules/lightning-bridge/runtime', () => ({
+  bridgeStore: { read: jest.fn(), write: jest.fn() },
+  crossChainBridge: { history: jest.fn() },
+}));
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useFocusEffect: (callback: () => void) => {
@@ -102,6 +109,7 @@ const bridge = {
   ),
   invoice: jest.fn(),
   manage: jest.fn(),
+  bridgePayment: jest.fn(),
 };
 const defaultWallet = bridge.wallet.getMockImplementation()!;
 NativeModules.XBTLightningBridge = bridge;
@@ -112,6 +120,7 @@ beforeEach(() => {
   mockSettings.xbtPriceQuote = null;
   mockTopInset = 0;
   mockBottomInset = 0;
+  jest.mocked(bridgeStore.read).mockResolvedValue({ version: 1, records: [], requests: [] });
   bridge.run.mockResolvedValue('Running');
   bridge.wallet.mockImplementation(defaultWallet);
   bridge.invoice.mockReset();
@@ -157,6 +166,134 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   expect(screen.queryByLabelText('Receive on-chain')).toBeNull();
   expect(bridge.invoice).not.toHaveBeenCalled();
   expect(bridge.manage).not.toHaveBeenCalled();
+  screen.unmount();
+});
+
+test('each selection brings forward one curved title over a level row of two icon tabs', async () => {
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  const tabs = [
+    ['Transactions', 'list-outline'],
+    ['Cross-chain payments', 'swap-horizontal-outline'],
+    ['Funding', 'wallet-outline'],
+  ] as const;
+  const height = () => StyleSheet.flatten(screen.getByTestId('LndHistoryTabs').props.style).height;
+  const initialHeight = height();
+  for (const [selected] of tabs) {
+    await act(async () => fireEvent.press(screen.getByRole('tab', { name: selected })));
+    expect(height()).toBe(initialHeight);
+    for (const [name, iconName] of tabs) {
+      const button = screen.getByRole('tab', { name });
+      const style = StyleSheet.flatten(button.props.style);
+      if (name === selected) {
+        expect(button.props.accessibilityState.selected).toBe(true);
+        expect(style).toMatchObject({ flexBasis: '64%', borderTopLeftRadius: 13.25, borderTopRightRadius: 13.25 });
+        expect(StyleSheet.flatten(within(button).getByText(name).props.style).fontSize).toBe(21);
+        expect(button.findAllByType(Ionicons)).toHaveLength(0);
+      } else {
+        expect(style.flexBasis).toBe('18%');
+        expect(style.borderTopLeftRadius).toBeUndefined();
+        expect(style.borderTopRightRadius).toBeUndefined();
+        expect(within(button).queryByText(name)).toBeNull();
+        expect(button.findByType(Ionicons).props.name).toBe(iconName);
+      }
+    }
+  }
+  screen.unmount();
+});
+
+test('the middle tab scopes records and quote attempts to this node and only settled payments show a debit', async () => {
+  const wallet = new LndWallet();
+  const settledHash = '11'.repeat(32);
+  const expiredHash = '22'.repeat(32);
+  const now = 1700000000000;
+  const record: SwapRecord = {
+    hash: settledHash,
+    node: overview.node,
+    provider: 'fixture',
+    state: 'settled',
+    feeLimit: '1',
+    createdAt: now,
+    updatedAt: now,
+    quote: {
+      provider: 'fixture',
+      hash: settledHash,
+      original: 'synthetic-original',
+      originalMsat: '100000',
+      holdInvoice: 'synthetic-hold',
+      payMsat: '300000125',
+      paySat: '300001',
+      rate: 1,
+      spread: 0,
+      expiresAt: now / 1000 + 60,
+      token: '',
+      destination: overview.node,
+      cltv: 80,
+    },
+  };
+  const otherNode = '03' + 'bb'.repeat(32);
+  const issue = { hash: '33'.repeat(32), node: overview.node, provider: 'fixture', at: now + 50, reason: 'proofTimeout' } as const;
+  const journal: BridgeJournal = {
+    version: 1,
+    requests: [],
+    records: [record, { ...record, hash: expiredHash, state: 'quote_expired' }, { ...record, node: otherNode }],
+    issues: [issue, { ...issue, node: otherNode, hash: '44'.repeat(32) }],
+  };
+  jest.mocked(bridgeStore.read).mockResolvedValue(journal);
+  bridge.wallet.mockImplementation(async kind =>
+    kind === 'payments'
+      ? {
+          rows: [settledHash, expiredHash].map((id, i) => ({
+            id,
+            direction: 'sent',
+            state: 'settled',
+            sats: '700',
+            feeSats: '0',
+            timestamp: now / 1000,
+            memo: i ? 'Separate payment' : 'Bridge leg',
+          })),
+          next: '0',
+          more: false,
+        }
+      : defaultWallet(kind),
+  );
+  const screen = render(<LndWalletHome wallet={wallet} />);
+  await act(async () => {});
+  expect(screen.getByText('Test payment')).toBeTruthy();
+  expect(screen.getByText('Separate payment')).toBeTruthy();
+  expect(screen.queryByText('Bridge leg')).toBeNull();
+  expect(screen.queryByText('XBT → SHA-256')).toBeNull();
+  bridge.wallet.mockClear();
+  await act(async () => fireEvent.press(screen.getByRole('tab', { name: 'Cross-chain payments' })));
+  expect(screen.getAllByText('XBT → SHA-256')).toHaveLength(3);
+  expect(screen.getByText(/^Quote expired/)).toBeTruthy();
+  expect(screen.getByText(/^Quote request/)).toBeTruthy();
+  expect(screen.getAllByText('−300000.125 XBT sats')).toHaveLength(1);
+  expect(screen.queryByText('Separate payment')).toBeNull();
+  expect(screen.queryByText('Test payment')).toBeNull();
+  expect(bridge.wallet.mock.calls.every(([kind]) => kind === 'overview')).toBe(true);
+  expect(bridge.bridgePayment).not.toHaveBeenCalled();
+  expect(bridgeStore.write).not.toHaveBeenCalled();
+  wallet.hideBalance = true;
+  screen.rerender(<LndWalletHome wallet={wallet} />);
+  expect(screen.queryByText(/300000/)).toBeNull();
+  bridge.run.mockResolvedValue('Locked');
+  await act(async () => fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh'));
+  expect(screen.queryByText('XBT → SHA-256')).toBeNull();
+  expect(screen.getByText(/Start or unlock/)).toBeTruthy();
+  screen.unmount();
+});
+
+test('a failed journal read is distinct from an empty cross-chain history and a pull can recover', async () => {
+  jest.mocked(bridgeStore.read).mockRejectedValue(new Error('Synthetic storage read error'));
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  await act(async () => fireEvent.press(screen.getByRole('tab', { name: 'Cross-chain payments' })));
+  expect(screen.getByText(/history could not be read/)).toBeTruthy();
+  jest.mocked(bridgeStore.read).mockResolvedValue({ version: 1, records: [], requests: [] });
+  await act(async () => fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh'));
+  expect(screen.getByText('No cross-chain payments yet.')).toBeTruthy();
+  expect(bridge.bridgePayment).not.toHaveBeenCalled();
   screen.unmount();
 });
 
@@ -208,7 +345,7 @@ describe('Lightning connection clock', () => {
       left: 0,
       right: 0,
       alignItems: 'center',
-      top: 88,
+      top: 78,
     });
     expect(overlay.props.pointerEvents).toBe('none');
     expect(within(overlay).getByTestId('svg-Svg').props).toMatchObject({ width: 112, height: 112 });
@@ -375,6 +512,7 @@ test('navigation shows the wallet name once and the three-dot menu opens node to
   expect(screen.getByLabelText('LND · Connected')).toBeTruthy();
   const options = mockNavigation.setOptions.mock.calls.at(-1)![0];
   expect(options.title).toBe('Travel Lightning');
+  expect(options.headerTitleStyle.fontSize).toBe(19);
   expect(screen.queryByText('Travel Lightning')).toBeNull();
   const menu = render(<View>{options.headerRight()}</View>);
   fireEvent.press(menu.getByLabelText('Lightning wallet settings'));

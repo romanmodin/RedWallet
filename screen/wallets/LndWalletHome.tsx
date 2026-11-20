@@ -1,8 +1,9 @@
 import CrossChainLightning from '../../components/CrossChainLightning';
 import { bridgeStore } from '../../blue_modules/lightning-bridge/runtime';
-import { SwapRecord } from '../../blue_modules/lightning-bridge/state';
+import { BridgeHistoryEntry, historyForNode } from '../../blue_modules/lightning-bridge/state';
 import { formatMsat } from '../../blue_modules/lightning-bridge/invoice';
 import LndBalanceBreakdown from '../../components/LndBalanceBreakdown';
+import LndHistoryTabs, { LndHistoryTab } from '../../components/LndHistoryTabs';
 import React, { useCallback, useLayoutEffect, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -43,13 +44,23 @@ const merge = (old: LndActivity[], next: LndActivity[]) => [
   ...new Map([...old, ...next].map(row => [row.direction + row.id, row])).values(),
 ];
 
-function activityTitle(item: LndActivity, crossChain: boolean) {
-  if (crossChain) return 'XBT → SHA-256';
-  if (item.confirmations === undefined && item.state === 'settled') return undefined;
+function historyTime(milliseconds: number) {
+  const date = new Date(milliseconds);
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function activityTitle(item: LndActivity) {
+  if (item.confirmations !== undefined) return item.direction === 'sent' ? 'Withdrawal' : 'Deposit';
+  if (item.state === 'settled') return undefined;
   if (item.direction === 'sent') return '↗ Payment';
   if (item.state === 'unpaid') return 'Invoice · Awaiting payment';
-  if (item.confirmations === undefined) return 'Invoice · ' + item.state;
-  return '↙ Received';
+  return 'Invoice · ' + item.state;
 }
 
 export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
@@ -92,13 +103,18 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   };
   const insets = useSafeAreaInsets();
   const headerOverlayHeight = React.useContext(HeaderHeightContext) ?? insets.top;
-  // The clock sits just above the midpoint of the 44-point balance row, including its 18-point top margin.
-  const clockTop = Math.max(insets.top, headerOverlayHeight + 34 - connectionClockDiameter / 2);
-  const [tab, setTab] = useState<'transactions' | 'funding'>('transactions');
+  // The ring center sits six points above the middle of the tappable balance row.
+  const balanceTop = headerOverlayHeight + 8;
+  const clockTop = Math.max(insets.top, balanceTop + 16 - connectionClockDiameter / 2);
+  const [tab, setTab] = useState<LndHistoryTab>('transactions');
   const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const [pages, setPages] = useState<Pages>({});
-  const [crossHistory, setCrossHistory] = useState<{ hash?: string }>();
-  const [crossRecords, setCrossRecords] = useState<Record<string, SwapRecord>>({});
+  const [nativeHistory, setNativeHistory] = useState<{ node: string; pages: Pages }>();
+  const [openedEntry, setOpenedEntry] = useState<{ node: string; hash: string }>();
+  const [bridgeHistory, setBridgeHistory] = useState<{
+    node: string;
+    entries: BridgeHistoryEntry[];
+    unavailable?: boolean;
+  }>();
   const [refreshing, setRefreshing] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const [message, setMessage] = useState('Checking Lightning connection…');
@@ -113,6 +129,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: wallet.getLabel(),
+      headerTitleStyle: { fontSize: 19, fontWeight: '700' },
       headerTransparent: true,
       headerStyle: { backgroundColor: 'transparent' },
       headerTintColor: '#FFFFFF',
@@ -171,7 +188,10 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           setMessage('Node: ' + wallet.status + '. Open wallet settings to start or unlock it.');
           return;
         }
-        const kinds: ('funding' | 'payments' | 'invoices')[] = tab === 'funding' ? ['funding'] : ['payments', 'invoices'];
+        const node = wallet.overview?.node;
+        if (!node) throw new Error('Missing Lightning node identity.');
+        const pages = nativeHistory?.node === node ? nativeHistory.pages : {};
+        const kinds: (keyof Pages)[] = tab === 'transactions' ? ['payments', 'invoices'] : tab === 'funding' ? ['funding'] : [];
         const updates: Pages = {};
         for (const kind of kinds) {
           const previous = pages[kind];
@@ -184,15 +204,26 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             rows: merge(previous?.rows ?? [], page.rows),
           };
         }
-        if (bridge.bridgePayment) {
-          const stored = await bridgeStore.read();
-          if (!focused.current || generation.current !== requestGeneration) return;
-          setCrossRecords(
-            Object.fromEntries(stored.records.filter(item => item.node === wallet.overview?.node).map(item => [item.hash, item])),
-          );
+        if (tab !== 'funding' && bridge?.bridgePayment) {
+          try {
+            const journal = await bridgeStore.read();
+            if (!isCurrent()) return;
+            setBridgeHistory({ node, entries: historyForNode(journal, node) });
+          } catch {
+            if (!isCurrent()) return;
+            setBridgeHistory(old => ({
+              node,
+              entries: old?.node === node ? old.entries : [],
+              unavailable: true,
+            }));
+          }
         }
-        if (!focused.current || generation.current !== requestGeneration) return;
-        setPages(old => ({ ...old, ...updates }));
+        if (!isCurrent()) return;
+        if (kinds.length)
+          setNativeHistory(old => ({
+            node,
+            pages: { ...(old?.node === node ? old.pages : {}), ...updates },
+          }));
         if (updates.payments && updates.invoices) wallet.activity = [...updates.payments.rows, ...updates.invoices.rows];
         setMessage(wallet.connection() === 'connected' ? connectedMessage : 'Waiting for sync or Lightning peers');
         shouldSave = true;
@@ -217,7 +248,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         if (next) refreshRef.current(false, next === 'pull');
       }
     },
-    [wallet, tab, pages, saveToDisk],
+    [wallet, tab, nativeHistory, saveToDisk],
   );
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -264,14 +295,26 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const [canceledExpanded, setCanceledExpanded] = useState(false);
   const overview = wallet.overview;
   const ready = wallet.status === 'Running' && !!overview?.synced && Date.now() - wallet.observedAt <= 30_000;
-  const rows = (tab === 'funding' ? (pages.funding?.rows ?? []) : [...(pages.payments?.rows ?? []), ...(pages.invoices?.rows ?? [])]).sort(
-    (a, b) => b.timestamp - a.timestamp || a.id.localeCompare(b.id),
+  const node = overview?.node;
+  const pages = nativeHistory && nativeHistory.node === node ? nativeHistory.pages : {};
+  const currentBridge = bridgeHistory?.node === node ? bridgeHistory : undefined;
+  const bridgeEntries = currentBridge?.entries ?? [];
+  // A canceled or expired quote never submitted a native payment, even if another send uses its hash.
+  const bridgePayments = new Set(
+    bridgeEntries
+      .filter(({ record }) => record && ['submitting', 'pending', 'unknown', 'settled', 'failed'].includes(record.state))
+      .map(entry => entry.hash),
   );
+  const rows = (
+    tab === 'funding'
+      ? [...(pages.funding?.rows ?? [])]
+      : [...(pages.payments?.rows ?? []).filter(row => !bridgePayments.has(row.id)), ...(pages.invoices?.rows ?? [])]
+  ).sort((a, b) => b.timestamp - a.timestamp || a.id.localeCompare(b.id));
   const isCanceled = (row: LndActivity) => tab === 'transactions' && row.state === 'canceled' && row.confirmations === undefined;
   const canceled = rows.filter(isCanceled);
   const latestCanceled = canceled[0];
   const visibleRows = rows.filter(row => !isCanceled(row) || canceledExpanded || row === latestCanceled);
-  const hasMore = tab === 'funding' ? pages.funding?.more : pages.payments?.more || pages.invoices?.more;
+  const hasMore = tab === 'funding' ? pages.funding?.more : tab === 'transactions' && (pages.payments?.more || pages.invoices?.more);
   const cancelling = useRef(new Set<string>());
   const cancelInvoice = async (row: LndActivity) => {
     if (cancelling.current.has(row.id)) return;
@@ -280,17 +323,19 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       const cancelled = await bridge.invoice('cancel', '', row.id, '');
       if (cancelled !== true) throw new Error('Cancellation was not confirmed.');
       // Only mark canceled after LND acknowledges; never infer success from dismissal.
-      setPages(previous => {
-        const invoices = previous.invoices;
-        return invoices
-          ? {
-              ...previous,
-              invoices: {
-                ...invoices,
-                rows: invoices.rows.map(item => (item.id === row.id ? { ...item, state: 'canceled' } : item)),
-              },
-            }
-          : previous;
+      setNativeHistory(previous => {
+        if (!previous || previous.node !== node || !previous.pages.invoices) return previous;
+        const invoices = previous.pages.invoices;
+        return {
+          ...previous,
+          pages: {
+            ...previous.pages,
+            invoices: {
+              ...invoices,
+              rows: invoices.rows.map(item => (item.id === row.id ? { ...item, state: 'canceled' } : item)),
+            },
+          },
+        };
       });
       Alert.alert('Invoice canceled', 'This invoice can no longer be paid.');
     } catch (error) {
@@ -301,10 +346,6 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
     }
   };
   const details = (row: LndActivity) => {
-    if (row.direction === 'sent' && crossRecords[row.id]) {
-      setCrossHistory({ hash: row.id });
-      return;
-    }
     const text =
       exactAmount(row.sats) +
       ' · ' +
@@ -363,23 +404,20 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       {mode === 'invoice' && <Text style={styles.actionSubtitle}>Create invoice</Text>}
     </Pressable>
   );
+  const debitColor = dark ? '#FF8D96' : '#B42318';
   const renderActivity = (item: LndActivity) => {
     const sent = item.direction === 'sent';
-    const swap = sent ? crossRecords[item.id] : undefined;
-    const title = activityTitle(item, !!swap);
+    const title = activityTitle(item);
+    const memo = !wallet.hideBalance && item.memo;
     const canceledInvoice = isCanceled(item);
     const amountColor = canceledInvoice
       ? colors.alternativeTextColor
       : sent
-        ? dark
-          ? '#FF8D96'
-          : '#B42318'
+        ? debitColor
         : ['settled', 'confirmed'].includes(item.state)
           ? colors.successColor
           : colors.foregroundColor;
-    const amount = wallet.hideBalance
-      ? '••••'
-      : (canceledInvoice ? '' : sent ? '−' : '+') + (swap?.quote ? formatMsat(swap.quote.payMsat) + ' XBT sats' : formatAmount(item.sats));
+    const amount = wallet.hideBalance ? '••••' : (canceledInvoice ? '' : sent ? '−' : '+') + formatAmount(item.sats);
     return (
       <Pressable
         accessibilityRole="button"
@@ -391,8 +429,9 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         style={[styles.row, { borderBottomColor: colors.lightBorder }]}
       >
         <View style={styles.rowBody}>
-          {title && (
+          {(title || memo) && (
             <Text
+              numberOfLines={title ? undefined : 1}
               style={[
                 styles.rowTitle,
                 {
@@ -400,17 +439,17 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                 },
               ]}
             >
-              {title}
+              {title || memo}
             </Text>
           )}
           <Text style={{ color: colors.alternativeTextColor }}>
-            {swap?.state ?? item.state}
+            {item.state[0].toUpperCase() + item.state.slice(1)}
             {item.confirmations !== undefined ? ' · ' + item.confirmations + ' confirmations' : ''} ·{' '}
-            {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
+            {item.timestamp ? historyTime(item.timestamp * 1000) : 'Time unavailable'}
           </Text>
-          {!wallet.hideBalance && !!item.memo && (
+          {!!title && !!memo && (
             <Text numberOfLines={1} style={{ color: colors.alternativeTextColor }}>
-              {item.memo}
+              {memo}
             </Text>
           )}
         </View>
@@ -421,13 +460,50 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       </Pressable>
     );
   };
+  const renderBridgeEntry = (entry: BridgeHistoryEntry) => {
+    const record = entry.record;
+    const state = record?.state.replace(/_/g, ' ');
+    const status = state ? state[0].toUpperCase() + state.slice(1) : 'Quote request';
+    const amount =
+      record?.state === 'settled' && record.quote
+        ? wallet.hideBalance
+          ? '••••'
+          : '−' + formatMsat(record.quote.payMsat) + ' XBT sats'
+        : undefined;
+    return (
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => node && setOpenedEntry({ node, hash: entry.hash })}
+        style={[styles.row, { borderBottomColor: colors.lightBorder }]}
+      >
+        <View style={styles.rowBody}>
+          <Text style={[styles.rowTitle, { color: colors.foregroundColor }]}>XBT → SHA-256</Text>
+          <Text style={{ color: colors.alternativeTextColor }}>
+            {status}
+            {!wallet.hideBalance && ' · ' + historyTime(entry.at)}
+          </Text>
+        </View>
+        {amount && <Text style={[styles.amount, styles.bridgeAmount, { color: debitColor }]}>{amount}</Text>}
+      </Pressable>
+    );
+  };
+  const canShowBridgeHistory = wallet.status === 'Running' && !!node && !!bridge?.bridgePayment;
+  const bridgeEmpty = !bridge?.bridgePayment
+    ? 'Cross-chain history requires the embedded Lightning engine.'
+    : !canShowBridgeHistory
+      ? 'Start or unlock the XBT node to view its cross-chain payments.'
+      : currentBridge?.unavailable
+        ? 'Cross-chain history could not be read. Pull down to try again.'
+        : currentBridge
+          ? 'No cross-chain payments yet.'
+          : 'Checking cross-chain history…';
   return (
     <View testID="LndWalletHome" style={[styles.root, { backgroundColor: colors.background }]}>
-      {crossHistory && (
+      {openedEntry && openedEntry.node === node && canShowBridgeHistory && (
         <CrossChainLightning
-          initialHash={crossHistory.hash}
+          initialHash={openedEntry.hash}
           hideHistoryAmounts={wallet.hideBalance}
-          onClose={() => setCrossHistory(undefined)}
+          onClose={() => setOpenedEntry(undefined)}
           canSubmit={() => focused.current}
         />
       )}
@@ -436,7 +512,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           styles.hero,
           {
             backgroundColor: WalletGradient.xbtWallet[0],
-            paddingTop: headerOverlayHeight + 18,
+            paddingTop: balanceTop,
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },
@@ -467,7 +543,9 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
               {wallet.hideBalance ? '••••' : formatAmount(wallet.getBalance())}
             </Text>
           </Pressable>
-          <LndConnectionBadge wallet={wallet} />
+          <View style={styles.balanceBadge}>
+            <LndConnectionBadge wallet={wallet} />
+          </View>
         </View>
         <View style={styles.detailsBar}>
           <Pressable
@@ -507,59 +585,25 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
               : 'Node balance not yet available'}
           </Text>
         )}
-        <View pointerEvents="none" style={[styles.sectionCurve, { backgroundColor: colors.background }]} />
       </View>
-      <View style={[styles.tabs, { borderBottomColor: colors.lightBorder }]}>
-        {(['transactions', 'funding'] as const).map(value => (
-          <Pressable
-            key={value}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === value }}
-            onPress={() => setTab(value)}
-            style={[
-              styles.tab,
-              value === 'funding' && styles.fundingTab,
-              tab === value && styles.selectedTab,
-              tab === value && {
-                borderBottomColor: colors.alternativeTextColor2,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.tabTitle,
-                value === 'funding' && styles.fundingTabTitle,
-                {
-                  color: tab === value ? colors.foregroundColor : colors.alternativeTextColor,
-                },
-              ]}
-            >
-              {value === 'transactions' ? 'Transactions' : 'Funding'}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <LndHistoryTabs selected={tab} onSelect={setTab} />
       {tab === 'funding' && (
         <Text style={[styles.fundingHeading, { color: colors.foregroundColor }]}>On-chain deposits and withdrawals</Text>
       )}
-      <FlatList
+      <FlatList<LndActivity | BridgeHistoryEntry>
+        key={tab}
         style={styles.history}
-        data={visibleRows}
+        data={tab === 'crossChain' ? (canShowBridgeHistory ? bridgeEntries : []) : visibleRows}
         contentInsetAdjustmentBehavior="never"
-        keyExtractor={row => row.direction + row.id}
+        keyExtractor={row => ('issues' in row ? row.hash : row.direction + row.id)}
         refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => refresh(false, true)} />}
         contentContainerStyle={styles.historyContent}
         ListHeaderComponent={
           <>
-            {tab === 'transactions' && bridge.bridgePayment && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Cross-chain payment history"
-                style={styles.load}
-                onPress={() => setCrossHistory({})}
-              >
-                <Text style={{ color: colors.foregroundColor }}>Cross-chain payment history</Text>
-              </Pressable>
+            {tab === 'crossChain' && canShowBridgeHistory && currentBridge?.unavailable && bridgeEntries.length > 0 && (
+              <Text style={[styles.historyNotice, { color: colors.alternativeTextColor }]}>
+                Showing saved cross-chain activity. Pull down to try again.
+              </Text>
             )}
             {tab === 'funding' && !!overview && (
               <LndBalanceBreakdown overview={overview} hidden={wallet.hideBalance === true} stale={!ready} format={formatAmount} />
@@ -581,11 +625,15 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           <Text style={[styles.empty, { color: colors.alternativeTextColor }]}>
             {tab === 'transactions'
               ? 'Lightning payments and invoices will appear here.'
-              : 'On-chain funding transactions will appear here.'}
+              : tab === 'crossChain'
+                ? bridgeEmpty
+                : 'On-chain funding transactions will appear here.'}
           </Text>
         }
         renderItem={({ item }) =>
-          item === latestCanceled ? (
+          'issues' in item ? (
+            renderBridgeEntry(item)
+          ) : item === latestCanceled ? (
             <View>
               <View style={styles.stack}>
                 <View
@@ -626,7 +674,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
                   <Text style={[styles.rowTitle, { color: colors.alternativeTextColor }]}>Canceled invoices · {canceled.length}</Text>
                   <Text style={{ color: colors.alternativeTextColor }}>
                     Latest: {wallet.hideBalance ? '••••' : formatAmount(item.sats)} ·{' '}
-                    {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : 'Time unavailable'}
+                    {item.timestamp ? historyTime(item.timestamp * 1000) : 'Time unavailable'}
                   </Text>
                   <Text style={[styles.stackHint, { color: colors.alternativeTextColor }]}>
                     {canceledExpanded ? 'COLLAPSE ▴' : 'EXPAND ▾'}
@@ -694,17 +742,7 @@ const styles = StyleSheet.create({
   refreshStatus: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
   fundingHeading: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   disabled: { opacity: 0.5 },
-  selectedTab: { borderBottomWidth: 3 },
-  hero: { alignSelf: 'stretch', paddingBottom: 24 },
-  sectionCurve: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: -1,
-    height: 13,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
+  hero: { alignSelf: 'stretch', paddingBottom: 12 },
   clockOverlay: {
     position: 'absolute',
     left: 0,
@@ -712,14 +750,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   balanceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  // Center the pill on the figures' cap height within the vertically centered text line.
+  balanceBadge: { alignSelf: 'center', transform: [{ translateY: -2 }] },
   balanceButton: {
     flex: 1,
-    maxWidth: '75%',
+    maxWidth: '69%',
     minWidth: 0,
     minHeight: 44,
     justifyContent: 'center',
   },
-  balance: { color: '#FFFFFF', fontSize: 36, fontWeight: '700', textAlign: 'left' },
+  balance: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    textAlign: 'left',
+    includeFontPadding: false,
+  },
   balanceLabel: {
     color: '#FFE7EA',
     fontSize: 12,
@@ -728,26 +775,11 @@ const styles = StyleSheet.create({
   fiat: { color: '#FFFFFF', marginTop: 10 },
   status: {
     color: '#FFE7EA',
-    marginTop: 10,
+    marginTop: 2,
     fontSize: 12,
   },
-  tabs: { flexDirection: 'row', borderBottomWidth: 1 },
-  tab: {
-    flex: 1,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    minHeight: 44,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  fundingTab: {
-    flex: 0,
-    minWidth: 76,
-    alignItems: 'center',
-    paddingHorizontal: 12,
-  },
-  fundingTabTitle: { fontSize: 12, fontWeight: '600' },
-  tabTitle: { fontSize: 24, fontWeight: '700' },
+  bridgeAmount: { maxWidth: '55%' },
+  historyNotice: { paddingHorizontal: 16, paddingVertical: 8 },
   menu: { padding: 10 },
   menuText: { color: '#FFFFFF', fontSize: 20, fontWeight: '700' },
   funding: { padding: 16, gap: 8 },
