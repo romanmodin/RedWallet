@@ -1,0 +1,24 @@
+name: Discover published Kilowallet releases
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: kilowallet-tag-intake
+  cancel-in-progress: false
+jobs:
+  discover:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+      - run: python3 -I .github/scripts/kilowallet-tag-intake.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INTAKE_WRITE: 'true'
