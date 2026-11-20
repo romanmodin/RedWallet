@@ -1,5 +1,3 @@
-RedWallet XBT 8.0.1 (1795082047)
+RedWallet XBT 8.0.1 (1795195563)
 
-The iPhone uses the bridge's proof-of-work challenge lifetime, up to two minutes, when requesting a SHA-256 Lightning quote. If the proof expires before RedWallet sends the request, you can manually get a fresh quote. Payment still requires your confirmation.
-
-Invoice sharing opens with a QR image. Switch to text to share the invoice string. The Pay screen has a larger, softly glowing invoice field.
+Check the connection indicator while Lightning starts, the compact Lightning settings, and payment history when a bridge quote fails.
