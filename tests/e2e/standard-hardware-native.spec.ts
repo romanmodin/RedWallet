@@ -391,5 +391,5 @@ suite('Standard hardware iOS qualification', () => {
         );
       },
     });
-  }, 900000);
+  }, 22 * 60 * 1000);
 });

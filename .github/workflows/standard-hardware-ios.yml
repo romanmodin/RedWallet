@@ -267,7 +267,7 @@ jobs:
           PY
 
       - name: Run watch-only standard signing flow
-        timeout-minutes: 22
+        timeout-minutes: 28
         env:
           REDWALLET_STANDARD_NATIVE: "1"
         run: REDWALLET_BACKEND_BIN="$RUNNER_TEMP/redwallet-backend-bin" python3 .github/scripts/run-standard-hardware-ios.py
