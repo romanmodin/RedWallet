@@ -2,7 +2,7 @@
 // Keep native validation in sync. LND applies balance, dust, reserve and peer rules.
 export const MAX_LIGHTNING_SATS = 2_100_000_000_000_000;
 // User-selected cap for opening new channels; existing channels can still be resized.
-export const MAX_LIGHTNING_CHANNEL_OPEN_SATS = 10_000_000;
+export const MAX_LIGHTNING_CHANNEL_OPEN_SATS = 100_000_000;
 // LND multiplies sat/kvB by vsize before dividing by 1000. Allow the 3x
 // close ceiling and any consensus-valid transaction (1,000,000 vB), including
 // its rounding increment, without overflowing signed Int64 intermediates.

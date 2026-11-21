@@ -45,9 +45,9 @@ class LightningDeviceTest {
         waitFor { node("status") == "Needs setup" }
     }
     @Test fun openingCapIsEnforcedBeforeNodeCalls() {
-        val rejected = runCatching { RegtestNode.invoice("open", "02" + "a".repeat(64), "1", "10000001") }
+        val rejected = runCatching { RegtestNode.invoice("open", "02" + "a".repeat(64), "1", "100000001") }
         assertTrue(rejected.isFailure)
-        assertTrue(rejected.exceptionOrNull()?.message.orEmpty().contains("10,000,000 sats"))
+        assertTrue(rejected.exceptionOrNull()?.message.orEmpty().contains("100,000,000 sats (1 XBT)"))
     }
     @Test fun unsafeFeeIsRejectedBeforeAnyNodeCall() {
         val maximum = LightningAmounts.MAX_FEE_RATE

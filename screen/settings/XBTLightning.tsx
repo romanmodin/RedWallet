@@ -868,7 +868,7 @@ export default function XBTLightning({
                   })
                 }
               />
-              <SettingsFootnote>CHANNEL AMOUNT (SATS) · MAX 10,000,000</SettingsFootnote>
+              <SettingsFootnote>CHANNEL AMOUNT (SATS) · MAX 100,000,000 (1 XBT)</SettingsFootnote>
               <TextInput
                 accessibilityLabel="New channel sats"
                 style={[
