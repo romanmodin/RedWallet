@@ -58,12 +58,15 @@ async function prepare() {
 function sign(view: ReturnType<typeof render>) {
   const hex = view.getByTestId('EncodedTestQR').props.value;
   const psbt = bitcoin.Psbt.fromHex(hex);
-  expect(psbt.toHex()).toBe(createHardwareSigningFixture(account).request.toHex());
-  return psbt.signInput(0, node.derive(0).derive(0));
+  expect(psbt.toHex()).toBe(createHardwareSigningFixture(account, 'send').request.toHex());
+  expect(psbt.inputCount).toBe(3);
+  psbt.txInputs.forEach((_, index) => psbt.signInput(index, node.derive(0).derive(index)));
+  return psbt;
 }
 
 test('public account → review → QR → valid signed return, using the real offline verifier', async () => {
   const view = await prepare();
+  expect(view.getByText('Inputs to sign: 3')).toBeTruthy();
   expect(view.getByText('Recipient: 40000 sats')).toBeTruthy();
   expect(view.getByText('Change: 59000 sats')).toBeTruthy();
   expect(view.getByText('Fee: 1000 sats')).toBeTruthy();
@@ -71,7 +74,7 @@ test('public account → review → QR → valid signed return, using the real o
   const signed = sign(view);
   const receive = await scan(view, 'HardwareCheckScanSignature');
   act(() => receive(signed.toBase64()));
-  expect(view.getByTestId('HardwareCheckPassed')).toBeTruthy();
+  expect(view.getByText('Verified all 3 test signatures')).toBeTruthy();
   expect(view.queryByTestId('HardwareCheckFailed')).toBeNull();
   expect(view.queryByTestId('EncodedTestQR')).toBeNull();
   // A delayed duplicate with bad data cannot overwrite a completed check.
@@ -83,7 +86,7 @@ test('unsigned or changed response cannot show success; a deliberate rescan can 
   const view = await prepare();
   const signed = sign(view);
   const receive = await scan(view, 'HardwareCheckScanSignature');
-  act(() => receive(createHardwareSigningFixture(account).request.toBase64()));
+  act(() => receive(createHardwareSigningFixture(account, 'send').request.toBase64()));
   expect(view.queryByTestId('HardwareCheckPassed')).toBeNull();
   expect(view.getByTestId('HardwareCheckFailed')).toBeTruthy();
   const retry = await scan(view, 'HardwareCheckScanSignature');

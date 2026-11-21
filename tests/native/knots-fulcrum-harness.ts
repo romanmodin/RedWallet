@@ -56,7 +56,29 @@ export type BackendReceipt = {
   disconnectFaults: number;
   checkpointRequests: number;
   invalidCertificateTested: boolean;
+  transport: TransportCounters;
 };
+// Count-only transport stages. Never record payloads, addresses, ports or error text.
+export type TransportCounters = {
+  tcpAccepted: number;
+  tlsHandshakesCompleted: number;
+  tlsClientErrors: number;
+};
+
+// tcpAccepted === 0 means the client never reached the listener. tcpAccepted greater than
+// tlsHandshakesCompleted + tlsClientErrors means a handshake is stalled or still pending.
+export function countTransportStages(server: tls.Server, counters: TransportCounters): void {
+  server.on('connection', () => {
+    counters.tcpAccepted++;
+  });
+  server.on('secureConnection', () => {
+    counters.tlsHandshakesCompleted++;
+  });
+  // A registered tlsClientError listener also keeps handshake failures from being thrown.
+  server.on('tlsClientError', () => {
+    counters.tlsClientErrors++;
+  });
+}
 
 export async function eventually(check: () => Promise<boolean>, timeout = 30_000): Promise<void> {
   const deadline = Date.now() + timeout;
@@ -121,6 +143,7 @@ export class KnotsFulcrumHarness {
       disconnectFaults: 0,
       checkpointRequests: 0,
       invalidCertificateTested: false,
+      transport: { tcpAccepted: 0, tlsHandshakesCompleted: 0, tlsClientErrors: 0 },
     };
   }
 
@@ -389,7 +412,7 @@ export class KnotsFulcrumHarness {
         }
       });
     });
-    this.bridge.on('tlsClientError', () => {});
+    countTransportStages(this.bridge, this.receipt.transport);
     await new Promise<void>((resolve, reject) => {
       this.bridge!.once('error', reject);
       // Android's emulator connects through 10.0.2.2; reserve a local listener only.

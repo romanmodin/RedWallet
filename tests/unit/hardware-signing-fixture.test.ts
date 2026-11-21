@@ -6,7 +6,8 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync, statSync, existsSync 
 import os from 'os';
 import path from 'path';
 import ecc from '../../blue_modules/noble_ecc';
-import { assertStandardHardwareResult } from '../../class/xbt/standard-hardware';
+import { parseSignedScan } from '../../class/hardware/signed-scan';
+import { assertStandardHardwareResult, STANDARD_HARDWARE_RELEASE_ENABLED } from '../../class/xbt/standard-hardware';
 import {
   createHardwareSigningFixture,
   parsePublicAccount,
@@ -219,3 +220,55 @@ test.each(['binary', 'base64', 'psbt-hex', 'final-psbt', 'raw-hex'])(
     }
   },
 );
+
+describe('phone check with the standard Send signature path', () => {
+  const build = () => createHardwareSigningFixture(account, 'send');
+  const signedRequest = () => {
+    const { request } = build();
+    request.txInputs.forEach((_, index) => request.signInput(index, node.derive(0).derive(index)));
+    return request;
+  };
+  const verify = (text: string) => verifyHardwareSigningFixture(account, bytes(text), 'send');
+
+  test('all three distinct reviewed outpoints use full consensus-invalid parents and independent public derivations', () => {
+    const { request, parents, review } = build();
+    expect(STANDARD_HARDWARE_RELEASE_ENABLED).toBe(false);
+    expect(new Set(parents.map(parent => parent.getId())).size).toBe(3);
+    expect(request.txOutputs.map(output => output.value)).toEqual([40000n, 59000n]);
+    expect(review).toMatchObject({ inputCount: 3, inputSat: '100000', feeSat: '1000', paymentQualified: false });
+    parents.forEach((parent, index) => {
+      expect(parent.ins).toHaveLength(2);
+      expect(parent.ins[0]).toEqual(parent.ins[1]);
+      expect(request.txInputs[index].hash).toEqual(parent.getHash());
+      expect(request.data.inputs[index].nonWitnessUtxo).toEqual(parent.toBuffer());
+      expect(request.data.inputs[index].witnessUtxo).toEqual(parent.outs[0]);
+      expect(request.data.inputs[index].bip32Derivation?.[0]).toMatchObject({
+        path: accountPath + '/0/' + index,
+        pubkey: node.derive(0).derive(index).publicKey,
+      });
+    });
+  });
+
+  test.each(['hex', 'base64', 'mixed finalization', 'finalized'])('verifies every signature on a %s PSBT', format => {
+    const p = signedRequest();
+    if (format === 'mixed finalization') p.finalizeInput(0);
+    if (format === 'finalized') p.finalizeAllInputs();
+    const result = verify(format === 'hex' ? p.toHex().toUpperCase() : p.toBase64());
+    expect(result).toMatchObject({ verifiedInputs: 3, paymentQualified: false });
+  });
+
+  test.each([0, 1, 2])('a missing signature for input %i cannot pass', missing => {
+    const { request } = build();
+    for (const index of [0, 1, 2]) if (index !== missing) request.signInput(index, node.derive(0).derive(index));
+    expect(() => verify(request.toHex())).toThrow();
+  });
+
+  test('rejects incomplete QR, an old single-input return, a bare transaction and a bad final witness', () => {
+    expect(() => parseSignedScan('  UR:CRYPTO-PSBT/1-3/fragment')).toThrow('Finish scanning');
+    expect(() => verify(signed().toBase64())).toThrow('changed the fixture');
+    const final = signedRequest().finalizeAllInputs();
+    expect(() => verify(final.extractTransaction().toHex())).toThrow('Scan a signed PSBT');
+    final.data.inputs[2].finalScriptWitness = final.data.inputs[0].finalScriptWitness;
+    expect(() => verify(final.toBase64())).toThrow();
+  });
+});

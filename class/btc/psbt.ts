@@ -1,8 +1,19 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import ecc from '../../blue_modules/noble_ecc';
-import { assertBitcoinPayment } from '../../blue_modules/BtcElectrum';
 
 const same = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
+
+export function assertBitcoinPayment(hex: string): void {
+  const tx = bitcoin.Transaction.fromHex(hex);
+  if (!tx.ins.length || !tx.outs.length) throw new Error('Bitcoin broadcast requires a signed transaction');
+  for (const input of tx.ins) {
+    if (input.script.length || input.witness.length !== 2) throw new Error('Bitcoin wallet requires Native SegWit inputs');
+    const [signature, pubkey] = input.witness;
+    if (bitcoin.script.signature.decode(signature).hashType !== bitcoin.Transaction.SIGHASH_ALL || pubkey.length !== 33) {
+      throw new Error('Bitcoin broadcast refuses nonstandard or XBT Unified signatures');
+    }
+  }
+}
 
 /** Validate even finalized PSBTs, whose inputs no longer carry partial signatures. */
 export function assertSignedBtcTransaction(hex: string, request: bitcoin.Psbt): bitcoin.Transaction {

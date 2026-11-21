@@ -22,4 +22,4 @@ def command(_format):
 if __name__ == "__main__":
     if os.environ.get("REDWALLET_STANDARD_NATIVE") != "1":
         sys.exit("Explicit standard-hardware simulator qualification required")
-    sys.exit(runner.run_formats(command, os.environ, timeout_seconds=18 * 60))
+    sys.exit(runner.run_formats(command, os.environ, timeout_seconds=25 * 60))

@@ -80,13 +80,13 @@ const HardwareSigningCheck = () => {
           try {
             if (kind === 'account') {
               const account = parseHardwareCheckAccount(text);
-              const fixture = createHardwareSigningFixture(account);
+              const fixture = createHardwareSigningFixture(account, 'send');
               setCheck({ account, requestHex: fixture.request.toHex(), review: fixture.review });
               setShowRequest(false);
               setResult(undefined);
             } else if (original) {
               if (typeof text !== 'string' || text.length > 64 * 1024) throw new Error('Invalid response size');
-              verifyHardwareSigningFixture(original.account, Buffer.from(text, 'utf8'));
+              verifyHardwareSigningFixture(original.account, Buffer.from(text, 'utf8'), 'send');
               setResult('passed');
             }
           } catch {
@@ -120,7 +120,9 @@ const HardwareSigningCheck = () => {
             testID={result === 'passed' ? 'HardwareCheckPassed' : 'HardwareCheckFailed'}
             style={result === 'passed' ? styles.success : styles.error}
           >
-            {result === 'passed' ? loc.hardware_check.passed : loc.hardware_check.failed}
+            {result === 'passed' && check
+              ? loc.formatString(loc.hardware_check.passed, { count: check.review.inputCount })
+              : loc.hardware_check.failed}
           </BlueText>
         </>
       )}
@@ -146,6 +148,7 @@ const HardwareSigningCheck = () => {
           <BlueText>{loc.formatString(loc.hardware_check.fingerprint, { fingerprint: check.account.fingerprint.toUpperCase() })}</BlueText>
           <BlueSpacing20 />
           <BlueText style={styles.heading}>{loc.hardware_check.test_amounts}</BlueText>
+          <BlueText>{loc.formatString(loc.hardware_check.inputs, { count: check.review.inputCount })}</BlueText>
           <BlueText>{loc.formatString(loc.hardware_check.recipient, { amount: check.review.recipientSat })}</BlueText>
           <BlueText>{loc.formatString(loc.hardware_check.change, { amount: check.review.changeSat })}</BlueText>
           <BlueText>{loc.formatString(loc.hardware_check.fee, { amount: check.review.feeSat })}</BlueText>

@@ -11,11 +11,12 @@ real(
   async () => {
     const master = BIP32Factory(ecc).fromSeed(Buffer.alloc(32, 1));
     const accountPath = "m/84'/0'/0'";
-    const { funding } = createHardwareSigningFixture({
+    const account = {
       fingerprint: Buffer.from(master.fingerprint).toString('hex'),
       accountPath,
       xpub: master.derivePath(accountPath).neutered().toBase58(),
-    });
+    };
+    const parents = [createHardwareSigningFixture(account).funding, ...createHardwareSigningFixture(account, 'send').parents];
     for (const [binary, xbt] of [
       [core!, false],
       [knots!, true],
@@ -23,9 +24,11 @@ real(
       const node = new DisposableNode();
       try {
         await node.start(binary, xbt);
-        const result = (await node.rpc('testmempoolaccept', [[funding.toHex()]]))[0];
-        expect(result.allowed).toBe(false);
-        expect(result['reject-reason']).toMatch(/bad-txns-inputs-duplicate/);
+        for (const parent of parents) {
+          const result = (await node.rpc('testmempoolaccept', [[parent.toHex()]]))[0];
+          expect(result.allowed).toBe(false);
+          expect(result['reject-reason']).toMatch(/bad-txns-inputs-duplicate/);
+        }
       } finally {
         await node.stop();
       }

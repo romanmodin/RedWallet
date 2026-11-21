@@ -138,7 +138,8 @@ suite('Standard hardware iOS qualification', () => {
           .withTimeout(30000);
         await element(by.id('HardwareSigningCheck')).scrollTo('bottom');
         const rendered = await captureRenderedPsbt(name => device.takeScreenshot(name));
-        assert.equal(rendered.psbt.toHex(), createHardwareSigningFixture(offlineAccount).request.toHex());
+        assert.equal(rendered.psbt.toHex(), createHardwareSigningFixture(offlineAccount, 'send').request.toHex());
+        assert.equal(rendered.psbt.inputCount, 3);
         observed.offlineQrPixelDecode = true;
         observed.offlineQrScreenshotCount = rendered.images;
         // An unsigned return must show failure before the real signature is tried.
@@ -148,7 +149,8 @@ suite('Standard hardware iOS qualification', () => {
         await waitForId('HardwareCheckFailed');
         await nativeExpect(element(by.id('HardwareCheckPassed'))).not.toExist();
         observed.offlineUnsignedReturnRejected = true;
-        const offlineSigned = rendered.psbt.clone().signInput(0, offlineNode.derive(0).derive(0));
+        const offlineSigned = rendered.psbt.clone();
+        offlineSigned.txInputs.forEach((_, index) => offlineSigned.signInput(index, offlineNode.derive(0).derive(index)));
         const offlineEncoder = new CryptoPSBT(Buffer.from(offlineSigned.toBuffer())).toUREncoder(175);
         const offlineParts = Array.from({ length: offlineEncoder.fragmentsLength }, () => offlineEncoder.nextPart().toUpperCase());
         await visible('HardwareCheckScanSignature', 'HardwareSigningCheck');
@@ -158,6 +160,7 @@ suite('Standard hardware iOS qualification', () => {
         await nativeExpect(element(by.id('HardwareCheckFailed'))).not.toExist();
         assert.deepEqual(fixture.transport.broadcasts, []);
         observed.offlineSigningCheckPassed = true;
+        observed.offlineInputsSigned = offlineSigned.inputCount;
         await goBack();
         await goBack();
         await waitForId('SettingsRoot');
@@ -333,7 +336,7 @@ suite('Standard hardware iOS qualification', () => {
         await waitForId('ScanQrCancelButton');
         await element(by.id('ScanQrCancelButton')).tap();
         await waitForId('PsbtTxScanButton');
-        await element(by.id('PsbtTxScanButton')).tap();
+        await tapAfterTransition(() => element(by.id('PsbtTxScanButton')).tap());
         for (const part of [...parts].reverse()) await injectFragment(part);
         observed.animatedQrFragmentCount = parts.length;
         observed.canceledQrSessionDiscarded = true;
@@ -388,5 +391,5 @@ suite('Standard hardware iOS qualification', () => {
         );
       },
     });
-  }, 900000);
+  }, 22 * 60 * 1000);
 });
