@@ -336,7 +336,7 @@ suite('Standard hardware iOS qualification', () => {
         await waitForId('ScanQrCancelButton');
         await element(by.id('ScanQrCancelButton')).tap();
         await waitForId('PsbtTxScanButton');
-        await element(by.id('PsbtTxScanButton')).tap();
+        await tapAfterTransition(() => element(by.id('PsbtTxScanButton')).tap());
         for (const part of [...parts].reverse()) await injectFragment(part);
         observed.animatedQrFragmentCount = parts.length;
         observed.canceledQrSessionDiscarded = true;
