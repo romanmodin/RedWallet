@@ -121,14 +121,14 @@ const BtcElectrumSettings = () => {
 
   return (
     <SettingsScrollView keyboardShouldPersistTaps="handled" testID="BtcElectrumSettingsScreen">
-      <SettingsSection title="BTC SHA-256 SERVER">
+      <SettingsSection title="BTC SHA-256 Server">
         <View style={settingsCardContent}>
           <SettingsFootnote>
             Bitcoin Electrum or Fulcrum server for the blue BTC wallet. These settings are separate from the XBT Fulcrum connection. Enter a
             server host, not a receiving address.
           </SettingsFootnote>
           {loadError ? <SettingsFootnote testID="BtcServerLoadError">{loadError}</SettingsFootnote> : null}
-          <Text style={labelStyle}>HOST OR IP ADDRESS</Text>
+          <Text style={labelStyle}>Host Or IP Address</Text>
           <TextInput
             testID="BtcServerHost"
             accessibilityLabel="BTC server host"
@@ -141,7 +141,7 @@ const BtcElectrumSettings = () => {
             editable={!disabled}
             style={inputStyle}
           />
-          <Text style={labelStyle}>PORT</Text>
+          <Text style={labelStyle}>Port</Text>
           <TextInput
             testID="BtcServerPort"
             accessibilityLabel="BTC server port"
@@ -162,7 +162,7 @@ const BtcElectrumSettings = () => {
         <View style={settingsCardContent}>
           {ssl ? (
             <>
-              <Text style={labelStyle}>TRUSTED CERTIFICATE (OPTIONAL PEM)</Text>
+              <Text style={labelStyle}>Trusted Certificate (Optional PEM)</Text>
               <TextInput
                 testID="BtcServerCertificate"
                 accessibilityLabel="Trusted BTC server certificate"
@@ -187,7 +187,7 @@ const BtcElectrumSettings = () => {
             </SettingsFootnote>
           )}
           <Button
-            title="TEST AND SAVE BTC SERVER"
+            title="Test And Save BTC Server"
             testID="SaveBtcServer"
             onPress={save}
             disabled={disabled || !host.trim()}
@@ -196,7 +196,7 @@ const BtcElectrumSettings = () => {
           <SettingsFootnote>
             Saving checks the Bitcoin chain before using this server. A custom server is never silently replaced with a public fallback.
           </SettingsFootnote>
-          <Button title="RESTORE BTC DEFAULT" testID="ResetBtcServer" onPress={reset} disabled={disabled} />
+          <Button title="Restore BTC Default" testID="ResetBtcServer" onPress={reset} disabled={disabled} />
           <SettingsFootnote>Default: electrum.blockstream.info, SSL port 50002. Open the blue BTC wallet to connect.</SettingsFootnote>
         </View>
       </SettingsSection>

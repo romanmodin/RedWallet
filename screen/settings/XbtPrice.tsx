@@ -99,7 +99,7 @@ const XbtPrice: React.FC = () => {
 
   return (
     <SettingsScrollView testID="XbtPriceScreen" keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-      <SettingsSection title="Market price">
+      <SettingsSection title="Market Price">
         <View style={settingsCardContent}>
           <SettingsFootnote>
             Refresh the latest reported XBT/USDC trade from NeoxEX. The quote currency is USDC. Saved NeoxEX quotes refresh when the app
@@ -113,7 +113,7 @@ const XbtPrice: React.FC = () => {
         </View>
       </SettingsSection>
 
-      <SettingsSection title="Manual price">
+      <SettingsSection title="Manual Price">
         <View style={settingsCardContent}>
           <SettingsFootnote>
             Enter your estimate for the value of XBT. It is used to display approximate balances and does not update automatically.
@@ -167,7 +167,7 @@ const XbtPrice: React.FC = () => {
         </View>
       </SettingsSection>
 
-      <SettingsSection title="Saved quote">
+      <SettingsSection title="Saved Quote">
         <View style={settingsCardContent}>
           {xbtPriceQuote ? (
             <>

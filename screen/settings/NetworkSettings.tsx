@@ -27,7 +27,7 @@ const NetworkSettings: React.FC = () => {
         />
 
         <SettingsListItem
-          title="BTC SHA-256 SERVER"
+          title="BTC SHA-256 Server"
           subtitle="Bitcoin Electrum / Fulcrum"
           iconName="network"
           onPress={() => navigation.navigate('BtcElectrumSettings')}

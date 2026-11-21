@@ -35,7 +35,7 @@ export default function ChainReferenceSettings() {
     }
   };
   return (
-    <SettingsSection title="Chain freshness checks">
+    <SettingsSection title="Chain Freshness Checks">
       <View style={settingsCardContent}>
         <SettingsFootnote>
           Checks on app opening and hourly while active compare your Electrum chain with mempool.guide. Only public block data is requested;

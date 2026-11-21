@@ -516,14 +516,14 @@ const DetailViewStackScreensStack = () => {
             const mode = deps.route.params?.mode;
             const options = settingsScreenOptions(
               mode === 'pay'
-                ? 'Pay invoice'
+                ? 'Pay Invoice'
                 : mode === 'invoice'
-                  ? 'Receive · Create invoice'
+                  ? 'Receive · Create Invoice'
                   : mode === 'send'
-                    ? 'Send on-chain'
+                    ? 'Send On-Chain'
                     : mode === 'receive'
-                      ? 'Receive on-chain'
-                      : 'LIGHTNING NODE settings',
+                      ? 'Receive On-Chain'
+                      : 'Lightning Node Settings',
             );
             const resolvedOptions = typeof options === 'function' ? options(deps) : options;
             if (mode) return resolvedOptions;
@@ -540,7 +540,7 @@ const DetailViewStackScreensStack = () => {
           }}
         />
         <DetailViewStack.Screen name="CoinjoinExperimental" component={CoinjoinExperimental} options={settingsScreenOptions('CoinJoin')} />
-        <DetailViewStack.Screen name="XbtPrice" component={XbtPrice} options={settingsScreenOptions('XBT price')} />
+        <DetailViewStack.Screen name="XbtPrice" component={XbtPrice} options={settingsScreenOptions('XBT Price')} />
         <DetailViewStack.Screen name="GeneralSettings" component={GeneralSettings} options={settingsScreenOptions(loc.settings.general)} />
         <DetailViewStack.Screen
           name="PlausibleDeniability"
@@ -552,7 +552,7 @@ const DetailViewStackScreensStack = () => {
         <DetailViewStack.Screen
           name="BtcElectrumSettings"
           component={BtcElectrumSettings}
-          options={settingsScreenOptions('BTC SHA-256 SERVER')}
+          options={settingsScreenOptions('BTC SHA-256 Server')}
         />
         <DetailViewStack.Screen
           name="SettingsBlockExplorer"

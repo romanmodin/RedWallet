@@ -6,7 +6,7 @@ export const getSettingsHeaderOptions = (title: string, theme: Theme) => {
   // Native headers accept dynamic iOS colors; keep their opaque value intact.
   const titleColor = (Platform.OS === 'ios' ? PlatformColor('label') : theme.colors.foregroundColor) as string;
   return {
-    title: title.toUpperCase(),
+    title,
     headerLargeTitle: false,
     headerLargeTitleShadowVisible: false,
     headerBackButtonDisplayMode: 'minimal' as const,

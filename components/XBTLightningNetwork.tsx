@@ -140,7 +140,7 @@ export default function XBTLightningNetwork({ status, busy, run, report, onTorCh
         }
       />
       {network?.restartRequired && <SettingsFootnote>Restart RedWallet to apply the saved connection preference.</SettingsFootnote>}
-      <SettingsExplanation id="lightning.tor" title="About Tor connections">
+      <SettingsExplanation id="lightning.tor" title="About Tor Connections">
         Tor covers Lightning chain connections, peers, fee requests and watchtowers. Other RedWallet connections keep their existing
         settings. Locking the phone can still suspend the node.
       </SettingsExplanation>
@@ -201,7 +201,7 @@ export default function XBTLightningNetwork({ status, busy, run, report, onTorCh
           })
         }
       />
-      <SettingsExplanation id="lightning.watchtowers" title="About watchtower addresses">
+      <SettingsExplanation id="lightning.watchtowers" title="About Watchtower Addresses">
         Use an XBT-compatible tower. Kilombino’s preset requires Tor. You can add your home tower or another tower as well. Watchtowers do
         not replace wallet recovery backups. Use the tower’s own address and key, which differ from its Lightning peer address.
       </SettingsExplanation>

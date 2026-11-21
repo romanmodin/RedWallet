@@ -10,8 +10,9 @@ jest.mock('@react-navigation/native', () => ({
     require('react').useEffect(callback, [callback]);
   },
 }));
+let mockBottomInset = 0;
 jest.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: 0 }),
+  useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: mockBottomInset }),
 }));
 jest.mock('../../components/themes', () => {
   const real = jest.requireActual('../../components/themes');
@@ -94,6 +95,7 @@ const LndWalletHome = require('../../screen/wallets/LndWalletHome').default;
 beforeEach(() => {
   jest.clearAllMocks();
   mockSettings.xbtPriceQuote = null;
+  mockBottomInset = 0;
   bridge.run.mockResolvedValue('Running');
   bridge.wallet.mockImplementation(defaultWallet);
   bridge.invoice.mockReset();
@@ -106,6 +108,7 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   expect(screen.getByRole('tab', { name: 'Transactions' }).props.accessibilityState.selected).toBe(true);
   expect(screen.getByText('Test payment')).toBeTruthy();
   expect(screen.queryByText('On-chain deposits and withdrawals')).toBeNull();
+  expect(screen.queryByTestId('LndBalanceBreakdown')).toBeNull();
   expect(bridge.wallet).toHaveBeenCalledWith('payments', '0');
   expect(bridge.wallet).toHaveBeenCalledWith('invoices', '0');
   expect(bridge.wallet).not.toHaveBeenCalledWith('funding', '0');
@@ -119,6 +122,7 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   });
   await act(async () => fireEvent.press(screen.getByRole('tab', { name: 'Funding' })));
   expect(bridge.wallet).toHaveBeenCalledWith('funding', '0');
+  expect(screen.getByTestId('LndBalanceBreakdown')).toBeTruthy();
   expect(screen.getByText(/0 confirmations/)).toBeTruthy();
   expect(screen.queryByText('Test payment')).toBeNull();
   fireEvent.press(screen.getByLabelText('Receive on-chain'));
@@ -137,6 +141,43 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   expect(screen.queryByLabelText('Receive on-chain')).toBeNull();
   expect(bridge.invoice).not.toHaveBeenCalled();
   expect(bridge.manage).not.toHaveBeenCalled();
+  screen.unmount();
+});
+
+test('header details start collapsed and keep the balance and history available while toggling', async () => {
+  mockSettings.xbtPriceQuote = createNeoxexXbtPriceQuote('300', Date.now());
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  const toggle = screen.getByRole('button', { name: 'Expand Details' });
+  expect(toggle.props.accessibilityState.expanded).toBe(false);
+  expect(screen.getByTestId('LndWalletBalance')).toBeTruthy();
+  expect(screen.getByLabelText('LND · Connected')).toBeTruthy();
+  expect(screen.queryByTestId('XbtPriceEstimate')).toBeNull();
+  expect(screen.queryByText(/Lightning: .*Funding:/)).toBeNull();
+  fireEvent.press(toggle);
+  expect(screen.getByRole('button', { name: 'Collapse Details' }).props.accessibilityState.expanded).toBe(true);
+  expect(screen.getByText(/Lightning: .*Funding:/)).toBeTruthy();
+  expect(screen.getByTestId('XbtPriceEstimate')).toBeTruthy();
+  expect(screen.getByText('1 active channel')).toBeTruthy();
+  expect(screen.queryByTestId('LndBalanceBreakdown')).toBeNull();
+  fireEvent.press(screen.getByRole('button', { name: 'Collapse Details' }));
+  expect(screen.queryByTestId('XbtPriceEstimate')).toBeNull();
+  expect(screen.getByText('Test payment')).toBeTruthy();
+  expect(mockNavigation.navigate).not.toHaveBeenCalled();
+  screen.unmount();
+});
+
+test.each([
+  [0, 28],
+  [34, 46],
+])('the action bar reserves its own space above a %i-point bottom inset', async (inset, bottomPadding) => {
+  mockBottomInset = inset;
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  const footer = StyleSheet.flatten(screen.getByTestId('LndWalletActions').props.style);
+  expect(footer.paddingBottom).toBe(bottomPadding);
+  expect(footer.position).not.toBe('absolute');
+  expect(screen.UNSAFE_getByType(FlatList).props.contentContainerStyle.paddingBottom).toBeLessThan(bottomPadding);
   screen.unmount();
 });
 
@@ -356,6 +397,7 @@ test('balance tap cycles all wallet amounts through XBT, sats and the NeoxEX USD
   mockSettings.xbtPriceQuote = createNeoxexXbtPriceQuote('600', Date.now());
   screen.rerender(<LndWalletHome wallet={wallet} />);
   expect(balance()).toBe('≈ 5.39 USDC');
+  fireEvent.press(screen.getByRole('button', { name: 'Expand Details' }));
   expect(screen.getByTestId('XbtPriceEstimate')).toBeTruthy();
   await act(async () => toggle());
   expect(balance()).toBe('••••');

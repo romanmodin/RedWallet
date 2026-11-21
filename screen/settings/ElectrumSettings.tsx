@@ -601,7 +601,7 @@ const ElectrumSettings: React.FC = () => {
           ))}
         </SettingsSection>
         <ChainReferenceSettings />
-        <SettingsSection title="XBT server preset">
+        <SettingsSection title="XBT Server Preset">
           {suggestedServers.map(peer => (
             <SettingsListItem
               key={`${peer.host}:${peer.ssl}`}
