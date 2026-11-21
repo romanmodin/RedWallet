@@ -1,4 +1,5 @@
 import React from 'react';
+import Clipboard from '@react-native-clipboard/clipboard';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import {
@@ -580,6 +581,49 @@ test('receive uses a large label and separate subtitle', async () => {
   await act(async () => {});
   expect(screen.getByText('RECEIVE')).toBeTruthy();
   expect(screen.getByText('Create invoice')).toBeTruthy();
+  screen.unmount();
+});
+
+test.each([
+  [1, 'Routing timed out.'],
+  [2, 'No usable route to the recipient.'],
+  [3, 'The node reported a payment error.'],
+  [4, 'The node reported incorrect payment details.'],
+  [5, 'Insufficient spendable Lightning balance for this payment.'],
+  [6, 'The payment was canceled.'],
+  [undefined, 'No further failure detail is available.'],
+  [0, 'No further failure detail is available.'],
+  [99, 'No further failure detail is available.'],
+] as const)('failed payment receipt displays and copies the recorded reason for code %s', async (failureReasonCode, expected) => {
+  bridge.wallet.mockImplementation(async kind =>
+    kind === 'payments'
+      ? {
+          rows: [
+            {
+              id: 'synthetic-hash',
+              direction: 'sent',
+              sats: '1500',
+              feeSats: '0',
+              timestamp: 1700000100,
+              state: 'failed',
+              memo: '',
+              failureReasonCode,
+            },
+          ],
+          next: '0',
+          more: false,
+        }
+      : defaultWallet(kind),
+  );
+  const alert = jest.spyOn(Alert, 'alert');
+  const copy = jest.spyOn(Clipboard, 'setString').mockImplementation(() => {});
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Sent · failed'));
+  const [, receipt, buttons] = alert.mock.calls.at(-1)!;
+  expect(receipt).toContain(expected);
+  buttons!.find(button => button.text === 'Copy details')!.onPress!();
+  expect(copy).toHaveBeenCalledWith(receipt);
   screen.unmount();
 });
 

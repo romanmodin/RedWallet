@@ -13,6 +13,7 @@ export type LndActivity = {
   state: 'unpaid' | 'pending' | 'settled' | 'failed' | 'canceled' | 'expired' | 'unknown' | 'confirmed' | 'conflicted';
   memo: string;
   confirmations?: number;
+  failureReasonCode?: number;
 };
 export type LndActivityPage = {
   rows: LndActivity[];

@@ -24,6 +24,18 @@ final class WalletOverviewTests: XCTestCase {
         }
     }
 
+    func testOnlyFailedOutgoingPaymentsIncludeTheRecordedFailureReason() throws {
+        let hash = string(1, "synthetic-hash")
+        let reason = field(16, 2)
+        for status in [UInt64(1), 2, 3, 4] {
+            let activity = try XCTUnwrap(LightningWalletActivity.payments(row(hash + field(10, status) + reason)).first)
+            XCTAssertEqual(activity.dictionary["failureReasonCode"] as? UInt64, status == 3 ? 2 : nil)
+        }
+        let legacy = try XCTUnwrap(LightningWalletActivity.payments(row(hash + field(10, 3))).first)
+        XCTAssertEqual(legacy.state, "failed")
+        XCTAssertNil(legacy.dictionary["failureReasonCode"])
+    }
+
     func testIncomingHistorySeparatesSettledAcceptedUnpaidExpiredAndCanceledInvoices() throws {
         let hash = ProtoFields.field(4, data: Data(repeating: 7, count: 32))
         let base = hash + field(5, 100) + field(7, 1000) + field(11, 3600)

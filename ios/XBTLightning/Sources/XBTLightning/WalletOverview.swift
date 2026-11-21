@@ -11,10 +11,12 @@ public struct LightningWalletActivity: Sendable {
     public let state: String
     public let memo: String
     public let confirmations: Int64?
+    public let failureReasonCode: UInt64?
 
     public var dictionary: [String: Any] {
         var result: [String: Any] = ["id": id, "direction": direction, "sats": sats, "feeSats": feeSats,
                                    "timestamp": timestamp, "state": state, "memo": memo]
+        if let failureReasonCode { result["failureReasonCode"] = failureReasonCode }
         if let confirmations { result["confirmations"] = confirmations }
         return result
     }
@@ -27,7 +29,7 @@ public struct LightningWalletActivity: Sendable {
                         feeSats: String(row.integers[11] ?? 0),
                         timestamp: (row.integers[13].map { $0 / 1_000_000_000 }) ?? row.integers[3] ?? 0,
                         state: [1: "pending", 2: "settled", 3: "failed", 4: "pending"][status] ?? "unknown",
-                        memo: "", confirmations: nil)
+                        memo: "", confirmations: nil, failureReasonCode: status == 3 ? row.integers[16] : nil)
         }
     }
 
@@ -43,7 +45,7 @@ public struct LightningWalletActivity: Sendable {
             return Self(id: hash.map { String(format: "%02x", $0) }.joined(), direction: "received",
                         sats: String(row.integers[status == 1 || status == 3 ? 19 : 5] ?? 0), feeSats: "0",
                         timestamp: status == 1 ? row.integers[8] ?? created : created,
-                        state: state, memo: String(decoding: row.bytes[1]?.first ?? Data(), as: UTF8.self), confirmations: nil)
+                        state: state, memo: String(decoding: row.bytes[1]?.first ?? Data(), as: UTF8.self), confirmations: nil, failureReasonCode: nil)
         }
     }
 
@@ -55,7 +57,7 @@ public struct LightningWalletActivity: Sendable {
             return Self(id: try row.string(1), direction: amount < 0 ? "sent" : "received", sats: String(amount.magnitude),
                         feeSats: String(row.integers[7] ?? 0), timestamp: row.integers[6] ?? 0,
                         state: confirmations < 0 ? "conflicted" : confirmations == 0 ? "pending" : "confirmed",
-                        memo: String(decoding: row.bytes[10]?.first ?? Data(), as: UTF8.self), confirmations: confirmations)
+                        memo: String(decoding: row.bytes[10]?.first ?? Data(), as: UTF8.self), confirmations: confirmations, failureReasonCode: nil)
         }
     }
 }
