@@ -1,3 +1,3 @@
-RedWallet XBT 8.0.1 (1795195563)
+Open Settings → Tools → Hardware Signing Check on the iPhone. Use Scan public account with a Native SegWit test account from your Keystone. The offline request shows three inputs, a 40,000-sat recipient amount, 59,000 sats in change and a 1,000-sat fee.
 
-Check the connection indicator while Lightning starts, the compact Lightning settings, and payment history when a bridge quote fails.
+Select Show test QR and scan it with the Keystone. After signing the test request on the device, select Scan signed response on the iPhone. Report whether you see “Verified all 3 test signatures” or the exact error message. Only the result text is needed.
