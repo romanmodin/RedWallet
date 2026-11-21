@@ -72,7 +72,7 @@ if (!mac) {
   execFileSync(qmake, ['CONFIG+=release', 'CONFIG-=debug'], {
     cwd: source,
     stdio: 'inherit',
-    timeout: 120_000,
+    timeout: 300_000,
   });
   execFileSync('make', ['-j3'], {
     cwd: source,
