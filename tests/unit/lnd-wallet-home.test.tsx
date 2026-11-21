@@ -6,6 +6,7 @@ import {
   Alert,
   AppState,
   AppStateStatus,
+  Dimensions,
   FlatList,
   NativeModules,
   Platform,
@@ -169,7 +170,8 @@ test('payment buttons lead; funding is secondary; tab histories use distinct nat
   screen.unmount();
 });
 
-test('each tab overlaps its neighbors while the two outer corners reveal the wallet header', async () => {
+test.each([1, 2])('the open tab expands and the two outer corners reveal the wallet header at font scale %s', async fontScale => {
+  jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 375, height: 812, scale: 3, fontScale });
   const screen = render(<LndWalletHome wallet={new LndWallet()} />);
   await act(async () => {});
   const tabs = [
@@ -181,7 +183,7 @@ test('each tab overlaps its neighbors while the two outer corners reveal the wal
   const height = stripStyle().height;
   expect(stripStyle().backgroundColor).toBe('#741B2A');
   const radius = 13.25;
-  for (const [selected] of tabs) {
+  for (const [selected] of [...tabs, tabs[0]]) {
     await act(async () => fireEvent.press(screen.getByRole('tab', { name: selected })));
     expect(stripStyle().height).toBe(height);
     const inactiveColors = ['#18794E', '#2166A5'];
@@ -191,12 +193,14 @@ test('each tab overlaps its neighbors while the two outer corners reveal the wal
       const face = StyleSheet.flatten(within(button).getByTestId('LndHistoryTabFace').props.style);
       const active = name === selected;
       expect(button.props.accessibilityState.selected).toBe(active);
-      expect(style.flexBasis).toBe(active ? '64%' : '18%');
+      expect(style.width).toBe(active ? '64%' : '18%');
       expect(face.backgroundColor).toBe(active ? '#FFFFFF' : inactiveColors.shift());
       expect(face.borderBottomWidth ?? 0).toBe(0);
       expect(style.borderBottomWidth ?? 0).toBe(0);
       if (active) {
-        expect(StyleSheet.flatten(within(button).getByText(name).props.style).fontSize).toBe(21);
+        const label = within(button).getByText(name);
+        expect(StyleSheet.flatten(label.props.style).fontSize).toBe(21);
+        expect(label.props).toMatchObject({ numberOfLines: fontScale === 1 ? 1 : 2, adjustsFontSizeToFit: true });
         expect(button.findAllByType(Ionicons)).toHaveLength(0);
       } else {
         expect(within(button).queryByText(name)).toBeNull();
@@ -365,18 +369,22 @@ describe('Lightning connection clock', () => {
     jest.useRealTimers();
   });
 
-  test('the large clock floats across the top of the wallet without intercepting touches', async () => {
+  test('centers the connection wheel in the balance row without intercepting touches', async () => {
     mockTopInset = 59;
     bridge.run.mockResolvedValue('Tor connecting');
     const screen = render(<LndWalletHome wallet={new LndWallet()} />);
     await act(async () => {});
-    const overlay = screen.getByTestId('LndConnectionClockOverlay');
+    const balance = within(screen.getByTestId('LndWalletBalanceRow'));
+    const overlay = balance.getByTestId('LndConnectionClockOverlay');
+    expect(balance.getByTestId('LndWalletBalance')).toBeTruthy();
     expect(StyleSheet.flatten(overlay.props.style)).toMatchObject({
       position: 'absolute',
       left: 0,
       right: 0,
       alignItems: 'center',
-      top: 84,
+      top: 0,
+      bottom: 0,
+      justifyContent: 'center',
     });
     expect(overlay.props.pointerEvents).toBe('none');
     expect(within(overlay).getByTestId('svg-Svg').props).toMatchObject({ width: 100, height: 100 });

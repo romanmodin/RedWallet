@@ -37,7 +37,7 @@ export default function LndHistoryTabs({ selected, onSelect, receiveColor }: Lnd
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: active }}
             onPress={() => onSelect(tab.id)}
-            style={[styles.tab, active && styles.active, { zIndex: tabs.length - Math.abs(index - selectedIndex) }]}
+            style={[styles.tab, active ? styles.expanded : styles.compact, { zIndex: tabs.length - Math.abs(index - selectedIndex) }]}
           >
             <View
               testID="LndHistoryTabFace"
@@ -46,7 +46,9 @@ export default function LndHistoryTabs({ selected, onSelect, receiveColor }: Lnd
               style={[StyleSheet.absoluteFill, face, { backgroundColor }]}
             />
             {active ? (
-              <Text style={styles.label}>{tab.label}</Text>
+              <Text style={styles.label} numberOfLines={fontScale > 1.3 ? 2 : 1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                {tab.label}
+              </Text>
             ) : (
               <Ionicons name={tab.icon} size={22} color="#FFFFFF" importantForAccessibility="no" />
             )}
@@ -60,13 +62,13 @@ export default function LndHistoryTabs({ selected, onSelect, receiveColor }: Lnd
 const styles = StyleSheet.create({
   strip: { flexDirection: 'row', backgroundColor: WalletGradient.xbtWallet[WalletGradient.xbtWallet.length - 1] },
   tab: {
-    flexBasis: '18%',
     minWidth: 44,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  active: { flexBasis: '64%', flexShrink: 1 },
+  compact: { width: '18%' },
+  expanded: { width: '64%', flexShrink: 1 },
   // Only the painted face extends under its neighbor. The pressable keeps its own bounds.
   beforeSelected: { right: -cornerRadius, borderTopLeftRadius: cornerRadius },
   afterSelected: { left: -cornerRadius, borderTopRightRadius: cornerRadius },
