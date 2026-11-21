@@ -39,6 +39,15 @@ const bridge = NativeModules.XBTLightningBridge;
 const connectedMessage = 'Connected · Updates while this screen is open';
 const refreshFailedMessage = 'Refresh failed. Showing last known data. Pull down to retry.';
 const connectingStatuses = new Set(['Starting', 'Tor connecting', 'Unlocked', 'RPC ready', 'Syncing', 'Running']);
+// lnrpc.PaymentFailureReason from the sender's persisted payment record.
+const paymentFailureReasons = new Map<number, string>([
+  [1, 'Routing timed out.'],
+  [2, 'No usable route to the recipient.'],
+  [3, 'The node reported a payment error.'],
+  [4, 'The node reported incorrect payment details.'],
+  [5, 'Insufficient spendable Lightning balance for this payment.'],
+  [6, 'The payment was canceled.'],
+]);
 type Pages = Partial<Record<'payments' | 'invoices' | 'funding', LndActivityPage>>;
 const merge = (old: LndActivity[], next: LndActivity[]) => [
   ...new Map([...old, ...next].map(row => [row.direction + row.id, row])).values(),
@@ -345,10 +354,15 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
     }
   };
   const details = (row: LndActivity) => {
+    const failureReason =
+      row.direction === 'sent' && row.state === 'failed' && row.confirmations === undefined
+        ? (paymentFailureReasons.get(row.failureReasonCode ?? 0) ?? 'No further failure detail is available.')
+        : undefined;
     const text =
       exactAmount(row.sats) +
       ' · ' +
       row.state +
+      (failureReason ? '\n' + failureReason : '') +
       '\nFee: ' +
       exactAmount(row.feeSats) +
       '\n' +
