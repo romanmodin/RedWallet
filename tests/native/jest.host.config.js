@@ -7,5 +7,5 @@ module.exports = {
   testEnvironment: 'node',
   setupFilesAfterEnv: [],
   reporters: ['default'],
-  testMatch: ['<rootDir>/native/standard-hardware-host.test.ts'],
+  testMatch: ['<rootDir>/native/standard-hardware-host.test.ts', '<rootDir>/native/bridge-transport-counters.test.ts'],
 };
