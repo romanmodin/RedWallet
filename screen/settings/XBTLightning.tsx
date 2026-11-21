@@ -719,7 +719,9 @@ export default function XBTLightning({
             >
               {feedbackTitle || (activityError ? activityTitle + ' · Error' : activityTitle)}
             </Text>
-            {busy && <ActivityIndicator accessibilityLabel="Lightning operation in progress" color={colors.foregroundColor} />}
+            {busy && mode !== 'pay' && (
+              <ActivityIndicator accessibilityLabel="Lightning operation in progress" color={colors.foregroundColor} />
+            )}
             {!!message && !busy && !hideBalances && (!receiveResult || !!incoming) && (
               <Pressable
                 accessibilityRole="button"
@@ -739,6 +741,13 @@ export default function XBTLightning({
               </Pressable>
             )}
           </View>
+          {busy && mode === 'pay' && (
+            <ActivityIndicator
+              accessibilityLabel="Lightning operation in progress"
+              color={colors.foregroundColor}
+              style={styles.payActivitySpinner}
+            />
+          )}
           <ScrollView
             key={activityTitle + activityMessage + (confirmedPayment?.hash ?? '')}
             nestedScrollEnabled
@@ -1653,6 +1662,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  payActivitySpinner: { alignSelf: 'center' },
   activityBody: { maxHeight: 112 },
   activityText: {
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
