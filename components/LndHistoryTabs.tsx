@@ -73,5 +73,5 @@ const styles = StyleSheet.create({
   beforeSelected: { right: -cornerRadius, borderTopLeftRadius: cornerRadius },
   afterSelected: { left: -cornerRadius, borderTopRightRadius: cornerRadius },
   selectedFace: { borderTopLeftRadius: cornerRadius, borderTopRightRadius: cornerRadius },
-  label: { color: tabInk, fontSize: 21, fontWeight: '700', textAlign: 'center' },
+  label: { color: tabInk, fontSize: 21, fontWeight: '400', textAlign: 'center' },
 });

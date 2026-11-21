@@ -200,7 +200,7 @@ test.each([1, 2])('the open tab expands and the two outer corners reveal the wal
       expect(style.borderBottomWidth ?? 0).toBe(0);
       if (active) {
         const label = within(button).getByText(name);
-        expect(StyleSheet.flatten(label.props.style).fontSize).toBe(21);
+        expect(StyleSheet.flatten(label.props.style)).toMatchObject({ fontSize: 21, fontWeight: '400' });
         expect(label.props).toMatchObject({ numberOfLines: fontScale === 1 ? 1 : 2, adjustsFontSizeToFit: true });
         expect(button.findAllByType(Ionicons)).toHaveLength(0);
       } else {

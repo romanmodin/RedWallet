@@ -254,7 +254,7 @@ export async function helperCreateWallet(walletName, walletFormat = 'segwit', op
   if (walletFormat === 'taproot') await element(by.id('ToggleXbtWalletFormat')).tap();
   if (walletFormat === 'btc') {
     await element(by.id('ActivateBtcButton')).tap();
-    await expect(element(by.id('XbtWalletFormat'))).toHaveText('BTC · SHA-256 · Native SegWit (BIP84)');
+    await expect(element(by.id('XbtWalletFormat'))).toHaveText('SHA-256 · Native SegWit (BIP84)');
   }
 
   // iOS 26 liquid glass: the navigation transition after tapping "Create" triggers

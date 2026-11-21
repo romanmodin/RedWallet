@@ -169,7 +169,7 @@ const ImportWallet = () => {
       <BlueText testID="XbtReplayNotice">{XBT_REPLAY_NOTICE}</BlueText>
       <BlueSpacing20 />
       <BlueFormLabel testID="XbtImportFormat">
-        {btc ? 'BTC · SHA-256 · Native SegWit (BIP84)' : xbtFormat === 'taproot' ? 'Taproot (BIP86)' : 'Native SegWit (BIP84)'}
+        {btc ? 'SHA-256 · Native SegWit (BIP84)' : xbtFormat === 'taproot' ? 'Taproot (BIP86)' : 'Native SegWit (BIP84)'}
       </BlueFormLabel>
       {!btc && (
         <BlueButtonLink

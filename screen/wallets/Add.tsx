@@ -369,7 +369,7 @@ const WalletsAdd: React.FC = () => {
           />
         </View>
         <BlueFormLabel testID="XbtWalletFormat">
-          {btc ? 'BTC · SHA-256 · Native SegWit (BIP84)' : index2walletType[selectedIndex].subtitle}
+          {btc ? 'SHA-256 · Native SegWit (BIP84)' : index2walletType[selectedIndex].subtitle}
         </BlueFormLabel>
         {!btc && (
           <BlueButtonLink
