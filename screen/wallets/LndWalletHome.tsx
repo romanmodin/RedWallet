@@ -27,7 +27,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { LndActivity, LndActivityPage, LndWallet } from '../../class/wallets/lnd-wallet';
 import WalletGradient from '../../class/wallet-gradient';
 import LndConnectionBadge from '../../components/LndConnectionBadge';
-import LndConnectionClock, { connectionClockDiameter } from '../../components/LndConnectionClock';
+import LndConnectionClock from '../../components/LndConnectionClock';
 import { useTheme } from '../../components/themes';
 import XbtFiatEstimate from '../../components/XbtFiatEstimate';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -103,9 +103,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   };
   const insets = useSafeAreaInsets();
   const headerOverlayHeight = React.useContext(HeaderHeightContext) ?? insets.top;
-  // The ring center sits six points above the middle of the tappable balance row.
   const balanceTop = headerOverlayHeight + 8;
-  const clockTop = Math.max(insets.top, balanceTop + 16 - connectionClockDiameter / 2);
   const [tab, setTab] = useState<LndHistoryTab>('transactions');
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [nativeHistory, setNativeHistory] = useState<{ node: string; pages: Pages }>();
@@ -524,12 +522,12 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           style={[StyleSheet.absoluteFill, { top: headerOverlayHeight }]}
           pointerEvents="none"
         />
-        {clockStart !== undefined && (
-          <View testID="LndConnectionClockOverlay" pointerEvents="none" style={[styles.clockOverlay, { top: clockTop }]}>
-            <LndConnectionClock startedAt={clockStart} averageMs={wallet.averageConnectionDuration()} />
-          </View>
-        )}
-        <View style={styles.balanceRow}>
+        <View testID="LndWalletBalanceRow" style={styles.balanceRow}>
+          {clockStart !== undefined && (
+            <View testID="LndConnectionClockOverlay" pointerEvents="none" style={styles.clockOverlay}>
+              <LndConnectionClock startedAt={clockStart} averageMs={wallet.averageConnectionDuration()} />
+            </View>
+          )}
           <Pressable
             style={styles.balanceButton}
             accessibilityRole="button"
@@ -745,10 +743,9 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.5 },
   hero: { alignSelf: 'stretch', paddingBottom: 12 },
   clockOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   balanceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   // Center the pill on the figures' cap height within the vertically centered text line.

@@ -350,11 +350,21 @@ export default function CrossChainLightning({
           )}
           {!!message && <SettingsFootnote>{message}</SettingsFootnote>}
           {busy && <ActivityIndicator accessibilityLabel="Processing bridge request" />}
-          <SettingsListItem
-            title={record && pending(record) ? 'Close · payment remains tracked' : 'Cancel / Close'}
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy }}
             disabled={busy}
             onPress={close}
-          />
+            style={[
+              styles.closeButton,
+              { backgroundColor: colors.buttonBackgroundColor, borderColor: colors.hdborderColor },
+              busy && styles.disabledButton,
+            ]}
+          >
+            <Text style={[styles.closeLabel, { color: colors.buttonTextColor }]}>
+              {pending(record) ? 'Close · payment remains tracked' : 'Cancel / Close'}
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
     </Modal>
@@ -363,6 +373,19 @@ export default function CrossChainLightning({
 const styles = StyleSheet.create({
   modal: { flex: 1, paddingTop: 56 },
   content: { padding: 20, paddingBottom: 50 },
+  closeButton: {
+    alignSelf: 'center',
+    maxWidth: '100%',
+    minHeight: 48,
+    marginTop: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  closeLabel: { fontSize: 17, fontWeight: '600', textAlign: 'center' },
+  disabledButton: { opacity: 0.5 },
   heading: { fontSize: 24, fontWeight: '700', marginBottom: 20 },
   provider: {
     padding: 16,

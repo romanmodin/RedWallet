@@ -92,7 +92,7 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 test('processor selection occurs before any quote; only the chosen processor is contacted', async () => {
-  const { view, fake, authorize } = setup();
+  const { view, fake, close, authorize } = setup();
   expect(view.getByText('Choose Lightning processor')).toBeTruthy();
   expect(fake.quote).not.toHaveBeenCalled();
   fireEvent.press(view.getByLabelText('Processor two'));
@@ -108,13 +108,16 @@ test('processor selection occurs before any quote; only the chosen processor is 
   expect(authorize).toHaveBeenCalledTimes(1);
   expect(fake.approve).toHaveBeenCalledTimes(1);
   expect(view.getByText(/Payment pending or uncertain/)).toBeTruthy();
+  await act(async () => fireEvent.press(view.getByRole('button', { name: 'Close · payment remains tracked' })));
+  expect(fake.cancel).not.toHaveBeenCalled();
+  expect(close).toHaveBeenCalledTimes(1);
   view.unmount();
 });
 test('canceling a quote never invokes payment or authentication', async () => {
   const { view, fake, close, authorize } = setup();
   fireEvent.press(view.getByLabelText('Processor two'));
   await act(async () => fireEvent.press(view.getByText('Get quote')));
-  await act(async () => fireEvent.press(view.getByText('Cancel / Close')));
+  await act(async () => fireEvent.press(view.getByRole('button', { name: 'Cancel / Close' })));
   expect(fake.cancel).toHaveBeenCalledWith(item.hash);
   expect(fake.approve).not.toHaveBeenCalled();
   expect(authorize).not.toHaveBeenCalled();
@@ -155,6 +158,7 @@ test('leaving and returning to the app during payment checks cannot revive appro
   });
   expect(fake.approve).toHaveBeenCalledTimes(1);
   expect(fake.approve.mock.calls[0][2]()).toBe(true);
+  expect(view.getByRole('button', { name: 'Cancel / Close' })).toBeDisabled();
   await act(async () => {
     Object.defineProperty(AppState, 'currentState', {
       configurable: true,
