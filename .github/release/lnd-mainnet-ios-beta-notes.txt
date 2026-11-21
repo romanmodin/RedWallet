@@ -1,3 +1,5 @@
-Open Settings → Tools → Hardware Signing Check on the iPhone. Use Scan public account with a Native SegWit test account from your Keystone. The offline request shows three inputs, a 40,000-sat recipient amount, 59,000 sats in change and a 1,000-sat fee.
+On the XBT Lightning screen, tap Funding, Cross-chain payments, then Transactions. Each open tab should widen, turn white, and show its full name. The other two should become compact green and blue icon buttons. Try larger iPhone text as well.
 
-Select Show test QR and scan it with the Keystone. After signing the test request on the device, select Scan signed response on the iPhone. Report whether you see “Verified all 3 test signatures” or the exact error message. Only the result text is needed.
+When the connection wheel appears, its center should line up vertically with the balance. Tapping the balance should still change the display unit.
+
+Open a previously saved cross-chain payment in history and scroll to the bottom. The rounded Cancel / Close button should be easy to see and tap. Closing pending payment details should leave the payment tracked. These checks can use existing history and do not require making a payment.
