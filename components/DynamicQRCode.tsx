@@ -181,7 +181,7 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
           <View style={animatedQRCodeStyle.container}>
             <BlueSpacing20 />
             <View>
-              <Text style={animatedQRCodeStyle.text}>
+              <Text testID="DynamicQRFragmentLabel" style={animatedQRCodeStyle.text}>
                 {loc.formatString(loc._.of, { number: this.state.index + 1, total: this.state.total })}
               </Text>
             </View>
@@ -189,6 +189,7 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
             <View style={animatedQRCodeStyle.controller}>
               <TouchableOpacity
                 accessibilityRole="button"
+                testID="DynamicQRPrevious"
                 style={[animatedQRCodeStyle.button, animatedQRCodeStyle.buttonPrev]}
                 onPress={this.moveToPreviousFragment}
               >
@@ -196,6 +197,7 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
               </TouchableOpacity>
               <TouchableOpacity
                 accessibilityRole="button"
+                testID="DynamicQRStopStart"
                 style={[animatedQRCodeStyle.button, animatedQRCodeStyle.buttonStopStart]}
                 onPress={this.state.intervalHandler ? this.stopAutoMove : this.startAutoMove}
               >
@@ -203,6 +205,7 @@ export class DynamicQRCode extends Component<DynamicQRCodeProps, DynamicQRCodeSt
               </TouchableOpacity>
               <TouchableOpacity
                 accessibilityRole="button"
+                testID="DynamicQRNext"
                 style={[animatedQRCodeStyle.button, animatedQRCodeStyle.buttonNext]}
                 onPress={this.moveToNextFragment}
               >

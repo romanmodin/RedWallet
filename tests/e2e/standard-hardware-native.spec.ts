@@ -137,7 +137,32 @@ suite('Standard hardware iOS qualification', () => {
           .toExist()
           .withTimeout(30000);
         await element(by.id('HardwareSigningCheck')).scrollTo('bottom');
-        const rendered = await captureRenderedPsbt(name => device.takeScreenshot(name));
+        const rendered = await captureRenderedPsbt(name => device.takeScreenshot(name), {
+          showControls: async () => {
+            // The controls mount below the QR inside the same ScrollView, so they
+            // are off-screen until the content grows and the view is scrolled again.
+            await element(by.id('DynamicCode')).tap();
+            await waitFor(element(by.id('DynamicQRStopStart')))
+              .toExist()
+              .withTimeout(15000);
+            // Scroll in small steps only until the controls are visible, so the QR stays on screen.
+            await visible('DynamicQRStopStart', 'HardwareSigningCheck');
+          },
+          stop: async () => {
+            // Tap Stop exactly once, then confirm the button now reads "Start".
+            await element(by.id('DynamicQRStopStart')).tap();
+            await waitFor(element(by.text('Start')))
+              .toExist()
+              .withTimeout(5000);
+          },
+          next: async () => {
+            await element(by.id('DynamicQRNext')).tap();
+          },
+          label: async () => {
+            const attrs = (await element(by.id('DynamicQRFragmentLabel')).getAttributes()) as { text?: string; label?: string };
+            return attrs.text ?? attrs.label ?? '';
+          },
+        });
         assert.equal(rendered.psbt.toHex(), createHardwareSigningFixture(offlineAccount, 'send').request.toHex());
         assert.equal(rendered.psbt.inputCount, 3);
         observed.offlineQrPixelDecode = true;
@@ -357,6 +382,8 @@ suite('Standard hardware iOS qualification', () => {
 
         step('retrying the unchanged reviewed transaction with restored proof');
         await fixture.reorg(false);
+        await element(by.id('SignedTransactionScroll')).scrollTo('bottom');
+        await visible('PsbtWithHardwareWalletBroadcastTransactionButton', 'SignedTransactionScroll');
         await element(by.id('PsbtWithHardwareWalletBroadcastTransactionButton')).tap();
         await waitForId('SendSuccessDone', 60000);
         assert.deepEqual(fixture.transport.broadcasts, [hex]);
