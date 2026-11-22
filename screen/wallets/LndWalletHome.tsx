@@ -717,8 +717,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           styles.footer,
           {
             backgroundColor: colors.background,
-            // A compact 60-point Lightning button keeps at least 50 points above the iOS home inset.
-            paddingBottom: footerBottom - (compactLightningActions ? 2 : 0),
+            // A compact 62-point Lightning button keeps at least 50 points above the iOS home inset.
+            paddingBottom: footerBottom - (compactLightningActions ? 3 : 0),
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },
@@ -807,8 +807,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  compactActionRow: { marginTop: 10 },
-  compactAction: { minHeight: 60, paddingVertical: 8, borderRadius: 30 },
+  compactActionRow: { marginTop: 9 },
+  compactAction: { minHeight: 62, paddingVertical: 9, borderRadius: 31 },
   lightningAction: { backgroundColor: WalletGradient.xbtWallet[0] },
   receiveAction: { backgroundColor: '#18794E' },
   fundingAction: { backgroundColor: '#3A3A3C' },
