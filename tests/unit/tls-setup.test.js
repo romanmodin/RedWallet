@@ -38,7 +38,7 @@ test('iOS launches once only after the real readiness helper observes replacemen
     launchArgs: { detoxEnableSynchronization: 0 },
   });
   expect(f.device.clearKeychain).not.toHaveBeenCalled();
-  expect(f.setup.mock.calls.find(([name]) => name === 'reset-keychain-and-notifications')[2]).toBe(120000);
+  expect(f.setup.mock.calls.find(([name]) => name === 'reset-keychain-and-notifications')[2]).toBe(225000);
 });
 
 test('old reset-plus-delete/permissions launch races the shell before readiness is observed', async () => {

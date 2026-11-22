@@ -3,9 +3,9 @@ import XCTest
 
 final class SpliceTests: XCTestCase {
     private let point = String(repeating: "a", count: 64) + ":0"
-    func testOpeningAboveTenMillionIsRejectedBeforeAnyNodeCall() async {
+    func testOpeningAboveOneXBTIsRejectedBeforeAnyNodeCall() async {
         do {
-            _ = try await RegtestNode.shared.openChannel(to: "02" + String(repeating: "a", count: 64), sats: 10_000_001)
+            _ = try await RegtestNode.shared.openChannel(to: "02" + String(repeating: "a", count: 64), sats: 100_000_001)
             XCTFail("Opening above the requested cap must not reach LND")
         } catch NodeFailure.channelOpeningLimit {
             // The cap is enforced natively even when called without the React form.
@@ -59,15 +59,15 @@ final class SpliceTests: XCTestCase {
     }
     func testLargeResizeKeepsExactAmountAndFeeAndNeverEnablesUseMax() throws {
         for direction in ["in", "out"] {
-            let request = try RegtestNode.spliceRequest(point: point, direction: direction, sats: 44_000_000,
+            let request = try RegtestNode.spliceRequest(point: point, direction: direction, sats: 140_000_000,
                                                        feeRate: 250, address: direction == "out" ? "bcrt1-own" : "")
             let fields = try ProtoFields(request)
-            XCTAssertEqual(fields.integers[3], 44_000_000)
+            XCTAssertEqual(fields.integers[3], 140_000_000)
             XCTAssertEqual(fields.integers[5], 250)
             XCTAssertNil(fields.integers[4])
         }
         for rate in [UInt64(0), LightningAmounts.maxFeeRate + 1, UInt64.max] {
-            XCTAssertThrowsError(try RegtestNode.spliceRequest(point: point, direction: "in", sats: 44_000_000, feeRate: rate, address: ""))
+            XCTAssertThrowsError(try RegtestNode.spliceRequest(point: point, direction: "in", sats: 140_000_000, feeRate: rate, address: ""))
         }
         XCTAssertFalse(LightningAmounts.valid(UInt64.max))
         XCTAssertFalse(LightningAmounts.valid(0))

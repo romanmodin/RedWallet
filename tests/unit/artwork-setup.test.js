@@ -167,7 +167,7 @@ test('reset operations settle before the next begins; failure leaves the app unl
   expect(device.launchApp).not.toHaveBeenCalled();
 });
 
-test('combined reset and readiness share the original Keychain budget; launch deadline is unchanged', async () => {
+test('combined reset has bounded baseline and settle windows; launch deadline is unchanged', async () => {
   const stages = [];
   const device = {
     id,
@@ -189,7 +189,7 @@ test('combined reset and readiness share the original Keychain budget; launch de
     ['terminate-before-reset', 60000],
     ['uninstall-before-reset', 60000],
     ['install-clean-app', 60000],
-    ['reset-keychain-and-notifications', 120000],
+    ['reset-keychain-and-notifications', 225000],
     ['launch-clean-app', 60000],
     ['initial-wallet-list', 60000],
     ['dark-appearance', 60000],

@@ -2,7 +2,7 @@ package io.bluewallet.bluewallet.lightning
 
 // Monetary-domain and arithmetic bounds, never a beta spending allowance.
 internal object LightningAmounts {
-    const val MAX_CHANNEL_OPEN_SATS = 10_000_000L
+    const val MAX_CHANNEL_OPEN_SATS = 100_000_000L
     const val MAX_SATS = 2_100_000_000_000_000L
     // Signed LND intermediate: 3x close rate * 1000 * max consensus vsize,
     // plus 999 for rounding. This is an arithmetic bound, not a beta allowance.

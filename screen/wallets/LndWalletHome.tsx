@@ -580,7 +580,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             <Text style={styles.balanceLabel}>Total balance · funding and channels</Text>
             {!!overview && !wallet.hideBalance && (
               <Text style={styles.status}>
-                Lightning: {formatAmount(overview.lightningLocal)} · Funding: {formatAmount(overview.fundingTotal)}
+                In channels {formatAmount(overview.lightningLocal)} · On-chain {formatAmount(overview.fundingTotal)}
               </Text>
             )}
             {!wallet.hideBalance && <XbtFiatEstimate satoshis={wallet.getBalance()} style={styles.fiat} />}
@@ -600,9 +600,6 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         )}
       </View>
       <LndHistoryTabs selected={tab} onSelect={setTab} receiveColor={styles.receiveAction.backgroundColor} />
-      {tab === 'funding' && (
-        <Text style={[styles.fundingHeading, { color: colors.foregroundColor }]}>On-chain deposits and withdrawals</Text>
-      )}
       <FlatList<LndActivity | BridgeHistoryEntry>
         key={tab}
         style={styles.history}
@@ -620,6 +617,9 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             )}
             {tab === 'funding' && !!overview && (
               <LndBalanceBreakdown overview={overview} hidden={wallet.hideBalance === true} stale={!ready} format={formatAmount} />
+            )}
+            {tab === 'funding' && (
+              <Text style={[styles.fundingHeading, { color: colors.foregroundColor }]}>On-chain deposits and withdrawals</Text>
             )}
             {tab === 'funding' && (
               <View style={styles.funding}>

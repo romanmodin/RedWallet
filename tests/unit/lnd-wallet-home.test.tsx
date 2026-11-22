@@ -343,10 +343,10 @@ test('header details start collapsed and keep the balance and history available 
   expect(screen.getByTestId('LndWalletBalance')).toBeTruthy();
   expect(screen.getByLabelText('LND · Connected')).toBeTruthy();
   expect(screen.queryByTestId('XbtPriceEstimate')).toBeNull();
-  expect(screen.queryByText(/Lightning: .*Funding:/)).toBeNull();
+  expect(screen.queryByText(/In channels .*On-chain /)).toBeNull();
   fireEvent.press(toggle);
   expect(screen.getByRole('button', { name: 'Collapse Details' }).props.accessibilityState.expanded).toBe(true);
-  expect(screen.getByText(/Lightning: .*Funding:/)).toBeTruthy();
+  expect(screen.getByText(/In channels .*On-chain /)).toBeTruthy();
   expect(screen.getByTestId('XbtPriceEstimate')).toBeTruthy();
   expect(screen.getByText('1 active channel')).toBeTruthy();
   expect(screen.queryByTestId('LndBalanceBreakdown')).toBeNull();
@@ -842,7 +842,7 @@ test('balance tap cycles all wallet amounts through XBT, sats and the NeoxEX USD
   await act(async () => toggle());
   expect(balance()).toBe('••••');
   expect(screen.queryByTestId('XbtPriceEstimate')).toBeNull();
-  expect(screen.queryByText(/Lightning: .*Funding:/)).toBeNull();
+  expect(screen.queryByText(/In channels .*On-chain /)).toBeNull();
   expect(screen.queryByText(/USDC confirmed/)).toBeNull();
   expect(screen.queryByText('+≈ 6.00 USDC')).toBeNull();
   expect(screen.getByLabelText('Change wallet display unit').props.accessibilityValue.text).toBe('Amounts hidden');
