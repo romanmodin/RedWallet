@@ -29,6 +29,11 @@ export function simulatorServicePids(output) {
   return result;
 }
 
+export const RESET_BASELINE_MS = 45000;
+export const RESET_SETTLE_MS = 120000;
+// Baseline + reset command + settle window, for callers' outer stage timeout.
+export const RESET_STAGE_TIMEOUT_MS = RESET_BASELINE_MS + 60000 + RESET_SETTLE_MS;
+
 export async function resetArtworkSimulator(
   run,
   deviceId,
@@ -45,10 +50,14 @@ export async function resetArtworkSimulator(
   const permissionArgs = permissionEntries.length
     ? ['--setPermissions', permissionEntries.map(([key, value]) => key + '=' + value).join(',')]
     : [];
-  // Reuse the original Keychain-reset budget, including all readiness probes.
-  // App launch still has its separate, unchanged 60-second budget.
+  // Two bounded observation windows. The baseline must not consume the
+  // post-reset wait: in job 137017047939 two timed-out "before" probes used ~34 s
+  // of one shared 120 s budget, and Spotlight's replacement was still absent when
+  // it expired. The reset is issued once; only read-only observations are
+  // resampled. App launch keeps its separate, unchanged 60-second budget.
   const started = now();
-  const deadline = started + 120000;
+  let deadline = started + RESET_BASELINE_MS;
+  let phase = 'baseline';
   const observationTimeouts = [];
   let before = null;
   let lastAfter = null;
@@ -59,6 +68,7 @@ export async function resetArtworkSimulator(
         'Simulator restart did not settle before the reset deadline: ' +
           JSON.stringify({
             deviceId,
+            phase,
             before,
             lastAfter,
             observationTimeouts,
@@ -100,15 +110,19 @@ export async function resetArtworkSimulator(
   if (!before.springboard) throw new Error('SpringBoard was not running before simulator reset');
   run('applesimutils', ['--byId', deviceId, '--bundle', 'com.romanmodin.redwallet', '--clearKeychain', ...permissionArgs], {
     encoding: 'utf8',
-    timeout: Math.min(60000, remaining()),
+    timeout: 60000,
   });
-  // Poll observations only: never repeat a reset or relaunch.
-  // If Spotlight was running, its replacement also has to appear (the same
-  // service-refresh barrier used by Appium's iOS permission-reset handling).
+  // The settle window starts when the single reset returns, so a slow baseline
+  // cannot starve the replacement-service observation.
+  phase = 'settle';
+  deadline = now() + RESET_SETTLE_MS;
+  // Poll observations only: never repeat a reset or relaunch. Positive evidence
+  // is required: a NEW SpringBoard PID and, if Spotlight was running before, a NEW
+  // Spotlight PID (the service-refresh barrier used by Appium's iOS permission
+  // reset). A late Spotlight is waited for; a stale, missing or unparseable
+  // sample is never accepted.
   for (;;) {
-    remaining();
     const after = await observe('after');
-    remaining();
     if (
       after.springboard &&
       after.springboard !== before.springboard &&
@@ -130,7 +144,7 @@ export async function prepareArtworkApp({ device, setup, waitForReady, run }) {
   await setup('terminate-before-reset', () => device.terminateApp());
   await setup('uninstall-before-reset', () => device.uninstallApp());
   await setup('install-clean-app', () => device.installApp());
-  const reset = await setup('reset-keychain-and-notifications', () => resetArtworkSimulator(run, device.id), 120000);
+  const reset = await setup('reset-keychain-and-notifications', () => resetArtworkSimulator(run, device.id), RESET_STAGE_TIMEOUT_MS);
   await setup('launch-clean-app', () => device.launchApp({ newInstance: false }));
   await setup('initial-wallet-list', waitForReady);
   const appearance = await setup('dark-appearance', () => setSimulatorAppearance(run, device.id, 'dark'));

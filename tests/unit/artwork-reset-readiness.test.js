@@ -62,7 +62,7 @@ test('artwork setup combines both resets once and observes new services before o
   expect(device.launchApp).toHaveBeenCalledTimes(1);
   expect(device.launchApp).toHaveBeenCalledWith({ newInstance: false });
   expect(ready).toHaveBeenCalledTimes(2);
-  expect(stages).toContainEqual(['reset-keychain-and-notifications', 120000]);
+  expect(stages).toContainEqual(['reset-keychain-and-notifications', 225000]);
   expect(stages).toContainEqual(['launch-clean-app', 60000]);
 });
 
@@ -132,15 +132,15 @@ test('service polling expires inside the existing reset budget and never reissue
   expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(1);
 });
 
-test('time spent in the reset reduces the remaining readiness budget', async () => {
+test('time spent in the reset command does not reduce the settle window, which is bounded on its own', async () => {
   const ticks = clock();
   const run = jest.fn(command => {
     if (command === 'applesimutils') ticks.advance(119500);
     return table();
   });
   await expect(resetArtworkSimulator(run, id, ticks)).rejects.toThrow('restart did not settle');
-  expect(ticks.now()).toBe(120000);
-  expect(ticks.pause).toHaveBeenCalledTimes(1);
+  expect(ticks.now()).toBe(239500);
+  expect(ticks.pause).toHaveBeenCalledTimes(240); // full 120 s settle window polled every 500 ms
 });
 
 test('process-query errors fail closed without retrying the reset or accepting stale state', async () => {
@@ -195,14 +195,14 @@ test.each(['before', 'after'])('a timed-out %s observation is resampled inside t
   expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(1);
 });
 
-test('repeated observation timeouts exhaust the original total deadline without resetting or launching', async () => {
+test('repeated baseline timeouts exhaust the baseline window without resetting or launching', async () => {
   const ticks = clock();
   const run = jest.fn((_command, _args, options) => {
     ticks.advance(options.timeout);
     throw Object.assign(new Error('query timeout'), { code: 'ETIMEDOUT' });
   });
   await expect(resetArtworkSimulator(run, id, ticks)).rejects.toThrow('restart did not settle');
-  expect(ticks.now()).toBe(120000);
+  expect(ticks.now()).toBe(45000);
   expect(run.mock.calls.every(([command]) => command === 'xcrun')).toBe(true);
 });
 
@@ -262,4 +262,57 @@ test('deadline failure includes the actual service observations without acceptin
     expect(receipt.lastAfter).toEqual(receipt.before);
     expect(receipt.elapsedMs).toBe(120000);
   }
+});
+
+test('slow baseline probes do not consume the post-reset window; late Spotlight is awaited (job 137017047939)', async () => {
+  const ticks = clock();
+  let reads = 0;
+  const timeout = options => {
+    ticks.advance(options.timeout);
+    throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' });
+  };
+  const run = jest.fn((command, _args, options) => {
+    if (command === 'applesimutils') return '';
+    const n = reads++;
+    if (n < 2) timeout(options); // two timed-out baseline probes (~30 s)
+    if (n === 2) return table(100, 200);
+    if (n === 3) return table(101, 0); // new SpringBoard, Spotlight absent
+    if (n < 10) timeout(options);
+    return table(101, 201); // late Spotlight, past the old shared 120 s budget
+  });
+  const receipt = await resetArtworkSimulator(run, id, ticks);
+  expect(receipt.after).toEqual({ springboard: 101, spotlight: 201 });
+  expect(receipt.elapsedMs).toBeGreaterThan(120000);
+  expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(1);
+});
+
+test('Spotlight that never returns is refused with a settle-phase receipt and no second reset', async () => {
+  const ticks = clock();
+  let reads = 0;
+  const run = jest.fn(command => (command === 'applesimutils' ? '' : reads++ === 0 ? table() : table(101, 0)));
+  try {
+    await resetArtworkSimulator(run, id, ticks);
+    throw new Error('missing Spotlight was accepted');
+  } catch (error) {
+    expect(error.message).toMatch(/restart did not settle/);
+    const receipt = JSON.parse(error.message.slice(error.message.indexOf('{')));
+    expect(receipt.phase).toBe('settle');
+    expect(receipt.lastAfter).toEqual({ springboard: 101 });
+  }
+  expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(1);
+});
+
+test('an unverifiable baseline expires before any reset is issued', async () => {
+  const ticks = clock();
+  const run = jest.fn((_command, _args, options) => {
+    ticks.advance(options.timeout);
+    throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' });
+  });
+  await expect(resetArtworkSimulator(run, id, ticks)).rejects.toThrow(/"phase":"baseline"/);
+  expect(run.mock.calls.filter(([command]) => command === 'applesimutils')).toHaveLength(0);
+});
+
+test('a stale (unchanged) shell after reset is refused', async () => {
+  const run = jest.fn(command => (command === 'applesimutils' ? '' : table()));
+  await expect(resetArtworkSimulator(run, id, clock())).rejects.toThrow(/"phase":"settle"/);
 });
