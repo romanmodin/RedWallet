@@ -382,6 +382,8 @@ suite('Standard hardware iOS qualification', () => {
 
         step('retrying the unchanged reviewed transaction with restored proof');
         await fixture.reorg(false);
+        await element(by.id('SignedTransactionScroll')).scrollTo('bottom');
+        await visible('PsbtWithHardwareWalletBroadcastTransactionButton', 'SignedTransactionScroll');
         await element(by.id('PsbtWithHardwareWalletBroadcastTransactionButton')).tap();
         await waitForId('SendSuccessDone', 60000);
         assert.deepEqual(fixture.transport.broadcasts, [hex]);
