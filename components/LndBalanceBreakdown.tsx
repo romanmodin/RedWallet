@@ -50,7 +50,9 @@ export default function LndBalanceBreakdown({
       {rows.map(([label, value]) => (
         <View key={label} style={styles.row}>
           <Text style={{ color: colors.settingsTextColor }}>{label}</Text>
-          <Text style={{ color: colors.foregroundColor }}>{hidden ? '••••' : value === undefined ? 'Refresh node' : format(value)}</Text>
+          <Text style={{ color: label === 'On-chain available before fee' && !stale && !hidden && (value ?? 0) > 0 ? colors.successColor : colors.foregroundColor }}>
+            {hidden ? '••••' : value === undefined ? 'Refresh node' : format(value)}
+          </Text>
         </View>
       ))}
       <Text style={{ color: colors.alternativeTextColor }}>
