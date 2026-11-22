@@ -1,3 +1,5 @@
+import { verifyPublicJoinProof } from '../../class/xbt/kilojoin/creator-join';
+import { changeMessage } from '../../class/xbt/kilojoin/protocol';
 import ecc from '../../blue_modules/noble_ecc';
 import { parseSeat, validateRoster, ChainCoin } from '../../class/xbt/kilojoin/roster';
 import { Terms } from '../../class/xbt/kilojoin/protocol';
@@ -137,4 +139,17 @@ test('retains the exact 60-second observation freshness boundary', () => {
   const { body, context } = fixture();
   context.chain.get(outpoint(body.seats[1].coin))!.checkedAt = context.now - 60;
   expect(validateRoster(body, terms, context).seats).toHaveLength(2);
+});
+
+test('host binds the join and change signatures to the authenticated sender before assigning a token', () => {
+  const [, wire] = fixture().body.seats;
+  const key = Buffer.alloc(32);
+  key[31] = 2;
+  const changeSig = Buffer.from(ecc.signDER(changeMessage(terms.id, [wire.coin], wire.change_script, wire.change_value), key)).toString('hex');
+  const join = { type: 'join', seat: wire, proof: wire.proofs[0], change_sig: changeSig };
+  const token = 'ab'.repeat(32);
+  expect(verifyPublicJoinProof(join, wire.join_pub, token, terms).token_hash).toBe(token);
+  expect(() => verifyPublicJoinProof(join, '01'.repeat(32), token, terms)).toThrow();
+  expect(() => verifyPublicJoinProof({ ...join, seat: { ...wire, change_script: '0014' + '33'.repeat(20) } }, wire.join_pub, token, terms)).toThrow();
+  expect(() => verifyPublicJoinProof(join, wire.join_pub, token, { ...terms, private: true })).toThrow();
 });
