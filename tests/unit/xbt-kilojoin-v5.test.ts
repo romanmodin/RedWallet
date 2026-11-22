@@ -1,3 +1,4 @@
+import { createOpeningAnnouncement } from '../../class/xbt/kilojoin/creator-announcement';
 import { runKilojoinV5SelfTest } from '../../class/xbt/kilojoin/v5-self-test';
 import { Transaction } from 'bitcoinjs-lib';
 import vectors from './fixtures/kilojoin-v5-vectors.json';
@@ -163,4 +164,29 @@ describe('Kilombino v5 official vectors and hostile payment terms', () => {
 
 test('v5 native self-test matches the official payment vector offline', () => {
   expect(() => runKilojoinV5SelfTest()).not.toThrow();
+});
+
+test("creator opening announcement is discoverable without publishing session secrets", () => {
+  const publicTerms = parsePool(announcement(), 1791400000);
+  const session = {
+    ...publicTerms,
+    creator_secret: "synthetic-private-marker",
+  };
+  const event = createOpeningAnnouncement(
+    session,
+    1791400000,
+    Buffer.from(old.pool.pool_secret, "hex"),
+    Buffer.alloc(32, 7),
+  );
+  expect(parsePool(event, 1791400000)).toEqual(publicTerms);
+  expect(event.tags).toContainEqual(["network", "blake2b"]);
+  expect(event.content).not.toContain("synthetic-private-marker");
+  expect(() =>
+    createOpeningAnnouncement(
+      session,
+      1791400000,
+      Buffer.alloc(32, 1),
+      Buffer.alloc(32, 7),
+    ),
+  ).toThrow();
 });
