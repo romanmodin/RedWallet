@@ -1,5 +1,3 @@
-Open Add Wallet. The blue wallet type reads “SHA-256” and says it connects only when selected. Tap it and check that the format reads “SHA-256 · Native SegWit (BIP84)”. Tap XBT to see its format choices again.
+In an XBT Lightning test wallet, open Funding and look under Balance Details. A positive, current On-chain available before fee amount appears in green. Compare it with Lightning Node Settings → Node and channel balances after refreshing. Funding shows the amount in your selected unit and Settings shows sats.
 
-In an XBT Lightning test wallet, switch between Transactions, Cross-chain payments and Funding. Each selected tab should expand, turn white and show its label in regular-weight text. Try the long Cross-chain payments label with larger system text.
-
-On Transactions and Cross-chain payments, check the slimmer Receive and Pay (invoice) buttons. They sit slightly lower, with more space above them. Check that both lines of Receive are legible and that each control is easy to tap above the home indicator.
+When a reserve applies, compare the green available amount with the confirmed on-chain total. Hide balances and check that the green amount is hidden too. With zero available or stale data, check that the value is not highlighted. Use test data only.
