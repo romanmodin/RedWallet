@@ -16,18 +16,18 @@ permissions:
   contents: read
   actions: read
 env:
-  SOURCE_COMMIT: 1c5cbf28d4633ddccabef6707393db8a4c581fa4
-  PUBLIC_SOURCE_COMMIT: 1c5cbf28d4633ddccabef6707393db8a4c581fa4
-  PRODUCTION_TREE_SHA256: b60f7f8395bcff8af1c2de99803fb51a2644b62118769f0b41a9a5c0dfaa9325
-  CI_RUN_ID: '44929305532'
-  IOS_RUN_ID: '44929370887'
-  FUNDED_IOS_RUN_ID: '44929375298'
-  LND_IOS_RUN_ID: '44929305436'
+  SOURCE_COMMIT: 1d23551fd990d894f545f3c34f02432cb1189463
+  PUBLIC_SOURCE_COMMIT: 1d23551fd990d894f545f3c34f02432cb1189463
+  PRODUCTION_TREE_SHA256: f576cc2285edf063e1ecc24656f689a15250dd3f6e4918ed9aa7b5421edbd597
+  CI_RUN_ID: '44971878673'
+  IOS_RUN_ID: '44972571611'
+  FUNDED_IOS_RUN_ID: '44972573933'
+  LND_IOS_RUN_ID: '44971878667'
   VERIFY_LND_MAINNET_IPA: '1'
   REQUIRE_XBT_TOR_SMOKE: '1'
   REQUIRE_XBT_TOR_FEE_UNIT: '1'
   REQUIRE_STANDARD_HARDWARE_IOS: '1'
-  HARDWARE_IOS_RUN_ID: '44929379480'
+  HARDWARE_IOS_RUN_ID: '44972576256'
   FASTLANE_OPT_OUT_USAGE: '1'
   FASTLANE_SKIP_UPDATE_CHECK: '1'
   FASTLANE_HIDE_CHANGELOG: '1'
@@ -56,7 +56,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         fetch-depth: 0
-        ref: 1c5cbf28d4633ddccabef6707393db8a4c581fa4
+        ref: 1d23551fd990d894f545f3c34f02432cb1189463
         persist-credentials: false
         repository: romanmodin/RedWallet
     - name: Checkout trusted verification tools
@@ -253,7 +253,7 @@ jobs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       with:
         repository: romanmodin/RedWallet
-        ref: 1c5cbf28d4633ddccabef6707393db8a4c581fa4
+        ref: 1d23551fd990d894f545f3c34f02432cb1189463
         persist-credentials: false
     - name: Checkout trusted verification tools
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
