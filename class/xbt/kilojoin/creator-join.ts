@@ -2,7 +2,7 @@ import { script } from 'bitcoinjs-lib';
 import ecc from '../../../blue_modules/noble_ecc';
 import { hex } from './crypto';
 import { changeMessage, Terms } from './protocol';
-import { parseSeat } from './roster';
+import { parseSeat, Seat, validateRoster } from './roster';
 import { outpoint } from './transaction';
 
 // Verify the signed portion of a public join request before allocating a seat.
@@ -19,4 +19,20 @@ export function verifyPublicJoinProof(body: Record<string, unknown>, sender: str
   if (!ecc.verify(changeMessage(terms.id, seat.coins, seat.change_script, seat.change_value), hex(seat.coins[0].pubkey, 33), signature, false))
     throw new Error('Invalid change authorization');
   return seat;
+}
+
+// Build a candidate roster from the host's current seats and independent chain observations.
+export function proposePublicJoin(
+  body: Record<string, unknown>,
+  sender: string,
+  tokenHash: string,
+  terms: Terms,
+  currentSeats: readonly Seat[],
+  context: Parameters<typeof validateRoster>[2],
+) {
+  if (context.ownSeat.join_pub !== terms.public_key) throw new Error('Expected creator seat');
+  if (currentSeats.length >= terms.max_peers) throw new Error('Pool is full');
+  const newcomer = verifyPublicJoinProof(body, sender, tokenHash, terms);
+  const seats = [...currentSeats, newcomer].map(seat => ({ ...seat, coin: seat.coins[0] }));
+  return validateRoster({ type: 'roster', seq: context.previousSeq + 1, seats }, terms, context);
 }

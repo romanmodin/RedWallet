@@ -1,4 +1,4 @@
-import { verifyPublicJoinProof } from '../../class/xbt/kilojoin/creator-join';
+import { proposePublicJoin, verifyPublicJoinProof } from '../../class/xbt/kilojoin/creator-join';
 import { changeMessage } from '../../class/xbt/kilojoin/protocol';
 import ecc from '../../blue_modules/noble_ecc';
 import { parseSeat, validateRoster, ChainCoin } from '../../class/xbt/kilojoin/roster';
@@ -152,4 +152,24 @@ test('host binds the join and change signatures to the authenticated sender befo
   expect(() => verifyPublicJoinProof(join, '01'.repeat(32), token, terms)).toThrow();
   expect(() => verifyPublicJoinProof({ ...join, seat: { ...wire, change_script: '0014' + '33'.repeat(20) } }, wire.join_pub, token, terms)).toThrow();
   expect(() => verifyPublicJoinProof(join, wire.join_pub, token, { ...terms, private: true })).toThrow();
+});
+
+test('creator proposes a new roster only for a fresh, independently observed join', () => {
+  const { body, context } = fixture();
+  const wire = body.seats[1];
+  const pool = { ...terms, public_key: context.ownSeat.join_pub };
+  const current = [context.ownSeat];
+  const key = Buffer.alloc(32);
+  key[31] = 2;
+  const change_sig = Buffer.from(ecc.signDER(changeMessage(pool.id, [wire.coin], wire.change_script, wire.change_value), key)).toString('hex');
+  const join = { type: 'join', seat: wire, proof: wire.proofs[0], change_sig };
+  const token = 'ab'.repeat(32);
+  const proposal = proposePublicJoin(join, wire.join_pub, token, pool, current, context);
+  expect(proposal.seq).toBe(context.previousSeq + 1);
+  expect(proposal.seats.map(seat => seat.token_hash)).toEqual([context.ownSeat.token_hash, token]);
+  expect(() => proposePublicJoin(join, wire.join_pub, 'cd'.repeat(32), pool, proposal.seats, context)).toThrow('Duplicate');
+  expect(() => proposePublicJoin(join, wire.join_pub, token, { ...pool, max_peers: 2 }, proposal.seats, context)).toThrow('full');
+  context.chain.delete(outpoint(wire.coin));
+  expect(() => proposePublicJoin(join, wire.join_pub, token, pool, current, context)).toThrow('chain observation');
+  expect(current).toEqual([context.ownSeat]);
 });
