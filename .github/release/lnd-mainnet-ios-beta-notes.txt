@@ -1,5 +1,5 @@
-On the XBT Lightning screen, tap Funding, Cross-chain payments, then Transactions. Each open tab should widen, turn white, and show its full name. The other two should become compact green and blue icon buttons. Try larger iPhone text as well.
+In Lightning > Funding, check Your balance in channels in light and dark mode. The purple amount is your side of the channels and counts toward the total. On-chain funds and estimated Lightning sending capacity have their own rows. While reconnecting, the last reported channel balance stays visible. Check that hiding amounts also hides each row.
 
-When the connection wheel appears, its center should line up vertically with the balance. Tapping the balance should still change the display unit.
+Using disposable test data, check that a new-channel review accepts 100,000,000 sats (1 XBT) and blocks 100,000,001 sats. An existing channel can review a larger resize if its funds, peers and fee rules allow. Dismiss the review before confirming.
 
-Open a previously saved cross-chain payment in history and scroll to the bottom. The rounded Cancel / Close button should be easy to see and tap. Closing pending payment details should leave the payment tracked. These checks can use existing history and do not require making a payment.
+On Pay Invoice, the activity indicator is centered in the status panel. A failed outgoing Lightning receipt shows the failure reason when the node has recorded one.
