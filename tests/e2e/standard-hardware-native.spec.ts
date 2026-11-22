@@ -139,8 +139,14 @@ suite('Standard hardware iOS qualification', () => {
         await element(by.id('HardwareSigningCheck')).scrollTo('bottom');
         const rendered = await captureRenderedPsbt(name => device.takeScreenshot(name), {
           showControls: async () => {
+            // The controls mount below the QR inside the same ScrollView, so they
+            // are off-screen until the content grows and the view is scrolled again.
             await element(by.id('DynamicCode')).tap();
-            await waitForId('DynamicQRStopStart');
+            await waitFor(element(by.id('DynamicQRStopStart')))
+              .toExist()
+              .withTimeout(15000);
+            // Scroll in small steps only until the controls are visible, so the QR stays on screen.
+            await visible('DynamicQRStopStart', 'HardwareSigningCheck');
           },
           stop: async () => {
             // Tap Stop exactly once, then confirm the button now reads "Start".
