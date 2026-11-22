@@ -34,7 +34,7 @@ export async function captureRenderedPsbt(
     // Animation otherwise samples a moving frame; freeze it, then walk every fragment.
     await controls.showControls();
     await controls.stop();
-    const total = Number(/(d+)D*$/.exec(await controls.label())?.[1]);
+    const total = Number(/([0-9]+)[^0-9]*$/.exec(await controls.label())?.[1]);
     assert(Number.isInteger(total) && total > 0, 'QR fragment counter is unreadable');
     const seen = new Set<string>();
     // Two passes tolerate a dropped frame; the counter wraps so any start index is covered.
