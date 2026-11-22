@@ -82,7 +82,7 @@ describe('RedWallet XBT-only release UI', () => {
   it('selects BTC explicitly and restores the XBT choices when deselected', async () => {
     await tapAndTapAgainIfElementIsNotVisible('CreateAWallet', 'WalletNameInput');
     await element(by.id('ActivateBtcButton')).tap();
-    await expect(element(by.id('XbtWalletFormat'))).toHaveText('BTC · SHA-256 · Native SegWit (BIP84)');
+    await expect(element(by.id('XbtWalletFormat'))).toHaveText('SHA-256 · Native SegWit (BIP84)');
     await expect(element(by.id('ToggleXbtWalletFormat'))).not.toExist();
     await expect(element(by.id('AddXBTLightningRegtest'))).not.toExist();
     await element(by.id('ActivateBitcoinButton')).tap();

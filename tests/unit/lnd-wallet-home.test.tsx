@@ -200,7 +200,7 @@ test.each([1, 2])('the open tab expands and the two outer corners reveal the wal
       expect(style.borderBottomWidth ?? 0).toBe(0);
       if (active) {
         const label = within(button).getByText(name);
-        expect(StyleSheet.flatten(label.props.style).fontSize).toBe(21);
+        expect(StyleSheet.flatten(label.props.style)).toMatchObject({ fontSize: 21, fontWeight: '400' });
         expect(label.props).toMatchObject({ numberOfLines: fontScale === 1 ? 1 : 2, adjustsFontSizeToFit: true });
         expect(button.findAllByType(Ionicons)).toHaveLength(0);
       } else {
@@ -518,17 +518,27 @@ describe('Lightning connection clock', () => {
 });
 
 test.each([
-  [0, 12],
-  [21, 13],
-  [34, 26],
-])('the action bar reserves its own space above a %i-point bottom inset', async (inset, bottomPadding) => {
+  [0, 9, 12],
+  [21, 10, 13],
+  [34, 23, 26],
+])('the action bar reserves its own space above a %i-point bottom inset', async (inset, bottomPadding, fundingPadding) => {
   mockBottomInset = inset;
   const screen = render(<LndWalletHome wallet={new LndWallet()} />);
   await act(async () => {});
   const footer = StyleSheet.flatten(screen.getByTestId('LndWalletActions').props.style);
   expect(footer.paddingBottom).toBe(bottomPadding);
+  expect(StyleSheet.flatten(screen.getByTestId('LndWalletActionRow').props.style).marginTop).toBe(9);
   expect(footer.position).not.toBe('absolute');
   expect(screen.UNSAFE_getByType(FlatList).props.contentContainerStyle.paddingBottom).toBeLessThan(bottomPadding);
+  for (const label of ['Receive (create invoice)', 'Pay (invoice)']) {
+    const button = screen.getByRole('button', { name: label });
+    const style = StyleSheet.flatten(button.props.style);
+    expect(style).toMatchObject({ minHeight: 62, paddingVertical: 9 });
+    expect(style.minHeight - Math.max(0, inset - bottomPadding)).toBeGreaterThanOrEqual(50);
+  }
+  await act(async () => fireEvent.press(screen.getByRole('tab', { name: 'Funding' })));
+  expect(StyleSheet.flatten(screen.getByTestId('LndWalletActions').props.style).paddingBottom).toBe(fundingPadding);
+  expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Send on-chain' }).props.style).minHeight).toBe(54);
   screen.unmount();
 });
 
@@ -539,6 +549,7 @@ test('Android retains the full system navigation inset', async () => {
     const screen = render(<LndWalletHome wallet={new LndWallet()} />);
     await act(async () => {});
     expect(StyleSheet.flatten(screen.getByTestId('LndWalletActions').props.style).paddingBottom).toBe(34);
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Pay (invoice)' }).props.style).minHeight).toBe(68);
     screen.unmount();
   } finally {
     platform.restore();
