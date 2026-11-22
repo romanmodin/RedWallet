@@ -1,8 +1,7 @@
 import { proposePublicJoin, verifyPublicJoinProof } from '../../class/xbt/kilojoin/creator-join';
-import { changeMessage } from '../../class/xbt/kilojoin/protocol';
+import { changeMessage, Terms } from '../../class/xbt/kilojoin/protocol';
 import ecc from '../../blue_modules/noble_ecc';
 import { parseSeat, validateRoster, ChainCoin } from '../../class/xbt/kilojoin/roster';
-import { Terms } from '../../class/xbt/kilojoin/protocol';
 import { Coin, coinScript, outpoint, ownershipMessage } from '../../class/xbt/kilojoin/transaction';
 const terms = {
   v: 3,
