@@ -137,7 +137,26 @@ suite('Standard hardware iOS qualification', () => {
           .toExist()
           .withTimeout(30000);
         await element(by.id('HardwareSigningCheck')).scrollTo('bottom');
-        const rendered = await captureRenderedPsbt(name => device.takeScreenshot(name));
+        const rendered = await captureRenderedPsbt(name => device.takeScreenshot(name), {
+          showControls: async () => {
+            await element(by.id('DynamicCode')).tap();
+            await waitForId('DynamicQRStopStart');
+          },
+          stop: async () => {
+            // Tap Stop exactly once, then confirm the button now reads "Start".
+            await element(by.id('DynamicQRStopStart')).tap();
+            await waitFor(element(by.text('Start')))
+              .toExist()
+              .withTimeout(5000);
+          },
+          next: async () => {
+            await element(by.id('DynamicQRNext')).tap();
+          },
+          label: async () => {
+            const attrs = (await element(by.id('DynamicQRFragmentLabel')).getAttributes()) as { text?: string; label?: string };
+            return attrs.text ?? attrs.label ?? '';
+          },
+        });
         assert.equal(rendered.psbt.toHex(), createHardwareSigningFixture(offlineAccount, 'send').request.toHex());
         assert.equal(rendered.psbt.inputCount, 3);
         observed.offlineQrPixelDecode = true;
