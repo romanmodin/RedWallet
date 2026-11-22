@@ -1,5 +1,5 @@
-In Lightning > Funding, check Your balance in channels in light and dark mode. The purple amount is your side of the channels and counts toward the total. On-chain funds and estimated Lightning sending capacity have their own rows. While reconnecting, the last reported channel balance stays visible. Check that hiding amounts also hides each row.
+Open Add Wallet. The blue wallet type reads “SHA-256” and says it connects only when selected. Tap it and check that the format reads “SHA-256 · Native SegWit (BIP84)”. Tap XBT to see its format choices again.
 
-Using disposable test data, check that a new-channel review accepts 100,000,000 sats (1 XBT) and blocks 100,000,001 sats. An existing channel can review a larger resize if its funds, peers and fee rules allow. Dismiss the review before confirming.
+In an XBT Lightning test wallet, switch between Transactions, Cross-chain payments and Funding. Each selected tab should expand, turn white and show its label in regular-weight text. Try the long Cross-chain payments label with larger system text.
 
-On Pay Invoice, the activity indicator is centered in the status panel. A failed outgoing Lightning receipt shows the failure reason when the node has recorded one.
+On Transactions and Cross-chain payments, check the slimmer Receive and Pay (invoice) buttons. They sit slightly lower, with more space above them. Check that both lines of Receive are legible and that each control is easy to tap above the home indicator.
