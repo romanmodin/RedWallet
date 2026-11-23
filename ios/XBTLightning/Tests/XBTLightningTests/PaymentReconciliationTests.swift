@@ -7,10 +7,10 @@ import XCTest
 // injected deadline) and the production PaymentReconciliation fallback.
 final class PaymentReconciliationTests: XCTestCase {
     private let preimage = Data(repeating: 0x11, count: 32)
-    private var hash: String { Data(SHA256.hash(data: preimage)).map { String(format: "%02x", $0) }.joined() }
+    private var paymentHash: String { Data(SHA256.hash(data: preimage)).map { String(format: "%02x", $0) }.joined() }
 
     private func row(hash: String? = nil, status: UInt64, proof: Data? = nil) -> Data {
-        var data = ProtoFields.field(1, data: Data((hash ?? self.hash).utf8)) + ProtoFields.field(10, integer: status)
+        var data = ProtoFields.field(1, data: Data((hash ?? self.paymentHash).utf8)) + ProtoFields.field(10, integer: status)
         if let proof { data += ProtoFields.field(6, data: Data(proof.map { String(format: "%02x", $0) }.joined().utf8)) }
         return data
     }
@@ -26,8 +26,12 @@ final class PaymentReconciliationTests: XCTestCase {
     private func send(_ messages: [Data], counter: Counter, timeout: TimeInterval = 0.2) -> () async throws -> Data {
         {
             counter.bump()
+            // A real mobile stream retains its callback until completion.
+            var activeStream: PaymentResult?
+            defer { withExtendedLifetime(activeStream) {} }
             return try await rpc(timeout: timeout) { callback in
                 let stream = PaymentResult(callback)
+                activeStream = stream
                 for message in messages { stream.onResponse(message) }
             }
         }
@@ -36,7 +40,7 @@ final class PaymentReconciliationTests: XCTestCase {
     func testSilentStreamWithTerminalFailedRowReturnsFalseWithoutResubmitting() async throws {
         let sends = Counter(), lookups = Counter()
         let settled = try await PaymentReconciliation.settled(
-            hash: hash, send: send([row(status: 1)], counter: sends),
+            hash: paymentHash, send: send([row(status: 1)], counter: sends),
             lookup: { lookups.bump(); return [self.row(status: 3)] })
         XCTAssertFalse(settled)
         XCTAssertEqual(sends.count, 1)
@@ -45,7 +49,7 @@ final class PaymentReconciliationTests: XCTestCase {
 
     func testSilentStreamWithVerifiedSettledRowReturnsTrue() async throws {
         let settled = try await PaymentReconciliation.settled(
-            hash: hash, send: send([], counter: Counter()), lookup: { [self.row(status: 2, proof: self.preimage)] })
+            hash: paymentHash, send: send([], counter: Counter()), lookup: { [self.row(status: 2, proof: self.preimage)] })
         XCTAssertTrue(settled)
     }
 
@@ -56,7 +60,7 @@ final class PaymentReconciliationTests: XCTestCase {
         for rows in cases {
             let sends = Counter()
             do {
-                _ = try await PaymentReconciliation.settled(hash: hash, send: send([], counter: sends), lookup: { rows })
+                _ = try await PaymentReconciliation.settled(hash: paymentHash, send: send([], counter: sends), lookup: { rows })
                 XCTFail("Ambiguous record must not classify")
             } catch NodeFailure.timedOut {
                 XCTAssertEqual(sends.count, 1)
@@ -66,13 +70,13 @@ final class PaymentReconciliationTests: XCTestCase {
 
     func testFailedLookupAndStreamErrorsStayInconclusive() async {
         do {
-            _ = try await PaymentReconciliation.settled(hash: hash, send: send([], counter: Counter()),
+            _ = try await PaymentReconciliation.settled(hash: paymentHash, send: send([], counter: Counter()),
                                                         lookup: { throw NodeFailure.invalidReply })
             XCTFail()
         } catch NodeFailure.timedOut {} catch { XCTFail("Unexpected \(error)") }
         let lookups = Counter()
         do {
-            _ = try await PaymentReconciliation.settled(hash: hash, send: { throw NodeFailure.invalidReply },
+            _ = try await PaymentReconciliation.settled(hash: paymentHash, send: { throw NodeFailure.invalidReply },
                                                         lookup: { lookups.bump(); return [self.row(status: 3)] })
             XCTFail()
         } catch NodeFailure.invalidReply { XCTAssertEqual(lookups.count, 0) } catch { XCTFail("Unexpected \(error)") }
@@ -80,10 +84,10 @@ final class PaymentReconciliationTests: XCTestCase {
 
     func testPromptTerminalStreamNeverLooksUp() async throws {
         let lookups = Counter()
-        let failed = try await PaymentReconciliation.settled(hash: hash, send: send([row(status: 3)], counter: Counter()),
+        let failed = try await PaymentReconciliation.settled(hash: paymentHash, send: send([row(status: 3)], counter: Counter()),
                                                              lookup: { lookups.bump(); return [] })
         XCTAssertFalse(failed)
-        let settled = try await PaymentReconciliation.settled(hash: hash, send: send([row(status: 2, proof: preimage)], counter: Counter()),
+        let settled = try await PaymentReconciliation.settled(hash: paymentHash, send: send([row(status: 2, proof: preimage)], counter: Counter()),
                                                               lookup: { lookups.bump(); return [] })
         XCTAssertTrue(settled)
         XCTAssertEqual(lookups.count, 0)
