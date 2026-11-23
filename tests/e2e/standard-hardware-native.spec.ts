@@ -376,17 +376,22 @@ suite('Standard hardware iOS qualification', () => {
         assert.deepEqual(fixture.transport.broadcasts, []);
 
         step('blocking stale separation after a real Core reorg');
+        const priorTip = await fixture.core.rpc('getbestblockhash');
+        const priorInactiveReads = fixture.inactiveConflictReads;
         await fixture.reorg(true);
+        assert.notEqual(await fixture.core.rpc('getbestblockhash'), priorTip);
         await visible('PsbtWithHardwareWalletBroadcastTransactionButton', 'SignedTransactionScroll');
         await element(by.id('PsbtWithHardwareWalletBroadcastTransactionButton')).tap();
         await waitForText('Coin separation could not be verified. Standard signing is blocked.', 60000);
         assert.equal(await dismissAlertByText('OK', 15000, false), true);
         assert.deepEqual(fixture.transport.broadcasts, []);
         assert.equal(await text('SignedTransactionHex'), hex);
+        assert(fixture.inactiveConflictReads > priorInactiveReads, 'Expected a fresh lookup of the invalidated conflict');
         observed.reorgBeforeBroadcastBlocked = true;
 
         step('retrying the unchanged reviewed transaction with restored proof');
         await fixture.reorg(false);
+        assert.equal(await fixture.core.rpc('getbestblockhash'), priorTip);
         await element(by.id('SignedTransactionScroll')).scrollTo('bottom');
         await visible('PsbtWithHardwareWalletBroadcastTransactionButton', 'SignedTransactionScroll');
         await element(by.id('PsbtWithHardwareWalletBroadcastTransactionButton')).tap();

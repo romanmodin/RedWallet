@@ -50,6 +50,7 @@ export class StandardHardwareNativeFixture {
   proof: 'missing' | 'valid' | 'disagreement' | 'unavailable' | 'redirect' | 'oversized' | 'slow' = 'missing';
   readonly explorerRequests: { provider: string; endpoint: string }[] = [];
   readonly faultResponses = { redirect: 0, oversized: 0, slow: 0 };
+  inactiveConflictReads = 0;
   redirectResponses = 0;
   redirectProbeRequests = 0;
   malformedResponses = 0;
@@ -108,7 +109,9 @@ export class StandardHardwareNativeFixture {
     // Only the test host creates this conflict, with public disposable coins.
     // RedWallet neither splits coins nor holds this signing key.
     this.conflict = parent(false, 998000n);
-    await this.core.rpc('generatetoaddress', [1, miner]);
+    // Keep the rollback tip above the fixture's height-150 checkpoint alias.
+    // Header requests for this tip must resolve to a real disposable Core block.
+    await this.core.rpc('generatetoaddress', [2, miner]);
     await this.core.rpc('sendrawtransaction', [this.conflict.toHex()]);
     const hashes = await this.core.rpc('generatetoaddress', [6, miner]);
     this.conflictBlock = await this.core.rpc('getblock', [hashes[0]]);
@@ -186,6 +189,7 @@ export class StandardHardwareNativeFixture {
     if (endpoint === '/blocks/tip/height') return String((await this.core.rpc('getblockcount')) + HEIGHT_OFFSET);
     if (endpoint === '/tx/' + this.ancestor.getId() + '/outspend/' + this.ancestorIndex) {
       const block = await this.core.rpc('getblockheader', [this.conflictBlock.hash]);
+      if (this.proof === 'valid' && block.confirmations < 1) this.inactiveConflictReads++;
       return JSON.stringify(
         this.proof === 'missing' || block.confirmations < 1
           ? { spent: false }
