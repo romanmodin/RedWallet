@@ -6,7 +6,7 @@ const tls = require('tls');
 const assert = require('assert').strict;
 const { cleanupTlsFixture } = require('./tls-fixture-cleanup');
 const { prepareTlsApp } = require('./tls-setup');
-const { settleIosHostKeyboard } = require('./tls-host-keyboard');
+const { settleIosHostKeyboard, waitForIosKeyboardDismissal } = require('./tls-host-keyboard');
 const { observeNativeSetupStep } = require('./native-setup-step');
 const { execFileSync } = require('child_process');
 const scenarios = require('./tls-scenarios.json');
@@ -146,10 +146,12 @@ describe('native Electrum TLS authentication', () => {
         await visible('TlsCaInput');
         await element(by.id('TlsCaInput')).replaceText(scenario.anchor ? fixture(scenario.anchor).toString().trim() : '');
         await element(by.id('TlsCaInput')).tapReturnKey();
+        // The form automatically adjusts its scroll insets as the PEM keyboard closes.
+        if (isIOS) await waitForIosKeyboardDismissal({ element, by, waitFor });
         console.log('[tls-e2e] certificate entered:', scenario.name);
         await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
         await waitFor(element(by.id('Save')))
-          .toBeVisible()
+          .toBeVisible(isIOS ? 100 : 75)
           .withTimeout(15_000);
         console.log('[tls-e2e] saving server:', scenario.name);
         await element(by.id('Save')).tap();
