@@ -142,11 +142,16 @@ suite('Standard hardware iOS qualification', () => {
             // The controls mount below the QR inside the same ScrollView, so they
             // are off-screen until the content grows and the view is scrolled again.
             await element(by.id('DynamicCode')).tap();
-            await waitFor(element(by.id('DynamicQRStopStart')))
-              .toExist()
-              .withTimeout(15000);
-            // Scroll in small steps only until the controls are visible, so the QR stays on screen.
-            await visible('DynamicQRStopStart', 'HardwareSigningCheck');
+            const toggle = element(by.id('DynamicQRStopStart'));
+            let toggleVisible = false;
+            await eventually(async () => {
+              const attrs = (await toggle.getAttributes()) as { label?: string; visible?: boolean };
+              toggleVisible = attrs.visible === true;
+              return attrs.label === english.send.dynamic_stop;
+            });
+            if (!toggleVisible) {
+              await waitFor(toggle).toBeVisible().whileElement(by.id('HardwareSigningCheck')).scroll(150, 'down', 0.95, 0.5);
+            }
           },
           stop: async () => {
             // Tap Stop exactly once, then confirm the button now reads "Start".
