@@ -75,7 +75,7 @@ extension RegtestNode {
     }
 }
 
-private final class PaymentResult: NSObject, LndmobileRecvStreamProtocol {
+final class PaymentResult: NSObject, LndmobileRecvStreamProtocol {
     private let reply: LndmobileCallbackProtocol
     init(_ reply: LndmobileCallbackProtocol) { self.reply = reply }
     func onError(_ error: Error?) { reply.onError(error ?? NodeFailure.invalidReply) }
@@ -118,8 +118,11 @@ extension RegtestNode {
         // Only failures above this boundary establish that nothing was submitted.
         // A send/stream error below must be reconciled with the payment database.
         let request = ProtoFields.field(5, data: Data(invoice.utf8)) + ProtoFields.field(6, integer: 30) + ProtoFields.field(7, integer: feeLimit)
-        let result = try ProtoFields(await rpc { LndmobileRouterSendPaymentV2(request, PaymentResult($0)) })
-        guard try result.string(1) == expectedHash else { throw NodeFailure.invalidReply }
-        return result.integers[10] == 2
+        // A silent stream after a terminal router failure is reconciled once with the
+        // payment database; it is never resubmitted.
+        return try await PaymentReconciliation.settled(
+            hash: expectedHash,
+            send: { try await rpc { LndmobileRouterSendPaymentV2(request, PaymentResult($0)) } },
+            lookup: { try await self.paymentRows(hash: expectedHash) })
     }
 }
