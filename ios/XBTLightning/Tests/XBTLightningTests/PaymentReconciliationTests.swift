@@ -82,6 +82,61 @@ final class PaymentReconciliationTests: XCTestCase {
         } catch NodeFailure.invalidReply { XCTAssertEqual(lookups.count, 0) } catch { XCTFail("Unexpected \(error)") }
     }
 
+    private final class FakeClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: TimeInterval = 1_000
+        func advance(_ seconds: TimeInterval) { lock.lock(); value += seconds; lock.unlock() }
+        func now() -> TimeInterval { lock.lock(); defer { lock.unlock() }; return value }
+    }
+
+    // A full page of 100 non-matching rows whose cursor keeps descending.
+    private func fullPage(next: UInt64) -> Data {
+        let other = row(hash: String(repeating: "22", count: 32), status: 3)
+        let rows = (0..<100).reduce(Data()) { $0 + ProtoFields.field(1, data: other) }
+        return rows + ProtoFields.field(2, integer: next)
+    }
+
+    func testMultipageScanSharesOneBudgetAndExpiryPreservesPending() async {
+        let clock = FakeClock(), sends = Counter(), pages = Counter()
+        let remainingSeen = RemainingLog()
+        do {
+            _ = try await PaymentReconciliation.settled(
+                hash: paymentHash, send: send([], counter: sends),
+                lookup: {
+                    try await PaymentReconciliation.scan(hash: self.paymentHash, budget: 15, now: clock.now) { _, remaining in
+                        pages.bump()
+                        remainingSeen.append(remaining)
+                        clock.advance(4) // Every page answers in time on its own.
+                        return self.fullPage(next: 1_000 - UInt64(pages.count))
+                    }
+                })
+            XCTFail("Expired lookup must stay pending")
+        } catch NodeFailure.timedOut {
+            XCTAssertEqual(sends.count, 1)
+            XCTAssertEqual(pages.count, 4) // 4 x 4s exhausts the 15s budget; no fifth page RPC.
+            XCTAssertEqual(remainingSeen.values, [15, 11, 7, 3])
+            XCTAssertTrue(remainingSeen.values.allSatisfy { $0 <= 15 })
+        } catch { XCTFail("Unexpected \(error)") }
+    }
+
+    func testMultipageScanWithinBudgetStillFindsRow() async throws {
+        let clock = FakeClock(), pages = Counter()
+        let rows = try await PaymentReconciliation.scan(hash: paymentHash, budget: 15, now: clock.now) { _, _ in
+            pages.bump()
+            clock.advance(4)
+            return pages.count < 3 ? self.fullPage(next: 1_000 - UInt64(pages.count)) : ProtoFields.field(1, data: self.row(status: 3))
+        }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(pages.count, 3)
+    }
+
+    private final class RemainingLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage: [TimeInterval] = []
+        func append(_ value: TimeInterval) { lock.lock(); storage.append(value); lock.unlock() }
+        var values: [TimeInterval] { lock.lock(); defer { lock.unlock() }; return storage }
+    }
+
     func testPromptTerminalStreamNeverLooksUp() async throws {
         let lookups = Counter()
         let failed = try await PaymentReconciliation.settled(hash: paymentHash, send: send([row(status: 3)], counter: Counter()),

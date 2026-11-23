@@ -47,14 +47,22 @@ enum PaymentReconciliation {
     }
 }
 
-extension RegtestNode {
-    // Exact-hash scan of the payment database, newest first, bounded to 200 pages.
-    func paymentRows(hash: String, timeout: TimeInterval = 15) async throws -> [Data] {
+extension PaymentReconciliation {
+    static func monotonicSeconds() -> TimeInterval {
+        TimeInterval(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
+    }
+
+    // Exact-hash scan, newest first, bounded to 200 pages. One monotonic budget covers
+    // the whole scan: each page gets only the time that remains, and an exhausted
+    // budget is a timeout (which the caller keeps pending) without another page RPC.
+    static func scan(hash: String, budget: TimeInterval, now: () -> TimeInterval = monotonicSeconds,
+                     page fetch: (_ cursor: UInt64, _ remaining: TimeInterval) async throws -> Data) async throws -> [Data] {
+        let start = now()
         var cursor: UInt64 = 0
         for _ in 0..<200 {
-            let request = ProtoFields.field(1, integer: 1) + ProtoFields.field(2, integer: cursor) +
-                ProtoFields.field(3, integer: 100) + ProtoFields.field(4, integer: 1) + ProtoFields.field(8, integer: 1)
-            let page = try ProtoFields(await rpc(timeout: timeout) { LndmobileListPayments(request, $0) })
+            let remaining = budget - (now() - start)
+            guard remaining > 0 else { throw NodeFailure.timedOut }
+            let page = try ProtoFields(await fetch(cursor, remaining))
             let rows = page.bytes[1] ?? []
             guard rows.count <= 100 else { throw NodeFailure.invalidReply }
             let matching = try rows.filter { try ProtoFields($0).string(1) == hash }
@@ -63,5 +71,16 @@ extension RegtestNode {
             cursor = next
         }
         throw NodeFailure.invalidReply
+    }
+}
+
+extension RegtestNode {
+    // `timeout` is the total budget for the whole lookup, not a per-page allowance.
+    func paymentRows(hash: String, timeout: TimeInterval = 15) async throws -> [Data] {
+        try await PaymentReconciliation.scan(hash: hash, budget: timeout) { cursor, remaining in
+            let request = ProtoFields.field(1, integer: 1) + ProtoFields.field(2, integer: cursor) +
+                ProtoFields.field(3, integer: 100) + ProtoFields.field(4, integer: 1) + ProtoFields.field(8, integer: 1)
+            return try await rpc(timeout: remaining) { LndmobileListPayments(request, $0) }
+        }
     }
 }
