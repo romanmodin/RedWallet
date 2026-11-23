@@ -340,6 +340,7 @@ jobs:
         timeout-minutes: 90
         if: ${{ !cancelled() && steps.pristine_simulator.outcome == 'success' }}
         env:
+          REDWALLET_TLS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           IMPORT_DIAGNOSTICS: ${{ inputs.import_diagnostics }}
           WALLET_VALIDATION: ${{ inputs.wallet_validation }}
         run: |

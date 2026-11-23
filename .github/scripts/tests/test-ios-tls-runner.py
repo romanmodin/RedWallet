@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 import runpy
 import subprocess
@@ -7,12 +6,26 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 runner = runpy.run_path(str(Path(__file__).resolve().parents[1] / "run-ios-tls.py"))
 cases = runner["SCENARIOS"]
 
 
 class TlsRunnerTest(unittest.TestCase):
+    def test_ci_source_required_and_matches_actual_checkout(self):
+        source = runner["verified_source_sha"]({})
+        for expected in (None, "", "0" * 40):
+            environment = {"GITHUB_ACTIONS": "true"}
+            if expected is not None:
+                environment["REDWALLET_TLS_EXPECTED_SHA"] = expected
+            with self.subTest(expected=expected), self.assertRaises(ValueError):
+                runner["verified_source_sha"](environment)
+        self.assertEqual(runner["verified_source_sha"]({"REDWALLET_TLS_EXPECTED_SHA": source}), source)
+        with patch("subprocess.check_output", return_value="truncated"):
+            with self.assertRaises(ValueError):
+                runner["verified_source_sha"]({})
+
     def test_all_original_certificate_cases_default_and_no_retry(self):
         self.assertEqual(len(cases), 7)
         self.assertEqual(sum(bool(c.get("accepted")) for c in cases), 2)
@@ -36,16 +49,18 @@ class TlsRunnerTest(unittest.TestCase):
             script = (
                 "import os,json,pathlib; "
                 "p=pathlib.Path(os.environ['OBSERVATIONS']); "
-                "p.open('a').write(json.dumps([os.environ['REDWALLET_TLS_CASE'],os.getpid()])+'\\n')"
+                "p.open('a').write(json.dumps([os.environ['REDWALLET_TLS_CASE'],os.getpid(),os.environ['REDWALLET_TLS_SOURCE_SHA']])+'\\n')"
             )
             result = runner["run_scenarios"](
                 lambda case: [sys.executable, "-c", script],
-                dict(os.environ, OBSERVATIONS=str(log)), cases, receipt, 5, 0.1)
+                {"OBSERVATIONS": str(log)}, cases, receipt, 5, 0.1)
             self.assertEqual(result, 0)
             observations = [json.loads(line) for line in log.read_text().splitlines()]
             self.assertEqual([row[0] for row in observations], [case["id"] for case in cases])
             self.assertEqual(len({row[1] for row in observations}), 7)
             report = json.loads(receipt.read_text())
+            self.assertEqual({row[2] for row in observations}, {report["sourceSha"]})
+            self.assertEqual(report["sourceSha"], runner["verified_source_sha"]({}))
             self.assertTrue(report["complete"])
             self.assertTrue(all(row["status"] == "success" for row in report["cases"]))
 
@@ -56,7 +71,7 @@ class TlsRunnerTest(unittest.TestCase):
             def command(case):
                 invoked.append(case["id"])
                 return [sys.executable, "-c", "raise SystemExit(7)"]
-            self.assertEqual(runner["run_scenarios"](command, os.environ, cases, receipt, 5, 0.1), 1)
+            self.assertEqual(runner["run_scenarios"](command, {}, cases, receipt, 5, 0.1), 1)
             self.assertEqual(invoked, [cases[0]["id"]])
             report = json.loads(receipt.read_text())
             self.assertFalse(report["complete"])
@@ -85,7 +100,7 @@ class TlsRunnerTest(unittest.TestCase):
                 invoked.append(case["id"])
                 return [sys.executable, "-c", parent]
             started = time.monotonic()
-            self.assertEqual(runner["run_scenarios"](command, os.environ, cases, receipt, 2, 0.1), 1)
+            self.assertEqual(runner["run_scenarios"](command, {}, cases, receipt, 2, 0.1), 1)
             self.assertTrue(child_started.exists(), "fixture child never started")
             self.assertLess(time.monotonic() - started, 5)
             self.assertEqual(len(invoked), 1)
@@ -101,7 +116,7 @@ class TlsRunnerTest(unittest.TestCase):
             def forbidden(case):
                 self.fail("invalid selection launched a child")
             with self.assertRaises(ValueError):
-                runner["run_scenarios"](forbidden, os.environ, [{"id": "unknown"}],
+                runner["run_scenarios"](forbidden, {}, [{"id": "unknown"}],
                                         Path(directory) / "receipt.json")
 
 

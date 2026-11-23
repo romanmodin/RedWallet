@@ -75,6 +75,23 @@ async function openSettings() {
 }
 
 describe('native Electrum TLS authentication', () => {
+  let sourceSha;
+  beforeAll(() => {
+    // The iOS matrix verifies the checkout once before starting any simulator case.
+    // Standalone Detox and Android runs resolve the checkout during suite setup.
+    const expected = process.env.REDWALLET_TLS_EXPECTED_SHA;
+    if (device.getPlatform() === 'ios' && (process.env.REDWALLET_TLS_SOURCE_SHA !== undefined || expected !== undefined)) {
+      sourceSha = process.env.REDWALLET_TLS_SOURCE_SHA;
+      if (expected !== undefined) assert.equal(sourceSha, expected, 'TLS case source differs from workflow source');
+    } else {
+      sourceSha = execFileSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
+        encoding: 'utf8',
+        timeout: 15000,
+      }).trim();
+    }
+    assert.match(sourceSha, /^[a-f0-9]{40}$/);
+  });
+
   for (const scenario of selectedScenarios) {
     it(scenario.name, async () => {
       let requests = 0;
@@ -206,10 +223,7 @@ describe('native Electrum TLS authentication', () => {
           {
             scenario: scenario.id,
             name: scenario.name,
-            sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], {
-              encoding: 'utf8',
-              timeout: 5000,
-            }).trim(),
+            sourceSha,
             accepted: !!scenario.accepted,
             rpcRequests: requests,
             beforeRestart,

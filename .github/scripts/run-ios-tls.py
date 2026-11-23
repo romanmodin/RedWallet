@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import subprocess
 import sys
@@ -23,6 +24,18 @@ def selected_scenarios(environment):
     return SCENARIOS
 
 
+def verified_source_sha(environment):
+    sha = subprocess.check_output(["git", "rev-parse", "--verify", "HEAD^{commit}"],
+                                  cwd=ROOT, text=True, timeout=15).strip()
+    expected = environment.get("REDWALLET_TLS_EXPECTED_SHA")
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise ValueError("Invalid TLS checkout SHA")
+    if expected is not None or environment.get("GITHUB_ACTIONS") == "true":
+        if sha != expected:
+            raise ValueError("TLS checkout does not match the expected workflow source")
+    return sha
+
+
 def detox_command(case):
     return [
         "npx", "detox", "test", "-c", "ios.release",
@@ -37,7 +50,8 @@ def run_scenarios(command_for_case, environment, cases, receipt_path,
                   timeout_seconds=PROCESS_TIMEOUT_SECONDS, grace_seconds=5):
     if not cases or any(case not in SCENARIOS for case in cases):
         raise ValueError("Unknown or empty TLS case selection")
-    receipt = {"requiredCases": [case["id"] for case in cases], "cases": [], "complete": False}
+    source = verified_source_sha(environment)
+    receipt = {"sourceSha": source, "requiredCases": [case["id"] for case in cases], "cases": [], "complete": False}
     path = Path(receipt_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -46,7 +60,7 @@ def run_scenarios(command_for_case, environment, cases, receipt_path,
 
     save()
     for case in cases:
-        env = dict(environment, REDWALLET_TLS_CASE=case["id"])
+        env = dict(environment, REDWALLET_TLS_CASE=case["id"], REDWALLET_TLS_SOURCE_SHA=source)
         entry = {"id": case["id"], "status": "running"}
         receipt["cases"].append(entry)
         save()
