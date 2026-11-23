@@ -22,19 +22,20 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
   // a fixed 128-call limit incorrectly rejected valid larger coin selections.
   if (funding.some(parent => parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64)) unavailable();
   const requestLimit = 6 + funding.reduce((total, parent) => total + parent.ins.length + 9, 0);
-  const deadline = Date.now() + 45000;
+  // Collection has an elapsed-time budget independent of the phone’s wall clock.
+  const deadline = performance.now() + 45000;
   let requests = 0;
   let bytes = 0;
   const get = async (host: string, path: string, limit = 16384): Promise<string> => {
     assertAuthorized();
-    if (++requests > requestLimit || Date.now() >= deadline) unavailable();
+    if (++requests > requestLimit || performance.now() >= deadline) unavailable();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.min(8000, deadline - Date.now()));
+    const timer = setTimeout(() => controller.abort(), Math.min(8000, deadline - performance.now()));
     try {
       const text = (await getSeparationHTTP(host + path, limit, controller.signal)).trim();
       bytes += text.length;
       assertAuthorized();
-      if (text.length > limit || bytes > 16000000 || Date.now() >= deadline) unavailable();
+      if (text.length > limit || bytes > 16000000 || performance.now() >= deadline) unavailable();
       return text;
     } finally {
       clearTimeout(timer);

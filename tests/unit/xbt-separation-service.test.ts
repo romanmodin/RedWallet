@@ -220,3 +220,33 @@ it('rejects an oversized parent anywhere in the batch before contacting a provid
   await expect(verifyPublicFundingSeparation([f.parent, tooLarge], () => {})).rejects.toThrow();
   expect(f.calls).toHaveLength(0);
 });
+
+describe('proof collection deadline', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('permits a fast verification when the wall clock jumps forward', async () => {
+    const f = fixture();
+    f.rewrite((url, value) => {
+      if (url.endsWith('/blocks/tip/height')) jest.setSystemTime(Date.now() + 3600000);
+      return value;
+    });
+    await expect(verifyPublicFundingSeparation([f.parent], () => {})).resolves.toBeUndefined();
+  });
+
+  it('enforces the elapsed-time limit even if the wall clock moves back', async () => {
+    const f = fixture();
+    // Advance elapsed time at the authorization check after both checkpoint
+    // reads have started, before collecting any funding proof.
+    let paused = false;
+    const authorize = () => {
+      if (!paused && f.calls.length === 2) {
+        paused = true;
+        jest.setSystemTime(Date.now() - 3600000);
+        jest.advanceTimersByTime(45000);
+      }
+    };
+    await expect(verifyPublicFundingSeparation([f.parent], authorize)).rejects.toThrow('Coin separation could not be verified');
+    expect(f.calls.some(url => url.endsWith('/merkle-proof'))).toBe(false);
+  });
+});
