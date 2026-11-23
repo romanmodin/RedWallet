@@ -27,6 +27,21 @@ final class RegtestTests: XCTestCase {
         return result
     }
 
+    #if XBT_LND_ROUTED_TEST
+    private func reportFixtureLimits(_ stage: String) async throws {
+        let response = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
+        let channels = try XCTUnwrap(response.bytes[11])
+        XCTAssertEqual(channels.count, 1)
+        let channel = try ProtoFields(XCTUnwrap(channels.first))
+        let capacity = try XCTUnwrap(channel.integers[5])
+        let local = try ProtoFields(XCTUnwrap(channel.bytes[29]?.first))
+        let remote = try ProtoFields(XCTUnwrap(channel.bytes[30]?.first))
+        let localLimit = try XCTUnwrap(local.integers[4])
+        let remoteLimit = try XCTUnwrap(remote.integers[4])
+        print("Disposable \(stage): capacity \(capacity) sat, local max pending \(localLimit) msat, remote max pending \(remoteLimit) msat")
+    }
+    #endif
+
     private func waitUntil(_ check: () async throws -> Bool) async throws {
         for _ in 0..<90 {
             if try await check() { return }
@@ -215,6 +230,7 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(disabledOffers.first { $0["id"] as? String == ownOfferID }?["active"] as? Bool, false)
         try await RegtestNode.shared.setOfferEnabled(id: ownOfferID, enabled: true)
 
+        try await reportFixtureLimits("before splice")
         for direction in ["in", "out"] {
             try await waitForFixtureSync("review splice " + direction)
             let mempoolBefore = try await peer("mempool")
@@ -245,6 +261,7 @@ final class RegtestTests: XCTestCase {
             let raw = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
             let channel = try XCTUnwrap(raw.bytes[11]?.first)
             XCTAssertEqual(try ProtoFields(channel).integers[5], resize.estimate.capacity)
+            try await reportFixtureLimits("after locked splice " + direction)
             let syncedBackup = try await RegtestNode.shared.channelBackup()
             XCTAssertFalse(syncedBackup.isEmpty)
         }
@@ -255,6 +272,7 @@ final class RegtestTests: XCTestCase {
             let traceInvoice = try await peer("invoice-trace", String(amount))
             let traceReview = try await RegtestNode.shared.decode(traceInvoice)
             XCTAssertEqual(traceReview.sats, amount)
+            print("Disposable \(amount)-sat submission starting")
             let didSettle = try await RegtestNode.shared.pay(invoice: traceInvoice, expectedHash: traceReview.hash,
                                                             expectedSats: amount, feeLimit: 10)
             let page = try await RegtestNode.shared.walletActivity("payments", offset: 0)
@@ -267,8 +285,10 @@ final class RegtestTests: XCTestCase {
             XCTAssertTrue(report.contains("1 hop (direct)"), report)
             if didSettle && amount != traceAmounts.last {
                 let returnInvoice = try await RegtestNode.shared.receive(sats: amount)
+                print("Disposable \(amount)-sat return starting")
                 let result = try await peer("pay", returnInvoice)
                 XCTAssertEqual(result, "settled")
+                print("Disposable \(amount)-sat return settled")
             }
         }
         let fundedBackup = try await RegtestNode.shared.channelBackup()
