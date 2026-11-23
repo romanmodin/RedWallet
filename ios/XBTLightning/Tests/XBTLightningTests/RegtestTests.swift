@@ -28,6 +28,32 @@ final class RegtestTests: XCTestCase {
     }
 
     #if XBT_LND_ROUTED_TEST
+    // Read the existing disposable payment after the app's callback deadline. The
+    // peer can hold a partial payment for 120s. Never repeat the submission.
+    private func observePendingFixturePayment(hash: String) async throws -> Bool {
+        let deadline = PaymentReconciliation.monotonicSeconds() + 150
+        var lastState: String?
+        while true {
+            let remaining = deadline - PaymentReconciliation.monotonicSeconds()
+            guard remaining > 0 else { throw NodeFailure.timedOut }
+            let rows = try await RegtestNode.shared.paymentRows(hash: hash, timeout: min(15, remaining))
+            let statuses = try rows.map { try ProtoFields($0).integers[10] ?? 0 }
+            let state = "matching rows=\(rows.count), status codes=\(statuses)"
+            if state != lastState {
+                print("Disposable post-timeout observation: " + state)
+                lastState = state
+            }
+            switch PaymentReconciliation.classify(rows: rows, hash: hash) {
+            case .settled: return true
+            case .failed: return false
+            case .pending:
+                let delay = min(2, deadline - PaymentReconciliation.monotonicSeconds())
+                guard delay > 0 else { throw NodeFailure.timedOut }
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+        }
+    }
+
     private func reportFixtureLimits(_ stage: String) async throws {
         let response = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
         let channels = try XCTUnwrap(response.bytes[11])
@@ -274,9 +300,15 @@ final class RegtestTests: XCTestCase {
             XCTAssertEqual(traceReview.sats, amount)
             // Test-only stage markers: the last "begin" without a matching "end" names the waiting call.
             print("Disposable \(amount)-sat stage: SendPaymentV2 begin")
-            let didSettle = try await RegtestNode.shared.pay(invoice: traceInvoice, expectedHash: traceReview.hash,
-                                                            expectedSats: amount, feeLimit: 10)
-            print("Disposable \(amount)-sat stage: SendPaymentV2 end, settled=\(didSettle)")
+            let didSettle: Bool
+            do {
+                didSettle = try await RegtestNode.shared.pay(invoice: traceInvoice, expectedHash: traceReview.hash,
+                                                             expectedSats: amount, feeLimit: 10)
+            } catch NodeFailure.timedOut {
+                print("Disposable \(amount)-sat callback timed out; observing the same submission")
+                didSettle = try await observePendingFixturePayment(hash: traceReview.hash)
+            }
+            print("Disposable \(amount)-sat stage: submission outcome, settled=\(didSettle)")
             print("Disposable \(amount)-sat stage: ListPayments lookup begin")
             let page = try await RegtestNode.shared.walletActivity("payments", offset: 0)
             let rows = try XCTUnwrap(page["rows"] as? [[String: Any]])
