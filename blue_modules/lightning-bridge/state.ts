@@ -298,7 +298,9 @@ export class BridgeController {
       const existing = journal.records.find(r => r.hash === original.hash && r.node === node);
       if (existing && (unresolved.has(existing.state) || existing.state === 'settled'))
         throw new Error('This payment is pending, uncertain or already paid. Check its status; do not pay again.');
-      if (existing && this.now() < reservationEnds(existing))
+      const switchingAfterUnsubmittedQuote =
+        existing && existing.provider !== providerId && (existing.state === 'quote_failed' || existing.state === 'canceled');
+      if (existing && !switchingAfterUnsubmittedQuote && this.now() < reservationEnds(existing))
         throw new Error('A quote for this invoice already exists. Wait before requesting another.');
       const previous = await this.backend.status(original.hash);
       if (!['not_found', 'failed'].includes(previous.state))

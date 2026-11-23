@@ -222,9 +222,11 @@ describe.each(processors)('$id bridge lifecycle', processor => {
       quote: { token: '' },
     });
     await expect(restarted.approve(hash, hold, () => true)).rejects.toThrow('Review this quote again');
-    await expect(restarted.quote(other.id, recipient, '10', signal)).rejects.toThrow('already exists');
-    expect(calls.filter(c => c.path === '/api/quote')).toHaveLength(1);
     expect(otherRequest).not.toHaveBeenCalled();
+    otherRequest.mockRejectedValueOnce(new Error('Alternate processor offline'));
+    await expect(restarted.quote(other.id, recipient, '10', signal)).rejects.toThrow('Alternate processor offline');
+    expect(calls.filter(c => c.path === '/api/quote')).toHaveLength(1);
+    expect(otherRequest).toHaveBeenCalledTimes(1);
     expect(pay).not.toHaveBeenCalled();
   });
 

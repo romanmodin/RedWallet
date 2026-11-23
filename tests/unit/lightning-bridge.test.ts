@@ -517,3 +517,18 @@ describe('durable quote diagnostics', () => {
     expect(e.backend.pay).toHaveBeenCalledTimes(1);
   });
 });
+
+it('allows another processor after an unverified quote and checks native payment state again', async () => {
+  const e = environment();
+  jest.spyOn(e.provider, 'quote').mockRejectedValueOnce(new Error('Quote could not be verified'));
+  await expect(quoted(e)).rejects.toThrow('verified');
+  await expect(quoted(e)).rejects.toThrow('already exists');
+  const other = { ...e.provider, id: 'other', quote: jest.fn(async () => validateQuote(quoteRaw(), original(), { id: 'other', node }, NOW)) };
+  const restarted = new BridgeController(e.store, e.backend, [e.provider, other], () => NOW);
+  e.setStatus({ state: 'pending' });
+  await expect(restarted.quote('other', original(), '10', signal())).rejects.toThrow('LND already knows');
+  expect(other.quote).not.toHaveBeenCalled();
+  e.setStatus({ state: 'not_found' });
+  await expect(restarted.quote('other', original(), '10', signal())).resolves.toMatchObject({ provider: 'other', state: 'quoted' });
+  expect(e.backend.pay).not.toHaveBeenCalled();
+});
