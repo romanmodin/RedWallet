@@ -75,39 +75,41 @@ const overview: LndOverview = {
 const bridge = {
   run: jest.fn(async () => 'Running'),
   wallet: jest.fn(async (kind: string) =>
-    kind === 'overview'
-      ? overview
-      : {
-          rows:
-            kind === 'funding'
-              ? [
-                  {
-                    id: 'funding-tx',
-                    direction: 'received',
-                    sats: '1000000',
-                    feeSats: '0',
-                    timestamp: 1700000000,
-                    state: 'pending',
-                    memo: '',
-                    confirmations: 0,
-                  },
-                ]
-              : kind === 'invoices'
+    kind === 'paymentTrace'
+      ? String('No route attempts retained by the node.')
+      : kind === 'overview'
+        ? overview
+        : {
+            rows:
+              kind === 'funding'
                 ? [
                     {
-                      id: 'invoice-hash',
+                      id: 'funding-tx',
                       direction: 'received',
-                      sats: '500',
+                      sats: '1000000',
                       feeSats: '0',
-                      timestamp: 1700000100,
-                      state: 'settled',
-                      memo: 'Test payment',
+                      timestamp: 1700000000,
+                      state: 'pending',
+                      memo: '',
+                      confirmations: 0,
                     },
                   ]
-                : [],
-          next: '0',
-          more: false,
-        },
+                : kind === 'invoices'
+                  ? [
+                      {
+                        id: 'invoice-hash',
+                        direction: 'received',
+                        sats: '500',
+                        feeSats: '0',
+                        timestamp: 1700000100,
+                        state: 'settled',
+                        memo: 'Test payment',
+                      },
+                    ]
+                  : [],
+            next: '0',
+            more: false,
+          },
   ),
   invoice: jest.fn(),
   manage: jest.fn(),
@@ -635,6 +637,46 @@ test.each([
   expect(receipt).toContain(expected);
   buttons!.find(button => button.text === 'Copy details')!.onPress!();
   expect(copy).toHaveBeenCalledWith(receipt);
+  screen.unmount();
+});
+
+test('reads a single payment trace on demand and copies only the diagnostic report', async () => {
+  const trace = 'Outgoing Lightning payment\nNode status: failed\nRecorded attempts: 1';
+  bridge.wallet.mockImplementation(async (kind: string) => {
+    if (kind === 'paymentTrace') return trace;
+    if (kind === 'payments')
+      return {
+        rows: [
+          {
+            id: 'private-hash',
+            paymentIndex: '7',
+            direction: 'sent',
+            sats: '1500',
+            timestamp: 1700000100,
+            feeSats: '0',
+            state: 'failed',
+            memo: '',
+          },
+        ],
+        next: '0',
+        more: false,
+      };
+    return defaultWallet(kind);
+  });
+  const alert = jest.spyOn(Alert, 'alert');
+  const copy = jest.spyOn(Clipboard, 'setString').mockImplementation(() => {});
+  const screen = render(<LndWalletHome wallet={new LndWallet()} />);
+  await act(async () => {});
+  expect(bridge.wallet).not.toHaveBeenCalledWith('paymentTrace', expect.anything());
+  fireEvent.press(screen.getByLabelText('Sent · failed'));
+  await act(async () => {
+    await alert.mock.calls.at(-1)![2]!.find(b => b.text === 'Payment trace')!.onPress!();
+  });
+  expect(bridge.wallet).toHaveBeenCalledWith('paymentTrace', '7:private-hash');
+  const [, message, buttons] = alert.mock.calls.at(-1)!;
+  expect(message).toBe(trace);
+  buttons!.find(b => b.text === 'Copy trace')!.onPress!();
+  expect(copy).toHaveBeenCalledWith(trace);
   screen.unmount();
 });
 

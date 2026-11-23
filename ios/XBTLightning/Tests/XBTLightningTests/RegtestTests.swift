@@ -147,6 +147,13 @@ final class RegtestTests: XCTestCase {
         let repeatedRows = repeatedPage["rows"] as? [[String: Any]] ?? []
         XCTAssertEqual(repeatedRows.filter { $0["id"] as? String == review.hash }.count, 1)
         XCTAssertEqual(repeatedRows.first { $0["id"] as? String == review.hash }?["state"] as? String, "settled")
+        let paidRow = try XCTUnwrap(repeatedRows.first { $0["id"] as? String == review.hash })
+        let indexText = try XCTUnwrap(paidRow["paymentIndex"] as? String)
+        let index = try XCTUnwrap(UInt64(indexText))
+        let trace = try await RegtestNode.shared.paymentTrace(index: index, hash: review.hash)
+        XCTAssertTrue(trace.contains("Node status: settled"))
+        XCTAssertTrue(trace.contains("1 hop (direct)"))
+        XCTAssertFalse(trace.contains(review.hash))
         let incoming = try await RegtestNode.shared.receive(sats: 1_500_000)
         let receipt = try await peer("pay", incoming)
         XCTAssertEqual(receipt, "settled")
@@ -211,7 +218,7 @@ final class RegtestTests: XCTestCase {
         for direction in ["in", "out"] {
             try await waitForFixtureSync("review splice " + direction)
             let mempoolBefore = try await peer("mempool")
-            let resize = try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: direction == "in" ? 44_000_000 : 2_000_000, feeRate: 125)
+            let resize = try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: direction == "in" ? 76_000_000 : 2_000_000, feeRate: 125)
             let mempoolAfter = try await peer("mempool")
             XCTAssertEqual(mempoolAfter, mempoolBefore, "Review must not broadcast or lease/spend funds")
             _ = try await RegtestNode.shared.splice(token: resize.token)
@@ -241,6 +248,21 @@ final class RegtestTests: XCTestCase {
             let syncedBackup = try await RegtestNode.shared.channelBackup()
             XCTAssertFalse(syncedBackup.isEmpty)
         }
+        // Exercise a large direct payment after both peers have locked the splice.
+        // The trace contains only enumerated statuses, hop counts and relative times.
+        let largeInvoice = try await peer("invoice-trace")
+        let largeReview = try await RegtestNode.shared.decode(largeInvoice)
+        XCTAssertEqual(largeReview.sats, 80_000_000)
+        let largeSettled = try await RegtestNode.shared.pay(invoice: largeInvoice, expectedHash: largeReview.hash,
+                                                            expectedSats: 80_000_000, feeLimit: 10)
+        let largePage = try await RegtestNode.shared.walletActivity("payments", offset: 0)
+        let records = try XCTUnwrap(largePage["rows"] as? [[String: Any]])
+        let largeRow = try XCTUnwrap(records.first { $0["id"] as? String == largeReview.hash })
+        let largeIndex = try XCTUnwrap((largeRow["paymentIndex"] as? String).flatMap(UInt64.init))
+        let largeTrace = try await RegtestNode.shared.paymentTrace(index: largeIndex, hash: largeReview.hash)
+        print("Disposable post-splice payment trace\n" + largeTrace)
+        XCTAssertTrue(largeSettled, largeTrace)
+        XCTAssertTrue(largeTrace.contains("1 hop (direct)"), largeTrace)
         let fundedBackup = try await RegtestNode.shared.channelBackup()
         XCTAssertGreaterThan(fundedBackup.count, backup.count)
         #endif

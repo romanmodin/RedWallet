@@ -397,6 +397,29 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             },
           ]
         : []),
+      ...(row.paymentIndex && row.direction === 'sent' && row.confirmations === undefined
+        ? [
+            {
+              text: 'Payment trace',
+              onPress: async () => {
+                const visible = () => focused.current && !['background', 'inactive'].includes(AppState.currentState);
+                try {
+                  const trace: string = await bridge.wallet('paymentTrace', row.paymentIndex + ':' + row.id);
+                  if (!visible()) return;
+                  Alert.alert('Payment trace', trace, [
+                    {
+                      text: 'Copy trace',
+                      onPress: () => Clipboard.setString(trace),
+                    },
+                    { text: 'Done', style: 'cancel' },
+                  ]);
+                } catch {
+                  if (visible()) Alert.alert('Payment trace unavailable', 'Refresh payment history and try again.');
+                }
+              },
+            },
+          ]
+        : []),
       { text: 'Copy details', onPress: () => Clipboard.setString(text) },
       { text: 'Done', style: 'cancel' },
     ]);
