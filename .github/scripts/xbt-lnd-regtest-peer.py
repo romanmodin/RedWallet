@@ -124,8 +124,9 @@ class Fixture(BaseHTTPRequestHandler):
                 result = "received-2000000" if self.path == "/verify-withdraw-large" else "received-1000"
             elif self.path in ("/invoice", "/invoice-large"):
                 result = json.loads(call(lightning, "addinvoice", "--amt=2000000" if self.path == "/invoice-large" else "--amt=20000"))["payment_request"]
-            elif self.path == "/invoice-trace":
-                result = json.loads(call(lightning, "addinvoice", "--amt=80000000"))["payment_request"]
+            elif self.path == "/invoice-trace" and value in ("", "599000", "600000", "80000000"):
+                amount = value or "80000000"
+                result = json.loads(call(lightning, "addinvoice", "--amt=" + amount))["payment_request"]
             elif self.path == "/offer":
                 result = json.loads(call(lightning, "offer", "create", "--description=Disposable offer", "--amount_msat=1000000"))["offer"]["bolt12"]
             elif self.path == "/pay-offer" and re.fullmatch(r"lno1[a-z0-9]{20,8192}", value):

@@ -17,8 +17,7 @@ exec(compile(tree, str(source), 'exec'), ns)
 
 class Request:
     path = '/pay'
-    def __init__(self):
-        value = b'lnbcrt' + b'a' * 70
+    def __init__(self, value=b'lnbcrt' + b'a' * 70):
         self.headers = {'Content-Length': str(len(value))}
         self.rfile = io.BytesIO(value)
         self.wfile = io.BytesIO()
@@ -70,6 +69,26 @@ class ReadinessTests(unittest.TestCase):
         ns['Fixture'].do_POST(request)
         self.assertEqual(request.status, 500)
         self.assertEqual(ns['call'].call_count, 1)
+
+
+class TraceInvoiceTests(unittest.TestCase):
+    def test_only_known_synthetic_amounts_are_issued(self):
+        ns['lightning'] = ['disposable-lncli']
+        for body, amount in [(b'', '80000000'), (b'599000', '599000'),
+                             (b'600000', '600000'), (b'80000000', '80000000'),
+                             (b'599999', None)]:
+            with self.subTest(body=body):
+                ns['call'] = Mock(return_value='{"payment_request":"synthetic"}')
+                request = Request(body)
+                request.path = '/invoice-trace'
+                ns['Fixture'].do_POST(request)
+                if amount is None:
+                    self.assertEqual(request.status, 400)
+                    ns['call'].assert_not_called()
+                else:
+                    self.assertEqual(request.status, 200)
+                    self.assertEqual(request.wfile.getvalue(), b'synthetic')
+                    ns['call'].assert_called_once_with(ns['lightning'], 'addinvoice', '--amt=' + amount)
 
 
 class SpliceConfirmationTests(unittest.TestCase):
