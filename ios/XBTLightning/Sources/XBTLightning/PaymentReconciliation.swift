@@ -62,7 +62,9 @@ extension PaymentReconciliation {
         for _ in 0..<200 {
             let remaining = budget - (now() - start)
             guard remaining > 0 else { throw NodeFailure.timedOut }
-            let page = try ProtoFields(await fetch(cursor, remaining))
+            let reply = try await fetch(cursor, remaining)
+            guard now() - start < budget else { throw NodeFailure.timedOut }
+            let page = try ProtoFields(reply)
             let rows = page.bytes[1] ?? []
             guard rows.count <= 100 else { throw NodeFailure.invalidReply }
             let matching = try rows.filter { try ProtoFields($0).string(1) == hash }

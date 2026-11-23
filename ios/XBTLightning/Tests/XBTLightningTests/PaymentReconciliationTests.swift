@@ -92,7 +92,7 @@ final class PaymentReconciliationTests: XCTestCase {
     // A full page of 100 non-matching rows whose cursor keeps descending.
     private func fullPage(next: UInt64) -> Data {
         let other = row(hash: String(repeating: "22", count: 32), status: 3)
-        let rows = (0..<100).reduce(Data()) { $0 + ProtoFields.field(1, data: other) }
+        let rows = (0..<100).reduce(into: Data()) { data, _ in data.append(ProtoFields.field(1, data: other)) }
         return rows + ProtoFields.field(2, integer: next)
     }
 
@@ -106,7 +106,7 @@ final class PaymentReconciliationTests: XCTestCase {
                     try await PaymentReconciliation.scan(hash: self.paymentHash, budget: 15, now: clock.now) { _, remaining in
                         pages.bump()
                         remainingSeen.append(remaining)
-                        clock.advance(4) // Every page answers in time on its own.
+                        clock.advance(4) // The fourth callback arrives after its remaining three seconds.
                         return self.fullPage(next: 1_000 - UInt64(pages.count))
                     }
                 })
@@ -117,6 +117,21 @@ final class PaymentReconciliationTests: XCTestCase {
             XCTAssertEqual(remainingSeen.values, [15, 11, 7, 3])
             XCTAssertTrue(remainingSeen.values.allSatisfy { $0 <= 15 })
         } catch { XCTFail("Unexpected \(error)") }
+    }
+
+    func testMatchingRowAtDeadlinePreservesPending() async {
+        let clock = FakeClock(), sends = Counter()
+        do {
+            _ = try await PaymentReconciliation.settled(hash: paymentHash, send: send([], counter: sends)) {
+                try await PaymentReconciliation.scan(hash: self.paymentHash, budget: 15, now: clock.now) { _, _ in
+                    clock.advance(15)
+                    return ProtoFields.field(1, data: self.row(status: 3))
+                }
+            }
+            XCTFail("A callback at the deadline must leave the payment pending")
+        } catch NodeFailure.timedOut {
+            XCTAssertEqual(sends.count, 1)
+        } catch { XCTFail("Unexpected error: \(error)") }
     }
 
     func testMultipageScanWithinBudgetStillFindsRow() async throws {
