@@ -4,12 +4,11 @@ import Lndmobile
 @testable import XBTLightning
 
 // Synthetic only: no node, wallet data, network or production behavior change.
-// The production stream adapters are private, so these tests drive the real
-// `rpc`/`Reply` continuation with a sender that applies the same status filter
+// These tests drive a synthetic callback with the production status filter
 // (deliver only 2/3, otherwise keep waiting) and records stage markers. The last
 // "begin" without a matching "end" names the call that is actually waiting.
 final class PaymentStreamStageTests: XCTestCase {
-    private let hash = "synthetic-payment-hash"
+    private let paymentHash = "synthetic-payment-hash"
     private let privatePeer = "private-peer"
     private let privatePreimage = "private-preimage"
     private let invoice = "lnbcrt-synthetic-invoice"
@@ -19,7 +18,7 @@ final class PaymentStreamStageTests: XCTestCase {
     private func page(_ rows: Data...) -> Data { rows.reduce(Data()) { $0 + ProtoFields.field(1, data: $1) } }
 
     private func record(status: UInt64, reason: UInt64? = nil, index: UInt64 = 17) -> Data {
-        var data = string(1, hash) + field(7, 80_000_000) + field(10, status) + field(15, index)
+        var data = string(1, paymentHash) + field(7, 80_000_000) + field(10, status) + field(15, index)
         if let reason { data += field(16, reason) }
         return data
     }
@@ -61,8 +60,8 @@ final class PaymentStreamStageTests: XCTestCase {
         init(_ continuation: CheckedContinuation<Data, Error>, deadline: TimeInterval) {
             self.continuation = continuation
             super.init()
-            DispatchQueue.global().asyncAfter(deadline: .now() + deadline) { [weak self] in
-                self?.finish(.failure(NodeFailure.timedOut))
+            DispatchQueue.global().asyncAfter(deadline: .now() + deadline) {
+                self.finish(.failure(NodeFailure.timedOut))
             }
         }
         private func finish(_ result: Result<Data, Error>) {
@@ -102,7 +101,7 @@ final class PaymentStreamStageTests: XCTestCase {
     private func trace(_ stages: Stages, database: Data, index: UInt64) throws -> String {
         stages.mark("payment trace begin")
         defer { stages.mark("payment trace end") }
-        return try LightningPaymentTrace.report(page: database, index: index, hash: hash)
+        return try LightningPaymentTrace.report(page: database, index: index, hash: paymentHash)
     }
 
     func testTerminalFailedStreamCompletesOnceAndMatchesTheDatabaseRecord() async throws {
@@ -119,7 +118,7 @@ final class PaymentStreamStageTests: XCTestCase {
         let activity = try XCTUnwrap(lookup(stages, database: page(record(status: 3, reason: 2))).first)
         XCTAssertEqual(activity.state, "failed")
         XCTAssertEqual(activity.failureReasonCode, 2)
-        XCTAssertEqual(activity.id, hash)
+        XCTAssertEqual(activity.id, paymentHash)
         XCTAssertEqual(stages.all, ["SendPaymentV2 begin", "SendPaymentV2 end",
                                     "ListPayments lookup begin", "ListPayments lookup end"])
     }
@@ -182,20 +181,20 @@ final class PaymentStreamStageTests: XCTestCase {
         let report = try trace(stages, database: page(payment), index: 17)
         XCTAssertTrue(report.contains("Node status: failed"), report)
         XCTAssertTrue(report.contains("Payment failure: no route"), report)
-        for sensitive in [hash, privatePeer, privatePreimage, invoice] {
+        for sensitive in [paymentHash, privatePeer, privatePreimage, invoice] {
             XCTAssertFalse(report.contains(sensitive), "Trace leaked synthetic secret: " + sensitive)
         }
         XCTAssertEqual(stages.all, ["payment trace begin", "payment trace end"])
         XCTAssertNil(stages.waiting)
 
         // A trace for a different index or hash is rejected rather than reported.
-        XCTAssertThrowsError(try LightningPaymentTrace.report(page: page(payment), index: 18, hash: hash))
+        XCTAssertThrowsError(try LightningPaymentTrace.report(page: page(payment), index: 18, hash: paymentHash))
         XCTAssertThrowsError(try LightningPaymentTrace.report(page: page(payment), index: 17, hash: "another"))
 
         // A terminal failure with no retained attempts is still reported without secrets.
-        let bare = try LightningPaymentTrace.report(page: page(record(status: 3, reason: 2)), index: 17, hash: hash)
+        let bare = try LightningPaymentTrace.report(page: page(record(status: 3, reason: 2)), index: 17, hash: paymentHash)
         XCTAssertTrue(bare.contains("No route attempts retained"), bare)
-        XCTAssertFalse(bare.contains(hash))
+        XCTAssertFalse(bare.contains(paymentHash))
     }
 
     func testStageMarkersIdentifyTheLastUnmatchedCall() {
