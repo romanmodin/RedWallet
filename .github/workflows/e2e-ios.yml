@@ -170,6 +170,10 @@ jobs:
       - name: Reset ccache stats
         run: ccache -z || true
 
+      - name: Instrument this disposable simulator build
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/diagnostic/ios-create-91fde0f'
+        run: git apply --check .github/scripts/ios-create-stages.patch && git apply .github/scripts/ios-create-stages.patch
+
       - name: Build iOS simulator app
         working-directory: ios
         env:
@@ -208,7 +212,7 @@ jobs:
       - name: Upload simulator app
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: bluewallet-ios-app
+          name: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/diagnostic/ios-create-91fde0f' && 'diagnostic-ios-create-app' || 'bluewallet-ios-app' }}
           path: BlueWallet.app.tar.gz
           retention-days: 3
           compression-level: 0
@@ -270,7 +274,7 @@ jobs:
       - name: Download simulator app
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ${{ !inputs.source_run_id && 'bluewallet-ios-app' || '' }}
+          name: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/diagnostic/ios-create-91fde0f' && 'diagnostic-ios-create-app' || !inputs.source_run_id && 'bluewallet-ios-app' || '' }}
           artifact-ids: ${{ steps.reused_source.outputs.artifact_id }}
           merge-multiple: true
           run-id: ${{ inputs.source_run_id || github.run_id }}
@@ -306,6 +310,7 @@ jobs:
 
       - name: Run pristine startup and wallet tests
         env:
+          REDWALLET_CREATE_TRACE: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/diagnostic/ios-create-91fde0f' && '1' || '0' }}
           REDWALLET_LIGHTNING_SETTINGS_EXIT: ${{ steps.reused_source.outputs.lightning_variant || needs.build.outputs.lightning_variant }}
         timeout-minutes: 90
         run: |

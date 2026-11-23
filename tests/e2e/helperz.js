@@ -1,5 +1,6 @@
 import { sha256 } from '@noble/hashes/sha256';
 import { element } from 'detox';
+import { prepareTrace, reportTrace } from './create-stage-trace';
 
 /**
  * Captures a stack trace at the call site, excluding the given function from the trace.
@@ -266,6 +267,7 @@ export async function helperCreateWallet(walletName, walletFormat = 'segwit', op
   if (isIOS) {
     await device.disableSynchronization();
   }
+  const stageFile = isIOS ? prepareTrace(device.id) : undefined;
   try {
     await element(by.id('Create')).tap();
     // Wait for the backup screen to mount after the asynchronous storage write.
@@ -296,6 +298,8 @@ export async function helperCreateWallet(walletName, walletFormat = 'segwit', op
         })
         .catch(() => {});
       throw error;
+    } finally {
+      reportTrace(stageFile);
     }
 
     await waitFor(element(by.id('PleasebackupOk')))

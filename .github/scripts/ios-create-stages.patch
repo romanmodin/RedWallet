@@ -1,0 +1,128 @@
+diff --git a/class/blue-app.ts b/class/blue-app.ts
+index 04d3263..d139ac3 100644
+--- a/class/blue-app.ts
++++ b/class/blue-app.ts
+@@ -587,16 +587,17 @@ export class BlueApp {
+     });
+   }
+ 
+-  async saveToDisk(throwOnError = false): Promise<void> {
++  async saveToDisk(throwOnError = false, trace?: (stage: string) => void): Promise<void> {
+     if (this.storageLoadBlocked) throw new UnsupportedWalletStorageError();
+     if (savingInProgress) {
++      trace?.('wait-existing-save');
+       console.warn('saveToDisk is in progress');
+       if (++savingInProgress > 10)
+         presentAlert({
+           message: 'Critical error. Last actions were not saved',
+         }); // should never happen
+       await new Promise(resolve => setTimeout(resolve, 1000 * savingInProgress)); // sleep
+-      return this.saveToDisk(throwOnError);
++      return trace ? this.saveToDisk(throwOnError, trace) : this.saveToDisk(throwOnError);
+     }
+     savingInProgress = 1;
+ 
+@@ -604,7 +605,9 @@ export class BlueApp {
+       const walletsToSave: string[] = []; // serialized wallets
+       let realm;
+       try {
++        trace?.('transaction-realm-open');
+         realm = await this.getRealmForTransactions();
++        trace?.('transaction-realm-ready');
+       } catch (error: any) {
+         if (throwOnError) throw error;
+         presentAlert({ message: error.message });
+@@ -695,11 +698,15 @@ export class BlueApp {
+       await this.setItem(BlueApp.FLAG_ENCRYPTED, this.cachedPassword ? '1' : '');
+ 
+       // now, backing up same data in realm:
++      trace?.('backup-realm-open');
+       const realmkeyValue = await this.openRealmKeyValue();
++      trace?.('backup-realm-ready');
+       this.saveToRealmKeyValue(realmkeyValue, 'data', JSON.stringify(data));
+       this.saveToRealmKeyValue(realmkeyValue, BlueApp.FLAG_ENCRYPTED, this.cachedPassword ? '1' : '');
+       realmkeyValue.close();
++      trace?.('save-complete');
+     } catch (error: any) {
++      trace?.('save-error');
+       if (throwOnError) throw error;
+       console.error('save to disk exception:', error.message);
+       presentAlert({ message: 'save to disk exception: ' + error.message });
+diff --git a/components/Context/StorageProvider.tsx b/components/Context/StorageProvider.tsx
+index 2a497d6..2ad593d 100644
+--- a/components/Context/StorageProvider.tsx
++++ b/components/Context/StorageProvider.tsx
+@@ -27,7 +27,7 @@ interface StorageContextType {
+   setWalletsWithNewOrder: (wallets: TWallet[]) => void;
+   txMetadata: TTXMetadata;
+   counterpartyMetadata: TCounterpartyMetadata;
+-  saveToDisk: (force?: boolean, throwOnError?: boolean) => Promise<void>;
++  saveToDisk: (force?: boolean, throwOnError?: boolean, trace?: (stage: string) => void) => Promise<void>;
+   selectedWalletID: () => string | undefined; // Change from string|undefined to a function
+   addWallet: (wallet: TWallet) => void;
+   deleteWallet: (wallet: TWallet) => void;
+@@ -154,14 +154,15 @@ export const StorageProvider = ({ children }: { children: React.ReactNode }) =>
+   };
+ 
+   const saveToDisk = useCallback(
+-    async (force: boolean = false, throwOnError: boolean = false) => {
++    async (force: boolean = false, throwOnError: boolean = false, trace?: (stage: string) => void) => {
+       if (!force && BlueApp.getWallets().length === 0) {
+         console.debug('Not saving empty wallets array');
+         return;
+       }
+       BlueApp.tx_metadata = txMetadata.current;
+       BlueApp.counterparty_metadata = counterpartyMetadata.current;
+-      await BlueApp.saveToDisk(throwOnError);
++      if (trace) await BlueApp.saveToDisk(throwOnError, trace);
++      else await BlueApp.saveToDisk(throwOnError);
+       const w: TWallet[] = [...BlueApp.getWallets()];
+       setWallets(w);
+     },
+diff --git a/screen/wallets/Add.tsx b/screen/wallets/Add.tsx
+index 1abe824..4b38129 100644
+--- a/screen/wallets/Add.tsx
++++ b/screen/wallets/Add.tsx
+@@ -1,3 +1,4 @@
++import RNFS from 'react-native-fs';
+ import { BtcSegwitBech32Wallet } from '../../class/wallets/btc-segwit-bech32-wallet';
+ import { LndWallet } from '../../class/wallets/lnd-wallet';
+ import React, { useEffect, useMemo, useReducer, useRef } from 'react';
+@@ -215,6 +216,16 @@ const WalletsAdd: React.FC = () => {
+ 
+       assert(w!, 'Internal error: could not decide which wallet to create');
+ 
++      // This temporary simulator patch writes only fixed stage names and elapsed milliseconds.
++      const tracePath = RNFS.CachesDirectoryPath + '/rw-e2e-create-stages.txt';
++      const start = performance.now();
++      let pendingTrace = RNFS.writeFile(tracePath, 'create-start 0\n', 'utf8').catch(() => {});
++      const trace = (stage: string) => {
++        const entry = stage + ' ' + Math.max(0, Math.round(performance.now() - start)) + '\n';
++        pendingTrace = pendingTrace.then(() => RNFS.appendFile(tracePath, entry, 'utf8')).catch(() => {});
++      };
++      trace('generate-start');
++
+       if (selectedWalletType === ButtonSelected.ONCHAIN) {
+         if (entropy) {
+           try {
+@@ -227,8 +238,11 @@ const WalletsAdd: React.FC = () => {
+         } else {
+           await w.generate();
+         }
++        trace('generate-return');
+         addWallet(w);
+-        await saveToDisk();
++        trace('save-start');
++        await saveToDisk(false, false, trace);
++        trace('save-return');
+ 
+         triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
+         if (
+@@ -239,6 +253,7 @@ const WalletsAdd: React.FC = () => {
+           w.type === XbtTaprootWallet.type ||
+           w.type === HDTaprootWallet.type
+         ) {
++          trace('navigate-backup');
+           navigate('PleaseBackup', {
+             walletID: w.getID(),
+           });
