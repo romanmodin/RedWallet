@@ -198,7 +198,9 @@ real(
           });
         else if (conflictBlock && endpoint === '/block-height/' + (conflictBlock.height + offset))
           value = await core.rpc('getblockhash', [conflictBlock.height]);
+        else if (/^\/block-height\/\d+$/.test(endpoint)) value = await core.rpc('getblockhash', [Number(endpoint.split('/').pop()) - offset]);
         else if (conflictBlock && endpoint === '/block/' + conflictBlock.hash + '/header') value = blockHeader;
+        else if (/^\/block\/[0-9a-f]{64}\/header$/.test(endpoint)) value = await core.rpc('getblockheader', [endpoint.split('/')[2], false]);
         else if (conflictBlock && endpoint === '/block/' + conflictBlock.hash)
           value = JSON.stringify({
             id: conflictBlock.hash,

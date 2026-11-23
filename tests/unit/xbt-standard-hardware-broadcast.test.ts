@@ -65,6 +65,8 @@ async function ready() {
   const header = Buffer.alloc(80);
   Buffer.from(bitcoin.crypto.hash256(Buffer.concat([sibling, conflict.getHash()]))).copy(header, 36);
   const blockHash = Buffer.from(bitcoin.crypto.hash256(header)).reverse().toString('hex');
+  const tipHeader = Buffer.alloc(80, 5);
+  const tipHash = Buffer.from(bitcoin.crypto.hash256(tipHeader)).reverse().toString('hex');
   const raws = { [parent.getId()]: parent.toHex(), [ancestor.getId()]: ancestor.toHex() };
   const history = [{ tx_hash: parent.getId(), height: 1000000 }];
   mockClient = clientFor(raws, history);
@@ -75,6 +77,8 @@ async function ready() {
     let value: string;
     if (url.endsWith('/block-height/961640')) value = checkpoint;
     else if (url.endsWith('/blocks/tip/height')) value = '1000009';
+    else if (url.endsWith('/block-height/1000009')) value = tipHash;
+    else if (url.endsWith('/block/' + tipHash + '/header')) value = tipHeader.toString('hex');
     else if (url.includes('/outspend/'))
       value = JSON.stringify({
         spent: true,
@@ -137,6 +141,17 @@ it('rechecks live evidence after slow signing and sends only the reviewed bytes 
   expect(f.client.blockchainTransaction_broadcast).toHaveBeenCalledWith(f.hex);
   await expect(f.watch.broadcastTx(f.hex)).rejects.toThrow('verified signing request');
   expect(f.client.blockchainTransaction_broadcast).toHaveBeenCalledTimes(1);
+});
+
+it('blocks broadcast if the providers disagree on the tip hash after signing', async () => {
+  const f = await ready();
+  (global.fetch as jest.Mock).mockImplementation(async (url: string, options: any) => {
+    const response = await f.response(url, options);
+    if (url.includes('mempool.space') && url.endsWith('/block-height/1000009')) response.text = async () => '11'.repeat(32);
+    return response;
+  });
+  await expect(f.watch.broadcastTx(f.hex)).rejects.toThrow();
+  expect(f.client.blockchainTransaction_broadcast).not.toHaveBeenCalled();
 });
 
 it('blocks a changed XBT confirmation state at the actual broadcast boundary', async () => {

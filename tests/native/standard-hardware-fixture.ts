@@ -211,7 +211,11 @@ export class StandardHardwareNativeFixture {
       return provider === 'anchor' && this.proof === 'disagreement'
         ? '0'.repeat(64)
         : await this.core.rpc('getblockhash', [this.conflictBlock.height]);
+    if (/^\/block-height\/\d+$/.test(endpoint))
+      return this.core.rpc('getblockhash', [Number(endpoint.split('/').pop()) - HEIGHT_OFFSET]);
     if (endpoint === '/block/' + this.conflictBlock.hash + '/header') return this.header;
+    if (/^\/block\/[0-9a-f]{64}\/header$/.test(endpoint))
+      return this.core.rpc('getblockheader', [endpoint.split('/')[2], false]);
     if (endpoint === '/block/' + this.conflictBlock.hash)
       return JSON.stringify({
         id: this.conflictBlock.hash,

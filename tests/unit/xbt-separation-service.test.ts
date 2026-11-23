@@ -1,6 +1,8 @@
 import { Transaction, crypto } from 'bitcoinjs-lib';
 import { verifyPublicFundingSeparation } from '../../class/xbt/separation-service';
 const checkpoint = '00000000000000000001d82da6ecccf08e07afa383f9212b0e1b95cc72430c00';
+const tipHeader = Buffer.alloc(80, 5);
+const tipHash = Buffer.from(crypto.hash256(tipHeader)).reverse().toString('hex');
 const originalFetch = global.fetch;
 function fixture() {
   const parent = new Transaction();
@@ -27,6 +29,8 @@ function fixture() {
     let value: string;
     if (url.endsWith('/block-height/961640')) value = checkpoint;
     else if (url.endsWith('/blocks/tip/height')) value = '1000005';
+    else if (url.endsWith('/block-height/1000005')) value = tipHash;
+    else if (url.endsWith('/block/' + tipHash + '/header')) value = tipHeader.toString('hex');
     else if (url.includes('/outspend/')) value = JSON.stringify(spent);
     else if (url.endsWith('/hex')) value = conflict.toHex();
     else if (url.endsWith('/merkle-proof'))
@@ -68,6 +72,27 @@ it('checks complete proof against both current chain views and rechecks anchors'
   expect(f.calls.filter(url => url.includes('mempool.space') && url.endsWith('/block-height/1000000'))).toHaveLength(2);
   expect(f.calls.every(url => !url.includes('/address/') && !url.includes('xpub') && !url.includes('psbt'))).toBe(true);
 });
+it('checks the header at the common tip before and after collecting proofs', async () => {
+  const f = fixture();
+  await verifyPublicFundingSeparation([f.parent], () => {});
+  expect(f.calls.filter(url => url.endsWith('/block/' + tipHash + '/header'))).toHaveLength(2);
+});
+
+it('rejects different block hashes at the same tip height', async () => {
+  const f = fixture();
+  f.rewrite((url, value) => url.includes('mempool.space') && url.endsWith('/block-height/1000005') ? '11'.repeat(32) : value);
+  await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
+  expect(f.calls.some(url => url.includes('/outspend/'))).toBe(false);
+});
+
+it.each(['00'.repeat(80), '00'.repeat(79), 'zz'.repeat(80)])('rejects an invalid tip header on recheck %#', async header => {
+  const f = fixture();
+  let reads = 0;
+  f.rewrite((url, value) => url.endsWith('/block/' + tipHash + '/header') && ++reads === 2 ? header : value);
+  await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
+  expect(reads).toBe(2);
+});
+
 it('blocks absent or mempool conflicts rather than treating absence as protection', async () => {
   const f = fixture();
   f.spent.spent = false;
@@ -154,6 +179,8 @@ it.each([13, 64])('verifies %i distinct funding parents within the bounded reque
   const routes = new Map<string, string>();
   routes.set('/block-height/961640', checkpoint);
   routes.set('/blocks/tip/height', '1000100');
+  routes.set('/block-height/1000100', tipHash);
+  routes.set('/block/' + tipHash + '/header', tipHeader.toString('hex'));
   const parents: Transaction[] = [];
   for (let index = 0; index < count; index++) {
     const parent = new Transaction();
@@ -200,7 +227,7 @@ it.each([13, 64])('verifies %i distinct funding parents within the bounded reque
     } as any;
   });
   await verifyPublicFundingSeparation(parents, () => {});
-  expect(global.fetch).toHaveBeenCalledTimes(6 + count * 10);
+  expect(global.fetch).toHaveBeenCalledTimes(12 + count * 10);
 });
 
 it('budgets skipped candidate inputs before a confirmed conflict', async () => {
