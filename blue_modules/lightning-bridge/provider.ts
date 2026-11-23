@@ -310,14 +310,13 @@ export class PaperclipProvider extends HoldInvoiceProvider {
     if (invoice.chain !== 'SHA256' || invoice.expiresAt * 1000 <= Date.now()) throw new Error('Invalid Paperclip recipient invoice.');
     const body = { invoice: invoice.invoice, direction: 'toSHA256' };
     const preview = object(await this.call('/api/check', signal, body));
-    if (
-      !isPaperclipToSha256(preview) ||
-      preview.hash !== invoice.hash ||
-      preview.sat !== Number(invoice.msat) / 1000 ||
-      preview.error ||
-      preview.wait_s
-    )
-      throw new Error('Paperclip could not confirm this invoice.');
+    if (typeof preview.wait_s === 'number' && Number.isSafeInteger(preview.wait_s) && preview.wait_s > 0)
+      throw new Error(`Paperclip asks you to wait ${preview.wait_s} seconds before requesting another quote.`);
+    if (preview.error) throw new Error('Paperclip declined the invoice preview.');
+    if (preview.wait_s) throw new Error('Paperclip returned an unexpected retry interval.');
+    if (!isPaperclipToSha256(preview)) throw new Error('Paperclip could not confirm the payment direction.');
+    if (preview.hash !== invoice.hash) throw new Error('Paperclip could not confirm the invoice payment hash.');
+    if (preview.sat !== Number(invoice.msat) / 1000) throw new Error('Paperclip could not confirm the invoice amount.');
     const pow = await solveProof(await this.call('/api/pow', signal), invoice.hash, signal);
     const quote = object(await this.call('/api/quote', signal, { ...body, pow }));
     if (!isPaperclipToSha256(quote)) throw new Error('Unexpected Paperclip quote direction.');

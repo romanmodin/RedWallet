@@ -49,14 +49,21 @@ it('offers Paperclip after Kilombino in the iOS payment picker', () => {
   expect(lightningBridgeProviders.map(p => p.id)).toEqual(['kilombino', 'paperclip']);
 });
 
-it('stops before proof or quote if Paperclip previews a different payment hash', async () => {
+it.each([
+  [{ hash: 'bb'.repeat(32) }, 'payment hash'],
+  [{ sat: 2 }, 'invoice amount'],
+  [{ wait_s: 12 }, 'wait 12 seconds'],
+  [{ wait_s: 'invalid' }, 'unexpected retry interval'],
+  [{ error: 'private upstream detail' }, 'declined the invoice preview'],
+] as const)('stops before proof or quote for preview response %j', async (fields, message) => {
+  const invoice = recipient();
   const request = jest.fn(async () => ({
     ok: true,
     status: 200,
     url: '',
-    text: async () => JSON.stringify({ direction: 'toSHA256', sat: 1, hash: 'bb'.repeat(32) }),
+    text: async () => JSON.stringify({ direction: 'toSHA256', sat: 1, hash: invoice.hash, ...fields }),
   }));
-  await expect(new PaperclipProvider(request).quote(recipient(), signal)).rejects.toThrow('confirm');
+  await expect(new PaperclipProvider(request).quote(invoice, signal)).rejects.toThrow(message);
   expect(request).toHaveBeenCalledTimes(1);
 });
 
