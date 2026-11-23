@@ -1,4 +1,4 @@
-import { BridgeHistoryIssue, HistoryReason, historyReason, maxHistoryIssues, savedIssues } from './history';
+import { BridgeHistoryIssue, HistoryReason, historyReason, historyReasons, maxHistoryIssues, savedIssues } from './history';
 import { BridgeInvoice, ceilSats, hashPattern, nodePattern, provesPayment, readBridgeInvoice } from './invoice';
 import { BridgeQuote, LightningBridgeProvider, ProofTimeoutError, validateQuote } from './provider';
 
@@ -315,7 +315,7 @@ export class BridgeController {
         reservations.some(item => item.provider === providerId) ||
         (existing && !switchingAfterUnsubmittedQuote && now < reservationEnds(existing))
       )
-        throw new Error('A quote for this invoice already exists. Wait before requesting another.');
+        throw new Error(historyReasons.existingQuote);
       const previous = await this.backend.status(original.hash);
       if (!['not_found', 'failed'].includes(previous.state))
         throw new Error('LND already knows this payment. Check its status before proceeding.');

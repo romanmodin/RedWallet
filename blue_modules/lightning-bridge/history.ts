@@ -7,7 +7,7 @@ export const historyReasons = {
   rateLimit: 'The quote request limit was reached.',
   quoteResponseTimeout:
     'The quote response timed out. The processor may have reserved this invoice; RedWallet submitted no payment. Wait up to ten minutes before trying again.',
-  existingQuote: 'The processor had already reserved this invoice; RedWallet submitted no payment.',
+  existingQuote: 'A quote reservation already exists in RedWallet. This retry sent no quote request or payment.',
   existingPayment: 'An earlier payment must be checked before another attempt.',
   unavailable: 'The processor was unavailable for this direction.',
   outsideLimits: 'The invoice amount was outside the processor’s limits.',
@@ -41,7 +41,7 @@ const knownErrors = new Map<string, HistoryReason>([
     'Quote response timed out. The processor may have reserved this invoice. No payment was submitted. Wait for the reservation to expire before trying again.',
     'quoteResponseTimeout',
   ],
-  ['A quote for this invoice already exists. Wait before requesting another.', 'existingQuote'],
+  [historyReasons.existingQuote, 'existingQuote'],
   ['This payment is pending, uncertain or already paid. Check its status; do not pay again.', 'existingPayment'],
   ['LND already knows this payment. Check its status before proceeding.', 'existingPayment'],
   ['Payment already exists or its result is unknown.', 'existingPayment'],

@@ -422,6 +422,24 @@ test('capacity cleanup respects the quote cooldown and persists before quoting',
 });
 
 describe('durable quote diagnostics', () => {
+  it('records local quote retries separately from an earlier failed payment', async () => {
+    const e = environment();
+    const { c, r } = await quoted(e);
+    jest.mocked(e.backend.pay).mockResolvedValueOnce({ state: 'failed' });
+    expect((await c.approve(hash, r.quote!.holdInvoice, () => true)).state).toBe('failed');
+
+    for (const seconds of [83, 92, 104, 105]) {
+      e.setTime(NOW + seconds * 1000);
+      await expect(quoted(e)).rejects.toThrow('reservation already exists in RedWallet');
+    }
+    const [entry] = await e.controller().history();
+    expect(entry.record?.state).toBe('failed');
+    expect(entry.issues.map(issue => issue.reason)).toEqual(Array(4).fill('existingQuote'));
+    expect(e.provider.info).toHaveBeenCalledTimes(1);
+    expect(e.provider.quote).toHaveBeenCalledTimes(1);
+    expect(e.backend.pay).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves a quote-response timeout and blocks duplicate attempts until the ten-minute reservation expires', async () => {
     const e = environment();
     jest.mocked(e.provider.quote).mockRejectedValueOnce(new QuoteResponseTimeoutError());
