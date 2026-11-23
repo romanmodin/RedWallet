@@ -532,3 +532,24 @@ it('allows another processor after an unverified quote and checks native payment
   await expect(restarted.quote('other', original(), '10', signal())).resolves.toMatchObject({ provider: 'other', state: 'quoted' });
   expect(e.backend.pay).not.toHaveBeenCalled();
 });
+
+it('preserves the first processor reservation across a failed switch and restart', async () => {
+  const e = environment();
+  const failure = new Error('Quote response timed out');
+  jest.spyOn(e.provider, 'quote').mockRejectedValueOnce(failure);
+  await expect(quoted(e)).rejects.toThrow(failure);
+  const other = {
+    ...e.provider,
+    id: 'other',
+    quote: jest.fn().mockRejectedValue(failure),
+  };
+  let now = NOW;
+  const restart = () => new BridgeController(e.store, e.backend, [e.provider, other], () => now);
+  await expect(restart().quote('other', original(), '10', signal())).rejects.toThrow(failure);
+  await expect(restart().quote('test', original(), '10', signal())).rejects.toThrow('already exists');
+  expect(e.provider.quote).toHaveBeenCalledTimes(1);
+  now += 600001;
+  jest.mocked(e.provider.quote).mockRejectedValueOnce(failure);
+  await expect(restart().quote('test', original(), '10', signal())).rejects.toThrow(failure);
+  expect(e.provider.quote).toHaveBeenCalledTimes(2);
+});

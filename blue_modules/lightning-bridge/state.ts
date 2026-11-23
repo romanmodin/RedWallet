@@ -23,6 +23,7 @@ export type SwapRecord = {
   quote?: BridgeQuote;
   feeLimit: string;
   proofTimedOut?: true;
+  previousReservations?: { provider: string; until: number }[];
   estimatedFeeMsat?: string;
   actualFeeMsat?: string;
   bridgeState?: string;
@@ -131,6 +132,14 @@ export function validateJournal(value: unknown): BridgeJournal {
       seen.has(key)
     )
       throw new Error('Bridge payment storage is invalid.');
+    if (
+      r.previousReservations !== undefined &&
+      (!Array.isArray(r.previousReservations) ||
+        r.previousReservations.some(
+          item => !item || typeof item.provider !== 'string' || !Number.isSafeInteger(item.until) || item.until < 0,
+        ))
+    )
+      throw new Error('Invalid stored processor reservations.');
     seen.add(key);
     if (
       (r.estimatedFeeMsat !== undefined && !validAmount(r.estimatedFeeMsat)) ||
@@ -300,7 +309,12 @@ export class BridgeController {
         throw new Error('This payment is pending, uncertain or already paid. Check its status; do not pay again.');
       const switchingAfterUnsubmittedQuote =
         existing && existing.provider !== providerId && (existing.state === 'quote_failed' || existing.state === 'canceled');
-      if (existing && !switchingAfterUnsubmittedQuote && this.now() < reservationEnds(existing))
+      const now = this.now();
+      const reservations = (existing?.previousReservations ?? []).filter(item => now < item.until);
+      if (
+        reservations.some(item => item.provider === providerId) ||
+        (existing && !switchingAfterUnsubmittedQuote && now < reservationEnds(existing))
+      )
         throw new Error('A quote for this invoice already exists. Wait before requesting another.');
       const previous = await this.backend.status(original.hash);
       if (!['not_found', 'failed'].includes(previous.state))
@@ -310,7 +324,12 @@ export class BridgeController {
       let replaced = existing;
       if (!existing && journal.records.length >= 200) {
         replaced = journal.records
-          .filter(record => disposableQuotes.has(record.state) && reservationEnds(record) <= this.now())
+          .filter(
+            record =>
+              disposableQuotes.has(record.state) &&
+              reservationEnds(record) <= now &&
+              !record.previousReservations?.some(item => now < item.until),
+          )
           .sort((a, b) => a.updatedAt - b.updatedAt)[0];
         if (!replaced) throw new Error('Bridge payment history is full. No new payment was created.');
       }
@@ -328,6 +347,12 @@ export class BridgeController {
         updatedAt: this.now(),
         feeLimit,
       };
+      if (existing && existing.provider !== providerId && now < reservationEnds(existing))
+        reservations.push({
+          provider: existing.provider,
+          until: reservationEnds(existing),
+        });
+      if (reservations.length) record.previousReservations = reservations;
       journal.records = journal.records.filter(r => r !== replaced);
       journal.records.push(record);
       journal.requests.push(this.now());
