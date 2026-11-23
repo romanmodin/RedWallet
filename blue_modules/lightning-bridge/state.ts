@@ -1,4 +1,4 @@
-import { BridgeHistoryIssue, HistoryReason, historyReason, historyReasons, maxHistoryIssues, savedIssues } from './history';
+import { BridgeHistoryIssue, HistoryReason, historyDiagnostic, historyReasons, maxHistoryIssues, savedIssues } from './history';
 import { BridgeInvoice, ceilSats, hashPattern, nodePattern, provesPayment, readBridgeInvoice } from './invoice';
 import { BridgeQuote, LightningBridgeProvider, ProofTimeoutError, validateQuote } from './provider';
 
@@ -378,7 +378,7 @@ export class BridgeController {
           hash: original.hash,
           provider: providerId,
           at: record.updatedAt,
-          reason: historyReason(error, fallback),
+          ...historyDiagnostic(error, fallback),
         });
         await this.store.write(journal);
         historyNode = undefined;
@@ -394,7 +394,7 @@ export class BridgeController {
           hash: original.hash,
           provider: providerId,
           at: this.now(),
-          reason: historyReason(error, fallback),
+          ...historyDiagnostic(error, fallback),
         });
       }
       throw error;
@@ -459,7 +459,7 @@ export class BridgeController {
           ...preflight,
           hash,
           at: this.now(),
-          reason: historyReason(error, 'approvalCheck'),
+          ...historyDiagnostic(error, 'approvalCheck'),
         });
       throw error;
     });

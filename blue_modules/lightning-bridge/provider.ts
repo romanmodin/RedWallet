@@ -1,5 +1,6 @@
 import { sha256 } from '@noble/hashes/sha256';
 import { Platform } from 'react-native';
+import { BridgeHttpError, BridgeHttpReason } from './history';
 import { BridgeRequest, nativeBridgeRequest } from './http';
 import { BridgeInvoice, ceilSats, hashPattern, readBridgeInvoice } from './invoice';
 
@@ -219,7 +220,7 @@ abstract class HoldInvoiceProvider implements LightningBridgeProvider {
     this.request = request;
   }
 
-  protected async call(path: string, signal: AbortSignal, body?: unknown): Promise<unknown> {
+  protected async call(reason: BridgeHttpReason, path: string, signal: AbortSignal, body?: unknown): Promise<unknown> {
     const controller = new AbortController();
     const abort = () => controller.abort();
     const isQuoteRequest = path === '/api/quote' && body !== undefined;
@@ -246,12 +247,10 @@ abstract class HoldInvoiceProvider implements LightningBridgeProvider {
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
-      if (!response.ok)
-        throw new Error(
-          response.status === 429
-            ? 'Bridge quote limit reached. Wait before requesting another quote.'
-            : 'Bridge unavailable or request refused.',
-        );
+      if (!response.ok) {
+        if (response.status === 429) throw new Error('Bridge quote limit reached. Wait before requesting another quote.');
+        throw new BridgeHttpError(reason, response.status);
+      }
       if (response.url && !response.url.startsWith(this.website + '/')) throw new Error('Bridge redirected to another service.');
       const text = await response.text();
       if (text.length > 32768) throw new Error('Oversized bridge response.');
@@ -267,7 +266,7 @@ abstract class HoldInvoiceProvider implements LightningBridgeProvider {
 
   async swap(hash: string, token: string, signal: AbortSignal): Promise<BridgeSwap> {
     if (!hashPattern.test(hash) || (token && !/^[0-9a-f]{32}$/.test(token))) throw new Error('Invalid swap reference.');
-    const data = object(await this.call('/api/swap/' + hash + '?t=' + encodeURIComponent(token), signal));
+    const data = object(await this.call('statusHttp', '/api/swap/' + hash + '?t=' + encodeURIComponent(token), signal));
     if (typeof data.state !== 'string' || typeof data.preimage !== 'string') throw new Error('Invalid bridge status.');
     return { state: data.state, preimage: data.preimage };
   }
@@ -280,12 +279,12 @@ export class KilombinoProvider extends HoldInvoiceProvider {
   readonly node = '0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60';
 
   async info(signal: AbortSignal): Promise<BridgeMarket> {
-    return parseMarket(await this.call('/api/info', signal));
+    return parseMarket(await this.call('marketHttp', '/api/info', signal));
   }
 
   async quote(invoice: BridgeInvoice, signal: AbortSignal): Promise<BridgeQuote> {
-    const pow = await solveProof(await this.call('/api/pow', signal), invoice.hash, signal);
-    return validateQuote(await this.call('/api/quote', signal, { invoice: invoice.invoice, pow }), invoice, this);
+    const pow = await solveProof(await this.call('proofHttp', '/api/pow', signal), invoice.hash, signal);
+    return validateQuote(await this.call('quoteHttp', '/api/quote', signal, { invoice: invoice.invoice, pow }), invoice, this);
   }
 
 }
@@ -301,7 +300,7 @@ export class PaperclipProvider extends HoldInvoiceProvider {
   readonly node = '03c56897a97beb0d86e89494e5a9938939bb52b303eb714b0df7219108ee92b178';
 
   async info(signal: AbortSignal): Promise<BridgeMarket> {
-    const info = object(await this.call('/api/info?direction=toSHA256', signal));
+    const info = object(await this.call('marketHttp', '/api/info?direction=toSHA256', signal));
     if (!isPaperclipToSha256(info) || info.cap_unit !== 'SHA256 sats') throw new Error('Unexpected Paperclip market.');
     return parseMarket({ dirs: { toSHA256: { ...info, open: info.open === true && info.payments_enabled === true } } });
   }
@@ -309,7 +308,7 @@ export class PaperclipProvider extends HoldInvoiceProvider {
   async quote(invoice: BridgeInvoice, signal: AbortSignal): Promise<BridgeQuote> {
     if (invoice.chain !== 'SHA256' || invoice.expiresAt * 1000 <= Date.now()) throw new Error('Invalid Paperclip recipient invoice.');
     const body = { invoice: invoice.invoice, direction: 'toSHA256' };
-    const preview = object(await this.call('/api/check', signal, body));
+    const preview = object(await this.call('previewHttp', '/api/check', signal, body));
     if (typeof preview.wait_s === 'number' && Number.isSafeInteger(preview.wait_s) && preview.wait_s > 0)
       throw new Error(`Paperclip asks you to wait ${preview.wait_s} seconds before requesting another quote.`);
     if (preview.error) throw new Error('Paperclip declined the invoice preview.');
@@ -317,8 +316,8 @@ export class PaperclipProvider extends HoldInvoiceProvider {
     if (!isPaperclipToSha256(preview)) throw new Error('Paperclip could not confirm the payment direction.');
     if (preview.hash !== invoice.hash) throw new Error('Paperclip could not confirm the invoice payment hash.');
     if (preview.sat !== Number(invoice.msat) / 1000) throw new Error('Paperclip could not confirm the invoice amount.');
-    const pow = await solveProof(await this.call('/api/pow', signal), invoice.hash, signal);
-    const quote = object(await this.call('/api/quote', signal, { ...body, pow }));
+    const pow = await solveProof(await this.call('proofHttp', '/api/pow', signal), invoice.hash, signal);
+    const quote = object(await this.call('quoteHttp', '/api/quote', signal, { ...body, pow }));
     if (!isPaperclipToSha256(quote)) throw new Error('Unexpected Paperclip quote direction.');
     return validateQuote({ ...quote, dir: quote.direction }, invoice, this);
   }

@@ -3,7 +3,7 @@ import { ActivityIndicator, AppState, Modal, ScrollView, StyleSheet, Text, Touch
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
 import { useTheme } from './themes';
 import { BridgeController, BridgeHistoryEntry, SwapRecord } from '../blue_modules/lightning-bridge/state';
-import { historyReasons } from '../blue_modules/lightning-bridge/history';
+import { historyDescription } from '../blue_modules/lightning-bridge/history';
 import { crossChainBridge } from '../blue_modules/lightning-bridge/runtime';
 import { formatMsat, readBridgeInvoice } from '../blue_modules/lightning-bridge/invoice';
 import { LightningBridgeProvider, lightningBridgeProviders, priceMsat } from '../blue_modules/lightning-bridge/provider';
@@ -325,7 +325,7 @@ export default function CrossChainLightning({
                   <Text style={[styles.line, { color: colors.foregroundColor }]}>
                     {providerName(issue.provider)} · {hidden ? '••••' : new Date(issue.at).toLocaleString()}
                   </Text>
-                  <SettingsFootnote>{historyReasons[issue.reason]}</SettingsFootnote>
+                  <SettingsFootnote>{historyDescription(issue)}</SettingsFootnote>
                 </View>
               ))}
             </>
