@@ -67,6 +67,7 @@ type Channel = {
   originalPoint?: string;
   active: boolean;
   localSats: string;
+  remoteSats?: string;
   state: 'active' | 'inactive' | 'pending' | 'closing' | 'forceClosing';
   confirmationsRemaining?: number;
   splice?: LightningResize;
@@ -148,6 +149,12 @@ function channelState(channel: Channel) {
   }
 }
 
+function channelBalances(channel: Channel, hideBalances: boolean) {
+  if (hideBalances) return 'Local balance: ••••\nPeer balance: ••••';
+  const peer = channel.remoteSats === undefined ? 'Unavailable' : channel.remoteSats + ' sats';
+  return 'Local balance: ' + channel.localSats + ' sats\nPeer balance: ' + peer;
+}
+
 function selectedChannelDetails(channel: Channel, hideBalances = false) {
   return (
     'Status: ' +
@@ -160,8 +167,8 @@ function selectedChannelDetails(channel: Channel, hideBalances = false) {
     (channel.peerAddress || 'Unavailable — peer may be disconnected') +
     '\nChannel funding reference: ' +
     channel.point +
-    '\nLocal balance: ' +
-    (hideBalances ? '••••' : channel.localSats + ' sats')
+    '\n' +
+    channelBalances(channel, hideBalances)
   );
 }
 
@@ -1457,7 +1464,8 @@ export default function XBTLightning({
               />
               <SettingsExplanation id="lightning.channel-selection" title="How To Select A Channel">
                 Tap a channel to select it and show its peer identity above. Actions apply only to the selected channel. Inactive channels
-                remain listed; pending channels are still opening.
+                remain listed; pending channels are still opening. Peer balance is the other node’s share of this channel. Reserves and
+                pending payments can reduce how much it can send to you.
               </SettingsExplanation>
               {(channels ?? []).map(channel => (
                 <View key={channel.point}>
@@ -1481,14 +1489,8 @@ export default function XBTLightning({
                         animated: true,
                       });
                     }}
-                    subtitle={
-                      'Local balance: ' +
-                      (hideBalances ? '••••' : channel.localSats + ' sats') +
-                      '\nPeer: ' +
-                      channel.peer +
-                      '\nFunding: ' +
-                      channel.point
-                    }
+                    subtitle={channelBalances(channel, hideBalances)}
+                    subtitleNumberOfLines={0}
                   />
                   {selectedPoint === channel.point && bridge.splice && ['active', 'inactive'].includes(channel.state) && (
                     <XBTLightningChannelFunds

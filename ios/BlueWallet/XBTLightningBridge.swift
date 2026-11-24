@@ -202,6 +202,7 @@ final class XBTLightningBridge: NSObject {
                         var item: [String: Any] = [
                             "point": channel.point, "peer": channel.peer, "state": channel.state,
                             "active": channel.state == "active", "localSats": String(channel.localSats)]
+                        if let remote = channel.remoteSats { item["remoteSats"] = String(remote) }
                         item["peerAlias"] = channel.peerAlias
                         item["peerAddress"] = channel.peerAddress
                         item["originalPoint"] = channel.originalPoint

@@ -386,6 +386,7 @@ test('channel summary separates open, active, pending and closing and never offe
       state: 'active',
       active: true,
       localSats: '80000',
+      remoteSats: '17000',
     },
     {
       point: 'inactive:0',
@@ -393,6 +394,7 @@ test('channel summary separates open, active, pending and closing and never offe
       state: 'inactive',
       active: false,
       localSats: '70000',
+      remoteSats: '0',
     },
     {
       point: 'pending:0',
@@ -412,6 +414,10 @@ test('channel summary separates open, active, pending and closing and never offe
   ]);
   const screen = render(<XBTLightning />);
   await act(async () => {});
+  const balances = within(screen.getByTestId('SelectChannel-active:0')).getByText(/Local balance: 80000 sats\s+Peer balance: 17000 sats/);
+  expect(balances.props.numberOfLines).toBe(0);
+  expect(within(screen.getByTestId('SelectChannel-inactive:0')).getByText(/Peer balance: 0 sats/)).toBeTruthy();
+  expect(within(screen.getByTestId('SelectChannel-closing:0')).getByText(/Peer balance: Unavailable/)).toBeTruthy();
   const summary = within(screen.getByTestId('LightningChannelSummary'));
   expect(summary.getByText('Channels · 2 open')).toBeTruthy();
   expect(summary.getByText('1 active · 1 inactive\n1 pending · 1 closing')).toBeTruthy();
@@ -947,7 +953,7 @@ test.each(['mutated', 'replaced'])(
   },
 );
 
-test('hidden selected channels retain their identity without disclosing local balances or close-button amounts', async () => {
+test('hidden selected channels retain their identity without disclosing local or peer balances', async () => {
   mockStorage.wallets = [{ type: 'lndWallet', hideBalance: true }];
   bridge.manage.mockResolvedValueOnce([
     {
@@ -958,6 +964,7 @@ test('hidden selected channels retain their identity without disclosing local ba
       state: 'active',
       active: true,
       localSats: '123457',
+      remoteSats: '7654321',
     },
   ]);
   const screen = render(<XBTLightning />);
@@ -968,6 +975,7 @@ test('hidden selected channels retain their identity without disclosing local ba
     expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/Peer name: My peer/)).toBeTruthy();
     expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/peer.example:9735/)).toBeTruthy();
     expect(JSON.stringify(screen.toJSON())).not.toContain('123457');
+    expect(JSON.stringify(screen.toJSON())).not.toContain('7654321');
     expect(screen.queryByLabelText('Copy activity result')).toBeNull();
   } finally {
     screen.unmount();

@@ -9,12 +9,14 @@ final class ChannelStatusTests: XCTestCase {
 
     private func open(_ point: String, active: Bool) -> Data {
         let row = string(2, "peer") + string(3, point) +
-            ProtoFields.field(1, integer: active ? 1 : 0) + ProtoFields.field(6, integer: 80_000)
+            ProtoFields.field(1, integer: active ? 1 : 0) + ProtoFields.field(6, integer: 80_000) +
+            ProtoFields.field(7, integer: 18_000)
         return ProtoFields.field(11, data: row)
     }
 
     private func pending(_ point: String, field: UInt64, remaining: UInt64? = nil) -> Data {
-        let row = string(1, "peer") + string(2, point) + ProtoFields.field(4, integer: 90_000)
+        var row = string(1, "peer") + string(2, point) + ProtoFields.field(4, integer: 90_000)
+        if field == 2 { row += ProtoFields.field(5, integer: 8_000) }
         var wrapper = ProtoFields.field(1, data: row)
         if let remaining { wrapper += ProtoFields.field(7, integer: remaining) }
         return ProtoFields.field(field, data: wrapper)
@@ -29,6 +31,11 @@ final class ChannelStatusTests: XCTestCase {
         let rows = Dictionary(uniqueKeysWithValues: result.map { ($0.point, $0) })
         XCTAssertEqual(rows["active:0"]?.state, "active")
         XCTAssertEqual(rows["active:0"]?.localSats, 80_000)
+        XCTAssertEqual(rows["active:0"]?.remoteSats, 18_000)
+        XCTAssertEqual(rows["inactive:0"]?.remoteSats, 18_000)
+        XCTAssertEqual(rows["pending:0"]?.remoteSats, 8_000)
+        XCTAssertEqual(rows["closing:0"]?.remoteSats, 0)
+        XCTAssertNil(rows["force:0"]?.remoteSats)
         XCTAssertEqual(rows["inactive:0"]?.state, "inactive")
         XCTAssertEqual(rows["pending:0"]?.state, "pending")
         XCTAssertEqual(rows["pending:0"]?.localSats, 90_000)
