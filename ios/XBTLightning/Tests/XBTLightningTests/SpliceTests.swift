@@ -147,11 +147,11 @@ final class SpliceTests: XCTestCase {
         XCTAssertNil(state.onchainConfirmations)
         let transactions = ProtoFields.field(1, data: ProtoFields.field(1, data: Data("old-tx".utf8)) + ProtoFields.field(3, integer: 63)) +
             ProtoFields.field(1, data: ProtoFields.field(1, data: Data("new-tx".utf8)) + ProtoFields.field(3, integer: 12))
-        let measured = try SpliceChannelState.transactionConfirmations(transactions)
+        let measured = FundingTransactions(transactions).confirmations
         XCTAssertEqual(measured["new-tx"], 12)
         XCTAssertNil(measured["unrelated"])
         let reorg = ProtoFields.field(1, data: ProtoFields.field(1, data: Data("new-tx".utf8)))
-        XCTAssertEqual(try SpliceChannelState.transactionConfirmations(reorg)["new-tx"], 0)
+        XCTAssertEqual(FundingTransactions(reorg).confirmations["new-tx"], 0)
     }
 
     func testAvailableLiquidityExcludesOfflineChannelsReservesAndFunderFeeBuffer() throws {

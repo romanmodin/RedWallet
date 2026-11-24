@@ -57,16 +57,6 @@ public struct SpliceChannelState: Sendable {
         return result
     }
 
-    // Exact txid only. Never infer depth from broadcast height, keep the maximum
-    // seen, or reuse the channel's original funding transaction after a reorg.
-    static func transactionConfirmations(_ data: Data) throws -> [String: Int64] {
-        var result: [String: Int64] = [:]
-        for bytes in try ProtoFields(data).bytes[1] ?? [] {
-            let row = try ProtoFields(bytes)
-            result[try row.string(1)] = Int64(bitPattern: row.integers[3] ?? 0)
-        }
-        return result
-    }
     static func permits(_ status: String) -> Bool { status == "ok" || status == "peer_not_announcing" }
 }
 
