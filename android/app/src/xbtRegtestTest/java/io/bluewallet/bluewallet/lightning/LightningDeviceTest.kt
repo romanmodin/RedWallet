@@ -104,6 +104,10 @@ class LightningDeviceTest {
         val opened = NodeManagement.run("channelStatus","","","") as com.facebook.react.bridge.ReadableArray
         assertEquals(1,opened.size())
         assertEquals("active",opened.getMap(0)!!.getString("state"))
+        val channels = RegtestNode.rpc { Lndmobile.listChannels(ByteArray(0), it) }
+        val channel = channels.blobs[11].orEmpty().map(::Fields).single { it.string(3) == point }
+        assertEquals(LightningAmounts.MAX_SATS * 1_000L, Fields(channel.bytes(30)).number(4))
+        assertEquals(99_000_000L, Fields(channel.bytes(29)).number(4))
         val outgoing = fixture("invoice")
         val review = RegtestNode.invoice("decode",outgoing,"","") as com.facebook.react.bridge.ReadableMap
         val hash = requireNotNull(review.getString("hash"))

@@ -35,6 +35,18 @@ final class RegtestTests: XCTestCase {
         throw NodeFailure.timedOut
     }
 
+    private func checkChannel(point: String, capacity: UInt64) async throws {
+        let list = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
+        let channels = try (list.bytes[11] ?? []).map(ProtoFields.init)
+        let channel = try XCTUnwrap(channels.first { try $0.string(3) == point })
+        XCTAssertEqual(channel.integers[5], capacity)
+        // From the phone, remote_constraints governs the peer's sends.
+        let inbound = try ProtoFields(XCTUnwrap(channel.bytes[30]?.first))
+        XCTAssertEqual(inbound.integers[4], LightningAmounts.maxSats * 1_000)
+        let outbound = try ProtoFields(XCTUnwrap(channel.bytes[29]?.first))
+        XCTAssertEqual(outbound.integers[4], 9_900_000_000)
+    }
+
     // A confirmed balance may arrive before Neutrino's sync flag catches up.
     // Observe the fixture's actual tip and LND readiness before each next step;
     // do not retry any spending operation or weaken the production sync guard.
@@ -118,6 +130,7 @@ final class RegtestTests: XCTestCase {
         let opened = try await RegtestNode.shared.channelStatus()
         XCTAssertEqual(opened.filter { $0.point == point }.count, 1)
         XCTAssertEqual(opened.first(where: { $0.point == point })?.state, "active")
+        try await checkChannel(point: point, capacity: 10_000_000)
         let outgoing = try await peer("invoice-large")
         let review = try await RegtestNode.shared.decode(outgoing)
         XCTAssertEqual(review.sats, 2_000_000)
@@ -235,9 +248,7 @@ final class RegtestTests: XCTestCase {
             }
             let resized = try await RegtestNode.shared.channelStatus()
             point = try XCTUnwrap(resized.first(where: { $0.peer == peerKey && $0.state == "active" })?.point)
-            let raw = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
-            let channel = try XCTUnwrap(raw.bytes[11]?.first)
-            XCTAssertEqual(try ProtoFields(channel).integers[5], resize.estimate.capacity)
+            try await checkChannel(point: point, capacity: resize.estimate.capacity)
             let syncedBackup = try await RegtestNode.shared.channelBackup()
             XCTAssertFalse(syncedBackup.isEmpty)
         }
