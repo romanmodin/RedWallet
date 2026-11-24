@@ -1,3 +1,4 @@
+import { changeAddressFallback } from '../../screen/send/changeAddressFallback';
 import * as bitcoin from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
 import ecc from '../../blue_modules/noble_ecc';
@@ -49,6 +50,14 @@ function fixture(parentTag = 1, receiveIndex = 0) {
   return { cold, watch, receive, key, ancestor, parent, raws, coins, histories, source, targets, change };
 }
 afterEach(() => jest.restoreAllMocks());
+
+it('derives the indexed internal change address when HD watch-only lookup falls back', () => {
+  const { watch, cold } = fixture();
+  watch._hdWalletInstance!.next_free_change_address_index = 3;
+  expect(watch.isHd()).toBe(true);
+  expect(() => watch.getAddress()).toThrow('Should not be used in watch-only HD wallets');
+  expect(changeAddressFallback(watch)).toBe(cold._getInternalAddressByIndex(3));
+});
 
 it('verifies cryptographic Unified funding rather than a flag alone', async () => {
   const f = fixture();

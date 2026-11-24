@@ -45,6 +45,7 @@ import { MultisigHDWallet } from '../../class/wallets/multisig-hd-wallet';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import { ContactList } from '../../class/contact-list';
 import DeeplinkSchemaMatch from '../../class/deeplink-schema-match';
+import { changeAddressFallback } from './changeAddressFallback';
 import { AbstractHDElectrumWallet } from '../../class/wallets/abstract-hd-electrum-wallet';
 import { CreateTransactionTarget, CreateTransactionUtxo, TWallet } from '../../class/wallets/types';
 import AddressInput from '../../components/AddressInput';
@@ -490,14 +491,8 @@ const SendDetails = () => {
         change = await Promise.race([sleep(2000), wallet?.getChangeAddressAsync()]);
       } catch (_) {}
 
-      if (!change) {
-        // either sleep expired or getChangeAddressAsync threw an exception
-        if (wallet instanceof AbstractHDElectrumWallet) {
-          change = wallet._getInternalAddressByIndex(wallet.getNextFreeChangeAddressIndex());
-        } else {
-          // legacy wallets
-          change = wallet?.getAddress();
-        }
+      if (!change && wallet) {
+        change = changeAddressFallback(wallet);
       }
     }
 
