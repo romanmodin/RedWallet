@@ -54,7 +54,7 @@ final class RegtestTests: XCTestCase {
         }
     }
 
-    private func reportFixtureLimits(_ stage: String) async throws {
+    private func reportFixtureLimits(_ stage: String, expectedPendingMsat: UInt64) async throws -> UInt64 {
         let response = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
         let channels = try XCTUnwrap(response.bytes[11])
         XCTAssertEqual(channels.count, 1)
@@ -64,7 +64,118 @@ final class RegtestTests: XCTestCase {
         let remote = try ProtoFields(XCTUnwrap(channel.bytes[30]?.first))
         let localLimit = try XCTUnwrap(local.integers[4])
         let remoteLimit = try XCTUnwrap(remote.integers[4])
+        XCTAssertEqual(localLimit, expectedPendingMsat)
+        XCTAssertEqual(remoteLimit, expectedPendingMsat)
         print("Disposable \(stage): capacity \(capacity) sat, local max pending \(localLimit) msat, remote max pending \(remoteLimit) msat")
+        return capacity
+    }
+
+    private func compareSplicedPayments(point openingPoint: String, peerKey: String, largeOpening: Bool) async throws -> (point: String, capacity: UInt64) {
+        var point = openingPoint
+        let expectedPendingMsat: UInt64 = largeOpening ? 83_160_000_000 : 9_900_000_000
+        let spliceIn: UInt64 = largeOpening ? 2_000_000 : 76_000_000
+        _ = try await reportFixtureLimits("before splice", expectedPendingMsat: expectedPendingMsat)
+        for direction in ["in", "out"] {
+            try await waitForFixtureSync("review splice " + direction)
+            let mempoolBefore = try await peer("mempool")
+            let resize = try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: direction == "in" ? spliceIn : 2_000_000, feeRate: 125)
+            let mempoolAfter = try await peer("mempool")
+            XCTAssertEqual(mempoolAfter, mempoolBefore, "Review must not broadcast or lease/spend funds")
+            _ = try await RegtestNode.shared.splice(token: resize.token)
+            do { _ = try await RegtestNode.shared.splice(token: resize.token); XCTFail("A splice token must be consumed once") } catch { }
+            try await waitUntil {
+                let rows = try await RegtestNode.shared.channelStatus()
+                return rows.contains {
+                    $0.point == point && !($0.splice?.txid ?? "").isEmpty &&
+                        $0.splice?.txid != point.split(separator: ":").first.map(String.init)
+                }
+            }
+            let resizing = try await RegtestNode.shared.channelStatus()
+            let txid = try XCTUnwrap(resizing.first(where: { $0.point == point })?.splice?.txid)
+            XCTAssertNotEqual(txid, point.split(separator: ":").first.map(String.init), "A new resize must not confirm the previous funding transaction")
+            print("Fixture stage: confirming new splice " + direction + " · " + txid)
+            _ = try await peer("confirm-splice", txid + ":" + String(resize.estimate.lockDepth + 2))
+            try await waitForFixtureSync("splice confirmed " + direction)
+            try await waitUntil {
+                let rows = try await RegtestNode.shared.channelStatus()
+                return rows.contains { $0.peer == peerKey && $0.state == "active" && $0.point != point && $0.splice?.progress == "locked" }
+            }
+            let resized = try await RegtestNode.shared.channelStatus()
+            point = try XCTUnwrap(resized.first(where: { $0.peer == peerKey && $0.state == "active" })?.point)
+            let raw = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
+            let channel = try XCTUnwrap(raw.bytes[11]?.first)
+            XCTAssertEqual(try ProtoFields(channel).integers[5], resize.estimate.capacity)
+            _ = try await reportFixtureLimits("after locked splice " + direction, expectedPendingMsat: expectedPendingMsat)
+            let syncedBackup = try await RegtestNode.shared.channelBackup()
+            XCTAssertFalse(syncedBackup.isEmpty)
+        }
+        // Compare direct payments after both peers have locked the splice. Return
+        // each control payment so the next case starts with the same liquidity.
+        let traceAmounts: [UInt64] = [599_000, 600_000, 80_000_000]
+        for amount in traceAmounts {
+            let traceInvoice = try await peer("invoice-trace", String(amount))
+            let traceReview = try await RegtestNode.shared.decode(traceInvoice)
+            XCTAssertEqual(traceReview.sats, amount)
+            // Test-only stage markers: the last "begin" without a matching "end" names the waiting call.
+            print("Disposable \(amount)-sat stage: SendPaymentV2 begin")
+            let didSettle: Bool
+            do {
+                didSettle = try await RegtestNode.shared.pay(invoice: traceInvoice, expectedHash: traceReview.hash,
+                                                             expectedSats: amount, feeLimit: 10)
+            } catch NodeFailure.timedOut {
+                print("Disposable \(amount)-sat callback timed out; observing the same submission")
+                didSettle = try await observePendingFixturePayment(hash: traceReview.hash)
+            }
+            print("Disposable \(amount)-sat stage: submission outcome, settled=\(didSettle)")
+            print("Disposable \(amount)-sat stage: ListPayments lookup begin")
+            let page = try await RegtestNode.shared.walletActivity("payments", offset: 0)
+            let rows = try XCTUnwrap(page["rows"] as? [[String: Any]])
+            let matching = rows.filter { $0["id"] as? String == traceReview.hash }
+            XCTAssertEqual(matching.count, 1)
+            let row = try XCTUnwrap(matching.first)
+            let paymentIndex = try XCTUnwrap((row["paymentIndex"] as? String).flatMap(UInt64.init))
+            print("Disposable \(amount)-sat stage: ListPayments lookup end, state=\(row["state"] as? String ?? "unknown")")
+            print("Disposable \(amount)-sat stage: payment trace begin")
+            let report = try await RegtestNode.shared.paymentTrace(index: paymentIndex, hash: traceReview.hash)
+            print("Disposable \(amount)-sat stage: payment trace end")
+            print("Disposable \(amount)-sat post-splice payment\n" + report)
+            let expectSettled = amount < 80_000_000 || largeOpening
+            let receiver = try await peer("invoice-state", traceReview.hash)
+            XCTAssertEqual(didSettle, expectSettled, report)
+            XCTAssertEqual(receiver, expectSettled ? "SETTLED" : "OPEN")
+            XCTAssertEqual(row["state"] as? String, expectSettled ? "settled" : "failed")
+            XCTAssertTrue(report.contains(expectSettled ? "Node status: settled" : "Node status: failed"), report)
+            if expectSettled {
+                XCTAssertTrue(report.contains("1 hop (direct)"), report)
+            } else {
+                XCTAssertTrue(report.contains("Payment failure: routing timed out") || report.contains("Payment failure: no route"), report)
+            }
+            if didSettle && amount != traceAmounts.last {
+                let returnInvoice = try await RegtestNode.shared.receive(sats: amount)
+                print("Disposable \(amount)-sat return starting")
+                let result = try await peer("pay", returnInvoice)
+                XCTAssertEqual(result, "settled")
+                print("Disposable \(amount)-sat return settled")
+            }
+        }
+        let capacity = try await reportFixtureLimits("after payments", expectedPendingMsat: expectedPendingMsat)
+        return (point, capacity)
+    }
+
+    private func closeFixtureChannel(point: String) async throws {
+        try await waitForFixtureSync("payments settled; closing channel")
+        let beforeClose = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) }).integers[2] ?? 0
+        // The isolated bitcoind-backed LND peer uses the fork's fixed regtest
+        // estimate of 50 sat/vB. A 1 sat/vB request cannot negotiate with it
+        // within the wallet's reviewed three-times fee ceiling.
+        let closing = try await RegtestNode.shared.closeChannel(point: point, feeRate: 50)
+        XCTAssertEqual(closing.count, 64)
+        _ = try await peer("confirm", closing + ":0")
+        try await waitForFixtureSync("cooperative close confirmed")
+        try await waitUntil {
+            let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
+            return (funds.integers[2] ?? 0) > beforeClose
+        }
     }
     #endif
 
@@ -256,79 +367,22 @@ final class RegtestTests: XCTestCase {
         XCTAssertEqual(disabledOffers.first { $0["id"] as? String == ownOfferID }?["active"] as? Bool, false)
         try await RegtestNode.shared.setOfferEnabled(id: ownOfferID, enabled: true)
 
-        try await reportFixtureLimits("before splice")
-        for direction in ["in", "out"] {
-            try await waitForFixtureSync("review splice " + direction)
-            let mempoolBefore = try await peer("mempool")
-            let resize = try await RegtestNode.shared.reviewSplice(point: point, direction: direction, sats: direction == "in" ? 76_000_000 : 2_000_000, feeRate: 125)
-            let mempoolAfter = try await peer("mempool")
-            XCTAssertEqual(mempoolAfter, mempoolBefore, "Review must not broadcast or lease/spend funds")
-            _ = try await RegtestNode.shared.splice(token: resize.token)
-            do { _ = try await RegtestNode.shared.splice(token: resize.token); XCTFail("A splice token must be consumed once") } catch { }
-            try await waitUntil {
-                let rows = try await RegtestNode.shared.channelStatus()
-                return rows.contains {
-                    $0.point == point && !($0.splice?.txid ?? "").isEmpty &&
-                        $0.splice?.txid != point.split(separator: ":").first.map(String.init)
-                }
-            }
-            let resizing = try await RegtestNode.shared.channelStatus()
-            let txid = try XCTUnwrap(resizing.first(where: { $0.point == point })?.splice?.txid)
-            XCTAssertNotEqual(txid, point.split(separator: ":").first.map(String.init), "A new resize must not confirm the previous funding transaction")
-            print("Fixture stage: confirming new splice " + direction + " · " + txid)
-            _ = try await peer("confirm-splice", txid + ":" + String(resize.estimate.lockDepth + 2))
-            try await waitForFixtureSync("splice confirmed " + direction)
-            try await waitUntil {
-                let rows = try await RegtestNode.shared.channelStatus()
-                return rows.contains { $0.peer == peerKey && $0.state == "active" && $0.point != point && $0.splice?.progress == "locked" }
-            }
-            let resized = try await RegtestNode.shared.channelStatus()
-            point = try XCTUnwrap(resized.first(where: { $0.peer == peerKey && $0.state == "active" })?.point)
-            let raw = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
-            let channel = try XCTUnwrap(raw.bytes[11]?.first)
-            XCTAssertEqual(try ProtoFields(channel).integers[5], resize.estimate.capacity)
-            try await reportFixtureLimits("after locked splice " + direction)
-            let syncedBackup = try await RegtestNode.shared.channelBackup()
-            XCTAssertFalse(syncedBackup.isEmpty)
+        let small = try await compareSplicedPayments(point: point, peerKey: peerKey, largeOpening: false)
+        try await closeFixtureChannel(point: small.point)
+        try await waitUntil {
+            let listed = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
+            return (listed.bytes[11] ?? []).isEmpty
         }
-        // Compare direct payments after both peers have locked the splice. Return
-        // each control payment so the next case starts with the same liquidity.
-        let traceAmounts: [UInt64] = [599_000, 600_000, 80_000_000]
-        for amount in traceAmounts {
-            let traceInvoice = try await peer("invoice-trace", String(amount))
-            let traceReview = try await RegtestNode.shared.decode(traceInvoice)
-            XCTAssertEqual(traceReview.sats, amount)
-            // Test-only stage markers: the last "begin" without a matching "end" names the waiting call.
-            print("Disposable \(amount)-sat stage: SendPaymentV2 begin")
-            let didSettle: Bool
-            do {
-                didSettle = try await RegtestNode.shared.pay(invoice: traceInvoice, expectedHash: traceReview.hash,
-                                                             expectedSats: amount, feeLimit: 10)
-            } catch NodeFailure.timedOut {
-                print("Disposable \(amount)-sat callback timed out; observing the same submission")
-                didSettle = try await observePendingFixturePayment(hash: traceReview.hash)
-            }
-            print("Disposable \(amount)-sat stage: submission outcome, settled=\(didSettle)")
-            print("Disposable \(amount)-sat stage: ListPayments lookup begin")
-            let page = try await RegtestNode.shared.walletActivity("payments", offset: 0)
-            let rows = try XCTUnwrap(page["rows"] as? [[String: Any]])
-            let row = try XCTUnwrap(rows.first { $0["id"] as? String == traceReview.hash })
-            let paymentIndex = try XCTUnwrap((row["paymentIndex"] as? String).flatMap(UInt64.init))
-            print("Disposable \(amount)-sat stage: ListPayments lookup end, state=\(row["state"] as? String ?? "unknown")")
-            print("Disposable \(amount)-sat stage: payment trace begin")
-            let report = try await RegtestNode.shared.paymentTrace(index: paymentIndex, hash: traceReview.hash)
-            print("Disposable \(amount)-sat stage: payment trace end")
-            print("Disposable \(amount)-sat post-splice payment\n" + report)
-            XCTAssertTrue(didSettle, report)
-            XCTAssertTrue(report.contains("1 hop (direct)"), report)
-            if didSettle && amount != traceAmounts.last {
-                let returnInvoice = try await RegtestNode.shared.receive(sats: amount)
-                print("Disposable \(amount)-sat return starting")
-                let result = try await peer("pay", returnInvoice)
-                XCTAssertEqual(result, "settled")
-                print("Disposable \(amount)-sat return settled")
-            }
+        point = try await RegtestNode.shared.openChannel(to: peerKey, sats: 84_000_000, feeRate: 125)
+        _ = try await peer("confirm", point)
+        try await waitForFixtureSync("large opening confirmed")
+        try await waitUntil {
+            let rows = try await RegtestNode.shared.channelStatus()
+            return rows.contains { $0.point == point && $0.state == "active" }
         }
+        let large = try await compareSplicedPayments(point: point, peerKey: peerKey, largeOpening: true)
+        XCTAssertLessThan(max(small.capacity, large.capacity) - min(small.capacity, large.capacity), 100_000)
+        point = large.point
         let fundedBackup = try await RegtestNode.shared.channelBackup()
         XCTAssertGreaterThan(fundedBackup.count, backup.count)
         #endif
@@ -338,19 +392,7 @@ final class RegtestTests: XCTestCase {
         let identity = try ProtoFields(await XBTLightningNode.info()).string(1)
         try identity.write(to: documents.appendingPathComponent("RestoreIdentity.txt"), atomically: true, encoding: .utf8)
         #if XBT_LND_ROUTED_TEST
-        try await waitForFixtureSync("payments settled; closing channel")
-        let beforeClose = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) }).integers[2] ?? 0
-        // The isolated bitcoind-backed LND peer uses the fork's fixed regtest
-        // estimate of 50 sat/vB. A 1 sat/vB request cannot negotiate with it
-        // within the wallet's reviewed three-times fee ceiling.
-        let closing = try await RegtestNode.shared.closeChannel(point: point, feeRate: 50)
-        XCTAssertEqual(closing.count, 64)
-        _ = try await peer("confirm", closing + ":0")
-        try await waitForFixtureSync("cooperative close confirmed")
-        try await waitUntil {
-            let funds = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
-            return (funds.integers[2] ?? 0) > beforeClose
-        }
+        try await closeFixtureChannel(point: point)
         let target = try await peer("withdraw-address")
         let withdrawal = try await RegtestNode.shared.reviewWithdrawal(address: target, sats: 2_000_000, feeRate: 125)
         let txid = try await RegtestNode.shared.withdraw(token: withdrawal.token)

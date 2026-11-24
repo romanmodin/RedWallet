@@ -78,7 +78,7 @@ class TraceInvoiceTests(unittest.TestCase):
                              (b'600000', '600000'), (b'80000000', '80000000'),
                              (b'599999', None)]:
             with self.subTest(body=body):
-                ns['call'] = Mock(return_value='{"payment_request":"synthetic"}')
+                ns['call'] = Mock(return_value=json.dumps({'payment_request': 'synthetic', 'r_hash': 'aa'*32}))
                 request = Request(body)
                 request.path = '/invoice-trace'
                 ns['Fixture'].do_POST(request)
@@ -89,6 +89,32 @@ class TraceInvoiceTests(unittest.TestCase):
                     self.assertEqual(request.status, 200)
                     self.assertEqual(request.wfile.getvalue(), b'synthetic')
                     ns['call'].assert_called_once_with(ns['lightning'], 'addinvoice', '--amt=' + amount)
+
+
+    def test_receiver_only_reads_issued_fixture_hash(self):
+        ns['lightning'] = ['disposable-lncli']
+        ns['Fixture'].trace_invoices = {'aa'*32: 600000}
+        for digest, status in [('bb'*32, 400), ('aa'*32, 200)]:
+            ns['call'] = Mock(return_value='{"value":"600000","amt_paid_msat":"600000000","state":"SETTLED"}')
+            request = Request(digest.encode())
+            request.path = '/invoice-state'
+            ns['Fixture'].do_POST(request)
+            self.assertEqual(request.status, status)
+            if status == 400:
+                ns['call'].assert_not_called()
+            else:
+                ns['call'].assert_called_once_with(ns['lightning'], 'lookupinvoice', digest)
+                self.assertEqual(request.wfile.getvalue(), b'SETTLED')
+
+
+    def test_receiver_rejects_incorrect_settlement_amount(self):
+        ns['lightning'] = ['disposable-lncli']
+        ns['Fixture'].trace_invoices = {'aa'*32: 600000}
+        ns['call'] = Mock(return_value='{"value":"600000","amt_paid_msat":"600000","state":"SETTLED"}')
+        request = Request(b'aa'*32)
+        request.path = '/invoice-state'
+        ns['Fixture'].do_POST(request)
+        self.assertEqual(request.status, 500)
 
 
 class SpliceConfirmationTests(unittest.TestCase):

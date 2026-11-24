@@ -1,4 +1,5 @@
 """Loopback-only test peer for the iOS simulator. All keys and coins are disposable."""
+import base64
 import json
 import re
 import subprocess
@@ -69,6 +70,8 @@ def splice_confirmation_depth(txid, local_depth):
 
 
 class Fixture(BaseHTTPRequestHandler):
+    trace_invoices = {}
+
     def do_POST(self):
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -126,7 +129,23 @@ class Fixture(BaseHTTPRequestHandler):
                 result = json.loads(call(lightning, "addinvoice", "--amt=2000000" if self.path == "/invoice-large" else "--amt=20000"))["payment_request"]
             elif self.path == "/invoice-trace" and value in ("", "599000", "600000", "80000000"):
                 amount = value or "80000000"
-                result = json.loads(call(lightning, "addinvoice", "--amt=" + amount))["payment_request"]
+                invoice = json.loads(call(lightning, "addinvoice", "--amt=" + amount))
+                digest = invoice["r_hash"]
+                if not re.fullmatch("[0-9a-f]{64}", digest):
+                    digest = base64.b64decode(digest, validate=True).hex()
+                if len(digest) != 64:
+                    raise ValueError("invalid disposable invoice digest")
+                Fixture.trace_invoices[digest] = int(amount)
+                result = invoice["payment_request"]
+            elif self.path == "/invoice-state" and value in Fixture.trace_invoices:
+                invoice = json.loads(call(lightning, "lookupinvoice", value))
+                if int(invoice["value"]) != Fixture.trace_invoices[value]:
+                    raise ValueError("incorrect fixture amount")
+                result = invoice["state"]
+                if result == "SETTLED" and int(invoice["amt_paid_msat"]) != 1000 * Fixture.trace_invoices[value]:
+                    raise ValueError("incorrect settled amount")
+                if result not in ("OPEN", "SETTLED", "CANCELED", "ACCEPTED"):
+                    raise ValueError("unknown invoice state")
             elif self.path == "/offer":
                 result = json.loads(call(lightning, "offer", "create", "--description=Disposable offer", "--amount_msat=1000000"))["offer"]["bolt12"]
             elif self.path == "/pay-offer" and re.fullmatch(r"lno1[a-z0-9]{20,8192}", value):
