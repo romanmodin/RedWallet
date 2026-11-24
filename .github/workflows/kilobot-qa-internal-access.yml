@@ -1,0 +1,68 @@
+name: Assign Kilobot QA to its internal tester
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Kilobot QA internal TestFlight upload]
+    types: [completed]
+    branches: [main]
+  pull_request:
+    paths:
+      - .github/workflows/kilobot-qa-internal-access.yml
+      - distribution/kilobot/internal_access.py
+      - distribution/kilobot/test_access.py
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: kilobot-qa-internal-access-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+      - run: python3 -B -m unittest discover -s distribution/kilobot -v
+
+  access:
+    needs: verify
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.id == 45481387232 &&
+        github.event.workflow_run.conclusion == 'success'))
+    environment: ios-upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Confirm the exact successful QA upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/romanmodin/RedWallet/actions/runs/45481387232 | jq -e '
+            .repository.full_name == "romanmodin/RedWallet" and .head_branch == "main" and
+            .head_sha == "07f120bdefefaa85cc238e4090f4571a9927ddfb" and
+            .event == "workflow_dispatch" and .path == ".github/workflows/kilobot-qa-testflight.yml" and
+            .status == "completed" and .conclusion == "success"'
+          gh api repos/romanmodin/RedWallet/actions/runs/45481387232/jobs | jq -e '
+            [.jobs[] | select(.name == "upload" and .conclusion == "success")] | length == 1'
+      - name: Prepare temporary Apple API authentication
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: python3 distribution/kilowallet/prepare_signing.py
+      - name: Verify Apple processing and assign the single internal tester group
+        run: python3 -B distribution/kilobot/internal_access.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilobot-qa-internal-access
+          path: kilobot-qa-internal-access.json
+          if-no-files-found: error
+      - name: Remove temporary Apple credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/Kilowallet-AuthKey.p8" "$RUNNER_TEMP/Kilowallet-ExportOptions.plist"
