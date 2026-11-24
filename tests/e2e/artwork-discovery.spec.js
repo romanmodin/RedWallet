@@ -111,6 +111,13 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await setup('create-disposable-artwork-wallet', () => helperCreateWallet('Artwork Test Wallet', 'taproot'));
     await setup('relaunch-artwork-wallet', () => device.launchApp({ newInstance: true }));
     await waitForWalletsList();
+    const balanceRow = element(by.id('WalletCardBalanceRow'));
+    await waitFor(balanceRow).toBeVisible().withTimeout(15000);
+    for (const phase of ['initial', 'after-idle']) {
+      if (phase === 'after-idle') await new Promise(resolve => setTimeout(resolve, 65000));
+      const image = await balanceRow.takeScreenshot('wallet-card-' + phase);
+      fs.copyFileSync(image, path.join(setupDirectory, 'wallet-card-' + phase + '.png'));
+    }
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('ArtworkSkinLogo')))
       .toBeVisible()
