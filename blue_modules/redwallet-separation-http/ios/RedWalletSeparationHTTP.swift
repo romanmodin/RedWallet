@@ -9,6 +9,10 @@ final class RedWalletSeparationHTTP: NSObject, RCTInvalidating {
     // Calls from JS register and cancel on one queue, in bridge order.
     @objc var methodQueue: DispatchQueue { DispatchQueue.main }
     @objc static func requiresMainQueueSetup() -> Bool { false }
+    @objc func constantsToExport() -> [AnyHashable: Any] {
+        let scope = Bundle.main.object(forInfoDictionaryKey: "RedWalletKeystoneScope") as? String
+        return ["internalKeystone": scope == "internal-testing"]
+    }
     override init() {
         super.init()
         backgroundObserver = NotificationCenter.default.addObserver(
