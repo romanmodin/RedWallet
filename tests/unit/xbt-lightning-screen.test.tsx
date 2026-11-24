@@ -387,6 +387,14 @@ test('channel summary separates open, active, pending and closing and never offe
       active: true,
       localSats: '80000',
       remoteSats: '17000',
+      peerFunding: {
+        openingPeerSats: '3000',
+        complete: true,
+        changes: [
+          { point: 'second:0', peerDeltaSats: '-700' },
+          { point: 'first:0', peerDeltaSats: '12000' },
+        ],
+      },
     },
     {
       point: 'inactive:0',
@@ -395,6 +403,7 @@ test('channel summary separates open, active, pending and closing and never offe
       active: false,
       localSats: '70000',
       remoteSats: '0',
+      peerFunding: { openingPeerSats: '0', complete: false, changes: [] },
     },
     {
       point: 'pending:0',
@@ -424,6 +433,12 @@ test('channel summary separates open, active, pending and closing and never offe
   expect(screen.getByText('Pending · 2 confirmation(s) remaining')).toBeTruthy();
   expect(screen.queryByText('Close channel · 90000 local sats')).toBeNull();
   expect(screen.queryByText('Close channel · 60000 local sats')).toBeNull();
+  expect(within(screen.getByTestId('SelectChannel-active:0')).getByText(/Peer contributed: 15000 sats/)).toBeTruthy();
+  expect(within(screen.getByTestId('SelectChannel-inactive:0')).getByText(/Peer contributed: Unknown/)).toBeTruthy();
+  fireEvent.press(screen.getByTestId('SelectChannel-active:0'));
+  const activity = within(screen.getByTestId('LightningActivityPanel'));
+  expect(activity.getByText(/peer removed 700 sats/)).toBeTruthy();
+  expect(activity.getByText(/peer added 12000 sats/)).toBeTruthy();
   screen.unmount();
 });
 
@@ -966,6 +981,7 @@ test('hidden selected channels retain their identity without disclosing local or
       active: true,
       localSats: '123457',
       remoteSats: '7654321',
+      peerFunding: { openingPeerSats: '123659', complete: true, changes: [] },
     },
   ]);
   const screen = render(<XBTLightning />);
@@ -977,6 +993,7 @@ test('hidden selected channels retain their identity without disclosing local or
     expect(within(screen.getByTestId('LightningActivityPanel')).getByText(/peer.example:9735/)).toBeTruthy();
     expect(JSON.stringify(screen.toJSON())).not.toContain('123457');
     expect(JSON.stringify(screen.toJSON())).not.toContain('7654321');
+    expect(JSON.stringify(screen.toJSON())).not.toContain('123659');
     expect(screen.queryByLabelText('Copy activity result')).toBeNull();
   } finally {
     screen.unmount();

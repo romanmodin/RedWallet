@@ -88,13 +88,20 @@ final class RegtestTests: XCTestCase {
         try await waitUntil {
             try await node.channelStatus().contains {
                 $0.point.hasPrefix(txid + ":") && $0.peer == key && $0.state == "active" &&
-                    $0.splice?.progress == "locked" && $0.remoteSats == 150_000_000
+                    $0.splice?.progress == "locked" && $0.remoteSats == 150_000_000 &&
+                    $0.peerFunding?.opening == 0 && $0.peerFunding?.changes.first?.change.peerDelta == 150_000_000
             }
         }
         let invoice = try await node.receive(sats: 1_500_000)
         let hash = try await node.decode(invoice).hash
         let result = try await peer("pay", invoice)
         XCTAssertEqual(result, "settled")
+        try await waitUntil {
+            try await node.channelStatus().contains {
+                $0.peer == key && ($0.remoteSats ?? UInt64.max) < 150_000_000 &&
+                    $0.peerFunding?.changes.first?.change.peerDelta == 150_000_000
+            }
+        }
         let page = try await node.walletActivity("invoices", offset: 0)
         let rows = try XCTUnwrap(page["rows"] as? [[String: Any]])
         XCTAssertTrue(rows.contains {

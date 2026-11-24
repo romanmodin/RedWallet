@@ -68,6 +68,11 @@ type Channel = {
   active: boolean;
   localSats: string;
   remoteSats?: string;
+  peerFunding?: {
+    openingPeerSats?: string;
+    complete: boolean;
+    changes: { point: string; peerDeltaSats?: string; time?: string }[];
+  };
   state: 'active' | 'inactive' | 'pending' | 'closing' | 'forceClosing';
   confirmationsRemaining?: number;
   splice?: LightningResize;
@@ -155,6 +160,33 @@ function channelBalances(channel: Channel, hideBalances: boolean) {
   return 'Local balance: ' + channel.localSats + ' sats\nPeer balance: ' + peer;
 }
 
+function peerFundingText(channel: Channel, hideBalances: boolean, details = false) {
+  const history = channel.peerFunding;
+  if (!history && (Platform.OS !== 'ios' || !['active', 'inactive'].includes(channel.state))) return '';
+  if (hideBalances) return '\nPeer contributed: ••••';
+  if (!history) return '\nPeer contributed: Unknown';
+
+  let added = BigInt(history.openingPeerSats ?? '0');
+  const lines = [];
+  for (const change of history.changes) {
+    const delta = change.peerDeltaSats === undefined ? undefined : BigInt(change.peerDeltaSats);
+    if (delta !== undefined && delta > 0n) added += delta;
+    if (details) {
+      const when = change.time ? ' · ' + new Date(Number(change.time) * 1000).toLocaleDateString() : '';
+      let event = 'peer amount unavailable';
+      if (delta === 0n) event = 'peer contributed 0 sats';
+      else if (delta !== undefined) event = delta > 0n ? 'peer added ' + delta + ' sats' : 'peer removed ' + -delta + ' sats';
+      lines.push('Resize' + when + ' · ' + event);
+    }
+  }
+  const amount = history.complete ? added + ' sats' : added > 0n ? 'at least ' + added + ' sats' : 'Unknown';
+  const summary = '\nPeer contributed: ' + amount;
+  if (!details) return summary;
+  lines.push('Opening · peer funding: ' + (history.openingPeerSats === undefined ? 'Unknown' : history.openingPeerSats + ' sats'));
+  if (!history.complete) lines.push('Some funding history is unavailable.');
+  return summary + '\nFunding history\n' + lines.join('\n');
+}
+
 function selectedChannelDetails(channel: Channel, hideBalances = false) {
   return (
     'Status: ' +
@@ -168,7 +200,8 @@ function selectedChannelDetails(channel: Channel, hideBalances = false) {
     '\nChannel funding reference: ' +
     channel.point +
     '\n' +
-    channelBalances(channel, hideBalances)
+    channelBalances(channel, hideBalances) +
+    peerFundingText(channel, hideBalances, true)
   );
 }
 
@@ -1465,7 +1498,8 @@ export default function XBTLightning({
               <SettingsExplanation id="lightning.channel-selection" title="How To Select A Channel">
                 Tap a channel to select it and show its peer identity above. Actions apply only to the selected channel. Inactive channels
                 remain listed; pending channels are still opening. Peer balance is the other node’s share of this channel. Reserves and
-                pending payments can reduce how much it can send to you.
+                pending payments can reduce how much it can send to you. Peer contributed counts deposits at opening and in completed
+                resizes. Tap a channel for its funding history.
               </SettingsExplanation>
               {(channels ?? []).map(channel => (
                 <View key={channel.point}>
@@ -1489,7 +1523,7 @@ export default function XBTLightning({
                         animated: true,
                       });
                     }}
-                    subtitle={channelBalances(channel, hideBalances)}
+                    subtitle={channelBalances(channel, hideBalances) + peerFundingText(channel, hideBalances)}
                     subtitleNumberOfLines={0}
                   />
                   {selectedPoint === channel.point && bridge.splice && ['active', 'inactive'].includes(channel.state) && (

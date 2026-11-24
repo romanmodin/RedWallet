@@ -20,6 +20,8 @@ public struct LightningChannelStatus: Sendable {
     public var peerAlias: String? = nil
     public var peerAddress: String? = nil
     public var originalPoint: String? = nil
+    var fundingSnapshot: FundingSnapshot? = nil
+    public var peerFunding: PeerFundingHistory? = nil
 
     static func decode(open: Data, pending: Data, awaitingSplices: Set<String> = [], peers: Data? = nil) throws -> [LightningChannelStatus] {
         var items: [String: LightningChannelStatus] = [:]
@@ -31,11 +33,9 @@ public struct LightningChannelStatus: Sendable {
                 state: channel.integers[1] == 1 ? "active" : "inactive",
                 localSats: channel.integers[6] ?? 0, remoteSats: channel.integers[7] ?? 0,
                 confirmationsRemaining: nil, splice: try SpliceChannelState.decode(channel, awaitingNewAttempt: awaitingSplices.contains(point)))
-        }
-        for bytes in try ProtoFields(open).bytes[11] ?? [] {
-            let channel = try ProtoFields(bytes)
-            items[try channel.string(3)]?.peerAlias = try? channel.string(34)
-            items[try channel.string(3)]?.originalPoint = try? channel.string(1005)
+            items[point]?.peerAlias = try? channel.string(34)
+            items[point]?.originalPoint = try? channel.string(1005)
+            items[point]?.fundingSnapshot = FundingSnapshot(channel, point: point)
         }
         let response = try ProtoFields(pending)
         let states: [(UInt64, String)] = [(2, "pending"), (3, "closing"), (5, "closing"), (4, "forceClosing")]
@@ -93,14 +93,35 @@ extension RegtestNode {
         let open = try await rpc { LndmobileListChannels(ProtoFields.field(6, integer: 1), $0) }
         let peers = try? await rpc { LndmobileListPeers(Data(), $0) }
         var items = try LightningChannelStatus.decode(open: open, pending: pending, awaitingSplices: splicingPoints, peers: peers)
-        if items.contains(where: { !($0.splice?.txid ?? "").isEmpty }),
-           let transactions = try? await rpc({ LndmobileGetTransactions(Data(), $0) }),
-           let confirmations = try? SpliceChannelState.transactionConfirmations(transactions) {
-            for index in items.indices {
-                if let txid = items[index].splice?.txid {
-                    items[index].splice?.onchainConfirmations = confirmations[txid]
-                }
+        let needsTransactions = items.contains { channel in
+            if let funding = channel.fundingSnapshot, funding.original != funding.point { return true }
+            return !(channel.splice?.txid ?? "").isEmpty
+        }
+        let transactions = needsTransactions ? try? await rpc({ LndmobileGetTransactions(Data(), $0) }) : nil
+        let walletSynced = transactions != nil ? (try? await requireSynced()) != nil : false
+        let history = FundingTransactions(transactions, walletSynced: walletSynced)
+        for index in items.indices {
+            if let txid = items[index].splice?.txid {
+                items[index].splice?.onchainConfirmations = history.confirmations[txid]
             }
+        }
+        let file = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                appropriateFor: nil, create: false)
+            .appendingPathComponent(directoryName).appendingPathComponent("channel-funding-v1.json")
+        // Don't replace a file that's inaccessible while locked or can't be decoded.
+        var stored: [String: FundingJournal]? = nil
+        if let file {
+            do { stored = try JSONDecoder().decode([String: FundingJournal].self, from: Data(contentsOf: file)) }
+            catch let error as CocoaError where error.code == .fileReadNoSuchFile { stored = [:] }
+            catch {}
+        }
+        var journals = stored ?? [:]
+        for index in items.indices {
+            guard let snapshot = items[index].fundingSnapshot else { continue }
+            items[index].peerFunding = journals[snapshot.original, default: FundingJournal()].update(snapshot, transactions: history)
+        }
+        if let file, let stored, stored != journals {
+            try? JSONEncoder().encode(journals).write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         }
         return items
     }

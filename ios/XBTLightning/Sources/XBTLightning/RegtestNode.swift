@@ -40,7 +40,7 @@ public actor RegtestNode {
     var closingPoints: Set<String> = []
     private(set) var mainnet = false
     private var service: String { mainnet ? MainnetConfiguration.credentialService : "com.redwallet.xbt-lightning.regtest.v1" }
-    private var directoryName: String { mainnet ? MainnetConfiguration.directoryName : "XBTLightning-regtest" }
+    var directoryName: String { mainnet ? MainnetConfiguration.directoryName : "XBTLightning-regtest" }
     var units: String { mainnet ? "sats" : "test sats" }
     var invoicePrefix: String { mainnet ? "lnbc" : "lnbcrt" }
     var addressPrefix: String { mainnet ? "bc1" : "bcrt1" }
