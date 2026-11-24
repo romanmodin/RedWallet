@@ -109,6 +109,14 @@ it.each([false, true])('accepts standard signatures only for a reviewed proof-ga
   changed.outs[0].value -= 1n;
   expect(() => assertStandardHardwareResult(changed.toHex(), f.request)).toThrow('changed');
 });
+it('rejects a generic Native SegWit account before enabling Keystone mode', () => {
+  const { cold } = fixture();
+  const watch = new WatchOnlyWallet();
+  watch.setSecret('[445a39f0/84h/0h/0h]' + cold.getXpub()).init();
+  expect(() => watch.setHardwareSigningMode('standard')).toThrow('requires Native SegWit');
+  expect(watch.getHardwareSigningMode()).toBe('unified');
+});
+
 it('retains Unified default and refuses unverified standard requests', () => {
   const f = fixture();
   expect(f.watch.getHardwareSigningMode()).toBe('unified');
@@ -180,7 +188,7 @@ it('ignores late proof results after the wallet or signing mode changes', async 
   await expect(pending).rejects.toThrow('Signing mode changed');
 });
 
-it('keeps production standard signing disabled pending stronger separation proof', () => {
+it('keeps the default host build closed to standard signing', () => {
   const production = jest.requireActual('../../class/xbt/standard-hardware');
   expect(production.STANDARD_HARDWARE_RELEASE_ENABLED).toBe(false);
   expect(() => production.assertStandardHardwareReleased()).toThrow('coin separation');

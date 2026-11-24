@@ -4,6 +4,9 @@ import { assertSignedBtcTransaction } from '../btc/psbt';
 import { assertSignedUnifiedTransactionMatchesPsbt } from './unified-psbt';
 import { parseVerifiedParentTransaction } from './verified-transaction';
 
+import { STANDARD_HARDWARE_RELEASE_ENABLED } from './standard-hardware-platform';
+export { STANDARD_HARDWARE_RELEASE_ENABLED };
+
 export type FundingInput = { txid: string; vout: number; value: number; address?: string };
 export type FundingSource = {
   raw: (ids: string[]) => Promise<Record<string, string>>;
@@ -12,10 +15,6 @@ export type FundingSource = {
   separation?: (parents: Transaction[]) => Promise<void>;
 };
 export type FundingProof = { checkedAt: number; parents: Record<string, string> };
-// Release gate: direct Unified funding is not sufficient cross-chain separation proof.
-// The confirmed-conflict service is integrated. Keep disabled until its trust
-// model and complete node/hardware/native round trip have been qualified.
-export const STANDARD_HARDWARE_RELEASE_ENABLED: boolean = false;
 export function assertStandardHardwareReleased(): void {
   if (!STANDARD_HARDWARE_RELEASE_ENABLED) throw new Error('Standard hardware signing is unavailable until coin separation can be verified');
 }
