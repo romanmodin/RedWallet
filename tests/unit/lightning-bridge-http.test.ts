@@ -89,14 +89,10 @@ test('quote responses get a longer bound while read-only requests retain the sho
         }),
     );
     const provider = new KilombinoProvider(request);
-    const call = (
-      provider as unknown as {
-        call(path: string, signal: AbortSignal, body?: unknown): Promise<unknown>;
-      }
-    ).call.bind(provider);
+    const call = provider['call'].bind(provider);
 
     let quoteSettled = false;
-    const quoteResult = call('/api/quote', new AbortController().signal, { invoice: 'fixture' }).catch(error => error);
+    const quoteResult = call('quoteHttp', '/api/quote', new AbortController().signal, { invoice: 'fixture' }).catch(error => error);
     quoteResult.then(() => {
       quoteSettled = true;
     });
@@ -108,7 +104,7 @@ test('quote responses get a longer bound while read-only requests retain the sho
     await expect(quoteResult).resolves.toThrow('processor may have reserved this invoice');
 
     let infoSettled = false;
-    const infoResult = call('/api/info', new AbortController().signal).catch(error => error);
+    const infoResult = call('marketHttp', '/api/info', new AbortController().signal).catch(error => error);
     infoResult.then(() => {
       infoSettled = true;
     });

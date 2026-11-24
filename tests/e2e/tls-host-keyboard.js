@@ -7,8 +7,12 @@ async function settleIosHostKeyboard({ device, element, by, waitFor }, host) {
   // never the former default preset after replaceText has changed it.
   const editedHost = element(by.type('RCTUITextField').and(by.value(host)));
   await editedHost.tapReturnKey();
+  await waitForIosKeyboardDismissal({ element, by, waitFor });
+}
+
+async function waitForIosKeyboardDismissal({ element, by, waitFor }) {
   await waitFor(element(by.type('UIKeyboardLayoutStar')))
     .not.toBeVisible()
     .withTimeout(15000);
 }
-module.exports = { settleIosHostKeyboard };
+module.exports = { settleIosHostKeyboard, waitForIosKeyboardDismissal };

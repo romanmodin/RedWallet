@@ -1,13 +1,32 @@
 import { hashPattern, nodePattern } from './invoice';
 
-// Persist only these fixed descriptions. Transport errors can contain private URLs and invoice data.
+// Diagnostic text must never include response bodies, invoice data, tokens or URLs.
+const httpReasons = {
+  marketHttp: 'The processor returned an error while checking availability.',
+  previewHttp: 'The processor returned an error while checking the invoice.',
+  proofHttp: 'The processor returned an error while requesting a proof-of-work challenge.',
+  quoteHttp: 'The processor returned an error while requesting a quote.',
+  statusHttp: 'The processor returned an error while checking swap status.',
+} as const;
+
+export type BridgeHttpReason = keyof typeof httpReasons;
+
+export class BridgeHttpError extends Error {
+  constructor(
+    readonly reason: BridgeHttpReason,
+    readonly status: number,
+  ) {
+    super(httpReasons[reason] + ' (HTTP ' + status + ')');
+  }
+}
 export const historyReasons = {
+  ...httpReasons,
   proofTimeout: 'The phone ran out of time solving the processor’s proof of work.',
   processorRefused: 'The processor was unavailable or refused the request.',
   rateLimit: 'The quote request limit was reached.',
   quoteResponseTimeout:
     'The quote response timed out. The processor may have reserved this invoice; RedWallet submitted no payment. Wait up to ten minutes before trying again.',
-  existingQuote: 'The processor had already reserved this invoice; RedWallet submitted no payment.',
+  existingQuote: 'A quote reservation already exists in RedWallet. This retry sent no quote request or payment.',
   existingPayment: 'An earlier payment must be checked before another attempt.',
   unavailable: 'The processor was unavailable for this direction.',
   outsideLimits: 'The invoice amount was outside the processor’s limits.',
@@ -28,6 +47,7 @@ export type BridgeHistoryIssue = {
   provider: string;
   at: number;
   reason: HistoryReason;
+  httpStatus?: number;
 };
 export const maxHistoryIssues = 100;
 
@@ -41,7 +61,7 @@ const knownErrors = new Map<string, HistoryReason>([
     'Quote response timed out. The processor may have reserved this invoice. No payment was submitted. Wait for the reservation to expire before trying again.',
     'quoteResponseTimeout',
   ],
-  ['A quote for this invoice already exists. Wait before requesting another.', 'existingQuote'],
+  [historyReasons.existingQuote, 'existingQuote'],
   ['This payment is pending, uncertain or already paid. Check its status; do not pay again.', 'existingPayment'],
   ['LND already knows this payment. Check its status before proceeding.', 'existingPayment'],
   ['Payment already exists or its result is unknown.', 'existingPayment'],
@@ -55,8 +75,16 @@ const knownErrors = new Map<string, HistoryReason>([
   ['Action canceled. Nothing was submitted.', 'approvalCanceled'],
 ]);
 
-export function historyReason(error: unknown, fallback: HistoryReason): HistoryReason {
-  return (error instanceof Error && knownErrors.get(error.message)) || fallback;
+export function historyDiagnostic(error: unknown, fallback: HistoryReason): Pick<BridgeHistoryIssue, 'reason' | 'httpStatus'> {
+  if (error instanceof BridgeHttpError) return { reason: error.reason, httpStatus: error.status };
+  return {
+    reason: (error instanceof Error && knownErrors.get(error.message)) || fallback,
+  };
+}
+
+export function historyDescription(issue: BridgeHistoryIssue): string {
+  const description = historyReasons[issue.reason];
+  return issue.httpStatus === undefined ? description : description + ' (HTTP ' + issue.httpStatus + ')';
 }
 
 export function savedIssues(value: unknown): BridgeHistoryIssue[] {
@@ -79,6 +107,16 @@ export function savedIssues(value: unknown): BridgeHistoryIssue[] {
     )
       return [];
     const { node, hash, provider, at, reason } = issue;
-    return [{ node, hash, provider, at, reason }];
+    const result: BridgeHistoryIssue = { node, hash, provider, at, reason };
+    const status = issue.httpStatus;
+    if (
+      Object.prototype.hasOwnProperty.call(httpReasons, reason) &&
+      Number.isInteger(status) &&
+      status >= 100 &&
+      status <= 599 &&
+      (status < 200 || status >= 300)
+    )
+      result.httpStatus = status;
+    return [result];
   });
 }

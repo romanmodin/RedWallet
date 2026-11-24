@@ -6,7 +6,7 @@ const tls = require('tls');
 const assert = require('assert').strict;
 const { cleanupTlsFixture } = require('./tls-fixture-cleanup');
 const { prepareTlsApp } = require('./tls-setup');
-const { settleIosHostKeyboard } = require('./tls-host-keyboard');
+const { settleIosHostKeyboard, waitForIosKeyboardDismissal } = require('./tls-host-keyboard');
 const { observeNativeSetupStep } = require('./native-setup-step');
 const { execFileSync } = require('child_process');
 const scenarios = require('./tls-scenarios.json');
@@ -75,6 +75,23 @@ async function openSettings() {
 }
 
 describe('native Electrum TLS authentication', () => {
+  let sourceSha;
+  beforeAll(() => {
+    // The iOS matrix verifies the checkout once before starting any simulator case.
+    // Standalone Detox and Android runs resolve the checkout during suite setup.
+    const expected = process.env.REDWALLET_TLS_EXPECTED_SHA;
+    if (device.getPlatform() === 'ios' && (process.env.REDWALLET_TLS_SOURCE_SHA !== undefined || expected !== undefined)) {
+      sourceSha = process.env.REDWALLET_TLS_SOURCE_SHA;
+      if (expected !== undefined) assert.equal(sourceSha, expected, 'TLS case source differs from workflow source');
+    } else {
+      sourceSha = execFileSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
+        encoding: 'utf8',
+        timeout: 15000,
+      }).trim();
+    }
+    assert.match(sourceSha, /^[a-f0-9]{40}$/);
+  });
+
   for (const scenario of selectedScenarios) {
     it(scenario.name, async () => {
       let requests = 0;
@@ -146,10 +163,12 @@ describe('native Electrum TLS authentication', () => {
         await visible('TlsCaInput');
         await element(by.id('TlsCaInput')).replaceText(scenario.anchor ? fixture(scenario.anchor).toString().trim() : '');
         await element(by.id('TlsCaInput')).tapReturnKey();
+        // The form automatically adjusts its scroll insets as the PEM keyboard closes.
+        if (isIOS) await waitForIosKeyboardDismissal({ element, by, waitFor });
         console.log('[tls-e2e] certificate entered:', scenario.name);
         await element(by.id('ElectrumSettingsScrollView')).scrollTo('bottom', 0.95, 0.5);
         await waitFor(element(by.id('Save')))
-          .toBeVisible()
+          .toBeVisible(isIOS ? 100 : 75)
           .withTimeout(15_000);
         console.log('[tls-e2e] saving server:', scenario.name);
         await element(by.id('Save')).tap();
@@ -204,10 +223,7 @@ describe('native Electrum TLS authentication', () => {
           {
             scenario: scenario.id,
             name: scenario.name,
-            sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], {
-              encoding: 'utf8',
-              timeout: 5000,
-            }).trim(),
+            sourceSha,
             accepted: !!scenario.accepted,
             rpcRequests: requests,
             beforeRestart,

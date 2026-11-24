@@ -1,4 +1,4 @@
-import { BridgeHistoryIssue, HistoryReason, historyReason, maxHistoryIssues, savedIssues } from './history';
+import { BridgeHistoryIssue, HistoryReason, historyDiagnostic, historyReasons, maxHistoryIssues, savedIssues } from './history';
 import { BridgeInvoice, ceilSats, hashPattern, nodePattern, provesPayment, readBridgeInvoice } from './invoice';
 import { BridgeQuote, LightningBridgeProvider, ProofTimeoutError, validateQuote } from './provider';
 
@@ -23,6 +23,7 @@ export type SwapRecord = {
   quote?: BridgeQuote;
   feeLimit: string;
   proofTimedOut?: true;
+  previousReservations?: { provider: string; until: number }[];
   estimatedFeeMsat?: string;
   actualFeeMsat?: string;
   bridgeState?: string;
@@ -131,6 +132,14 @@ export function validateJournal(value: unknown): BridgeJournal {
       seen.has(key)
     )
       throw new Error('Bridge payment storage is invalid.');
+    if (
+      r.previousReservations !== undefined &&
+      (!Array.isArray(r.previousReservations) ||
+        r.previousReservations.some(
+          item => !item || typeof item.provider !== 'string' || !Number.isSafeInteger(item.until) || item.until < 0,
+        ))
+    )
+      throw new Error('Invalid stored processor reservations.');
     seen.add(key);
     if (
       (r.estimatedFeeMsat !== undefined && !validAmount(r.estimatedFeeMsat)) ||
@@ -298,8 +307,15 @@ export class BridgeController {
       const existing = journal.records.find(r => r.hash === original.hash && r.node === node);
       if (existing && (unresolved.has(existing.state) || existing.state === 'settled'))
         throw new Error('This payment is pending, uncertain or already paid. Check its status; do not pay again.');
-      if (existing && this.now() < reservationEnds(existing))
-        throw new Error('A quote for this invoice already exists. Wait before requesting another.');
+      const switchingAfterUnsubmittedQuote =
+        existing && existing.provider !== providerId && (existing.state === 'quote_failed' || existing.state === 'canceled');
+      const now = this.now();
+      const reservations = (existing?.previousReservations ?? []).filter(item => now < item.until);
+      if (
+        reservations.some(item => item.provider === providerId) ||
+        (existing && !switchingAfterUnsubmittedQuote && now < reservationEnds(existing))
+      )
+        throw new Error(historyReasons.existingQuote);
       const previous = await this.backend.status(original.hash);
       if (!['not_found', 'failed'].includes(previous.state))
         throw new Error('LND already knows this payment. Check its status before proceeding.');
@@ -308,7 +324,12 @@ export class BridgeController {
       let replaced = existing;
       if (!existing && journal.records.length >= 200) {
         replaced = journal.records
-          .filter(record => disposableQuotes.has(record.state) && reservationEnds(record) <= this.now())
+          .filter(
+            record =>
+              disposableQuotes.has(record.state) &&
+              reservationEnds(record) <= now &&
+              !record.previousReservations?.some(item => now < item.until),
+          )
           .sort((a, b) => a.updatedAt - b.updatedAt)[0];
         if (!replaced) throw new Error('Bridge payment history is full. No new payment was created.');
       }
@@ -326,6 +347,12 @@ export class BridgeController {
         updatedAt: this.now(),
         feeLimit,
       };
+      if (existing && existing.provider !== providerId && now < reservationEnds(existing))
+        reservations.push({
+          provider: existing.provider,
+          until: reservationEnds(existing),
+        });
+      if (reservations.length) record.previousReservations = reservations;
       journal.records = journal.records.filter(r => r !== replaced);
       journal.records.push(record);
       journal.requests.push(this.now());
@@ -351,7 +378,7 @@ export class BridgeController {
           hash: original.hash,
           provider: providerId,
           at: record.updatedAt,
-          reason: historyReason(error, fallback),
+          ...historyDiagnostic(error, fallback),
         });
         await this.store.write(journal);
         historyNode = undefined;
@@ -367,7 +394,7 @@ export class BridgeController {
           hash: original.hash,
           provider: providerId,
           at: this.now(),
-          reason: historyReason(error, fallback),
+          ...historyDiagnostic(error, fallback),
         });
       }
       throw error;
@@ -432,7 +459,7 @@ export class BridgeController {
           ...preflight,
           hash,
           at: this.now(),
-          reason: historyReason(error, 'approvalCheck'),
+          ...historyDiagnostic(error, 'approvalCheck'),
         });
       throw error;
     });
