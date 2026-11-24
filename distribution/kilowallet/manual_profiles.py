@@ -19,13 +19,14 @@ def validate_profile(data, identifier, certificate, team):
     if p['ExpirationDate']<=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None): raise RuntimeError('Expired profile')
     return p
 
-def main():
+def main(*, kilobot_qa=False):
+    targets = {"Kilobot QA": "dev.kilowallet.tests.KilobotWallet"} if kilobot_qa else ALLOWED
     certificate=Path(os.environ['RUNNER_TEMP']+'/Kilowallet-signing/distribution.cer').read_bytes()
     team=os.environ['TEAM_ID']
     matches=[c for c in api('/v1/certificates?limit=200')['data'] if c['attributes']['certificateType'] in ('DISTRIBUTION','IOS_DISTRIBUTION') and base64.b64decode(c['attributes']['certificateContent'])==certificate]
     if len(matches)!=1: raise RuntimeError('Existing distribution certificate not registered with this API account')
     cid=matches[0]['id']; mapping={}; settings={}
-    for target, identifier in ALLOWED.items():
+    for target, identifier in targets.items():
         ids=api('/v1/bundleIds?'+urlencode({'filter[identifier]':identifier,'limit':5}))['data']
         ids=[b for b in ids if b['attributes']['identifier']==identifier]
         if len(ids)!=1: raise RuntimeError('Dedicated Kilowallet bundle ID not registered')
@@ -45,8 +46,10 @@ def main():
             folder.mkdir(parents=True,exist_ok=True); f=folder/(p['UUID']+'.mobileprovision'); f.write_bytes(content); f.chmod(0o600)
         mapping[identifier]=p['UUID']
         settings[target]={'settings':{'base':{'CODE_SIGN_STYLE':'Manual','DEVELOPMENT_TEAM':team,'CODE_SIGN_IDENTITY':'Apple Distribution','PROVISIONING_PROFILE_SPECIFIER':p['UUID']}}}
-    with open(os.environ['GITHUB_ENV'],'a') as out: out.write('KILOWALLET_PROFILE='+mapping['com.kilombino.kilowallet']+'\n')
+    with open(os.environ['GITHUB_ENV'],'a') as out: out.write('KILOWALLET_PROFILE='+mapping[next(iter(targets.values()))]+'\n')
     options={'method':'app-store-connect','destination':'export','teamID':team,'signingStyle':'manual','signingCertificate':hashlib.sha1(certificate).hexdigest().upper(),'provisioningProfiles':mapping,'manageAppVersionAndBuildNumber':False,'uploadSymbols':True,'generateAppStoreInformation':True}
+    if kilobot_qa:
+        options.update(testFlightInternalTestingOnly=True, destination='upload')
     Path(os.environ['APPLE_EXPORT_OPTIONS']).write_bytes(plistlib.dumps(options))
     print('Verified dedicated Kilowallet store profile against the existing distribution certificate.')
 if __name__=='__main__': main()
