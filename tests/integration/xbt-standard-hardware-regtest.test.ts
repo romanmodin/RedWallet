@@ -212,7 +212,7 @@ real(
           ok: true,
           redirected: false,
           url,
-          headers: { get: () => null },
+          headers: { get: (name: string) => name.toLowerCase() === 'date' ? new Date().toUTCString() : null },
           text: async () => value,
         } as any;
       });

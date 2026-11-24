@@ -9,7 +9,9 @@ private final class ProofProtocol: URLProtocol {
     override func startLoading() { Self.handler?(self) }
     override func stopLoading() {}
     func reply(_ bytes: Data, status: Int = 200, headers: [String: String] = [:], at url: URL? = nil, finish: Bool = true) {
-        let response = HTTPURLResponse(url: url ?? request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
+        var fields = ["Date": "Wed, 18 May 2033 03:33:20 GMT"]
+        fields.merge(headers) { _, new in new }
+        let response = HTTPURLResponse(url: url ?? request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: fields)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: bytes)
         if finish { client?.urlProtocolDidFinishLoading(self) }
@@ -61,7 +63,11 @@ final class SeparationHTTPTests: XCTestCase {
     func testSuccessfulRequestReturnsOnlyExpectedURLAndBoundedUTF8Body() async throws {
         ProofProtocol.handler = { $0.reply(Data("976100".utf8)) }
         let result = try await fetch()
-        XCTAssertEqual(result.url, url); XCTAssertEqual(result.body, "976100")
+        XCTAssertEqual(result.url, url); XCTAssertEqual(result.body, "976100"); XCTAssertEqual(result.serverTime, 2_000_000_000)
+    }
+    func testRejectsInvalidServerDate() async {
+        ProofProtocol.handler = { $0.reply(Data("976100".utf8), headers: ["Date": "invalid"]) }
+        do { _ = try await fetch(); XCTFail("accepted invalid server date") } catch {}
     }
     func testRejectsNon200Response() async {
         ProofProtocol.handler = { $0.reply(Data("unavailable".utf8), status: 503) }

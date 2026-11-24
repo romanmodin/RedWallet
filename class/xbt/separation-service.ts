@@ -1,4 +1,5 @@
-import { getSeparationHTTP } from './separation-http';
+import { getSeparationHTTPResponse } from './separation-http';
+import { hasFreshTipTime } from './separation-freshness';
 import { SEPARATION_EVIDENCE as EVIDENCE, SEPARATION_ANCHOR as ANCHOR } from './separation-http-policy';
 import { Transaction, crypto } from 'bitcoinjs-lib';
 import { verifyFundingConflict } from './separation-proof';
@@ -20,28 +21,30 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
   // Validate the complete bounded batch before any network request. Budget for
   // every candidate input, proof/metadata lookups and the final anchor recheck;
   // a fixed 128-call limit incorrectly rejected valid larger coin selections.
-  if (funding.some(parent => parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64)) unavailable();
+  if (funding.some((parent) => parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64)) unavailable();
   // Two checkpoint reads and five requests for each of the opening and closing tip checks.
   const requestLimit = 12 + funding.reduce((total, parent) => total + parent.ins.length + 9, 0);
   // Collection has an elapsed-time budget independent of the phone’s wall clock.
   const deadline = performance.now() + 45000;
   let requests = 0;
   let bytes = 0;
-  const get = async (host: string, path: string, limit = 16384): Promise<string> => {
+  const request = async (host: string, path: string, limit = 16384) => {
     assertAuthorized();
     if (++requests > requestLimit || performance.now() >= deadline) unavailable();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.min(8000, deadline - performance.now()));
     try {
-      const text = (await getSeparationHTTP(host + path, limit, controller.signal)).trim();
+      const response = await getSeparationHTTPResponse(host + path, limit, controller.signal);
+      const text = response.body.trim();
       bytes += text.length;
       assertAuthorized();
       if (text.length > limit || bytes > 16000000 || performance.now() >= deadline) unavailable();
-      return text;
+      return { body: text, serverTime: response.serverTime };
     } finally {
       clearTimeout(timer);
     }
   };
+  const get = async (host: string, path: string, limit = 16384): Promise<string> => (await request(host, path, limit)).body;
   const json = async (path: string): Promise<any> => JSON.parse(await get(EVIDENCE, path));
   const agreedHashAt = async (height: number) => {
     const [hash, anchor] = await Promise.all([get(EVIDENCE, '/block-height/' + height), get(ANCHOR, '/block-height/' + height)]);
@@ -49,15 +52,24 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
     return hash;
   };
   const tip = async () => {
-    const values = await Promise.all([get(EVIDENCE, '/blocks/tip/height'), get(ANCHOR, '/blocks/tip/height')]);
-    if (values.some(value => !/^\d{1,9}$/.test(value))) unavailable();
-    const heights = values.map(Number);
+    const values = await Promise.all([request(EVIDENCE, '/blocks/tip/height'), request(ANCHOR, '/blocks/tip/height')]);
+    if (values.some((value) => !/^\d{1,9}$/.test(value.body))) unavailable();
+    const heights = values.map((value) => Number(value.body));
     if (Math.min(...heights) < CHECKPOINT_HEIGHT || Math.abs(heights[0] - heights[1]) > 2) unavailable();
     const height = Math.min(...heights);
     const hash = await agreedHashAt(height);
     const header = await get(EVIDENCE, '/block/' + hash + '/header', 160);
-    if (!/^[0-9a-f]{160}$/i.test(header)) unavailable();
-    const computedHash = Buffer.from(crypto.hash256(Buffer.from(header, 'hex'))).reverse().toString('hex');
+    if (
+      !/^[0-9a-f]{160}$/i.test(header) ||
+      !hasFreshTipTime(
+        header,
+        values.map((value) => value.serverTime),
+      )
+    )
+      unavailable();
+    const computedHash = Buffer.from(crypto.hash256(Buffer.from(header, 'hex')))
+      .reverse()
+      .toString('hex');
     if (computedHash !== hash) unavailable();
     return height;
   };
@@ -86,15 +98,11 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
       if (merkle?.block_height !== height) unavailable();
       if ((await agreedHashAt(height)) !== blockHash) unavailable();
       const blockViews = await Promise.all([get(EVIDENCE, `/block/${blockHash}`), get(ANCHOR, `/block/${blockHash}`)]);
-      const blocks = blockViews.map(value => JSON.parse(value));
+      const blocks = blockViews.map((value) => JSON.parse(value));
       if (
         blocks.some(
-          block =>
-            block.id !== blockHash ||
-            block.height !== height ||
-            !Number.isSafeInteger(block.tx_count) ||
-            block.tx_count < 2 ||
-            block.tx_count > 1000000,
+          (block) =>
+            block.id !== blockHash || block.height !== height || !Number.isSafeInteger(block.tx_count) || block.tx_count < 2 || block.tx_count > 1000000,
         ) ||
         blocks[0].tx_count !== blocks[1].tx_count
       )

@@ -66,6 +66,7 @@ async function ready() {
   Buffer.from(bitcoin.crypto.hash256(Buffer.concat([sibling, conflict.getHash()]))).copy(header, 36);
   const blockHash = Buffer.from(bitcoin.crypto.hash256(header)).reverse().toString('hex');
   const tipHeader = Buffer.alloc(80, 5);
+  tipHeader.writeUInt32LE(2_000_000_000, 68);
   const tipHash = Buffer.from(bitcoin.crypto.hash256(tipHeader)).reverse().toString('hex');
   const raws = { [parent.getId()]: parent.toHex(), [ancestor.getId()]: ancestor.toHex() };
   const history = [{ tx_hash: parent.getId(), height: 1000000 }];
@@ -96,7 +97,7 @@ async function ready() {
     else if (url.endsWith('/block-height/1000000')) value = blockHash;
     else if (url.endsWith('/block/' + blockHash)) value = JSON.stringify({ id: blockHash, height: 1000000, tx_count: 2 });
     else throw new Error('Unexpected proof request');
-    return { ok: true, redirected: false, url, headers: { get: () => null }, text: async () => value } as any;
+    return { ok: true, redirected: false, url, headers: { get: (name: string) => name.toLowerCase() === 'date' ? new Date(2_000_000_000_000).toUTCString() : null }, text: async () => value } as any;
   };
   global.fetch = jest.fn(response);
   jest
@@ -365,7 +366,7 @@ it.each([
   (global.fetch as jest.Mock).mockImplementation(async (url: string, options: any) => {
     if (!url.endsWith('/blocks/tip/height')) return f.response(url, options);
     const value = String(url.startsWith('https://mempool.space') ? anchor : evidence);
-    return { ok: true, redirected: false, url, headers: { get: () => null }, text: async () => value } as any;
+    return { ok: true, redirected: false, url, headers: { get: (name: string) => name.toLowerCase() === 'date' ? new Date(2_000_000_000_000).toUTCString() : null }, text: async () => value } as any;
   });
   await expect(f.watch.broadcastTx(f.hex)).rejects.toThrow();
   expect(f.client.blockchainTransaction_broadcast).not.toHaveBeenCalled();
