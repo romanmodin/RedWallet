@@ -98,6 +98,16 @@ final class RegtestTests: XCTestCase {
         return capacity
     }
 
+    private func fixturePeerBalance(point: String, peerKey: String) async throws -> UInt64 {
+        let response = try ProtoFields(await rpc { LndmobileListChannels(Data(), $0) })
+        let channels = response.bytes[11] ?? []
+        guard channels.count == 1 else { throw NodeFailure.invalidReply }
+        let channel = try ProtoFields(channels[0])
+        guard channel.integers[1] == 1, try channel.string(3) == point,
+              try channel.string(2) == peerKey else { throw NodeFailure.invalidReply }
+        return channel.integers[7] ?? 0
+    }
+
     private func compareSplicedPayments(point openingPoint: String, peerKey: String, largeOpening: Bool) async throws -> (point: String, capacity: UInt64) {
         var point = openingPoint
         let expectedPendingMsat: UInt64 = largeOpening ? 83_160_000_000 : 9_900_000_000
@@ -137,10 +147,26 @@ final class RegtestTests: XCTestCase {
             let syncedBackup = try await RegtestNode.shared.channelBackup()
             XCTAssertFalse(syncedBackup.isEmpty)
         }
+        // Leave the same balance on the receiving side of both channels. A peer
+        // that started at zero cannot return its first receipt below its reserve.
+        let baseline: UInt64 = 2_000_000
+        let initial = try await fixturePeerBalance(point: point, peerKey: peerKey)
+        guard initial <= baseline else { throw NodeFailure.invalidReply }
+        if initial < baseline {
+            let topup = baseline - initial
+            let invoice = try await peer("invoice-reserve", String(topup))
+            let review = try await RegtestNode.shared.decode(invoice)
+            guard review.sats == topup, review.destination == peerKey else { throw NodeFailure.invalidReply }
+            let settled = try await RegtestNode.shared.pay(invoice: invoice, expectedHash: review.hash,
+                                                          expectedSats: topup, feeLimit: 10)
+            let receiver = try await peer("invoice-state", review.hash)
+            guard settled, receiver == "SETTLED" else { throw NodeFailure.invalidReply }
+        }
         // Compare direct payments after both peers have locked the splice. Return
         // each control payment so the next case starts with the same liquidity.
         let traceAmounts: [UInt64] = [599_000, 600_000, 80_000_000]
         for amount in traceAmounts {
+            try await waitUntil { try await self.fixturePeerBalance(point: point, peerKey: peerKey) == baseline }
             let traceInvoice = try await peer("invoice-trace", String(amount))
             let traceReview = try await RegtestNode.shared.decode(traceInvoice)
             XCTAssertEqual(traceReview.sats, amount)

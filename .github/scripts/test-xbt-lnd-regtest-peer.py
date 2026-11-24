@@ -91,6 +91,22 @@ class TraceInvoiceTests(unittest.TestCase):
                     ns['call'].assert_called_once_with(ns['lightning'], 'addinvoice', '--amt=' + amount)
 
 
+    def test_reserve_invoice_accepts_only_bounded_positive_topups(self):
+        ns['lightning'] = ['disposable-lncli']
+        for body in (b'1', b'1500000', b'2000000', b'0', b'-1', b'2000001', b'01', b''):
+            with self.subTest(body=body):
+                ns['call'] = Mock(return_value=json.dumps({'payment_request': 'synthetic', 'r_hash': 'aa'*32}))
+                request = Request(body)
+                request.path = '/invoice-reserve'
+                ns['Fixture'].do_POST(request)
+                if body in (b'1', b'1500000', b'2000000'):
+                    self.assertEqual(request.status, 200)
+                    ns['call'].assert_called_once_with(ns['lightning'], 'addinvoice', '--amt=' + body.decode())
+                    self.assertEqual(ns['Fixture'].trace_invoices['aa'*32], int(body))
+                else:
+                    self.assertEqual(request.status, 400)
+                    ns['call'].assert_not_called()
+
     def test_receiver_only_reads_issued_fixture_hash(self):
         ns['lightning'] = ['disposable-lncli']
         ns['Fixture'].trace_invoices = {'aa'*32: 600000}
