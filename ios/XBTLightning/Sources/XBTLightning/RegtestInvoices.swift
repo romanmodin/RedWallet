@@ -120,9 +120,14 @@ extension RegtestNode {
         let request = ProtoFields.field(5, data: Data(invoice.utf8)) + ProtoFields.field(6, integer: 30) + ProtoFields.field(7, integer: feeLimit)
         // A silent stream after a terminal router failure is reconciled once with the
         // payment database; it is never resubmitted.
+        let sendingOnMainnet = mainnet
         return try await PaymentReconciliation.settled(
             hash: expectedHash,
-            send: { try await rpc { LndmobileRouterSendPaymentV2(request, PaymentResult($0)) } },
+            send: {
+                let response = try await rpc { LndmobileRouterSendPaymentV2(request, PaymentResult($0)) }
+                self.rememberFailedAttempts(response, hash: expectedHash, mainnet: sendingOnMainnet)
+                return response
+            },
             lookup: { try await self.paymentRows(hash: expectedHash) })
     }
 }

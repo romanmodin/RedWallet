@@ -44,6 +44,43 @@ final class WalletOverviewTests: XCTestCase {
         XCTAssertTrue(empty.contains("No route attempts retained"))
     }
 
+    func testPrunedFailureCanShowOnlyItsOwnRecentRedactedStreamAttempts() throws {
+        let hash = String(repeating: "a", count: 64)
+        let key = string(1, hash) + field(15, 17)
+        let failed = key + field(10, 3) + field(16, 1)
+        let privateRoute = ProtoFields.field(4, data: string(8, "private-peer"))
+        let reason = ProtoFields.field(5, data: field(1, 23))
+        let attempt = field(1, 2) + ProtoFields.field(2, data: privateRoute) + reason + string(6, "secret")
+        let detail = ProtoFields.field(14, data: attempt)
+        let now = ContinuousClock().now
+        let live = try XCTUnwrap(LightningPaymentTrace.StreamAttempts(response: failed + detail, expectedHash: hash,
+                                                                       mainnet: true, now: now))
+        func report(_ record: Data, _ index: UInt64 = 17, _ id: String? = nil,
+                    mainnet: Bool = true, at time: ContinuousClock.Instant? = nil) throws -> String {
+            try LightningPaymentTrace.report(page: row(record), index: index, hash: id ?? hash, mainnet: mainnet, stream: live, now: time ?? now)
+        }
+
+        let pruned = try report(failed)
+        XCTAssertTrue(pruned.contains("Payment failure: routing timed out"))
+        XCTAssertTrue(pruned.contains("Attempts observed during this send:"))
+        XCTAssertTrue(pruned.contains("multipart payment timed out (23)"))
+        for secret in [hash, "private-peer", "secret"] { XCTAssertFalse(pruned.contains(secret)) }
+
+        let retained = try report(failed + ProtoFields.field(14, data: field(1, 2)))
+        XCTAssertFalse(retained.contains("during this send"))
+        XCTAssertFalse(retained.contains("multipart payment"))
+        XCTAssertFalse(try report(key + field(10, 2)).contains("during this send"))
+        XCTAssertTrue(try report(failed, mainnet: false).contains("No route attempts retained"))
+        XCTAssertTrue(try report(failed, at: now.advanced(by: .seconds(300))).contains("No route attempts retained"))
+        let otherHash = String(repeating: "b", count: 64)
+        XCTAssertFalse(try report(string(1, otherHash) + field(15, 17) + field(10, 3), 17, otherHash).contains("during this send"))
+        XCTAssertFalse(try report(string(1, hash) + field(15, 18) + field(10, 3), 18).contains("during this send"))
+        XCTAssertThrowsError(try report(failed, 18))
+        XCTAssertNil(try LightningPaymentTrace.StreamAttempts(response: failed, expectedHash: hash, mainnet: true))
+        XCTAssertNil(try LightningPaymentTrace.StreamAttempts(response: failed + detail, expectedHash: otherHash, mainnet: true))
+        XCTAssertNil(try LightningPaymentTrace.StreamAttempts(response: key + field(10, 2) + detail, expectedHash: hash, mainnet: true))
+    }
+
     func testOnlyFailedOutgoingPaymentsIncludeTheRecordedFailureReason() throws {
         let hash = string(1, "synthetic-hash")
         let reason = field(16, 2)

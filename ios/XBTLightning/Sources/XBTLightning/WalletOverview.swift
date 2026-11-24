@@ -66,7 +66,28 @@ public struct LightningWalletActivity: Sendable {
 }
 
 enum LightningPaymentTrace {
-    static func report(page: Data, index: UInt64, hash: String) throws -> String {
+    struct StreamAttempts {
+        let index: UInt64
+        let hash: String
+        let mainnet: Bool
+        let expires: ContinuousClock.Instant
+        let lines: [String]
+
+        init?(response: Data, expectedHash: String, mainnet: Bool, now: ContinuousClock.Instant = ContinuousClock().now) throws {
+            let payment = try ProtoFields(response)
+            guard payment.integers[10] == 3, let index = payment.integers[15], index > 0,
+                  try payment.string(1) == expectedHash,
+                  let lines = try LightningPaymentTrace.attemptLines(payment) else { return nil }
+            self.index = index
+            hash = expectedHash
+            self.mainnet = mainnet
+            expires = now.advanced(by: .seconds(300))
+            self.lines = lines
+        }
+    }
+
+    static func report(page: Data, index: UInt64, hash: String, mainnet: Bool = false,
+                       stream: StreamAttempts? = nil, now: ContinuousClock.Instant = ContinuousClock().now) throws -> String {
         let rows = try ProtoFields(page).bytes[1] ?? []
         guard rows.count == 1 else { throw NodeFailure.invalidReply }
         let payment = try ProtoFields(rows[0])
@@ -79,12 +100,22 @@ enum LightningPaymentTrace {
                 4: "incorrect payment details", 5: "insufficient balance", 6: "canceled"]
             lines.append("Payment failure: " + (reasons[reason] ?? "code \(reason)"))
         }
-        let attempts = payment.bytes[14] ?? []
-        guard !attempts.isEmpty else {
+        if let retained = try attemptLines(payment) {
+            lines += retained
+        } else if state == "failed", let stream, now < stream.expires, stream.mainnet == mainnet,
+                  stream.index == index, stream.hash == hash {
+            lines.append("Attempts observed during this send:")
+            lines += stream.lines
+        } else {
             lines.append("No route attempts retained by the node.")
-            return lines.joined(separator: "\n")
         }
-        lines.append("Recorded attempts: \(attempts.count)")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func attemptLines(_ payment: ProtoFields) throws -> [String]? {
+        let attempts = payment.bytes[14] ?? []
+        guard !attempts.isEmpty else { return nil }
+        var lines = ["Recorded attempts: \(attempts.count)"]
         let start = max(0, attempts.count - 10)
         if start > 0 { lines.append("Showing the last 10.") }
         for i in start..<attempts.count {
@@ -113,7 +144,7 @@ enum LightningPaymentTrace {
             }
             lines.append(parts.joined(separator: " · "))
         }
-        return lines.joined(separator: "\n")
+        return lines
     }
 
     private static let failureNames: [UInt64: String] = [
@@ -153,12 +184,29 @@ enum LightningLiquidity {
 }
 
 extension RegtestNode {
+    func rememberFailedAttempts(_ response: Data, hash: String, mainnet: Bool) {
+        guard let stream = try? LightningPaymentTrace.StreamAttempts(response: response, expectedHash: hash, mainnet: mainnet) else { return }
+        recentFailedAttempts = stream
+        clearFailedAttempts?.cancel()
+        let deadline = stream.expires
+        clearFailedAttempts = Task { [weak self] in
+            do { try await Task.sleep(until: deadline, clock: .continuous) } catch { return }
+            await self?.expireFailedAttempts(deadline)
+        }
+    }
+
+    private func expireFailedAttempts(_ deadline: ContinuousClock.Instant) {
+        guard recentFailedAttempts?.expires == deadline else { return }
+        recentFailedAttempts = nil
+        clearFailedAttempts = nil
+    }
+
     public func paymentTrace(index: UInt64, hash: String) async throws -> String {
         guard index > 0 else { throw NodeFailure.invalidReply }
         let request = ProtoFields.field(1, integer: 1) + ProtoFields.field(2, integer: index - 1) +
             ProtoFields.field(3, integer: 1)
         let page = try await rpc { LndmobileListPayments(request, $0) }
-        return try LightningPaymentTrace.report(page: page, index: index, hash: hash)
+        return try LightningPaymentTrace.report(page: page, index: index, hash: hash, mainnet: mainnet, stream: recentFailedAttempts)
     }
 
     public func walletOverview() async throws -> [String: Any] {

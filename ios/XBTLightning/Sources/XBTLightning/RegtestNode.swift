@@ -33,6 +33,8 @@ public actor RegtestNode {
     var offerOperationBusy = false
     var offerReview: Bolt12Review?
     private var provisioning = false
+    var recentFailedAttempts: LightningPaymentTrace.StreamAttempts?
+    var clearFailedAttempts: Task<Void, Never>?
     var spliceReviews = SpliceReviews()
     var splicingPoints: Set<String> = []
     var managementBusy = false
