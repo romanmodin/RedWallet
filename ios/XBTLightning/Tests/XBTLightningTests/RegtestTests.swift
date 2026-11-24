@@ -60,6 +60,49 @@ final class RegtestTests: XCTestCase {
         }
     }
 
+    #if XBT_LND_PEER_FUNDING
+    func testPeerFundsPrivateChannelFromZero() async throws {
+        let node = RegtestNode.shared
+        try await node.start()
+        try await waitUntil { try await node.status() == "Needs setup" }
+        try await node.setupOrUnlock()
+        try await waitUntil { try await node.status() == "Running" }
+        try await waitForFixtureSync("phone synced")
+        let address = try await node.fundingAddress()
+        _ = try await peer("fund-large", address)
+        try await waitForFixtureSync("phone funded")
+        try await waitUntil {
+            let wallet = try ProtoFields(await rpc { LndmobileWalletBalance(Data(), $0) })
+            return (wallet.integers[2] ?? 0) >= 10_100_000
+        }
+        let key = try await peer("peer")
+        try await node.connect(to: key + "@127.0.0.1:19735")
+        let point = try await node.openChannel(to: key, sats: 10_000_000, feeRate: 125)
+        _ = try await peer("confirm", point)
+        try await waitForFixtureSync("channel funding confirmed")
+        try await waitUntil {
+            try await node.channelStatus().contains { $0.point == point && $0.state == "active" && $0.remoteSats == 0 }
+        }
+        let txid = try await peer("peer-funded-splice", point)
+        try await waitForFixtureSync("peer input mature")
+        try await waitUntil {
+            try await node.channelStatus().contains {
+                $0.point.hasPrefix(txid + ":") && $0.peer == key && $0.state == "active" &&
+                    $0.splice?.progress == "locked" && $0.remoteSats == 150_000_000
+            }
+        }
+        let invoice = try await node.receive(sats: 1_500_000)
+        let hash = try await node.decode(invoice).hash
+        let result = try await peer("pay", invoice)
+        XCTAssertEqual(result, "settled")
+        let page = try await node.walletActivity("invoices", offset: 0)
+        let rows = try XCTUnwrap(page["rows"] as? [[String: Any]])
+        XCTAssertTrue(rows.contains {
+            $0["id"] as? String == hash && $0["state"] as? String == "settled" && $0["sats"] as? String == "1500000"
+        })
+    }
+    #endif
+
     func testEmbeddedNodeStartsAndReportsWalletState() async throws {
         try await RegtestNode.shared.start()
         try await RegtestNode.shared.start()
