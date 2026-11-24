@@ -7,6 +7,8 @@ on:
       - '.github/actions/xbt-regtest-chain/**'
       - '.github/scripts/xbt-lnd-regtest-host.rb'
       - '.github/scripts/xbt-lnd-regtest-peer.py'
+      - 'ios/XBTLightning/Package.swift'
+      - 'ios/XBTLightning/Sources/**'
       - 'ios/XBTLightning/Tests/XBTLightningTests/RegtestTests.swift'
   workflow_dispatch:
 permissions:
@@ -18,6 +20,10 @@ jobs:
   verify:
     runs-on: macos-15
     timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [source, packaged]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
@@ -44,8 +50,10 @@ jobs:
           "${cli[@]}" sendtoaddress "$addr" 2 >/dev/null
           "${cli[@]}" generatetoaddress 360 "$("${cli[@]}" getnewaddress)" >/dev/null
       - name: Build the candidate iPhone and Simulator framework
+        if: matrix.framework == 'source'
         run: bash engine/lnd/build-ios.sh "$RUNNER_TEMP/lnd-regtest/peer-src" "$RUNNER_TEMP/lnd-candidate"
-      - name: Link and test the candidate with the real phone wallet
+      - name: Select the freshly built framework
+        if: matrix.framework == 'source'
         run: |
           set -euo pipefail
           export XBT_PEER_FUNDING_PACKAGE="$RUNNER_TEMP/peer-funding-package"
@@ -62,12 +70,20 @@ jobs:
           assert count == 1, "Could not select the candidate framework"
           path.write_text(source)
           PY
+          echo "XBT_PEER_FUNDING_PACKAGE=$XBT_PEER_FUNDING_PACKAGE" >> "$GITHUB_ENV"
+      - name: Select the shipping Swift package
+        if: matrix.framework == 'packaged'
+        run: echo "XBT_PEER_FUNDING_PACKAGE=$GITHUB_WORKSPACE/ios/XBTLightning" >> "$GITHUB_ENV"
+      - name: Test peer funding and receipt in the iPhone wallet
+        run: |
+          set -euo pipefail
           bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/peer-host"
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
           xcrun simctl bootstatus "$device" -b
           xcodebuild -project "$RUNNER_TEMP/peer-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/RegtestTests/testPeerFundsPrivateChannelFromZero -resultBundlePath "$RUNNER_TEMP/peer-result" test
           xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/peer-result" | jq -e '.passedTests == 1 and .failedTests == 0'
       - name: Save the simulator-qualified candidate
+        if: matrix.framework == 'source'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: peer-funding-lnd-${{ github.event.pull_request.head.sha || github.sha }}
