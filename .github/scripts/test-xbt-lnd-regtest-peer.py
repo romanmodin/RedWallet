@@ -17,8 +17,7 @@ exec(compile(tree, str(source), 'exec'), ns)
 
 class Request:
     path = '/pay'
-    def __init__(self):
-        value = b'lnbcrt' + b'a' * 70
+    def __init__(self, value=b'lnbcrt' + b'a' * 70):
         self.headers = {'Content-Length': str(len(value))}
         self.rfile = io.BytesIO(value)
         self.wfile = io.BytesIO()
@@ -70,6 +69,68 @@ class ReadinessTests(unittest.TestCase):
         ns['Fixture'].do_POST(request)
         self.assertEqual(request.status, 500)
         self.assertEqual(ns['call'].call_count, 1)
+
+
+class TraceInvoiceTests(unittest.TestCase):
+    def test_only_known_synthetic_amounts_are_issued(self):
+        ns['lightning'] = ['disposable-lncli']
+        for body, amount in [(b'', '80000000'), (b'599000', '599000'),
+                             (b'600000', '600000'), (b'80000000', '80000000'),
+                             (b'599999', None)]:
+            with self.subTest(body=body):
+                ns['call'] = Mock(return_value=json.dumps({'payment_request': 'synthetic', 'r_hash': 'aa'*32}))
+                request = Request(body)
+                request.path = '/invoice-trace'
+                ns['Fixture'].do_POST(request)
+                if amount is None:
+                    self.assertEqual(request.status, 400)
+                    ns['call'].assert_not_called()
+                else:
+                    self.assertEqual(request.status, 200)
+                    self.assertEqual(request.wfile.getvalue(), b'synthetic')
+                    ns['call'].assert_called_once_with(ns['lightning'], 'addinvoice', '--amt=' + amount)
+
+
+    def test_reserve_invoice_accepts_only_bounded_positive_topups(self):
+        ns['lightning'] = ['disposable-lncli']
+        for body in (b'1', b'1500000', b'2000000', b'0', b'-1', b'2000001', b'01', b''):
+            with self.subTest(body=body):
+                ns['call'] = Mock(return_value=json.dumps({'payment_request': 'synthetic', 'r_hash': 'aa'*32}))
+                request = Request(body)
+                request.path = '/invoice-reserve'
+                ns['Fixture'].do_POST(request)
+                if body in (b'1', b'1500000', b'2000000'):
+                    self.assertEqual(request.status, 200)
+                    ns['call'].assert_called_once_with(ns['lightning'], 'addinvoice', '--amt=' + body.decode())
+                    self.assertEqual(ns['Fixture'].trace_invoices['aa'*32], int(body))
+                else:
+                    self.assertEqual(request.status, 400)
+                    ns['call'].assert_not_called()
+
+    def test_receiver_only_reads_issued_fixture_hash(self):
+        ns['lightning'] = ['disposable-lncli']
+        ns['Fixture'].trace_invoices = {'aa'*32: 600000}
+        for digest, status in [('bb'*32, 400), ('aa'*32, 200)]:
+            ns['call'] = Mock(return_value='{"value":"600000","amt_paid_msat":"600000000","state":"SETTLED"}')
+            request = Request(digest.encode())
+            request.path = '/invoice-state'
+            ns['Fixture'].do_POST(request)
+            self.assertEqual(request.status, status)
+            if status == 400:
+                ns['call'].assert_not_called()
+            else:
+                ns['call'].assert_called_once_with(ns['lightning'], 'lookupinvoice', digest)
+                self.assertEqual(request.wfile.getvalue(), b'SETTLED')
+
+
+    def test_receiver_rejects_incorrect_settlement_amount(self):
+        ns['lightning'] = ['disposable-lncli']
+        ns['Fixture'].trace_invoices = {'aa'*32: 600000}
+        ns['call'] = Mock(return_value='{"value":"600000","amt_paid_msat":"600000","state":"SETTLED"}')
+        request = Request(b'aa'*32)
+        request.path = '/invoice-state'
+        ns['Fixture'].do_POST(request)
+        self.assertEqual(request.status, 500)
 
 
 class SpliceConfirmationTests(unittest.TestCase):

@@ -14,6 +14,7 @@ export type LndActivity = {
   memo: string;
   confirmations?: number;
   failureReasonCode?: number;
+  paymentIndex?: string;
 };
 export type LndActivityPage = {
   rows: LndActivity[];

@@ -22,17 +22,17 @@ enum NodeFailure: LocalizedError {
 
 // Mobile Start can report a daemon error after the initial success. Each async
 // caller must complete exactly once, including when its RPC times out.
-private final class Reply: NSObject, LndmobileCallbackProtocol {
+final class Reply: NSObject, LndmobileCallbackProtocol {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Data, Error>?
     private var timer: DispatchWorkItem?
 
-    init(_ continuation: CheckedContinuation<Data, Error>) {
+    init(_ continuation: CheckedContinuation<Data, Error>, timeout: TimeInterval = 60) {
         self.continuation = continuation
         super.init()
         let timer = DispatchWorkItem { [weak self] in self?.finish(.failure(NodeFailure.timedOut)) }
         self.timer = timer
-        DispatchQueue.global().asyncAfter(deadline: .now() + 60, execute: timer)
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: timer)
     }
 
     private func finish(_ result: Result<Data, Error>) {
@@ -49,8 +49,8 @@ private final class Reply: NSObject, LndmobileCallbackProtocol {
     func onError(_ error: Error?) { finish(.failure(error ?? NodeFailure.invalidReply)) }
 }
 
-func rpc(_ send: (LndmobileCallbackProtocol) -> Void) async throws -> Data {
-    try await withCheckedThrowingContinuation { continuation in send(Reply(continuation)) }
+func rpc(timeout: TimeInterval = 60, _ send: (LndmobileCallbackProtocol) -> Void) async throws -> Data {
+    try await withCheckedThrowingContinuation { continuation in send(Reply(continuation, timeout: timeout)) }
 }
 
 // Check the foreground lease and start the RPC synchronously on UIKit's actor.

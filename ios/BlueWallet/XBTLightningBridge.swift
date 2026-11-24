@@ -142,6 +142,12 @@ final class XBTLightningBridge: NSObject {
                 rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task {
             do {
+                if action == "paymentTrace" {
+                    let parts = value.split(separator: ":", maxSplits: 1)
+                    guard parts.count == 2, let index = UInt64(parts[0]) else { throw NSError(domain: "Wallet", code: 1) }
+                    resolve(try await RegtestNode.shared.paymentTrace(index: index, hash: String(parts[1])))
+                    return
+                }
                 if action == "overview" { resolve(try await RegtestNode.shared.walletOverview()); return }
                 guard let offset = UInt64(value) else { throw NSError(domain: "Wallet", code: 1) }
                 resolve(try await RegtestNode.shared.walletActivity(action, offset: offset))

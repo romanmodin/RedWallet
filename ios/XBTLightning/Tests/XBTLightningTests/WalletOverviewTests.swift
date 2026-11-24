@@ -24,6 +24,26 @@ final class WalletOverviewTests: XCTestCase {
         }
     }
 
+    func testPaymentTraceReadsOnlyMatchingRecordAndRedactsRoute() throws {
+        let hash = "synthetic-payment-hash"
+        let base = string(1, hash) + field(15, 17) + field(10, 3) + field(16, 1)
+        let route = ProtoFields.field(4, data: string(8, "private-peer"))
+        let failure = field(1, 15) + field(8, 1)
+        var attempt = field(1, 2) + ProtoFields.field(2, data: route)
+        attempt += field(3, 11_000_000) + field(4, 17_000_000) + ProtoFields.field(5, data: failure)
+        attempt += string(6, "private-preimage")
+        let payment = base + field(13, 10_000_000) + ProtoFields.field(14, data: attempt)
+        let report = try LightningPaymentTrace.report(page: row(payment), index: 17, hash: hash)
+        XCTAssertTrue(report.contains("routing timed out"))
+        XCTAssertTrue(report.contains("1 hop (direct) · sent +1 ms · resolved in 6 ms"))
+        XCTAssertTrue(report.contains("temporary channel failure (15) · reported at hop 1"))
+        for sensitive in [hash, "private-peer", "private-preimage"] { XCTAssertFalse(report.contains(sensitive)) }
+        XCTAssertThrowsError(try LightningPaymentTrace.report(page: row(payment), index: 18, hash: hash))
+        XCTAssertThrowsError(try LightningPaymentTrace.report(page: row(payment), index: 17, hash: "another"))
+        let empty = try LightningPaymentTrace.report(page: row(base), index: 17, hash: hash)
+        XCTAssertTrue(empty.contains("No route attempts retained"))
+    }
+
     func testOnlyFailedOutgoingPaymentsIncludeTheRecordedFailureReason() throws {
         let hash = string(1, "synthetic-hash")
         let reason = field(16, 2)
