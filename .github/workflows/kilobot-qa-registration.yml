@@ -1,0 +1,48 @@
+name: Kilobot QA Apple registration
+on:
+  pull_request:
+    paths:
+      - .github/workflows/kilobot-qa-registration.yml
+      - .github/scripts/kilobot-qa-registration.mjs
+      - .github/scripts/test-kilobot-qa-registration.mjs
+  workflow_dispatch:
+    inputs:
+      register:
+        description: Register the exact QA bundle identifier if it is missing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+      - run: node --test .github/scripts/test-kilobot-qa-registration.mjs
+
+  registration:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency: kilobot-qa-apple-registration
+    environment: ios-upload
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+      - name: Inspect QA app and register its identifier when requested
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          REGISTER_QA: ${{ inputs.register }}
+        run: node .github/scripts/kilobot-qa-registration.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilobot-qa-apple-registration
+          path: kilobot-qa-registration.json
+          if-no-files-found: error
