@@ -1,3 +1,4 @@
+import { balanceInkHeight, checkBalanceSamples } from './wallet-card-balance-capture';
 import { prepareArtworkApp, setSimulatorAppearance } from './artwork-setup';
 import { observeNativeSetupStep } from './native-setup-step';
 import { execFileSync } from 'node:child_process';
@@ -111,6 +112,31 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     await setup('create-disposable-artwork-wallet', () => helperCreateWallet('Artwork Test Wallet', 'taproot'));
     await setup('relaunch-artwork-wallet', () => device.launchApp({ newInstance: true }));
     await waitForWalletsList();
+    const balanceRow = element(by.id('WalletCardBalanceRow'));
+    const samples = [];
+    const sample = async phase => {
+      await waitFor(balanceRow).toBeVisible().withTimeout(15000);
+      const { elementBounds } = await balanceRow.getAttributes();
+      const file = await balanceRow.takeScreenshot('wallet-card-' + phase);
+      const png = fs.readFileSync(file);
+      fs.writeFileSync(path.join(setupDirectory, 'wallet-card-' + phase + '.png'), png);
+      samples.push({ phase, inkHeight: balanceInkHeight(png, elementBounds.width) });
+      fs.writeFileSync(path.join(setupDirectory, 'wallet-card-sizes.json'), JSON.stringify(samples, null, 2));
+    };
+    await sample('initial');
+    const carousel = element(by.id('WalletsList'));
+    for (let cycle = 1; cycle <= 3; cycle++) {
+      await new Promise(resolve => setTimeout(resolve, 30000));
+      await sample('idle-' + cycle);
+      await carousel.scrollTo('right');
+      await carousel.scrollTo('left');
+      await sample('return-' + cycle);
+    }
+    await device.launchApp({ newInstance: true });
+    await waitForWalletsList();
+    await sample('relaunched');
+    // Collect the restart control even if an earlier sample shrank.
+    checkBalanceSamples(samples);
     await element(by.id('SettingsButton')).tap();
     await waitFor(element(by.id('ArtworkSkinLogo')))
       .toBeVisible()

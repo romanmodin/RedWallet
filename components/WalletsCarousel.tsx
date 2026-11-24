@@ -7,7 +7,7 @@ import LndConnectionBadge from './LndConnectionBadge';
 import Icon from './Icon';
 import { useSettings } from '../hooks/context/useSettings';
 import { formatLndAmount, LndDisplayUnit } from '../blue_modules/lnd-display-amount';
-import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useEffect } from 'react';
+import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useEffect, useState } from 'react';
 import {
   FlatList,
   ImageBackground,
@@ -20,6 +20,7 @@ import {
   FlatListProps,
   ListRenderItemInfo,
   ViewStyle,
+  TextStyle,
 } from 'react-native';
 import Animated, {
   Easing,
@@ -247,10 +248,6 @@ const iStyles = StyleSheet.create({
   balance: {
     backgroundColor: 'transparent',
     fontWeight: 'bold',
-    fontSize: 36,
-  },
-  balanceCompact: {
-    fontSize: 28,
   },
   latestTx: {
     backgroundColor: 'transparent',
@@ -297,6 +294,38 @@ const iStyles = StyleSheet.create({
   },
 });
 
+// The iOS native auto-fit path can draw this amount at 4 pt after a relayout.
+function WalletCardBalanceText({
+  amount,
+  compact,
+  width,
+  textStyle,
+}: {
+  amount: string;
+  compact: boolean;
+  width: number;
+  textStyle: TextStyle;
+}) {
+  const baseSize = compact ? 28 : 36;
+  const minimumSize = Math.ceil(baseSize * 0.55);
+  const [fontSize, setFontSize] = useState(baseSize);
+  return (
+    <Text
+      style={[iStyles.balance, textStyle, { fontSize }]}
+      onTextLayout={({ nativeEvent: { lines } }) => {
+        if (width <= 0 || lines.length <= 1 || fontSize <= minimumSize) return;
+        // Measure the rendered lines. At the readable floor, let the full amount wrap.
+        const totalWidth = lines.reduce((sum, line) => sum + line.width, 0);
+        if (totalWidth <= 0) return;
+        const nextSize = Math.max(minimumSize, Math.min(fontSize - 1, Math.floor((fontSize * width) / totalWidth)));
+        setFontSize(current => (current === fontSize ? nextSize : current));
+      }}
+    >
+      {amount}
+    </Text>
+  );
+}
+
 export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
   ({
     item,
@@ -330,6 +359,7 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
     const balanceTranslateY = useSharedValue(0);
     const { colors } = useTheme();
     const { width, fontScale } = useWindowDimensions();
+    const [balanceWidth, setBalanceWidth] = useState(0);
     const itemWidth = getWalletCarouselItemWidth(width);
     const { sizeClass } = useSizeClass();
     const isCompact = sizeVariant === 'compact';
@@ -343,8 +373,6 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
           height: scaleLayoutUp(WALLET_CARD_SECTION_GAP, fontScale),
         },
         label: { lineHeight: scaleLayoutUp(24, fontScale) },
-        balance: { lineHeight: scaleLayoutUp(38, fontScale) },
-        balanceCompact: { lineHeight: scaleLayoutUp(30, fontScale) },
         quoteRow: { height: scaleLayoutUp(18, fontScale) },
         quote: { fontSize: 13, lineHeight: scaleLayoutUp(18, fontScale) },
         latestTx: { lineHeight: scaleLayoutUp(18, fontScale) },
@@ -576,21 +604,19 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
                           <BlurredBalanceView />
                         </>
                       ) : (
-                        <Animated.Text
-                          numberOfLines={1}
-                          adjustsFontSizeToFit
-                          minimumFontScale={0.55}
-                          key={`${balance}`} // force component recreation on balance change. To fix right-to-left languages, like Farsi
-                          style={[
-                            iStyles.balance,
-                            isCompact && iStyles.balanceCompact,
-                            isCompact ? scaledCardStyles.balanceCompact : scaledCardStyles.balance,
-                            cardTextStyle,
-                            animatedBalanceStyle,
-                          ]}
+                        <Animated.View
+                          testID="WalletCardBalanceRow"
+                          style={animatedBalanceStyle}
+                          onLayout={event => setBalanceWidth(event.nativeEvent.layout.width)}
                         >
-                          {`${balance} `}
-                        </Animated.Text>
+                          <WalletCardBalanceText
+                            key={`${balance}|${balanceWidth}|${fontScale}|${isCompact}|${direction}`}
+                            amount={String(balance)}
+                            compact={isCompact}
+                            width={balanceWidth}
+                            textStyle={cardTextStyle}
+                          />
+                        </Animated.View>
                       )}
                     </View>
                     {groupCard && !hideBalance && <XbtFiatEstimate compact satoshis={groupCard.balance} style={cardTextStyle} />}
