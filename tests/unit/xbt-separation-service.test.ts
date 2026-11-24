@@ -1,6 +1,10 @@
 import { Transaction, crypto } from 'bitcoinjs-lib';
 import { verifyPublicFundingSeparation } from '../../class/xbt/separation-service';
 const checkpoint = '00000000000000000001d82da6ecccf08e07afa383f9212b0e1b95cc72430c00';
+const networkTime = 2_000_000_000;
+const tipHeader = Buffer.alloc(80, 5);
+tipHeader.writeUInt32LE(networkTime - 600, 68);
+const tipHash = Buffer.from(crypto.hash256(tipHeader)).reverse().toString('hex');
 const originalFetch = global.fetch;
 function fixture() {
   const parent = new Transaction();
@@ -19,6 +23,7 @@ function fixture() {
   };
   const calls: string[] = [];
   let rewrite = (_url: string, value: string) => value;
+  let rewriteTime = (_url: string, value: number) => value;
   global.fetch = jest.fn(async (url: any, options: any) => {
     calls.push(url);
     expect(options.method).toBe('GET');
@@ -27,6 +32,8 @@ function fixture() {
     let value: string;
     if (url.endsWith('/block-height/961640')) value = checkpoint;
     else if (url.endsWith('/blocks/tip/height')) value = '1000005';
+    else if (url.endsWith('/block-height/1000005')) value = tipHash;
+    else if (url.endsWith('/block/' + tipHash + '/header')) value = tipHeader.toString('hex');
     else if (url.includes('/outspend/')) value = JSON.stringify(spent);
     else if (url.endsWith('/hex')) value = conflict.toHex();
     else if (url.endsWith('/merkle-proof'))
@@ -43,7 +50,9 @@ function fixture() {
       ok: true,
       redirected: false,
       url,
-      headers: { get: () => null },
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'date' ? new Date(rewriteTime(url, networkTime) * 1000).toUTCString() : null),
+      },
       text: async () => rewrite(url, value),
     } as any;
   });
@@ -56,6 +65,9 @@ function fixture() {
     rewrite: (fn: typeof rewrite) => {
       rewrite = fn;
     },
+    rewriteTime: (fn: typeof rewriteTime) => {
+      rewriteTime = fn;
+    },
   };
 }
 afterEach(() => {
@@ -65,9 +77,30 @@ afterEach(() => {
 it('checks complete proof against both current chain views and rechecks anchors', async () => {
   const f = fixture();
   await verifyPublicFundingSeparation([f.parent], () => {});
-  expect(f.calls.filter(url => url.includes('mempool.space') && url.endsWith('/block-height/1000000'))).toHaveLength(2);
-  expect(f.calls.every(url => !url.includes('/address/') && !url.includes('xpub') && !url.includes('psbt'))).toBe(true);
+  expect(f.calls.filter((url) => url.includes('mempool.space') && url.endsWith('/block-height/1000000'))).toHaveLength(2);
+  expect(f.calls.every((url) => !url.includes('/address/') && !url.includes('xpub') && !url.includes('psbt'))).toBe(true);
 });
+it('checks the header at the common tip before and after collecting proofs', async () => {
+  const f = fixture();
+  await verifyPublicFundingSeparation([f.parent], () => {});
+  expect(f.calls.filter((url) => url.endsWith('/block/' + tipHash + '/header'))).toHaveLength(2);
+});
+
+it('rejects different block hashes at the same tip height', async () => {
+  const f = fixture();
+  f.rewrite((url, value) => (url.includes('mempool.space') && url.endsWith('/block-height/1000005') ? '11'.repeat(32) : value));
+  await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
+  expect(f.calls.some((url) => url.includes('/outspend/'))).toBe(false);
+});
+
+it.each(['00'.repeat(80), '00'.repeat(79), 'zz'.repeat(80)])('rejects an invalid tip header on recheck %#', async (header) => {
+  const f = fixture();
+  let reads = 0;
+  f.rewrite((url, value) => (url.endsWith('/block/' + tipHash + '/header') && ++reads === 2 ? header : value));
+  await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
+  expect(reads).toBe(2);
+});
+
 it('blocks absent or mempool conflicts rather than treating absence as protection', async () => {
   const f = fixture();
   f.spent.spent = false;
@@ -85,7 +118,7 @@ it('rejects a wrong chain before any transaction lookup', async () => {
   const f = fixture();
   f.rewrite((url, value) => (url.endsWith('/961640') ? 'ff'.repeat(32) : value));
   await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
-  expect(f.calls.some(url => url.includes('/tx/'))).toBe(false);
+  expect(f.calls.some((url) => url.includes('/tx/'))).toBe(false);
 });
 it('rejects a disagreement between independent block hashes', async () => {
   const f = fixture();
@@ -98,7 +131,7 @@ it('detects a reorg during proof collection', async () => {
   f.rewrite((url, value) => (url.includes('mempool.space') && url.endsWith('/1000000') && ++seen > 1 ? 'ff'.repeat(32) : value));
   await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
 });
-it.each(['1000004', '999999', '1000005.5', 'NaN'])('rejects insufficient or malformed tip %s', tip => {
+it.each(['1000004', '999999', '1000005.5', 'NaN'])('rejects insufficient or malformed tip %s', (tip) => {
   const f = fixture();
   f.rewrite((url, value) => (url.endsWith('/blocks/tip/height') ? tip : value));
   return expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
@@ -141,19 +174,19 @@ it('bounds input counts before making requests', async () => {
 it('rejects independently reported tree-size disagreement', async () => {
   const f = fixture();
   f.rewrite((url, value) =>
-    url.includes('mempool.space') && url.endsWith('/block/' + f.hash)
-      ? JSON.stringify({ id: f.hash, height: 1000000, tx_count: 9 })
-      : value,
+    url.includes('mempool.space') && url.endsWith('/block/' + f.hash) ? JSON.stringify({ id: f.hash, height: 1000000, tx_count: 9 }) : value,
   );
   await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
 });
 
 // Each parent has a different outpoint, conflict and anchored block. This
 // reaches the full request budget, including two final lookups per block.
-it.each([13, 64])('verifies %i distinct funding parents within the bounded request budget', async count => {
+it.each([13, 64])('verifies %i distinct funding parents within the bounded request budget', async (count) => {
   const routes = new Map<string, string>();
   routes.set('/block-height/961640', checkpoint);
   routes.set('/blocks/tip/height', '1000100');
+  routes.set('/block-height/1000100', tipHash);
+  routes.set('/block/' + tipHash + '/header', tipHeader.toString('hex'));
   const parents: Transaction[] = [];
   for (let index = 0; index < count; index++) {
     const parent = new Transaction();
@@ -195,12 +228,14 @@ it.each([13, 64])('verifies %i distinct funding parents within the bounded reque
       ok: true,
       redirected: false,
       url,
-      headers: { get: () => null },
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'date' ? new Date(networkTime * 1000).toUTCString() : null),
+      },
       text: async () => value,
     } as any;
   });
   await verifyPublicFundingSeparation(parents, () => {});
-  expect(global.fetch).toHaveBeenCalledTimes(6 + count * 10);
+  expect(global.fetch).toHaveBeenCalledTimes(12 + count * 10);
 });
 
 it('budgets skipped candidate inputs before a confirmed conflict', async () => {
@@ -210,7 +245,7 @@ it('budgets skipped candidate inputs before a confirmed conflict', async () => {
   f.parent.ins.reverse();
   f.rewrite((url, value) => (url.includes('/outspend/') && !url.endsWith('/outspend/0') ? '{"spent":false}' : value));
   await verifyPublicFundingSeparation([f.parent], () => {});
-  expect(f.calls.filter(url => url.includes('/outspend/'))).toHaveLength(64);
+  expect(f.calls.filter((url) => url.includes('/outspend/'))).toHaveLength(64);
 });
 
 it('rejects an oversized parent anywhere in the batch before contacting a provider', async () => {
@@ -219,4 +254,44 @@ it('rejects an oversized parent anywhere in the batch before contacting a provid
   for (let index = 1; index < 65; index++) tooLarge.addInput(Buffer.alloc(32, 4), index);
   await expect(verifyPublicFundingSeparation([f.parent, tooLarge], () => {})).rejects.toThrow();
   expect(f.calls).toHaveLength(0);
+});
+
+describe('proof collection deadline', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('permits a fast verification when the wall clock jumps forward', async () => {
+    const f = fixture();
+    f.rewrite((url, value) => {
+      if (url.endsWith('/blocks/tip/height')) jest.setSystemTime(Date.now() + 3600000);
+      return value;
+    });
+    await expect(verifyPublicFundingSeparation([f.parent], () => {})).resolves.toBeUndefined();
+  });
+
+  it('enforces the elapsed-time limit even if the wall clock moves back', async () => {
+    const f = fixture();
+    // Advance elapsed time at the authorization check after both checkpoint
+    // reads have started, before collecting any funding proof.
+    let paused = false;
+    const authorize = () => {
+      if (!paused && f.calls.length === 2) {
+        paused = true;
+        jest.setSystemTime(Date.now() - 3600000);
+        jest.advanceTimersByTime(45000);
+      }
+    };
+    await expect(verifyPublicFundingSeparation([f.parent], authorize)).rejects.toThrow('Coin separation could not be verified');
+    expect(f.calls.some((url) => url.endsWith('/merkle-proof'))).toBe(false);
+  });
+});
+
+it('rejects tip-time disagreement between the fixed proof providers', async () => {
+  const f = fixture();
+
+  f.rewriteTime((url, value) => (url.includes('mempool.space') ? value + 121 : value));
+
+  await expect(verifyPublicFundingSeparation([f.parent], () => {})).rejects.toThrow();
+
+  expect(f.calls.some((url) => url.includes('/outspend/'))).toBe(false);
 });

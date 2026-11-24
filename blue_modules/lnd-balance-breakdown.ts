@@ -8,10 +8,17 @@ function amount(value: unknown): number {
 
 /** Informational rows overlap; never sum locked funds or reserves into the total again. */
 export function lndBalanceBreakdown(overview: LndOverview) {
+  const channelBalance = amount(overview.lightningLocal);
+  const lightningAvailable = overview.lightningAvailable === undefined ? undefined : amount(overview.lightningAvailable);
+  // Channel balance and availability come from separate RPCs. Only compare compatible observations.
+  const channelUnavailable =
+    lightningAvailable !== undefined && lightningAvailable <= channelBalance ? channelBalance - lightningAvailable : undefined;
   return {
+    channelBalance,
+    channelUnavailable,
     // ConfirmedBalance uses ListUnspentWitness, which already excludes locked UTXOs.
     onchainAvailable: Math.max(0, amount(overview.fundingConfirmed) - amount(overview.anchorReserve)),
-    lightningAvailable: overview.lightningAvailable === undefined ? undefined : amount(overview.lightningAvailable),
+    lightningAvailable,
     fundingPending: amount(overview.fundingPending),
     channelPending: amount(overview.channelPending),
     splicePending: amount(overview.splicePending),

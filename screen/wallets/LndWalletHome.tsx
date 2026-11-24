@@ -114,6 +114,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
   const headerOverlayHeight = React.useContext(HeaderHeightContext) ?? insets.top;
   const balanceTop = headerOverlayHeight + 8;
   const [tab, setTab] = useState<LndHistoryTab>('transactions');
+  const compactLightningActions = Platform.OS === 'ios' && tab !== 'funding';
+  const footerBottom = Platform.OS === 'ios' ? Math.max(12, insets.bottom - 8) : Math.max(insets.bottom, 16);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [nativeHistory, setNativeHistory] = useState<{ node: string; pages: Pages }>();
   const [openedEntry, setOpenedEntry] = useState<{ node: string; hash: string }>();
@@ -408,6 +410,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
       onPress={() => open(mode)}
       style={[
         styles.action,
+        compactLightningActions && styles.compactAction,
         secondary ? styles.fundingAction : mode === 'invoice' ? styles.receiveAction : styles.lightningAction,
         !ready && styles.disabled,
         secondary && styles.secondary,
@@ -580,7 +583,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             <Text style={styles.balanceLabel}>Total balance · funding and channels</Text>
             {!!overview && !wallet.hideBalance && (
               <Text style={styles.status}>
-                Lightning: {formatAmount(overview.lightningLocal)} · Funding: {formatAmount(overview.fundingTotal)}
+                In channels {formatAmount(overview.lightningLocal)} · On-chain {formatAmount(overview.fundingTotal)}
               </Text>
             )}
             {!wallet.hideBalance && <XbtFiatEstimate satoshis={wallet.getBalance()} style={styles.fiat} />}
@@ -600,9 +603,6 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
         )}
       </View>
       <LndHistoryTabs selected={tab} onSelect={setTab} receiveColor={styles.receiveAction.backgroundColor} />
-      {tab === 'funding' && (
-        <Text style={[styles.fundingHeading, { color: colors.foregroundColor }]}>On-chain deposits and withdrawals</Text>
-      )}
       <FlatList<LndActivity | BridgeHistoryEntry>
         key={tab}
         style={styles.history}
@@ -620,6 +620,9 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             )}
             {tab === 'funding' && !!overview && (
               <LndBalanceBreakdown overview={overview} hidden={wallet.hideBalance === true} stale={!ready} format={formatAmount} />
+            )}
+            {tab === 'funding' && (
+              <Text style={[styles.fundingHeading, { color: colors.foregroundColor }]}>On-chain deposits and withdrawals</Text>
             )}
             {tab === 'funding' && (
               <View style={styles.funding}>
@@ -714,8 +717,8 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
           styles.footer,
           {
             backgroundColor: colors.background,
-            // The lowest 8 points can overlap the iOS inset while even a 54-point Funding button has 46 points above it.
-            paddingBottom: Platform.OS === 'ios' ? Math.max(12, insets.bottom - 8) : Math.max(insets.bottom, 16),
+            // A compact 62-point Lightning button keeps at least 50 points above the iOS home inset.
+            paddingBottom: footerBottom - (compactLightningActions ? 3 : 0),
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },
@@ -726,7 +729,7 @@ export default function LndWalletHome({ wallet }: { wallet: LndWallet }) {
             <Text style={{ color: colors.foregroundColor }}>Open node settings · {wallet.status}</Text>
           </Pressable>
         )}
-        <View style={styles.actions}>
+        <View testID="LndWalletActionRow" style={[styles.actions, compactLightningActions && styles.compactActionRow]}>
           {tab === 'funding' ? action('Receive on-chain', 'receive', true) : action('Receive (create invoice)', 'invoice')}
           {tab === 'funding' ? action('Send on-chain', 'send', true) : action('Pay (invoice)', 'pay')}
         </View>
@@ -804,6 +807,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  compactActionRow: { marginTop: 9 },
+  compactAction: { minHeight: 62, paddingVertical: 9, borderRadius: 31 },
   lightningAction: { backgroundColor: WalletGradient.xbtWallet[0] },
   receiveAction: { backgroundColor: '#18794E' },
   fundingAction: { backgroundColor: '#3A3A3C' },

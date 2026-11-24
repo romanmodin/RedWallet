@@ -708,25 +708,25 @@ test('channel creation binds the chosen large amount and fee to confirmation', a
     await act(async () => {});
     bridge.invoice.mockClear();
     fireEvent.changeText(screen.getByLabelText('Lightning peer'), 'peer@host:9735');
-    for (const amount of ['10000001', '44000000']) {
+    for (const amount of ['100000001', '140000000']) {
       fireEvent.changeText(screen.getByLabelText('New channel sats'), amount);
       fireEvent.press(screen.getByText('Open private channel'));
     }
     expect(prompt).not.toHaveBeenCalled();
     expect(bridge.invoice).not.toHaveBeenCalled();
-    fireEvent.changeText(screen.getByLabelText('New channel sats'), '10000000');
+    fireEvent.changeText(screen.getByLabelText('New channel sats'), '100000000');
     fireEvent.changeText(screen.getByLabelText('New channel fee rate'), '250');
     fireEvent.press(screen.getByText('Open private channel'));
     expect(bridge.invoice).not.toHaveBeenCalled();
     const [, detail, buttons] = prompt.mock.calls[prompt.mock.calls.length - 1];
-    expect(detail).toContain('10000000 sats at 250 sat/vB');
+    expect(detail).toContain('100000000 sats at 250 sat/vB');
     fireEvent.changeText(screen.getByLabelText('New channel sats'), '50000000');
     const confirm = buttons!.find(button => button.text === 'Open channel')!.onPress!;
     await act(async () => {
       confirm();
       confirm();
     });
-    expect(bridge.invoice.mock.calls).toEqual([['open', 'peer', '250', '10000000']]);
+    expect(bridge.invoice.mock.calls).toEqual([['open', 'peer', '250', '100000000']]);
     screen.unmount();
   } finally {
     prompt.mockRestore();
@@ -1530,4 +1530,101 @@ test('requesting a new BOLT12 invoice requires explicit confirmation and respect
     delete nativeOffersBridge.offers;
     prompt.mockRestore();
   }
+});
+
+describe('Node and channel balances available before fee', () => {
+  const overview = {
+    node: 'test',
+    synced: true,
+    height: '1',
+    peers: '1',
+    activeChannels: '1',
+    fundingTotal: '60000',
+    fundingConfirmed: '50000',
+    fundingPending: '10000',
+    fundingLocked: '2000',
+    anchorReserve: '3000',
+    lightningLocal: '99056',
+    lightningRemote: '20000',
+    channelPending: '7000',
+    splicePending: '1000000',
+    lightningAvailable: '95000',
+  };
+  const open = async (hideBalance: boolean, observed: unknown, fail = false) => {
+    mockStorage.wallets = [{ type: 'lndWallet', hideBalance }];
+    const screen = render(<XBTLightning />);
+    await act(async () => {});
+    bridge.run.mockResolvedValueOnce('Native details: confirmed 50000 sats');
+    bridge.wallet.mockImplementation(async (action: string) => {
+      if (action !== 'overview') return { rows: [], next: '0', more: false };
+      if (fail) throw new Error('offline');
+      return observed;
+    });
+    await act(async () => fireEvent.press(screen.getByText('Node and channel balances')));
+    return screen;
+  };
+
+  test('shows a green available value, keeps the confirmed total distinct and preserves Copy', async () => {
+    const screen = await open(false, overview);
+    try {
+      const available = screen.getByText('On-chain available before fee: 47000 sats');
+      expect(StyleSheet.flatten(available.props.style).color).toBe(require('../../components/themes').BlueDefaultTheme.colors.successColor);
+      expect(screen.getByText('Confirmed on-chain total (includes reserve): 50000 sats')).toBeTruthy();
+      expect(screen.getByText('Native details: confirmed 50000 sats')).toBeTruthy();
+      jest.mocked(Clipboard.setString).mockClear();
+      fireEvent.press(screen.getByLabelText('Copy activity result'));
+      expect(Clipboard.setString).toHaveBeenCalledWith('Native details: confirmed 50000 sats');
+    } finally {
+      screen.unmount();
+    }
+  });
+
+  test('omits the confirmed total when it equals the available amount', async () => {
+    const screen = await open(false, { ...overview, anchorReserve: '0' });
+    try {
+      expect(screen.getByText('On-chain available before fee: 50000 sats')).toBeTruthy();
+      expect(screen.queryByTestId('LightningConfirmedTotal')).toBeNull();
+    } finally {
+      screen.unmount();
+    }
+  });
+
+  test.each([
+    ['zero after the reserve', { ...overview, fundingConfirmed: '1000' }, false],
+    ['an unsynced node', { ...overview, synced: false }, false],
+    ['a malformed amount', { ...overview, fundingConfirmed: '-1' }, false],
+    ['an unavailable overview', undefined, true],
+  ])('never presents %s as spendable', async (_name, observed, fail) => {
+    const screen = await open(false, observed, fail);
+    try {
+      expect(screen.getByText('Native details: confirmed 50000 sats')).toBeTruthy();
+      expect(screen.queryByTestId('LightningAvailableBeforeFee')).toBeNull();
+      expect(screen.queryByText(/available before fee/)).toBeNull();
+    } finally {
+      screen.unmount();
+    }
+  });
+
+  test('hidden balances show no available amount, native details or copy action', async () => {
+    const screen = await open(true, overview);
+    try {
+      expect(screen.queryByTestId('LightningAvailableBeforeFee')).toBeNull();
+      expect(screen.queryByLabelText('Copy activity result')).toBeNull();
+      expect(JSON.stringify(screen.toJSON())).not.toMatch(/47000|50000/);
+    } finally {
+      screen.unmount();
+    }
+  });
+
+  test('a later action clears the available value', async () => {
+    const screen = await open(false, overview);
+    try {
+      expect(screen.getByTestId('LightningAvailableBeforeFee')).toBeTruthy();
+      bridge.run.mockResolvedValueOnce('Received 1 sats');
+      await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Recent payments' })));
+      expect(screen.queryByTestId('LightningAvailableBeforeFee')).toBeNull();
+    } finally {
+      screen.unmount();
+    }
+  });
 });

@@ -25,7 +25,7 @@ final class RedWalletSeparationHTTP: NSObject, RCTInvalidating {
         }
         transport.get(id: identifier, url: url, limit: Int(limit)) { result in
             switch result {
-            case .success(let value): resolve(["status": 200, "url": value.url, "body": value.body])
+            case .success(let value): resolve(["status": 200, "url": value.url, "body": value.body, "serverTime": value.serverTime])
             case .failure: reject("proof_http_failed", "Coin separation evidence request failed.", nil)
             }
         }
