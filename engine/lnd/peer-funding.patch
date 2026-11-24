@@ -1,0 +1,143 @@
+diff --git a/lnwallet/btcwallet/btcwallet.go b/lnwallet/btcwallet/btcwallet.go
+index c39bb37..3937e2e 100644
+--- a/lnwallet/btcwallet/btcwallet.go
++++ b/lnwallet/btcwallet/btcwallet.go
+@@ -85,6 +85,10 @@ var (
+ // this documentation, this implementation requires a full btcd node to
+ // operate.
+ type BtcWallet struct {
++	// A compact-filter fetch can outlive the splice deadline. Limit peer
++	// funding verification to one outstanding network scan per wallet.
++	spliceScanMtx sync.Mutex
++
+ 	// wallet is an active instance of btcwallet.
+ 	wallet base.Interface
+
+diff --git a/lnwallet/splice/acceptor.go b/lnwallet/splice/acceptor.go
+index 06df184..73a39f5 100644
+--- a/lnwallet/splice/acceptor.go
++++ b/lnwallet/splice/acceptor.go
+@@ -280,7 +280,7 @@ func (m *Machine) checkPeerInput(in *interactivetx.Input) error {
+ 		return fmt.Errorf("input %v is ours", in.OutPoint)
+ 	}
+
+-	out, confs, coinbase, err := m.cfg.Chain.ConfirmedOutput(in.OutPoint)
++	out, confs, coinbase, err := m.cfg.Chain.ConfirmedOutput(in.OutPoint, in.PkScript)
+ 	switch {
+ 	case err != nil:
+ 		return fmt.Errorf("input %v not found unspent: %w",
+diff --git a/lnwallet/splice/machine.go b/lnwallet/splice/machine.go
+index ec8f817..97fd6db 100644
+--- a/lnwallet/splice/machine.go
++++ b/lnwallet/splice/machine.go
+@@ -117,7 +117,7 @@ type Chain interface {
+ 	// ConfirmedOutput returns an unspent output with its confirmations
+ 	// and whether a coinbase transaction created it, or an error when
+ 	// the backend doesn't know it as unspent.
+-	ConfirmedOutput(op wire.OutPoint) (*wire.TxOut, uint32, bool, error)
++	ConfirmedOutput(op wire.OutPoint, pkScript []byte) (*wire.TxOut, uint32, bool, error)
+
+ 	// Synced reports whether this node has caught up with the chain: a
+ 	// splice negotiated before would check the peer's coins and fees
+diff --git a/lnwallet/splice/machine_test.go b/lnwallet/splice/machine_test.go
+index f33467e..44d6400 100644
+--- a/lnwallet/splice/machine_test.go
++++ b/lnwallet/splice/machine_test.go
+@@ -363,7 +363,7 @@ func (c *testChain) BestHeight() (uint32, error) {
+ 	return c.height, nil
+ }
+
+-func (c *testChain) ConfirmedOutput(op wire.OutPoint) (*wire.TxOut, uint32,
++func (c *testChain) ConfirmedOutput(op wire.OutPoint, _ []byte) (*wire.TxOut, uint32,
+ 	bool, error) {
+
+ 	out, ok := c.outs[op]
+diff --git a/rpcserver_splice.go b/rpcserver_splice.go
+index aebe737..6279873 100644
+--- a/rpcserver_splice.go
++++ b/rpcserver_splice.go
+@@ -580,7 +580,7 @@ func (r *rpcServer) spliceConfirmations(rec *channeldb.SpliceRecord) uint32 {
+ 		return 0
+ 	}
+ 	chain := &spliceChain{wallet: r.server.cc.Wallet.WalletController}
+-	_, confs, _, err := chain.ConfirmedOutput(rec.OutPoint)
++	_, confs, _, err := chain.ConfirmedOutput(rec.OutPoint, nil)
+ 	if err != nil {
+ 		return 0
+ 	}
+diff --git a/server_splice.go b/server_splice.go
+index 30e7a30..1591f36 100644
+--- a/server_splice.go
++++ b/server_splice.go
+@@ -104,7 +104,7 @@ var confirmedOutputTimeout = 10 * time.Second
+
+ // ConfirmedOutput implements splice.Chain. A backend that can't tell, or
+ // doesn't within confirmedOutputTimeout, refuses the peer's coin.
+-func (c *spliceChain) ConfirmedOutput(op wire.OutPoint) (*wire.TxOut, uint32,
++func (c *spliceChain) ConfirmedOutput(op wire.OutPoint, pkScript []byte) (*wire.TxOut, uint32,
+ 	bool, error) {
+
+ 	d, ok := baseWallet(c.wallet).(utxoDetailer)
+@@ -119,8 +119,18 @@ func (c *spliceChain) ConfirmedOutput(op wire.OutPoint) (*wire.TxOut, uint32,
+ 		coinbase bool
+ 		err      error
+ 	}
++	ctx, cancel := context.WithTimeout(context.Background(), confirmedOutputTimeout)
++	defer cancel()
+ 	done := make(chan answer, 1)
+ 	go func() {
++		verifier, ok := d.(interface {
++			GetSpliceOutput(context.Context, *wire.OutPoint, []byte) (*wire.TxOut, uint32, bool, error)
++		})
++		if ok && len(pkScript) > 0 {
++			out, confs, coinbase, err := verifier.GetSpliceOutput(ctx, &op, pkScript)
++			done <- answer{out, confs, coinbase, err}
++			return
++		}
+ 		out, confs, coinbase, err := d.GetUtxoDetails(&op)
+ 		done <- answer{out, confs, coinbase, err}
+ 	}()
+@@ -129,7 +139,7 @@ func (c *spliceChain) ConfirmedOutput(op wire.OutPoint) (*wire.TxOut, uint32,
+ 	case a := <-done:
+ 		return a.out, a.confs, a.coinbase, a.err
+
+-	case <-time.After(confirmedOutputTimeout):
++	case <-ctx.Done():
+ 		return nil, 0, false, fmt.Errorf("backend didn't answer about "+
+ 			"%v within %v", op, confirmedOutputTimeout)
+ 	}
+diff --git a/server_splice_chain_test.go b/server_splice_chain_test.go
+index b894ee4..0d393e1 100644
+--- a/server_splice_chain_test.go
++++ b/server_splice_chain_test.go
+@@ -45,7 +45,7 @@ func TestSpliceChainBackend(t *testing.T) {
+ 	fast := &spliceChain{
+ 		wallet: &stallingWallet{synced: true}, chainIO: tipAt(100),
+ 	}
+-	out, confs, _, err := fast.ConfirmedOutput(wire.OutPoint{})
++	out, confs, _, err := fast.ConfirmedOutput(wire.OutPoint{}, nil)
+ 	require.NoError(t, err)
+ 	require.EqualValues(t, 1, out.Value)
+ 	require.EqualValues(t, 3, confs)
+@@ -55,7 +55,7 @@ func TestSpliceChainBackend(t *testing.T) {
+ 		wallet: &stallingWallet{delay: time.Second}, chainIO: tipAt(100),
+ 	}
+ 	start := time.Now()
+-	_, _, _, err = slow.ConfirmedOutput(wire.OutPoint{})
++	_, _, _, err = slow.ConfirmedOutput(wire.OutPoint{}, nil)
+ 	require.ErrorContains(t, err, "didn't answer")
+ 	require.Less(t, time.Since(start), 500*time.Millisecond)
+ 	require.False(t, slow.Synced())
+diff --git a/server_splice_wallet_test.go b/server_splice_wallet_test.go
+index dada1af..1551ba8 100644
+--- a/server_splice_wallet_test.go
++++ b/server_splice_wallet_test.go
+@@ -38,7 +38,7 @@ func TestSpliceChainRemoteSigner(t *testing.T) {
+ 	chain := &spliceChain{wallet: remoteSignerWallet{
+ 		inner: detailedWallet{},
+ 	}}
+-	out, confs, _, err := chain.ConfirmedOutput(wire.OutPoint{})
++	out, confs, _, err := chain.ConfirmedOutput(wire.OutPoint{}, nil)
+ 	require.NoError(t, err)
+ 	require.EqualValues(t, 1, out.Value)
+ 	require.EqualValues(t, 7, confs)

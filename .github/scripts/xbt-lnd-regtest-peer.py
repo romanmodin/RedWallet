@@ -68,6 +68,36 @@ def splice_confirmation_depth(txid, local_depth):
     raise ValueError("peer splice confirmation policy unavailable")
 
 
+def peer_funded_splice(point):
+    channels = json.loads(call(lightning, "listchannels"))["channels"]
+    if len(channels) != 1 or channels[0]["channel_point"] != point or not channels[0]["private"] or int(channels[0]["local_balance"]) != 0:
+        raise ValueError("expected one private channel with no starting peer funds")
+    coins = json.loads(call(lightning, "listunspent", "1"))["utxos"]
+    if len(coins) != 1 or int(coins[0]["confirmations"]) < 360:
+        raise ValueError("expected a confirmed peer input predating mobile startup")
+    with subprocess.Popen([*lightning, "splice", "in", "--chan_point=" + point, "--amt=150000000", "--sat_per_vbyte=125"],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as splice:
+        try:
+            for _ in range(75):
+                row = json.loads(call(lightning, "listchannels"))["channels"][0]
+                pending = row.get("pending_splice") or {}
+                txid = pending.get("txid")
+                if txid and txid in json.loads(call(chain, "getrawmempool")):
+                    depth = int(pending["lock_depth"])
+                    if not 1 <= depth <= 144:
+                        raise ValueError("invalid funding lock depth")
+                    # Respect the verified source pin's 36-confirmation input hold.
+                    call(chain, "generatetoaddress", str(max(36, depth) + 2), miner)
+                    return txid
+                if splice.poll() not in (None, 0) or (row.get("last_splice") or {}).get("outcome") == "aborted":
+                    raise ValueError("peer-funded splice was refused")
+                time.sleep(1)
+            raise ValueError("peer-funded splice did not broadcast")
+        finally:
+            if splice.poll() is None:
+                splice.terminate()
+
+
 class Fixture(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
@@ -94,6 +124,8 @@ class Fixture(BaseHTTPRequestHandler):
                     raise ValueError("channel funding transaction missing")
                 call(chain, "generatetoaddress", "8", miner)
                 result = "mined"
+            elif self.path == "/peer-funded-splice" and re.fullmatch(r"[a-f0-9]{64}:[0-9]+", value):
+                result = peer_funded_splice(value)
             elif self.path == "/mempool":
                 result = json.dumps(sorted(json.loads(call(chain, "getrawmempool"))))
             elif self.path == "/confirm-splice" and re.fullmatch(r"[a-f0-9]{64}:[0-9]+", value):

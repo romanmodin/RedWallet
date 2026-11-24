@@ -37,6 +37,7 @@ on:
       - 'tests/unit/xbt-lightning-screen.test.tsx'
       - 'tests/unit/lnd-payment-status.test.ts'
       - '.github/workflows/xbt-lnd-ios.yml'
+      - '.github/actions/xbt-regtest-chain/**'
       - '.github/scripts/xbt-lnd-regtest-*'
       - '.github/scripts/test-tor-fee-fetch.sh'
 permissions:
@@ -80,49 +81,10 @@ jobs:
         with:
           go-version: '1.27.3'
           cache: false
-      - name: Build the disposable XBT Lightning peer
-        if: matrix.tier == 'payments'
-        run: |
-          set -euo pipefail
-          dir="$RUNNER_TEMP/lnd-regtest"
-          mkdir -p "$dir/ln-bin"
-          git init -q "$dir/peer-src"
-          git -C "$dir/peer-src" fetch -q --depth=1 https://github.com/Kilombino/lnd.git cae303b36594a2c48c9ce0cbb238672e3a1b284e
-          git -C "$dir/peer-src" checkout -q --detach FETCH_HEAD
-          cd "$dir/peer-src"
-          go build -tags="routerrpc invoicesrpc watchtowerrpc wtclientrpc offersrpc" -o "$dir/ln-bin/" ./cmd/lnd ./cmd/lncli
-      - name: Start a private compact-filter chain peer
-        run: |
-          set -euo pipefail
-          key="macos_$(uname -m)"
-          archive="$RUNNER_TEMP/knots.tar.gz"
-          dir="$RUNNER_TEMP/lnd-regtest"
-          mkdir -p "$dir/tools" "$dir/data"
-          curl -fsSL --retry 2 --retry-all-errors "$(jq -r --arg k "$key" '.knots[$k].url' tests/native/backend-assets.json)" -o "$archive"
-          printf '%s  %s\n' "$(jq -r --arg k "$key" '.knots[$k].sha256' tests/native/backend-assets.json)" "$archive" | shasum -a 256 -c -
-          tar -xzf "$archive" --strip-components=1 -C "$dir/tools"
-          "$dir/tools/bin/bitcoind" -datadir="$dir/data" -regtest -server -daemonwait -bind=127.0.0.1:18444 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -listenonion=0 -connect=0 -dnsseed=0 -discover=0 -blockfilterindex=1 -peerblockfilters=1 -fallbackfee=0.00001 -testactivationheight=blake2b@150
-          cli=("$dir/tools/bin/bitcoin-cli" "-datadir=$dir/data" -regtest -rpcwait)
-          "${cli[@]}" createwallet fixture >/dev/null
-          "${cli[@]}" generatetoaddress 151 "$("${cli[@]}" getnewaddress)" >/dev/null
-          header=$("${cli[@]}" getblockheader "$("${cli[@]}" getblockhash 150)" false)
-          test "${#header}" -eq 328
-      - name: Start the isolated routing peer
-        if: matrix.tier == 'payments'
-        run: |
-          set -euo pipefail
-          dir="$RUNNER_TEMP/lnd-regtest"
-          fixture_cookie=$(<"$dir/data/regtest/.cookie")
-          "$dir/ln-bin/lnd" --lnddir="$dir/ln-peer" --bitcoin.regtest --bitcoin.blake2b-activation-height=150 --bitcoin.node=bitcoind --bitcoind.rpchost=127.0.0.1:18443 --bitcoind.rpcuser="${fixture_cookie%%:*}" --bitcoind.rpcpass="${fixture_cookie#*:}" --bitcoind.rpcpolling --bitcoind.blockpollinginterval=500ms --rpclisten=127.0.0.1:11009 --listen=127.0.0.1:19735 --protocol.splice --protocol.wumbo-channels --maxchansize=2100000000000000 --watchtower.active --watchtower.listen=127.0.0.1:19911 --noseedbackup --nobootstrap --norest >"$dir/peer.log" 2>&1 &
-          pid=$!
-          ready=false
-          for attempt in {1..90}; do
-            if ! kill -0 "$pid" 2>/dev/null; then tail -12 "$dir/peer.log"; exit 1; fi
-            if "$dir/ln-bin/lncli" --network=regtest --rpcserver=127.0.0.1:11009 --lnddir="$dir/ln-peer" getinfo 2>"$dir/peer-cli.log" | jq -e '.identity_pubkey | length == 66' >/dev/null; then ready=true; break; fi
-            sleep 2
-          done
-          if ! "$ready"; then tail -12 "$dir/peer.log"; tail -2 "$dir/peer-cli.log"; exit 1; fi
-          python3 .github/scripts/xbt-lnd-regtest-peer.py "$dir" >"$dir/fixture.log" 2>&1 &
+      - name: Start the disposable chain and optional routing peer
+        uses: ./.github/actions/xbt-regtest-chain
+        with:
+          routing: ${{ matrix.tier == 'payments' && 'true' || 'false' }}
       - name: Test the embedded engine on iPhone Simulator
         env:
           REGTEST_TIER: ${{ matrix.tier }}

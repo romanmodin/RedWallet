@@ -34,6 +34,7 @@ tests.build_configurations.each do |c|
   c.build_settings['TEST_HOST'] = '$(BUILT_PRODUCTS_DIR)/RegtestHost.app/RegtestHost'
   c.build_settings['BUNDLE_LOADER'] = '$(TEST_HOST)'
   c.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = '$(inherited) XBT_LND_ROUTED_TEST' if ENV['REGTEST_TIER'] == 'payments'
+  c.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = '$(inherited) XBT_LND_PEER_FUNDING' if ENV['XBT_PEER_FUNDING_PACKAGE']
 end
 if ENV['XBT_PUBLIC_SMOKE'] == '1'
   tests.build_configurations.each do |c|
@@ -45,7 +46,7 @@ if ENV['XBT_TOR_SMOKE'] == '1'
 end
 objects = Xcodeproj::Project::Object
 package = project.new(objects::XCLocalSwiftPackageReference)
-package.relative_path = File.expand_path('ios/XBTLightning')
+package.relative_path = File.expand_path(ENV.fetch('XBT_PEER_FUNDING_PACKAGE', 'ios/XBTLightning'))
 project.root_object.package_references << package
 product = project.new(objects::XCSwiftPackageProductDependency)
 product.package = package

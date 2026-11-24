@@ -1,0 +1,78 @@
+name: iPhone peer-funded channels
+on:
+  pull_request:
+    paths:
+      - 'engine/lnd/**'
+      - '.github/workflows/ios-peer-funding.yml'
+      - '.github/actions/xbt-regtest-chain/**'
+      - '.github/scripts/xbt-lnd-regtest-host.rb'
+      - '.github/scripts/xbt-lnd-regtest-peer.py'
+      - 'ios/XBTLightning/Tests/XBTLightningTests/RegtestTests.swift'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-peer-funding-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9
+        with:
+          ruby-version: '3.4.10'
+          bundler-cache: true
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Start stock chain and Lightning peer
+        uses: ./.github/actions/xbt-regtest-chain
+        with:
+          routing: 'true'
+      - name: Give the peer its own funds before the phone is online
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/lnd-regtest"
+          cli=("$dir/tools/bin/bitcoin-cli" -regtest "-datadir=$dir/data")
+          lncli=("$dir/ln-bin/lncli" --network=regtest --rpcserver=127.0.0.1:11009 "--lnddir=$dir/ln-peer")
+          addr=$("${lncli[@]}" newaddress p2wkh | jq -er .address)
+          "${cli[@]}" sendtoaddress "$addr" 2 >/dev/null
+          "${cli[@]}" generatetoaddress 360 "$("${cli[@]}" getnewaddress)" >/dev/null
+      - name: Build the candidate iPhone and Simulator framework
+        run: bash engine/lnd/build-ios.sh "$RUNNER_TEMP/lnd-regtest/peer-src" "$RUNNER_TEMP/lnd-candidate"
+      - name: Link and test the candidate with the real phone wallet
+        run: |
+          set -euo pipefail
+          export XBT_PEER_FUNDING_PACKAGE="$RUNNER_TEMP/peer-funding-package"
+          mkdir "$XBT_PEER_FUNDING_PACKAGE"
+          cp -R ios/XBTLightning/{Sources,Tests,Package.swift} "$XBT_PEER_FUNDING_PACKAGE/"
+          cp -R "$RUNNER_TEMP/lnd-candidate/Lndmobile.xcframework" "$XBT_PEER_FUNDING_PACKAGE/"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          path = Path(os.environ["XBT_PEER_FUNDING_PACKAGE"]) / "Package.swift"
+          source, count = re.subn(
+              r'(name: "Lndmobile",\s*)url: "[^"]+",\s*checksum: "[0-9a-f]{64}"',
+              r'\1path: "Lndmobile.xcframework"', path.read_text())
+          assert count == 1, "Could not select the candidate framework"
+          path.write_text(source)
+          PY
+          bundle exec ruby .github/scripts/xbt-lnd-regtest-host.rb "$RUNNER_TEMP/peer-host"
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone")))')
+          xcrun simctl bootstatus "$device" -b
+          xcodebuild -project "$RUNNER_TEMP/peer-host/RegtestHost.xcodeproj" -scheme RegtestHost -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO -only-testing:RegtestHostTests/RegtestTests/testPeerFundsPrivateChannelFromZero -resultBundlePath "$RUNNER_TEMP/peer-result" test
+          xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/peer-result" | jq -e '.passedTests == 1 and .failedTests == 0'
+      - name: Save the simulator-qualified candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: peer-funding-lnd-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/lnd-candidate/Lndmobile.xcframework.zip
+            ${{ runner.temp }}/lnd-candidate/Lndmobile.xcframework.zip.sha256
+          compression-level: 0
+          if-no-files-found: error
