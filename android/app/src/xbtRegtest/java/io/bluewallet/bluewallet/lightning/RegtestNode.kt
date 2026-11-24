@@ -184,7 +184,15 @@ internal object RegtestNode {
             require(LightningAmounts.validFeeRate(fee))
             require(publicKey.matches(value) && LightningAmounts.valid(amount))
             requireSynced()
-            val point = rpc { Lndmobile.openChannelSync(message { writeString(3,value); writeUInt64(4,amount); writeUInt64(1,fee); writeUInt64(8,1) },it) }
+            val request = message {
+                writeString(3, value)
+                writeUInt64(4, amount)
+                writeUInt64(1, fee)
+                writeUInt64(8, 1)
+                // Allow incoming HTLCs to use liquidity added after opening.
+                writeUInt64(15, LightningAmounts.MAX_SATS * 1_000L)
+            }
+            val point = rpc { Lndmobile.openChannelSync(request, it) }
             val id = point.blobs[1]?.firstOrNull()?.also { require(it.size == 32) }?.reversedArray()?.joinToString("") { "%02x".format(it) } ?: point.string(2)
             id + ":" + point.number(3)
         }

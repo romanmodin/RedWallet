@@ -28,6 +28,7 @@ internal object NodeManagement {
                     putString("point",channel.point); putString("peer",channel.peer)
                     putString("state",channel.state); putBoolean("active",channel.state == "active")
                     putString("localSats",channel.localSats.toString())
+                    channel.remoteSats?.let { putString("remoteSats", it.toString()) }
                     channel.confirmationsRemaining?.let { putDouble("confirmationsRemaining",it.toDouble()) }
                 }) }
             }

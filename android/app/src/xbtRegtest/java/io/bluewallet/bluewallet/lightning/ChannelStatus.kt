@@ -6,6 +6,7 @@ internal data class ChannelStatus(
     val peer: String,
     val state: String,
     val localSats: Long,
+    val remoteSats: Long?,
     val confirmationsRemaining: Long? = null
 ) {
     companion object {
@@ -14,7 +15,7 @@ internal data class ChannelStatus(
             open.blobs[11].orEmpty().map(::Fields).forEach { channel ->
                 val point = channel.string(3)
                 items[point] = ChannelStatus(point,channel.string(2),
-                    if (channel.number(1) == 1L) "active" else "inactive",channel.number(6))
+                    if (channel.number(1) == 1L) "active" else "inactive",channel.number(6),channel.number(7))
             }
             listOf(2 to "pending",3 to "closing",5 to "closing",4 to "forceClosing").forEach { (field,state) ->
                 pending.blobs[field].orEmpty().map(::Fields).forEach { wrapper ->
@@ -23,6 +24,7 @@ internal data class ChannelStatus(
                     // Open supersedes pending; closing supersedes open.
                     if (state != "pending" || point !in items) {
                         items[point] = ChannelStatus(point,channel.string(1),state,channel.number(4),
+                            if (field == 2 || field == 5) channel.number(5) else channel.numbers[5],
                             if (state == "pending") wrapper.numbers[7] else null)
                     }
                 }

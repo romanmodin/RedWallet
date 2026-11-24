@@ -136,7 +136,7 @@ public actor RegtestNode {
         nobootstrap=true
         protocol.splice=true
         protocol.wumbo-channels=true
-        maxchansize=2100000000000000
+        maxchansize=\(LightningAmounts.maxSats)
         tlsdisableautofill=true
         [Bitcoin]
         bitcoin.regtest=true

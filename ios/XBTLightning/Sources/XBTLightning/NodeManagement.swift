@@ -14,6 +14,7 @@ public struct LightningChannelStatus: Sendable {
     public let peer: String
     public let state: String
     public let localSats: UInt64
+    public let remoteSats: UInt64?
     public let confirmationsRemaining: UInt64?
     public var splice: SpliceChannelState?
     public var peerAlias: String? = nil
@@ -28,7 +29,8 @@ public struct LightningChannelStatus: Sendable {
             items[point] = LightningChannelStatus(
                 point: point, peer: try channel.string(2),
                 state: channel.integers[1] == 1 ? "active" : "inactive",
-                localSats: channel.integers[6] ?? 0, confirmationsRemaining: nil, splice: try SpliceChannelState.decode(channel, awaitingNewAttempt: awaitingSplices.contains(point)))
+                localSats: channel.integers[6] ?? 0, remoteSats: channel.integers[7] ?? 0,
+                confirmationsRemaining: nil, splice: try SpliceChannelState.decode(channel, awaitingNewAttempt: awaitingSplices.contains(point)))
         }
         for bytes in try ProtoFields(open).bytes[11] ?? [] {
             let channel = try ProtoFields(bytes)
@@ -49,6 +51,9 @@ public struct LightningChannelStatus: Sendable {
                 items[point] = LightningChannelStatus(
                     point: point, peer: try channel.string(1), state: state,
                     localSats: channel.integers[4] ?? 0,
+                    // Pending-open and waiting-close report both balances, including zero.
+                    // A historical close summary can omit the peer's balance entirely.
+                    remoteSats: (field == 2 || field == 5) ? (channel.integers[5] ?? 0) : channel.integers[5],
                     confirmationsRemaining: state == "pending" ? wrapper.integers[7] : nil, splice: nil)
             }
         }
