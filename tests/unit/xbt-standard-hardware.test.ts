@@ -1,3 +1,4 @@
+import { changeAddressFallback } from '../../screen/send/changeAddressFallback';
 import * as bitcoin from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
 import ecc from '../../blue_modules/noble_ecc';
@@ -49,6 +50,14 @@ function fixture(parentTag = 1, receiveIndex = 0) {
   return { cold, watch, receive, key, ancestor, parent, raws, coins, histories, source, targets, change };
 }
 afterEach(() => jest.restoreAllMocks());
+
+it('derives the indexed internal change address when HD watch-only lookup falls back', () => {
+  const { watch, cold } = fixture();
+  watch._hdWalletInstance!.next_free_change_address_index = 3;
+  expect(watch.isHd()).toBe(true);
+  expect(() => watch.getAddress()).toThrow('Should not be used in watch-only HD wallets');
+  expect(changeAddressFallback(watch)).toBe(cold._getInternalAddressByIndex(3));
+});
 
 it('verifies cryptographic Unified funding rather than a flag alone', async () => {
   const f = fixture();
@@ -109,6 +118,14 @@ it.each([false, true])('accepts standard signatures only for a reviewed proof-ga
   changed.outs[0].value -= 1n;
   expect(() => assertStandardHardwareResult(changed.toHex(), f.request)).toThrow('changed');
 });
+it('rejects a generic Native SegWit account before enabling Keystone mode', () => {
+  const { cold } = fixture();
+  const watch = new WatchOnlyWallet();
+  watch.setSecret('[445a39f0/84h/0h/0h]' + cold.getXpub()).init();
+  expect(() => watch.setHardwareSigningMode('standard')).toThrow('requires Native SegWit');
+  expect(watch.getHardwareSigningMode()).toBe('unified');
+});
+
 it('retains Unified default and refuses unverified standard requests', () => {
   const f = fixture();
   expect(f.watch.getHardwareSigningMode()).toBe('unified');
@@ -180,7 +197,7 @@ it('ignores late proof results after the wallet or signing mode changes', async 
   await expect(pending).rejects.toThrow('Signing mode changed');
 });
 
-it('keeps production standard signing disabled pending stronger separation proof', () => {
+it('keeps the default host build closed to standard signing', () => {
   const production = jest.requireActual('../../class/xbt/standard-hardware');
   expect(production.STANDARD_HARDWARE_RELEASE_ENABLED).toBe(false);
   expect(() => production.assertStandardHardwareReleased()).toThrow('coin separation');

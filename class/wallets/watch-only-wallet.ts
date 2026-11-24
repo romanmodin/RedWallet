@@ -54,7 +54,7 @@ export class WatchOnlyWallet extends LegacyWallet {
   setHardwareSigningMode(mode: 'unified' | 'standard') {
     if (mode === 'standard') assertStandardHardwareReleased();
     if (mode !== 'unified' && mode !== 'standard') throw new Error('Unknown signing mode');
-    if (mode === 'standard' && (this.type !== WatchOnlyWallet.type || !(this._hdWalletInstance instanceof HDSegwitBech32Wallet)))
+    if (mode === 'standard' && (this.type !== WatchOnlyWallet.type || !(this._hdWalletInstance instanceof XbtSegwitBech32Wallet)))
       throw new Error('Standard XBT hardware signing currently requires Native SegWit');
     this.xbt_hardware_signing_mode = mode;
     proofGeneration.set(this, {});

@@ -1,7 +1,7 @@
 import Foundation
 
 enum SeparationHTTPFailure: Error { case invalidRequest, invalidReply, unavailable, canceled, timedOut }
-struct SeparationHTTPResult { let url: String; let body: String }
+struct SeparationHTTPResult { let url: String; let body: String; let serverTime: TimeInterval }
 
 // A dedicated foreground session: no LND, credentials, cookies, caches or generic URL access.
 // Server trust uses Apple's default validation. Redirects are refused BEFORE any follow-up.
@@ -19,6 +19,7 @@ final class SeparationHTTPTransport: NSObject, URLSessionDataDelegate, @unchecke
         let deadline: DispatchWorkItem
         let completion: (Result<SeparationHTTPResult, Error>) -> Void
         var accepted = false
+        var serverTime: TimeInterval?
         var data = Data()
     }
     private let lock = NSLock()
@@ -69,6 +70,16 @@ final class SeparationHTTPTransport: NSObject, URLSessionDataDelegate, @unchecke
         if matches(#"^/tx/[0-9a-f]{64}/outspend/(0|[1-9][0-9]{0,9})$"#),
            let index = UInt64(path.split(separator: "/").last!), index <= UInt32.max { return 16384 }
         throw SeparationHTTPFailure.invalidRequest
+    }
+    static func parsedServerTime(_ value: String?) -> TimeInterval? {
+        guard let value else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss z"
+        guard let date = formatter.date(from: value) else { return nil }
+        let seconds = date.timeIntervalSince1970
+        return seconds >= 0 && seconds <= TimeInterval(UInt32.max) && seconds.rounded(.down) == seconds ? seconds : nil
     }
     static func request(url value: String, limit: Int) throws -> URLRequest {
         let maximum = try bodyLimit(for: value)
@@ -135,10 +146,10 @@ final class SeparationHTTPTransport: NSObject, URLSessionDataDelegate, @unchecke
         guard Date() < pending.expiresAt, ProcessInfo.processInfo.systemUptime < pending.uptimeDeadline else {
             pending.completion(.failure(SeparationHTTPFailure.timedOut)); return
         }
-        guard pending.accepted, !pending.data.isEmpty, let body = String(data: pending.data, encoding: .utf8) else {
+        guard pending.accepted, !pending.data.isEmpty, let body = String(data: pending.data, encoding: .utf8), let serverTime = pending.serverTime else {
             pending.completion(.failure(SeparationHTTPFailure.invalidReply)); return
         }
-        pending.completion(.success(SeparationHTTPResult(url: pending.url.absoluteString, body: body)))
+        pending.completion(.success(SeparationHTTPResult(url: pending.url.absoluteString, body: body, serverTime: serverTime)))
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
@@ -155,13 +166,17 @@ final class SeparationHTTPTransport: NSObject, URLSessionDataDelegate, @unchecke
         lock.lock()
         let pending = requests[dataTask.taskIdentifier]
         let http = response as? HTTPURLResponse
-        var valid = pending != nil && http?.statusCode == 200 && http?.url == pending?.url
+        let serverTime = Self.parsedServerTime(http?.value(forHTTPHeaderField: "Date"))
+        var valid = pending != nil && serverTime != nil && http?.statusCode == 200 && http?.url == pending?.url
             && response.expectedContentLength <= Int64(pending?.limit ?? 0)
         if let length = http?.value(forHTTPHeaderField: "Content-Length") {
             valid = valid && !length.isEmpty && length.utf8.allSatisfy { $0 >= 48 && $0 <= 57 }
                 && UInt64(length).map { $0 <= UInt64(pending?.limit ?? 0) } == true
         }
-        if valid { requests[dataTask.taskIdentifier]?.accepted = true }
+        if valid {
+            requests[dataTask.taskIdentifier]?.accepted = true
+            requests[dataTask.taskIdentifier]?.serverTime = serverTime
+        }
         lock.unlock()
         completionHandler(valid ? .allow : .cancel)
         if !valid { finish(dataTask, error: SeparationHTTPFailure.invalidReply) }

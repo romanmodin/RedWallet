@@ -142,11 +142,16 @@ suite('Standard hardware iOS qualification', () => {
             // The controls mount below the QR inside the same ScrollView, so they
             // are off-screen until the content grows and the view is scrolled again.
             await element(by.id('DynamicCode')).tap();
-            await waitFor(element(by.id('DynamicQRStopStart')))
-              .toExist()
-              .withTimeout(15000);
-            // Scroll in small steps only until the controls are visible, so the QR stays on screen.
-            await visible('DynamicQRStopStart', 'HardwareSigningCheck');
+            const toggle = element(by.id('DynamicQRStopStart'));
+            let toggleVisible = false;
+            await eventually(async () => {
+              const attrs = (await toggle.getAttributes()) as { label?: string; visible?: boolean };
+              toggleVisible = attrs.visible === true;
+              return attrs.label === english.send.dynamic_stop;
+            });
+            if (!toggleVisible) {
+              await waitFor(toggle).toBeVisible().whileElement(by.id('HardwareSigningCheck')).scroll(150, 'down', 0.95, 0.5);
+            }
           },
           stop: async () => {
             // Tap Stop exactly once, then confirm the button now reads "Start".
@@ -371,17 +376,22 @@ suite('Standard hardware iOS qualification', () => {
         assert.deepEqual(fixture.transport.broadcasts, []);
 
         step('blocking stale separation after a real Core reorg');
+        const priorTip = await fixture.core.rpc('getbestblockhash');
+        const priorInactiveReads = fixture.inactiveConflictReads;
         await fixture.reorg(true);
+        assert.notEqual(await fixture.core.rpc('getbestblockhash'), priorTip);
         await visible('PsbtWithHardwareWalletBroadcastTransactionButton', 'SignedTransactionScroll');
         await element(by.id('PsbtWithHardwareWalletBroadcastTransactionButton')).tap();
         await waitForText('Coin separation could not be verified. Standard signing is blocked.', 60000);
         assert.equal(await dismissAlertByText('OK', 15000, false), true);
         assert.deepEqual(fixture.transport.broadcasts, []);
         assert.equal(await text('SignedTransactionHex'), hex);
+        assert(fixture.inactiveConflictReads > priorInactiveReads, 'Expected a fresh lookup of the invalidated conflict');
         observed.reorgBeforeBroadcastBlocked = true;
 
         step('retrying the unchanged reviewed transaction with restored proof');
         await fixture.reorg(false);
+        assert.equal(await fixture.core.rpc('getbestblockhash'), priorTip);
         await element(by.id('SignedTransactionScroll')).scrollTo('bottom');
         await visible('PsbtWithHardwareWalletBroadcastTransactionButton', 'SignedTransactionScroll');
         await element(by.id('PsbtWithHardwareWalletBroadcastTransactionButton')).tap();

@@ -994,7 +994,7 @@ lane :upload_bugsnag_sourcemaps do
 end
 
   desc "Build the iOS app"
-  lane :build_app_lane do
+  lane :build_app_lane do |options|
     Dir.chdir(project_root) do
       UI.message("Building the application from: #{Dir.pwd}")
 
@@ -1167,15 +1167,23 @@ end
           UI.user_error!("  ❌ Export options not found: #{export_options_path}")
         end
         
+        internal_keystone = options[:internal_keystone].to_s == "true"
+        export_options = export_options_path
+        if internal_keystone
+          require "xcodeproj"
+          export_options = Xcodeproj::Plist.read_from_path(export_options_path)
+          export_options["testFlightInternalTestingOnly"] = true
+        end
+        scope = internal_keystone ? "internal-testing" : "standard"
         build_ios_app(
           scheme: "BlueWallet",
           workspace: workspace_path,
           export_method: "app-store",
-          export_options: export_options_path,
+          export_options: export_options,
           output_directory: ipa_directory,
           output_name: ipa_name,
           buildlog_path: File.join(project_root, "ios", "build_logs"),
-          xcargs: "DEVELOPMENT_TEAM=#{ENV['TEAM_ID']}"
+          xcargs: "DEVELOPMENT_TEAM=#{ENV['TEAM_ID']} REDWALLET_KEYSTONE_SCOPE=#{scope}"
           # Removed explicit destination - let Xcode determine the best destination for release builds
         )
         
