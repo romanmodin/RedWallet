@@ -18,6 +18,7 @@ it('rejects a four-hour-old tip even when the phone clock is two hours slow', ()
 
 it('rejects missing, divergent and malformed response clocks', () => {
   expect(hasFreshTipTime(header(networkTime), [networkTime])).toBe(false);
+  expect(hasFreshTipTime(header(networkTime), [networkTime, networkTime + 120])).toBe(true);
   expect(hasFreshTipTime(header(networkTime), [networkTime, networkTime + 121])).toBe(false);
   expect(hasFreshTipTime(header(networkTime), [networkTime, NaN])).toBe(false);
 });

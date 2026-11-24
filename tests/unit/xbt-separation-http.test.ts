@@ -87,6 +87,10 @@ test.each([
   { status: 200, url, body: 'é'.repeat(81) },
   { status: 200, url, body: undefined },
   { status: 200, url, body: 'x', serverTime: NaN },
+  { status: 200, url, body: 'x', serverTime: -1 },
+  { status: 200, url, body: 'x', serverTime: 1.5 },
+  { status: 200, url, body: 'x', serverTime: 0x1_0000_0000 },
+  { status: 200, url, body: 'x', serverTime: '2000000000' },
 ])('rejects invalid native response %#', async (response) => {
   const bridge = native();
   bridge.get.mockResolvedValue(response as any);

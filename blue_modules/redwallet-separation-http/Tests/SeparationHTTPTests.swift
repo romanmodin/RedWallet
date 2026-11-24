@@ -8,9 +8,9 @@ private final class ProofProtocol: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() { Self.handler?(self) }
     override func stopLoading() {}
-    func reply(_ bytes: Data, status: Int = 200, headers: [String: String] = [:], at url: URL? = nil, finish: Bool = true) {
-        var fields = ["Date": "Wed, 18 May 2033 03:33:20 GMT"]
-        fields.merge(headers) { _, new in new }
+    func reply(_ bytes: Data, status: Int = 200, headers: [String: String] = [:], at url: URL? = nil, includeDate: Bool = true, finish: Bool = true) {
+        var fields = headers
+        if includeDate { fields["Date"] = "Wed, 18 May 2033 03:33:20 GMT" }
         let response = HTTPURLResponse(url: url ?? request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: fields)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: bytes)
@@ -68,6 +68,10 @@ final class SeparationHTTPTests: XCTestCase {
     func testRejectsInvalidServerDate() async {
         ProofProtocol.handler = { $0.reply(Data("976100".utf8), headers: ["Date": "invalid"]) }
         do { _ = try await fetch(); XCTFail("accepted invalid server date") } catch {}
+    }
+    func testRejectsMissingServerDate() async {
+        ProofProtocol.handler = { $0.reply(Data("976100".utf8), includeDate: false) }
+        do { _ = try await fetch(); XCTFail("accepted missing server date") } catch {}
     }
     func testRejectsNon200Response() async {
         ProofProtocol.handler = { $0.reply(Data("unavailable".utf8), status: 503) }
