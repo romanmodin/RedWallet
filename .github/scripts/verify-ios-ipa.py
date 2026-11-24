@@ -92,6 +92,8 @@ with tempfile.TemporaryDirectory(prefix="redwallet-ipa-") as temporary:
             assert info.get("CFBundleDisplayName") == "RedWallet", "Wrong app display name"
             assert entitlements.get("com.apple.security.application-groups") == ["group.com.romanmodin.redwallet"], "Wrong app group"
             assert entitlements.get("aps-environment") == "production", "Incorrect push entitlement for distribution"
+            if os.environ.get("REQUIRE_INTERNAL_KEYSTONE_IPA") == "1":
+                assert info.get("RedWalletKeystoneScope") == "internal-testing", "Expected internal Keystone iPhone build"
             regtest = os.environ.get("VERIFY_LND_REGTEST_IPA") == "1"
             mainnet = os.environ.get("VERIFY_LND_MAINNET_IPA") == "1"
             assert not (regtest and mainnet), "Ambiguous Lightning network qualification"
