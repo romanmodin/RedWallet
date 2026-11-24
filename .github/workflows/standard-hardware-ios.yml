@@ -154,6 +154,7 @@ jobs:
               -sdk iphonesimulator \
               -destination 'generic/platform=iOS Simulator' \
               -derivedDataPath build \
+              REDWALLET_KEYSTONE_SCOPE=internal-testing \
               CLANG_ENABLE_EXPLICIT_MODULES=NO \
               SWIFT_ENABLE_EXPLICIT_MODULES=NO \
               build
@@ -175,6 +176,8 @@ jobs:
             find ios/build -maxdepth 5 -name '*.app' || true
             exit 1
           fi
+          scope=$(/usr/libexec/PlistBuddy -c "Print :RedWalletKeystoneScope" "$APP_DIR/Info.plist")
+          test "$scope" = internal-testing
           tar -czf BlueWallet.app.tar.gz -C "$(dirname "$APP_DIR")" "$(basename "$APP_DIR")"
 
       - name: Upload simulator app

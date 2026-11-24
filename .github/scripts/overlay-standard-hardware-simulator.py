@@ -17,10 +17,6 @@ REPLACEMENTS = {
         "          } catch {\n            if (kind === 'signature')": "          } catch (error) {\n            if (kind === 'signature')",
         "            else setError(loc.hardware_check.invalid_account);": "            else {\n              const name = error instanceof Error && ['Error', 'TypeError', 'RangeError', 'SyntaxError'].includes(error.name) ? error.name : 'unknown';\n              const positions = error instanceof Error ? (error.stack?.match(/:\\d+:\\d+/g) || []).slice(0, 8).join(',') : '';\n              setError('SIMULATOR ONLY: ' + diagnosticStage + ' / ' + name + ' / ' + positions);\n            }"
     },
-    "class/xbt/standard-hardware.ts": {
-        "export const STANDARD_HARDWARE_RELEASE_ENABLED: boolean = false;":
-        "export const STANDARD_HARDWARE_RELEASE_ENABLED: boolean = true;"
-    },
     "class/xbt/separation-http-policy.ts": {
         "export const SEPARATION_EVIDENCE = 'https://blockstream.info/api';": "export const SEPARATION_EVIDENCE = 'https://127.0.0.1:61770/evidence';",
         "export const SEPARATION_ANCHOR = 'https://mempool.space/api';": "export const SEPARATION_ANCHOR = 'https://127.0.0.1:61770/anchor';",
@@ -56,6 +52,7 @@ def main():
             changed = changed.replace(before, after)
         contents[filename] = (original, changed)
     tracked_transport = [
+        "class/xbt/standard-hardware.ts", "class/xbt/standard-hardware-platform.ios.ts",
         "class/xbt/separation-http.native.ts", "class/xbt/separation-http-policy.ts",
         "class/xbt/separation-service.ts", "ios/BlueWallet.xcodeproj/project.pbxproj",
         "blue_modules/redwallet-separation-http/ios/SeparationHTTPTransport.swift",
@@ -71,7 +68,7 @@ def main():
             original = Path(filename).read_text()
             contents[filename] = (original, original)
     if check_only:
-        print("Release remains disabled; simulator overlay anchors verified.")
+        print("Simulator overlay anchors verified.")
         return
     receipt = {
         "purpose": "SIMULATOR ONLY - NOT A RELEASE OR TESTFLIGHT BINARY",

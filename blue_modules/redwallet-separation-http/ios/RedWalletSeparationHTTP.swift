@@ -9,6 +9,10 @@ final class RedWalletSeparationHTTP: NSObject, RCTInvalidating {
     // Calls from JS register and cancel on one queue, in bridge order.
     @objc var methodQueue: DispatchQueue { DispatchQueue.main }
     @objc static func requiresMainQueueSetup() -> Bool { false }
+    @objc func constantsToExport() -> [AnyHashable: Any] {
+        let scope = Bundle.main.object(forInfoDictionaryKey: "RedWalletKeystoneScope") as? String
+        return ["internalKeystone": scope == "internal-testing"]
+    }
     override init() {
         super.init()
         backgroundObserver = NotificationCenter.default.addObserver(
@@ -25,7 +29,7 @@ final class RedWalletSeparationHTTP: NSObject, RCTInvalidating {
         }
         transport.get(id: identifier, url: url, limit: Int(limit)) { result in
             switch result {
-            case .success(let value): resolve(["status": 200, "url": value.url, "body": value.body])
+            case .success(let value): resolve(["status": 200, "url": value.url, "body": value.body, "serverTime": value.serverTime])
             case .failure: reject("proof_http_failed", "Coin separation evidence request failed.", nil)
             }
         }

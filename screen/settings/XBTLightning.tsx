@@ -6,7 +6,8 @@ import { authorizeInForeground } from '../../blue_modules/foreground-authorizati
 import QRCodeComponent from '../../components/QRCode';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import { useStorage } from '../../hooks/context/useStorage';
-import { LndWallet } from '../../class/wallets/lnd-wallet';
+import { LndWallet, LndOverview } from '../../class/wallets/lnd-wallet';
+import { lndBalanceBreakdown } from '../../blue_modules/lnd-balance-breakdown';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { keepLocalCopy, pick, saveDocuments, types } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
@@ -200,6 +201,8 @@ export default function XBTLightning({
   const [peerLoaded, setPeerLoaded] = useState(false);
   const [status, setStatus] = useState('Checking');
   const [message, setMessage] = useState('');
+  // Structured overview observed by the latest successful "Node and channel balances" action.
+  const [balanceOverview, setBalanceOverview] = useState<LndOverview>();
   const [activityTitle, setActivityTitle] = useState('Activity');
   const [activityError, setActivityError] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -248,6 +251,16 @@ export default function XBTLightning({
         ? selectedChannelDetails(selectedChannel, true)
         : 'Activity details are hidden. Reveal your Lightning balance to view them.'
       : message;
+  // Only a fresh, synced, visible and positive amount may look spendable.
+  let availableBeforeFee: number | undefined;
+  if (activityTitle === 'Node and channel balances' && !activityError && !hideBalances && status === 'Running' && balanceOverview?.synced) {
+    try {
+      const value = lndBalanceBreakdown(balanceOverview).onchainAvailable;
+      if (value > 0) availableBeforeFee = value;
+    } catch {
+      availableBeforeFee = undefined;
+    }
+  }
   const channelRequest = useRef<Promise<Channel[]> | undefined>(undefined);
   const channelSnapshot = useRef<Channel[]>([]);
   const [destination, setDestination] = useState('');
@@ -346,6 +359,7 @@ export default function XBTLightning({
     setActivityError(false);
     setCopied(false);
     setMessage('');
+    setBalanceOverview(undefined);
     Keyboard.dismiss();
     // Once reached, the activity panel stays pinned while the controls scroll.
     // Reveal it when an action is triggered before it has entered the viewport.
@@ -765,6 +779,19 @@ export default function XBTLightning({
             >
               {busy ? 'Working…' : activityMessage || 'Results will appear here.'}
             </Text>
+            {availableBeforeFee !== undefined && !busy && (
+              <Text testID="LightningAvailableBeforeFee" style={[styles.activityText, { color: colors.successColor }]}>
+                {'On-chain available before fee: ' + availableBeforeFee + ' sats'}
+              </Text>
+            )}
+            {availableBeforeFee !== undefined &&
+              !busy &&
+              balanceOverview &&
+              Number(balanceOverview.fundingConfirmed) !== availableBeforeFee && (
+                <Text testID="LightningConfirmedTotal" style={[styles.activityText, { color: colors.foregroundColor }]}>
+                  {'Confirmed on-chain total (includes reserve): ' + balanceOverview.fundingConfirmed + ' sats'}
+                </Text>
+              )}
             {!!paymentReceipt && (
               <Text
                 testID="LightningPaymentReceipt"
@@ -791,7 +818,18 @@ export default function XBTLightning({
                 onPress={() =>
                   run('Node and channel balances', async () => {
                     const result = await bridge.run('details', '');
-                    if (mounted.current) setMessage(result);
+                    // Same structured overview and reserve calculation as the Funding tab.
+                    // Any failure leaves the native details without an available value.
+                    let observed: LndOverview | undefined;
+                    try {
+                      observed = await bridge.wallet?.('overview', '');
+                    } catch {
+                      observed = undefined;
+                    }
+                    if (mounted.current) {
+                      setBalanceOverview(observed);
+                      setMessage(result);
+                    }
                   })
                 }
               />
@@ -868,7 +906,7 @@ export default function XBTLightning({
                   })
                 }
               />
-              <SettingsFootnote>CHANNEL AMOUNT (SATS) · MAX 10,000,000</SettingsFootnote>
+              <SettingsFootnote>CHANNEL AMOUNT (SATS) · MAX 100,000,000 (1 XBT)</SettingsFootnote>
               <TextInput
                 accessibilityLabel="New channel sats"
                 style={[

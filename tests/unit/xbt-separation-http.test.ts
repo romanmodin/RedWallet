@@ -1,11 +1,7 @@
 import { NativeModules } from 'react-native';
 import { getSeparationHTTP as nativeGet } from '../../class/xbt/separation-http.native';
 import { getSeparationHTTP as nodeGet } from '../../class/xbt/separation-http';
-import {
-  validateSeparationRequest,
-  SEPARATION_EVIDENCE as base,
-  SEPARATION_ANCHOR as anchor,
-} from '../../class/xbt/separation-http-policy';
+import { validateSeparationRequest, SEPARATION_EVIDENCE as base, SEPARATION_ANCHOR as anchor } from '../../class/xbt/separation-http-policy';
 
 const hash = 'ab'.repeat(32);
 const url = base + '/blocks/tip/height';
@@ -13,7 +9,12 @@ const originalFetch = global.fetch;
 const originalNative = NativeModules.RedWalletSeparationHTTP;
 function native() {
   const bridge = {
-    get: jest.fn(async (_id: string, requested: string, _limit: number) => ({ status: 200, url: requested, body: '976100' })),
+    get: jest.fn(async (_id: string, requested: string, _limit: number) => ({
+      status: 200,
+      url: requested,
+      body: '976100',
+      serverTime: 2_000_000_000,
+    })),
     cancel: jest.fn(),
   };
   NativeModules.RedWalletSeparationHTTP = bridge;
@@ -58,12 +59,12 @@ test.each([
   anchor + '/tx/' + hash + '/hex',
   anchor + '/block/' + hash + '/header',
   base + '/block-height/0',
-])('blocks URL ambiguity and non-proof route %s before requesting', async value => {
+])('blocks URL ambiguity and non-proof route %s before requesting', async (value) => {
   const bridge = native();
   await expect(nativeGet(value, 160, new AbortController().signal)).rejects.toThrow();
   expect(bridge.get).not.toHaveBeenCalled();
 });
-test.each([0, -1, 1.5, NaN, Infinity, 16385])('rejects metadata limit %s', limit => {
+test.each([0, -1, 1.5, NaN, Infinity, 16385])('rejects metadata limit %s', (limit) => {
   expect(() => validateSeparationRequest(url, limit)).toThrow();
 });
 test('does not fall back to fetch when the native module is unavailable', async () => {
@@ -85,7 +86,12 @@ test.each([
   { status: 200, url, body: 'a'.repeat(161) },
   { status: 200, url, body: 'é'.repeat(81) },
   { status: 200, url, body: undefined },
-])('rejects invalid native response %#', async response => {
+  { status: 200, url, body: 'x', serverTime: NaN },
+  { status: 200, url, body: 'x', serverTime: -1 },
+  { status: 200, url, body: 'x', serverTime: 1.5 },
+  { status: 200, url, body: 'x', serverTime: 0x1_0000_0000 },
+  { status: 200, url, body: 'x', serverTime: '2000000000' },
+])('rejects invalid native response %#', async (response) => {
   const bridge = native();
   bridge.get.mockResolvedValue(response as any);
   await expect(nativeGet(url, 160, new AbortController().signal)).rejects.toThrow('Invalid');
@@ -102,7 +108,7 @@ test('abort cancels exactly the active request and ignores its late successful r
   let complete!: (value: any) => void;
   bridge.get.mockImplementation(
     () =>
-      new Promise(resolve => {
+      new Promise((resolve) => {
         complete = resolve;
       }),
   );
@@ -112,7 +118,7 @@ test('abort cancels exactly the active request and ignores its late successful r
   await expect(pending).rejects.toThrow('canceled');
   expect(bridge.cancel).toHaveBeenCalledTimes(1);
   expect(bridge.cancel).toHaveBeenCalledWith(bridge.get.mock.calls[0][0]);
-  complete({ status: 200, url, body: '976100' });
+  complete({ status: 200, url, body: '976100', serverTime: 2_000_000_000 });
   await Promise.resolve();
   expect(bridge.cancel).toHaveBeenCalledTimes(1);
 });
@@ -140,7 +146,15 @@ test('Node adapter rejects redirects and bounds chunked bytes before buffering t
   };
   global.fetch = jest.fn(async (_url, init) => {
     expect(init?.redirect).toBe('error');
-    return { ok: true, url, redirected: false, headers: { get: () => null }, body: { getReader: () => reader } } as any;
+    return {
+      ok: true,
+      url,
+      redirected: false,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'date' ? new Date(2_000_000_000_000).toUTCString() : null),
+      },
+      body: { getReader: () => reader },
+    } as any;
   });
   await expect(nodeGet(url, 160, new AbortController().signal)).rejects.toThrow('too large');
   expect(reader.read).toHaveBeenCalledTimes(2);

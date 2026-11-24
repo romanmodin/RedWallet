@@ -26,8 +26,8 @@ interface WalletButtonProps {
 const buttonDetails: Record<string, ButtonDetails> = {
   BTC: {
     image: require('../img/addWallet/bitcoin.png'),
-    title: 'BTC · SHA-256',
-    explain: 'Bitcoin mainnet · connects only when selected',
+    title: 'SHA-256',
+    explain: 'Mainnet · connects only when selected',
     borderColorActive: 'foregroundColor',
   },
   XBT: {

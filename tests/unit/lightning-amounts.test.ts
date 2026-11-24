@@ -25,10 +25,10 @@ test('fees can exceed the old ceiling while the reviewed closing ceiling cannot 
   for (const rate of ['0', '-1', '2.5', String(MAX_LIGHTNING_FEE_RATE + 1)]) expect(validLightningFeeRate(rate)).toBe(false);
 });
 
-test('the 10 million sat cap applies only to opening new channels', () => {
-  expect(validLightningChannelOpenSats('10000000')).toBe(true);
-  for (const amount of ['10000001', '44000000', '0', '-1', '1.1', '1e7']) expect(validLightningChannelOpenSats(amount)).toBe(false);
-  expect(validLightningSats('44000000')).toBe(true);
+test('the 1 XBT cap applies only to opening new channels', () => {
+  for (const amount of ['44000000', '99999999', '100000000']) expect(validLightningChannelOpenSats(amount)).toBe(true);
+  for (const amount of ['100000001', '140000000', '0', '-1', '1.1', '1e8']) expect(validLightningChannelOpenSats(amount)).toBe(false);
+  expect(validLightningSats('140000000')).toBe(true);
 });
 
 test('fee rates keep LND signed products safe through maximum transaction size and close negotiation', () => {

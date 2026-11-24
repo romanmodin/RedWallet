@@ -2,7 +2,7 @@
 
 Native SegWit watch-only standard SIGHASH_ALL (0x01) preparation, full funding transactions, preserved origins, exact reviewed-transaction/signature validation and broadcast-time separation checks are implemented. Unified remains the default. No private key is imported.
 
-`STANDARD_HARDWARE_RELEASE_ENABLED` remains false. The setting is hidden and runtime guards reject activation, proof preparation, result authorization and broadcast. Tests bypass that guard only for the candidate path. This is not a TestFlight release or a physical Keystone signing result.
+Only the explicitly selected internal iPhone build offers Keystone mode for an XBT Native SegWit watch-only account after explicit confirmation. The user identifies the signer as a Keystone. Public account descriptors do not attest its manufacturer. Unified remains the default. Ordinary archives and other platforms retain the closed release gate. The protected signing pin must explicitly select the internal_keystone:true build option, which pairs the native build setting with an internal-only TestFlight export. The simulator uses the same platform gate as the release build. Internal distribution requires qualification of this revision.
 
 ## Separation evidence and trust
 

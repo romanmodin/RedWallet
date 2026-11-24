@@ -752,7 +752,7 @@ const WalletDetails: React.FC = () => {
                           enabled &&
                           !(await confirm(
                             'Standard hardware signing',
-                            'Your device will sign with 0x01. RedWallet traces confirmed Native SegWit funding and change back to Unified funding with a conflicting SHA-256 spend, before signing and again before broadcast. This uses Blockstream and mempool.space over HTTPS and reveals public transaction IDs and your IP to those services. Their agreement is trusted for the current SHA-256 chain; RedWallet does not validate that chain locally. Missing evidence or unavailable services will block sending. Taproot and replacement sends are not supported in this mode.',
+                            'Enable this only for your Keystone. Your device will sign with 0x01. RedWallet traces confirmed Native SegWit funding and change back to Unified funding with a conflicting SHA-256 spend, before signing and again before broadcast. This uses Blockstream and mempool.space over HTTPS and reveals public transaction IDs and your IP to those services. Their agreement is trusted for the current SHA-256 chain; RedWallet does not validate that chain locally. Missing evidence or unavailable services will block sending. Taproot and replacement sends are not supported in this mode.',
                           ))
                         )
                           return;

@@ -42,7 +42,7 @@ rejection, confirmation/lock progress, capacity changes, backup and the existing
 payment/withdrawal/recovery flow. They must pass before release; writing these
 tests does not establish physical-device or uninterrupted background operation.
 
-New channel openings accept an explicit amount up to **10,000,000 sats** and a
+New channel openings accept an explicit amount up to **100,000,000 sats (1 XBT)** and a
 funding fee rate; both are shown in the confirmation. The opening cap is enforced
 in the UI and both native bridges, and does not cap subsequent channel resizing. Invoice creation, decoding/payment and withdrawals
 share the same monetary-domain validation without the former 1,000,000-sat cap.
