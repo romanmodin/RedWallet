@@ -36,28 +36,47 @@ public final class BridgeHTTPTransport: NSObject, URLSessionDataDelegate, @unche
         session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
     }
     static func request(url value: String, method: String, body: String) throws -> URLRequest {
-        guard let url = URL(string: value), let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              parts.scheme == "https", parts.host == "bridge.kilombino.com", parts.port == nil,
-              parts.user == nil, parts.password == nil, parts.fragment == nil,
-              value.utf8.count <= 256, body.utf8.count <= 16384 else { throw NodeFailure.invalidReply }
-        let isQuote = parts.path == "/api/quote" && parts.query == nil
-        let simple = ["/api/info", "/api/pow"].contains(parts.path) && parts.query == nil
-        let swap = value.range(of: #"^https://bridge\.kilombino\.com/api/swap/[0-9a-f]{64}\?t=([0-9a-f]{32})?$"#, options: .regularExpression) != nil
-        guard (isQuote && method == "POST") || ((simple || swap) && method == "GET" && body.isEmpty) else { throw NodeFailure.invalidReply }
-        if isQuote {
-            guard let fields = try JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any],
-                  Set(fields.keys) == Set(["invoice", "pow"]), let invoice = fields["invoice"] as? String,
-                  invoice.hasPrefix("lnbc"), invoice.utf8.count <= 8192,
-                  let pow = fields["pow"] as? [String: String], Set(pow.keys) == Set(["challenge", "nonce"]),
-                  let challenge = pow["challenge"], !challenge.isEmpty, challenge.count <= 200,
-                  let nonce = pow["nonce"], nonce.range(of: "^[0-9a-z]{1,32}$", options: .regularExpression) != nil else { throw NodeFailure.invalidReply }
+        let paperclipAPI = "https://lightning.paperclip-xbt.xyz/bridge/api/"
+        let paperclip = value.hasPrefix(paperclipAPI)
+        let api = paperclip ? paperclipAPI : "https://bridge.kilombino.com/api/"
+        guard value.utf8.count <= 256, body.utf8.count <= 16384,
+              value.hasPrefix(api), let url = URL(string: value) else { throw NodeFailure.invalidReply }
+        // Match the original URL suffix so escaped paths and extra query items cannot change the destination.
+        let endpoint = String(value.dropFirst(api.count))
+        let isQuote = endpoint == "quote"
+        if method == "GET" {
+            let info = paperclip ? "info?direction=toSHA256" : "info"
+            let swap = endpoint.range(of: #"^swap/[0-9a-f]{64}\?t=([0-9a-f]{32})?$"#, options: .regularExpression)
+            guard body.isEmpty, endpoint == info || endpoint == "pow" || swap == (endpoint.startIndex..<endpoint.endIndex) else {
+                throw NodeFailure.invalidReply
+            }
+        } else {
+            guard method == "POST", isQuote || (paperclip && endpoint == "check"),
+                  let fields = try JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any],
+                  let invoice = fields["invoice"] as? String, invoice.hasPrefix("lnbc"), invoice.utf8.count <= 8192 else {
+                throw NodeFailure.invalidReply
+            }
+            var keys: Set<String> = ["invoice"]
+            if paperclip {
+                keys.insert("direction")
+                guard (fields["direction"] as? String) == "toSHA256" else { throw NodeFailure.invalidReply }
+            }
+            if isQuote {
+                keys.insert("pow")
+                guard let pow = fields["pow"] as? [String: String], Set(pow.keys) == Set(["challenge", "nonce"]),
+                      let challenge = pow["challenge"], !challenge.isEmpty, challenge.count <= 200,
+                      let nonce = pow["nonce"], nonce.range(of: "^[0-9a-z]{1,32}$", options: .regularExpression) != nil else {
+                    throw NodeFailure.invalidReply
+                }
+            }
+            guard Set(fields.keys) == keys else { throw NodeFailure.invalidReply }
         }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         request.httpMethod = method
         request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("RedWallet", forHTTPHeaderField: "User-Agent")
-        if isQuote {
+        if method == "POST" {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = Data(body.utf8)
         }

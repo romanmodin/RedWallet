@@ -197,19 +197,19 @@ export async function solveProof(
   throw new Error('Proof of work exhausted.');
 }
 
-export class KilombinoProvider implements LightningBridgeProvider {
-  readonly id = 'kilombino';
-  readonly name = 'Kilombino';
-  readonly website = 'https://bridge.kilombino.com';
-  // Kilowallet Lightning.KILOMBINO_NODE, source e368766168dff16ea2302cd5ced8860dc019b3ef.
-  readonly node = '0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60';
-
+abstract class HoldInvoiceProvider implements LightningBridgeProvider {
+  abstract readonly id: string;
+  abstract readonly name: string;
+  abstract readonly website: string;
+  abstract readonly node: string;
+  abstract info(signal: AbortSignal): Promise<BridgeMarket>;
+  abstract quote(invoice: BridgeInvoice, signal: AbortSignal): Promise<BridgeQuote>;
   private readonly request: BridgeRequest;
   constructor(request: BridgeRequest = nativeBridgeRequest) {
     this.request = request;
   }
 
-  private async call(path: string, signal: AbortSignal, body?: unknown): Promise<unknown> {
+  protected async call(path: string, signal: AbortSignal, body?: unknown): Promise<unknown> {
     const controller = new AbortController();
     const abort = () => controller.abort();
     signal.addEventListener('abort', abort);
@@ -244,6 +244,20 @@ export class KilombinoProvider implements LightningBridgeProvider {
     }
   }
 
+  async swap(hash: string, token: string, signal: AbortSignal): Promise<BridgeSwap> {
+    if (!hashPattern.test(hash) || (token && !/^[0-9a-f]{32}$/.test(token))) throw new Error('Invalid swap reference.');
+    const data = object(await this.call('/api/swap/' + hash + '?t=' + encodeURIComponent(token), signal));
+    if (typeof data.state !== 'string' || typeof data.preimage !== 'string') throw new Error('Invalid bridge status.');
+    return { state: data.state, preimage: data.preimage };
+  }
+}
+export class KilombinoProvider extends HoldInvoiceProvider {
+  readonly id = 'kilombino';
+  readonly name = 'Kilombino';
+  readonly website = 'https://bridge.kilombino.com';
+  // Kilowallet Lightning.KILOMBINO_NODE, source e368766168dff16ea2302cd5ced8860dc019b3ef.
+  readonly node = '0222d36d7b634ead665c982145f6e4507ad65c4f369902ab3ca11e379d2139dc60';
+
   async info(signal: AbortSignal): Promise<BridgeMarket> {
     return parseMarket(await this.call('/api/info', signal));
   }
@@ -253,11 +267,42 @@ export class KilombinoProvider implements LightningBridgeProvider {
     return validateQuote(await this.call('/api/quote', signal, { invoice: invoice.invoice, pow }), invoice, this);
   }
 
-  async swap(hash: string, token: string, signal: AbortSignal): Promise<BridgeSwap> {
-    if (!hashPattern.test(hash) || (token && !/^[0-9a-f]{32}$/.test(token))) throw new Error('Invalid swap reference.');
-    const data = object(await this.call('/api/swap/' + hash + '?t=' + encodeURIComponent(token), signal));
-    if (typeof data.state !== 'string' || typeof data.preimage !== 'string') throw new Error('Invalid bridge status.');
-    return { state: data.state, preimage: data.preimage };
+}
+
+function isPaperclipToSha256(response: Record<string, unknown>): boolean {
+  return response.direction === 'toSHA256' && (response.dir === undefined || response.dir === response.direction);
+}
+
+// Qualification only. Keep this adapter outside the payment registry until native
+// transport, signed quotes and settlement/recovery have passed integration tests.
+export class PaperclipProvider extends HoldInvoiceProvider {
+  readonly id = 'paperclip';
+  readonly name = 'Connor’s Lab / Paperclip';
+  readonly website = 'https://lightning.paperclip-xbt.xyz/bridge';
+  readonly node = '03c56897a97beb0d86e89494e5a9938939bb52b303eb714b0df7219108ee92b178';
+
+  async info(signal: AbortSignal): Promise<BridgeMarket> {
+    const info = object(await this.call('/api/info?direction=toSHA256', signal));
+    if (!isPaperclipToSha256(info) || info.cap_unit !== 'SHA256 sats') throw new Error('Unexpected Paperclip market.');
+    return parseMarket({ dirs: { toSHA256: { ...info, open: info.open === true && info.payments_enabled === true } } });
+  }
+
+  async quote(invoice: BridgeInvoice, signal: AbortSignal): Promise<BridgeQuote> {
+    if (invoice.chain !== 'SHA256' || invoice.expiresAt * 1000 <= Date.now()) throw new Error('Invalid Paperclip recipient invoice.');
+    const body = { invoice: invoice.invoice, direction: 'toSHA256' };
+    const preview = object(await this.call('/api/check', signal, body));
+    if (
+      !isPaperclipToSha256(preview) ||
+      preview.hash !== invoice.hash ||
+      preview.sat !== Number(invoice.msat) / 1000 ||
+      preview.error ||
+      preview.wait_s
+    )
+      throw new Error('Paperclip could not confirm this invoice.');
+    const pow = await solveProof(await this.call('/api/pow', signal), invoice.hash, signal);
+    const quote = object(await this.call('/api/quote', signal, { ...body, pow }));
+    if (!isPaperclipToSha256(quote)) throw new Error('Unexpected Paperclip quote direction.');
+    return validateQuote({ ...quote, dir: quote.direction }, invoice, this);
   }
 }
 // Only implemented providers appear in the processor picker. No automatic fallback.
