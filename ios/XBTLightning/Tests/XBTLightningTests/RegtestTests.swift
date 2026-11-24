@@ -30,20 +30,33 @@ final class RegtestTests: XCTestCase {
     #if XBT_LND_ROUTED_TEST
     // Read the existing disposable payment after the app's callback deadline. The
     // peer can hold a partial payment for 120s. Never repeat the submission.
-    private func observePendingFixturePayment(hash: String) async throws -> Bool {
+    private func observePendingFixturePayment(
+        hash: String,
+        lookup: (String, TimeInterval) async throws -> [Data] = { hash, budget in
+            try await RegtestNode.shared.paymentRows(hash: hash, timeout: budget)
+        }
+    ) async throws -> Bool {
         let deadline = PaymentReconciliation.monotonicSeconds() + 150
         var lastState: String?
         while true {
             let remaining = deadline - PaymentReconciliation.monotonicSeconds()
             guard remaining > 0 else { throw NodeFailure.timedOut }
-            let rows = try await RegtestNode.shared.paymentRows(hash: hash, timeout: min(15, remaining))
-            let statuses = try rows.map { try ProtoFields($0).integers[10] ?? 0 }
-            let state = "matching rows=\(rows.count), status codes=\(statuses)"
+            let state: String
+            let outcome: PaymentReconciliation.Outcome
+            do {
+                let rows = try await lookup(hash, min(15, remaining))
+                let statuses = try rows.map { try ProtoFields($0).integers[10] ?? 0 }
+                state = "matching rows=\(rows.count), status codes=\(statuses)"
+                outcome = PaymentReconciliation.classify(rows: rows, hash: hash)
+            } catch NodeFailure.timedOut {
+                state = "lookup timed out"
+                outcome = .pending
+            }
             if state != lastState {
                 print("Disposable post-timeout observation: " + state)
                 lastState = state
             }
-            switch PaymentReconciliation.classify(rows: rows, hash: hash) {
+            switch outcome {
             case .settled: return true
             case .failed: return false
             case .pending:
@@ -52,6 +65,21 @@ final class RegtestTests: XCTestCase {
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
         }
+    }
+
+    func testPendingFixtureObservationSurvivesOneLookupTimeout() async throws {
+        let hash = String(repeating: "42", count: 32)
+        var reads = 0
+        let settled = try await observePendingFixturePayment(hash: hash) { requestedHash, budget in
+            reads += 1
+            XCTAssertEqual(requestedHash, hash)
+            XCTAssertGreaterThan(budget, 0)
+            XCTAssertLessThanOrEqual(budget, 15)
+            if reads == 1 { throw NodeFailure.timedOut }
+            return [ProtoFields.field(1, data: Data(hash.utf8)) + ProtoFields.field(10, integer: 3)]
+        }
+        XCTAssertFalse(settled)
+        XCTAssertEqual(reads, 2)
     }
 
     private func reportFixtureLimits(_ stage: String, expectedPendingMsat: UInt64) async throws -> UInt64 {
