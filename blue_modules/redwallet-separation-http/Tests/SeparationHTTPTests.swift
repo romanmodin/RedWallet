@@ -10,7 +10,8 @@ private final class ProofProtocol: URLProtocol {
     override func stopLoading() {}
     func reply(_ bytes: Data, status: Int = 200, headers: [String: String] = [:], at url: URL? = nil, includeDate: Bool = true, finish: Bool = true) {
         var fields = headers
-        if includeDate { fields["Date"] = "Wed, 18 May 2033 03:33:20 GMT" }
+        let hasExplicitDate = fields.keys.contains { $0.caseInsensitiveCompare("Date") == .orderedSame }
+        if includeDate && !hasExplicitDate { fields["Date"] = "Wed, 18 May 2033 03:33:20 GMT" }
         let response = HTTPURLResponse(url: url ?? request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: fields)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: bytes)
