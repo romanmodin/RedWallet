@@ -130,6 +130,7 @@ final class RegtestTests: XCTestCase {
         let opened = try await RegtestNode.shared.channelStatus()
         XCTAssertEqual(opened.filter { $0.point == point }.count, 1)
         XCTAssertEqual(opened.first(where: { $0.point == point })?.state, "active")
+        XCTAssertEqual(opened.first(where: { $0.point == point })?.remoteSats, 0)
         try await checkChannel(point: point, capacity: 10_000_000)
         let outgoing = try await peer("invoice-large")
         let review = try await RegtestNode.shared.decode(outgoing)

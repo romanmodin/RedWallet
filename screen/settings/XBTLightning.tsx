@@ -959,7 +959,7 @@ export default function XBTLightning({
                       rate +
                       ' sat/vB to ' +
                       key +
-                      '. Tapping Open channel creates a new channel. After opening, wait for the funding transaction to confirm.',
+                      '. The peer starts with 0 sats. RedWallet sets no amount cap on later peer-funded top-ups. Wait for the opening transaction to confirm.',
                     [
                       { text: 'Cancel', style: 'cancel' },
                       {

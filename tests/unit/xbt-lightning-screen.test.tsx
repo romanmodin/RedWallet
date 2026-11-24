@@ -726,6 +726,7 @@ test('channel creation binds the chosen large amount and fee to confirmation', a
     expect(bridge.invoice).not.toHaveBeenCalled();
     const [, detail, buttons] = prompt.mock.calls[prompt.mock.calls.length - 1];
     expect(detail).toContain('100000000 sats at 250 sat/vB');
+    expect(detail).toContain('The peer starts with 0 sats. RedWallet sets no amount cap on later peer-funded top-ups.');
     fireEvent.changeText(screen.getByLabelText('New channel sats'), '50000000');
     const confirm = buttons!.find(button => button.text === 'Open channel')!.onPress!;
     await act(async () => {
