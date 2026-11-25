@@ -326,6 +326,7 @@ const SendDetails = () => {
     const currentId = wallet.getID();
     const walletActuallyChanged = prevId !== null && prevId !== currentId;
     if (walletActuallyChanged) {
+      signingScreenVisit.current++;
       setAddresses(recipients =>
         recipients.map(recipient =>
           recipient.usdcEntry || recipient.usdcRefreshing
@@ -473,7 +474,7 @@ const SendDetails = () => {
       return () => {
         signingScreenVisit.current++;
       };
-    }, [routeParams.walletID]),
+    }, []),
   );
 
   const handleLayout = (event: any) => {
@@ -597,6 +598,7 @@ const SendDetails = () => {
 
   const createTransaction = async () => {
     assert(wallet, 'Internal error: wallet is not set');
+    const visit = signingScreenVisit.current;
     Keyboard.dismiss();
     setIsLoading(true);
     const requestedSatPerByte = feeRate;
@@ -693,7 +695,7 @@ const SendDetails = () => {
         setIsLoading(false);
         return;
       }
-      await createPsbtTransaction();
+      await createPsbtTransaction(visit);
     } catch (Err: any) {
       setIsLoading(false);
       presentAlert({ title: loc.errors.error, message: Err.message });
@@ -707,9 +709,8 @@ const SendDetails = () => {
     });
   }, [navigation]);
 
-  const createPsbtTransaction = async () => {
+  const createPsbtTransaction = async (visit: number) => {
     if (!wallet) return;
-    const visit = signingScreenVisit.current;
     const change = await getChangeAddressAsync();
     assert(change, 'Could not get change address');
     const requestedSatPerByte = Number(feeRate);
