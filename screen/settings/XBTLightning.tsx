@@ -34,6 +34,7 @@ import { usePaymentAuthorization } from '../../hooks/usePaymentAuthorization';
 import { useSecretExport } from '../../hooks/useSecretExport';
 import XBTLightningNodeName from '../../components/XBTLightningNodeName';
 import XBTLightningNetwork from '../../components/XBTLightningNetwork';
+import XBTLightningChannelLimits, { ChannelPaymentLimits, OpeningLimits } from '../../components/XBTLightningChannelLimits';
 import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
@@ -68,6 +69,8 @@ type Channel = {
   active: boolean;
   localSats: string;
   remoteSats?: string;
+  sendLimits?: ChannelPaymentLimits;
+  receiveLimits?: ChannelPaymentLimits;
   peerFunding?: {
     openingPeerSats?: string;
     complete: boolean;
@@ -255,6 +258,12 @@ export default function XBTLightning({
   const [amount, setAmount] = useState('');
   const [channelSats, setChannelSats] = useState('100000');
   const [channelFeeRate, setChannelFeeRate] = useState('1');
+  const [showChannelLimits, setShowChannelLimits] = useState(false);
+  const [openingLimits, setOpeningLimits] = useState<OpeningLimits>({
+    minimum: '',
+    maximum: '',
+  });
+  const customOpeningLimits = !!(openingLimits.minimum || openingLimits.maximum);
   const [routingFee, setRoutingFee] = useState('10');
   const [fundingAddress, setFundingAddress] = useState('');
   const [incoming, setIncoming] = useState<LightningReceiveInvoice>();
@@ -976,6 +985,14 @@ export default function XBTLightning({
                 editable={!busy}
                 onChangeText={setChannelFeeRate}
               />
+              {Platform.OS === 'ios' && (
+                <SettingsListItem
+                  title="Receive limits for new channel"
+                  subtitle={customOpeningLimits ? 'Custom limits' : 'Node minimum · No RedWallet maximum'}
+                  disabled={busy}
+                  onPress={() => setShowChannelLimits(true)}
+                />
+              )}
               <SettingsListItem
                 title="Open private channel"
                 disabled={busy || !lightningPeer || !validLightningChannelOpenSats(channelSats) || !validLightningFeeRate(channelFeeRate)}
@@ -992,6 +1009,12 @@ export default function XBTLightning({
                       rate +
                       ' sat/vB to ' +
                       key +
+                      (customOpeningLimits
+                        ? '. Minimum incoming part: ' +
+                          (openingLimits.minimum ? openingLimits.minimum + ' sats' : 'node default') +
+                          '. Maximum incoming in flight: ' +
+                          (openingLimits.maximum ? openingLimits.maximum + ' sats' : 'no RedWallet cap')
+                        : '') +
                       '. The peer starts with 0 sats. RedWallet sets no amount cap on later peer-funded top-ups. Wait for the opening transaction to confirm.',
                     [
                       { text: 'Cancel', style: 'cancel' },
@@ -1001,7 +1024,19 @@ export default function XBTLightning({
                           runAuthorized('Open private channel', async () => {
                             if (submittedOpen) return;
                             submittedOpen = true;
-                            const point = await bridge.invoice('open', key, rate, sats);
+                            const point = customOpeningLimits
+                              ? await bridge.manage(
+                                  'openWithReceiveLimits',
+                                  JSON.stringify({
+                                    peer: key,
+                                    minimum: openingLimits.minimum ? Number(openingLimits.minimum) : undefined,
+                                    maximum: openingLimits.maximum ? Number(openingLimits.maximum) : undefined,
+                                  }),
+                                  sats,
+                                  rate,
+                                )
+                              : await bridge.invoice('open', key, rate, sats);
+                            if (mounted.current) setOpeningLimits({ minimum: '', maximum: '' });
                             refreshChannels().catch(() => {});
                             if (mounted.current)
                               setMessage(
@@ -1495,6 +1530,22 @@ export default function XBTLightning({
                   })
                 }
               />
+              {Platform.OS === 'ios' && (
+                <SettingsListItem title="Channel limits" disabled={busy} onPress={() => setShowChannelLimits(true)} />
+              )}
+              {showChannelLimits && (
+                <XBTLightningChannelLimits
+                  channel={selectedChannel}
+                  refreshFailed={channelError}
+                  hidden={hideBalances}
+                  opening={openingLimits}
+                  onClose={() => setShowChannelLimits(false)}
+                  onApply={value => {
+                    setOpeningLimits(value);
+                    setShowChannelLimits(false);
+                  }}
+                />
+              )}
               <SettingsExplanation id="lightning.channel-selection" title="How To Select A Channel">
                 Tap a channel to select it and show its peer identity above. Actions apply only to the selected channel. Inactive channels
                 remain listed; pending channels are still opening. Peer balance is the other node’s share of this channel. Reserves and

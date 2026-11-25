@@ -17,11 +17,22 @@ public struct LightningChannelStatus: Sendable {
     public let remoteSats: UInt64?
     public let confirmationsRemaining: UInt64?
     public var splice: SpliceChannelState?
+    public var sendLimits: [String: String]? = nil
+    public var receiveLimits: [String: String]? = nil
     public var peerAlias: String? = nil
     public var peerAddress: String? = nil
     public var originalPoint: String? = nil
     var fundingSnapshot: FundingSnapshot? = nil
     public var peerFunding: PeerFundingHistory? = nil
+
+    private static func paymentLimits(_ data: Data?) -> [String: String]? {
+        guard let data, let constraints = try? ProtoFields(data) else { return nil }
+        var limits: [String: String] = [:]
+        if let max = constraints.integers[4] { limits["maxPendingMsat"] = String(max) }
+        // Proto3 omits the scalar when the minimum is zero.
+        limits["minPartMsat"] = String(constraints.integers[5] ?? 0)
+        return limits
+    }
 
     static func decode(open: Data, pending: Data, awaitingSplices: Set<String> = [], peers: Data? = nil) throws -> [LightningChannelStatus] {
         var items: [String: LightningChannelStatus] = [:]
@@ -33,6 +44,8 @@ public struct LightningChannelStatus: Sendable {
                 state: channel.integers[1] == 1 ? "active" : "inactive",
                 localSats: channel.integers[6] ?? 0, remoteSats: channel.integers[7] ?? 0,
                 confirmationsRemaining: nil, splice: try SpliceChannelState.decode(channel, awaitingNewAttempt: awaitingSplices.contains(point)))
+            items[point]?.sendLimits = paymentLimits(channel.bytes[29]?.first)
+            items[point]?.receiveLimits = paymentLimits(channel.bytes[30]?.first)
             items[point]?.peerAlias = try? channel.string(34)
             items[point]?.originalPoint = try? channel.string(1005)
             items[point]?.fundingSnapshot = FundingSnapshot(channel, point: point)

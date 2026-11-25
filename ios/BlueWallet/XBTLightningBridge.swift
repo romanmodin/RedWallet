@@ -203,6 +203,8 @@ final class XBTLightningBridge: NSObject {
                             "point": channel.point, "peer": channel.peer, "state": channel.state,
                             "active": channel.state == "active", "localSats": String(channel.localSats)]
                         if let remote = channel.remoteSats { item["remoteSats"] = String(remote) }
+                        item["sendLimits"] = channel.sendLimits
+                        item["receiveLimits"] = channel.receiveLimits
                         item["peerAlias"] = channel.peerAlias
                         item["peerAddress"] = channel.peerAddress
                         item["originalPoint"] = channel.originalPoint
@@ -220,6 +222,19 @@ final class XBTLightningBridge: NSObject {
                         }
                         return item
                     })
+                case "openWithReceiveLimits":
+                    struct OpenOptions: Decodable {
+                        let peer: String
+                        let minimum: UInt64?
+                        let maximum: UInt64?
+                    }
+                    let options = try JSONDecoder().decode(OpenOptions.self, from: Data(value.utf8))
+                    guard options.minimum != nil || options.maximum != nil else {
+                        reject("invalid_limits", "Enter a receive limit for this channel.", nil)
+                        return
+                    }
+                    resolve(try await RegtestNode.shared.openChannel(to: options.peer, sats: UInt64(sats) ?? 0,
+                        feeRate: UInt64(feeRate) ?? 0, minReceiveSats: options.minimum, maxReceiveSats: options.maximum))
                 case "withdrawReview":
                     let review = try await RegtestNode.shared.reviewWithdrawal(address: value, sats: UInt64(sats) ?? 0,
                                                                               feeRate: UInt64(feeRate) ?? 0)
