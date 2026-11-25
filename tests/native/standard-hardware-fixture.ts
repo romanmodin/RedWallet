@@ -59,17 +59,23 @@ export class StandardHardwareNativeFixture {
   async start(binaries: { core: string; knots: string; fulcrum: string }) {
     await this.core.start(binaries.core, false);
     await this.knots.start(binaries.knots, true);
-    const miner = await this.core.rpc('getnewaddress', [], true);
+    // The shared-history payment spends a Taproot coinbase. Its signature format
+    // cannot establish separation for the larger of the two watch-only coins.
+    const miner = await this.core.rpc('getnewaddress', ['', 'bech32m'], true);
     this.xbtMiner = await this.knots.rpc('getnewaddress', [], true);
     const script = bitcoin.address.toOutputScript(PUBLIC_RECEIVE_ADDRESS);
     await this.core.rpc('generatetoaddress', [101, miner], false, 120000);
-    const ancestorId = await this.core.rpc(
-      'sendtoaddress',
-      [bitcoin.address.fromOutputScript(script, bitcoin.networks.regtest), 0.01],
-      true,
-    );
+    const largerAddress = bitcoin.payments.p2wpkh({
+      pubkey: account.derivePath('0/1').publicKey,
+      network: bitcoin.networks.regtest,
+    }).address!;
+    const smallerAddress = bitcoin.address.fromOutputScript(script, bitcoin.networks.regtest);
+    const ancestorId = await this.core.rpc('sendmany', ['', { [smallerAddress]: 0.01, [largerAddress]: 0.02 }], true);
     await this.core.rpc('generatetoaddress', [48, miner], false, 120000);
     this.ancestor = bitcoin.Transaction.fromHex(await this.core.rpc('getrawtransaction', [ancestorId]));
+    assert(this.ancestor.ins.length > 0 && this.ancestor.ins.every(input => input.witness.length === 1));
+    const largerScript = bitcoin.address.toOutputScript(largerAddress, bitcoin.networks.regtest);
+    assert(this.ancestor.outs.some(out => out.value === 2000000n && Buffer.from(out.script).equals(Buffer.from(largerScript))));
     this.ancestorIndex = this.ancestor.outs.findIndex(out => Buffer.from(out.script).equals(Buffer.from(script)));
     assert(this.ancestorIndex >= 0 && this.ancestor.outs[this.ancestorIndex].value === 1000000n);
     for (let height = 1; height <= 149; height++) {

@@ -1,7 +1,7 @@
 import { Psbt, Transaction, address, payments } from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
 import ecc from '../../blue_modules/noble_ecc';
-import { verifyStandardHardwareFunding } from '../../class/xbt/standard-hardware';
+import { UnsupportedFundingSignatures, verifyStandardHardwareFunding } from '../../class/xbt/standard-hardware';
 import { signUnifiedP2wpkhInput, finalizeUnifiedP2wpkhInput } from '../../class/xbt/unified-psbt';
 
 const key = ECPairFactory(ecc).fromPrivateKey(Buffer.alloc(32, 11));
@@ -66,6 +66,20 @@ test.each([0, 1])('rejects a corrupted signature in ancestry generation %s despi
   f.raws[changed.getId()] = changed.toHex();
   await expect(verifyStandardHardwareFunding(f.coins, f.source)).rejects.toThrow(/signature/i);
   expect(f.source.separation).not.toHaveBeenCalled();
+});
+
+test('identifies the selected coin even when an older ancestor has an unsupported witness', async () => {
+  const f = fixture(2);
+  const changed = f.root.clone();
+  changed.setWitness(0, []);
+  f.raws[changed.getId()] = changed.toHex();
+  const error = await verifyStandardHardwareFunding(f.coins, f.source).catch((e: unknown) => e);
+  expect(error).toBeInstanceOf(UnsupportedFundingSignatures);
+  if (!(error instanceof UnsupportedFundingSignatures)) throw new Error('Expected an attributed signature-format refusal');
+  expect(error.matches(f.coins[0])).toBe(true);
+  expect(error.matches({ txid: changed.getId(), vout: 0 })).toBe(false);
+  expect(error.matches({ ...f.coins[0], vout: 1 })).toBe(false);
+  expect(JSON.stringify(error)).not.toContain(f.coins[0].txid);
 });
 
 test('rejects a standard ancestor relabeled as Unified', async () => {

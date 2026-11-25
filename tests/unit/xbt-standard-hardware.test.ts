@@ -377,6 +377,135 @@ it('checks only selected inputs when constructing a standard request', async () 
   expect(request.psbt.data.inputs[0].sighashType).toBe(1);
 });
 
+function automaticSendFixture(unsupported: boolean[]) {
+  const coins = unsupported.map((_, index) => fixture(31 + index));
+  const { watch, targets, change } = coins[0];
+  watch.setHardwareSigningMode('standard');
+  const parents = coins.map((f, i) => {
+    const parent = f.parent.clone();
+    if (unsupported[i]) parent.setWitness(0, []);
+    return parent;
+  });
+  const pool = coins.flatMap(f => f.coins);
+  watch._hdWalletInstance!._utxo = pool;
+  jest.spyOn(watch._hdWalletInstance!, 'getTransactions').mockReturnValue(
+    parents.map(p => ({
+      txid: p.getId(),
+      rawHex: p.toHex(),
+      confirmations: 10,
+    })) as any,
+  );
+  const raws = Object.assign({}, ...coins.map(f => f.raws), Object.fromEntries(parents.map(p => [p.getId(), p.toHex()])));
+  const raw = jest
+    .spyOn(BlueElectrum, 'multiGetTransactionByTxid')
+    .mockImplementation((async (ids: string[]) => Object.fromEntries(ids.map(id => [id, raws[id]]))) as any);
+  jest.spyOn(BlueElectrum, 'multiGetHistoryByAddress').mockResolvedValue({
+    [coins[0].receive]: parents.map(p => ({
+      tx_hash: p.getId(),
+      height: 1000000,
+      address: coins[0].receive,
+    })),
+  });
+  jest.spyOn(BlueElectrum, 'getReportedBlockTip').mockResolvedValue(1000009);
+  const retry = {
+    isActive: jest.fn(() => true),
+    reviewFee: jest.fn(async (_fee: number) => true),
+  };
+  const send = () => watch.createStandardHardwareSend(undefined, targets, 1, change, undefined, retry);
+  return { watch, targets, change, send, pool, retry, raw, parents };
+}
+
+it('automatically selects the verified alternate and reviews its exact fee before exporting the QR request', async () => {
+  const f = automaticSendFixture([true, false, false]);
+  const { psbt, fee } = await f.send();
+  expect(psbt.txInputs).toHaveLength(1);
+  expect(psbt.txInputs[0].hash).toEqual(f.parents[1].getHash());
+  expect(psbt.txOutputs).toContainEqual(
+    expect.objectContaining({
+      address: f.targets[0].address,
+      value: BigInt(f.targets[0].value),
+    }),
+  );
+  const exactFee = Number(psbt.data.inputs[0].witnessUtxo!.value - psbt.txOutputs.reduce((sum, o) => sum + o.value, 0n));
+  expect(fee).toBe(exactFee);
+  expect(f.retry.reviewFee).toHaveBeenCalledWith(exactFee);
+  expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[2].txid);
+});
+
+it('uses the explicit Coin Control pool once and preserves Send Max', async () => {
+  const f = automaticSendFixture([true, false]);
+  await expect(f.watch.createStandardHardwareSend([f.pool[0]], f.targets, 1, f.change, undefined, f.retry)).rejects.toThrow(
+    'unsupported funding signatures',
+  );
+  expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[1].txid);
+  await expect(
+    f.watch.createStandardHardwareSend(null, [{ address: f.targets[0].address }], 1, f.change, undefined, f.retry),
+  ).rejects.toThrow('unsupported funding signatures');
+  expect(f.retry.reviewFee).not.toHaveBeenCalled();
+});
+
+it('does not reintroduce a frozen alternate', async () => {
+  const f = automaticSendFixture([true, false]);
+  f.watch.setUTXOMetadata(f.pool[1].txid, 0, { frozen: true });
+  await expect(f.send()).rejects.toThrow('unsupported funding signatures');
+  expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[1].txid);
+  expect(f.retry.reviewFee).not.toHaveBeenCalled();
+});
+
+it('refuses a coin frozen while the rebuilt fee is being reviewed', async () => {
+  const f = automaticSendFixture([true, false]);
+  f.retry.reviewFee.mockImplementationOnce(async () => {
+    f.watch.setUTXOMetadata(f.pool[1].txid, f.pool[1].vout, { frozen: true });
+    return true;
+  });
+  await expect(f.send()).rejects.toThrow('frozen');
+  expect(() => f.watch.createTransaction([f.pool[1]], f.targets, 1, f.change)).toThrow('Protection unverified');
+});
+
+it('stops at one alternative and never queries a third coin', async () => {
+  const f = automaticSendFixture([true, true, false]);
+  await expect(f.send()).rejects.toThrow('unsupported funding signatures');
+  expect(f.raw.mock.calls.flat(2)).toContain(f.pool[1].txid);
+  expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[2].txid);
+  expect(f.retry.reviewFee).not.toHaveBeenCalled();
+});
+
+it('does not try an alternate after the user leaves the Send screen', async () => {
+  const f = automaticSendFixture([true, false]);
+  const original = f.raw.getMockImplementation()!;
+  f.raw.mockImplementationOnce(async (...args) => {
+    f.retry.isActive.mockReturnValue(false);
+    return original(...args);
+  });
+  await expect(f.send()).rejects.toThrow('Send request changed');
+  expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[1].txid);
+  expect(f.retry.reviewFee).not.toHaveBeenCalled();
+});
+
+it('stops on a service failure even if its error text resembles an unsupported signature', async () => {
+  const f = automaticSendFixture([false, false]);
+  jest
+    .mocked(require('../../class/xbt/separation-service').verifyPublicFundingSeparation)
+    .mockRejectedValueOnce(new Error('Protection unverified: unsupported funding signatures'));
+  await expect(f.send()).rejects.toThrow('unsupported funding signatures');
+  expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[1].txid);
+  expect(f.retry.reviewFee).not.toHaveBeenCalled();
+});
+
+it('discards an alternate if the user cancels or the signing mode changes during fee review', async () => {
+  const f = automaticSendFixture([true, false]);
+  f.retry.reviewFee.mockResolvedValueOnce(false);
+  await expect(f.send()).rejects.toThrow('cancelled');
+  expect(() => f.watch.createTransaction([f.pool[1]], f.targets, 1, f.change)).toThrow('Protection unverified');
+  f.retry.reviewFee.mockImplementationOnce(async () => {
+    f.watch.setHardwareSigningMode('unified');
+    f.watch.setHardwareSigningMode('standard');
+    return true;
+  });
+  await expect(f.send()).rejects.toThrow('changed');
+  expect(() => f.watch.createTransaction([f.pool[1]], f.targets, 1, f.change)).toThrow('Protection unverified');
+});
+
 it('prepares and combines a standard request with the mobile Buffer implementation', async () => {
   const nodeBuffer = global.Buffer;
   const mobileBuffer = require('buffer/').Buffer;

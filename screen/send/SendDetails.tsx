@@ -47,7 +47,7 @@ import { ContactList } from '../../class/contact-list';
 import DeeplinkSchemaMatch from '../../class/deeplink-schema-match';
 import { changeAddressFallback } from './changeAddressFallback';
 import { AbstractHDElectrumWallet } from '../../class/wallets/abstract-hd-electrum-wallet';
-import { CreateTransactionTarget, CreateTransactionUtxo, TWallet } from '../../class/wallets/types';
+import { CreateTransactionTarget, TWallet } from '../../class/wallets/types';
 import AddressInput from '../../components/AddressInput';
 import presentAlert from '../../components/Alert';
 import * as AmountInput from '../../components/AmountInput';
@@ -106,6 +106,7 @@ const SendDetails = () => {
   const routeParams = route.params;
   const scrollView = useRef<FlatList<IPaymentDestinations>>(null);
   const scrollIndex = useRef(0);
+  const signingScreenVisit = useRef(0);
   /** Used so we only clear coin-selection (utxos) when the user switches wallet, not on first mount (e.g. Send opened from wallet details with pre-selected UTXOs). */
   const prevWalletIdForCoinResetRef = useRef<string | null>(null);
   const { colors } = useTheme();
@@ -325,6 +326,7 @@ const SendDetails = () => {
     const currentId = wallet.getID();
     const walletActuallyChanged = prevId !== null && prevId !== currentId;
     if (walletActuallyChanged) {
+      signingScreenVisit.current++;
       setAddresses(recipients =>
         recipients.map(recipient =>
           recipient.usdcEntry || recipient.usdcRefreshing
@@ -469,7 +471,9 @@ const SendDetails = () => {
     useCallback(() => {
       setIsLoading(false);
       setDumb(v => !v);
-      return () => {};
+      return () => {
+        signingScreenVisit.current++;
+      };
     }, []),
   );
 
@@ -594,6 +598,7 @@ const SendDetails = () => {
 
   const createTransaction = async () => {
     assert(wallet, 'Internal error: wallet is not set');
+    const visit = signingScreenVisit.current;
     Keyboard.dismiss();
     setIsLoading(true);
     const requestedSatPerByte = feeRate;
@@ -690,7 +695,7 @@ const SendDetails = () => {
         setIsLoading(false);
         return;
       }
-      await createPsbtTransaction();
+      await createPsbtTransaction(visit);
     } catch (Err: any) {
       setIsLoading(false);
       presentAlert({ title: loc.errors.error, message: Err.message });
@@ -704,13 +709,11 @@ const SendDetails = () => {
     });
   }, [navigation]);
 
-  const createPsbtTransaction = async () => {
+  const createPsbtTransaction = async (visit: number) => {
     if (!wallet) return;
     const change = await getChangeAddressAsync();
     assert(change, 'Could not get change address');
     const requestedSatPerByte = Number(feeRate);
-    const lutxo: CreateTransactionUtxo[] = utxos || (wallet?.getUtxo() ?? []);
-    console.log({ requestedSatPerByte, lutxo: lutxo.length });
 
     // Rates and recipient bindings must still be valid after confirmation and change-address lookup.
     addresses.forEach(recipient => validateUsdcSendRecipient(recipient, walletTicker(wallet)));
@@ -741,8 +744,23 @@ const SendDetails = () => {
     const sequence = isTransactionReplaceable ? HDSegwitBech32Wallet.defaultRBFSequence : HDSegwitBech32Wallet.finalRBFSequence;
     const { tx, outputs, psbt, fee } =
       wallet instanceof WatchOnlyWallet && wallet.getHardwareSigningMode() === 'standard'
-        ? await wallet.createStandardHardwareTransaction(lutxo, targets, requestedSatPerByte, change, sequence)
-        : (wallet as HDSegwitBech32Wallet).createTransaction(lutxo, targets, requestedSatPerByte, change, sequence, false, 0);
+        ? await wallet.createStandardHardwareSend(utxos, targets, requestedSatPerByte, change, sequence, {
+            isActive: () => signingScreenVisit.current === visit && navigation.isFocused(),
+            reviewFee: updatedFee =>
+              confirm(
+                'Review network fee',
+                `RedWallet selected different coins for this payment. The network fee is ${updatedFee} sats. Continue to Keystone?`,
+              ),
+          })
+        : (wallet as HDSegwitBech32Wallet).createTransaction(
+            utxos ?? wallet.getUtxo(),
+            targets,
+            requestedSatPerByte,
+            change,
+            sequence,
+            false,
+            0,
+          );
 
     if (tx && routeParams.launchedBy && psbt) {
       console.warn('navigating back to ', routeParams.launchedBy);

@@ -246,7 +246,7 @@ suite('Standard hardware iOS qualification', () => {
         await element(by.id('Imported Watch-only')).tap();
         await waitForId('WalletBalance', 60000);
         await waitFor(element(by.id('WalletBalance')))
-          .toHaveText('0.00999')
+          .toHaveText('0.02999')
           .withTimeout(90000);
         assert(fixture.transport.checkpointRequests > 0);
         assert((fixture.transport.counts['blockchain.scripthash.get_history'] || 0) > 0);
@@ -332,9 +332,21 @@ suite('Standard hardware iOS qualification', () => {
         observed.nativeHTTPSChunkLimitBlocked = true;
         observed.nativeHTTPSDeadlineBlocked = true;
 
-        step('exporting PSBT through the app clipboard');
+        step('reviewing a replacement coin before Keystone export');
         fixture.proof = 'valid';
         await prepare();
+        await waitForText('Review network fee', 60000);
+        await nativeExpect(element(by.id('StandardHardwareSigningNotice'))).not.toExist();
+        await confirmDialog('Review network fee', false);
+        await waitForText('Updated payment cancelled');
+        assert.equal(await dismissAlertByText('OK', 15000, false), true);
+        await nativeExpect(element(by.id('StandardHardwareSigningNotice'))).not.toExist();
+        assert.deepEqual(fixture.transport.broadcasts, []);
+        observed.reselectionCancelledBeforeExport = true;
+
+        await prepare();
+        await waitForText('Review network fee', 60000);
+        await confirmDialog('Review network fee', true);
         await waitForId('StandardHardwareSigningNotice', 60000);
         await visible('TextHelperForPSBT', 'PsbtWithHardwareScrollView');
         await visible('CopyUnsignedPsbtButton', 'PsbtWithHardwareScrollView');
@@ -343,7 +355,9 @@ suite('Standard hardware iOS qualification', () => {
           encoding: 'utf8',
         }).trim();
         const request = bitcoin.Psbt.fromBase64(encoded);
+        // The fixture signer asserts the exact replacement outpoint and recipient amount.
         const signed = fixture.sign(request);
+        observed.automaticReselectionVerified = true;
         observed.masterFingerprint = Buffer.from(request.data.inputs[0].bip32Derivation![0].masterFingerprint).toString('hex');
         observed.sighashType = request.data.inputs[0].sighashType;
         observed.clipboardRoundTrip = true;
