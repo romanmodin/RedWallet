@@ -1,4 +1,17 @@
-# Standard hardware signing: draft, release blocked
+# Standard hardware signing qualification
+
+## Internal iPhone build 1795562313 · November 24, 2026
+
+The internal build uses PR 317 source `6a5ac5efb64e7bb86e32d2bdcc9c5b6c2d62c703`. On iPhone, the iOS-specific module reads the native internal Keystone flag. The Swift bridge sets it when the compiled bundle has `RedWalletKeystoneScope=internal-testing`. Wallet Details offers “Standard hardware signing (Keystone)” for an XBT Native SegWit watch-only account under that gate. Unified is the default. Ordinary archives retain their existing restrictions.
+
+[Platform gate](https://github.com/romanmodin/RedWallet/blob/6a5ac5efb64e7bb86e32d2bdcc9c5b6c2d62c703/class/xbt/standard-hardware-platform.ios.ts) · [Swift bridge](https://github.com/romanmodin/RedWallet/blob/6a5ac5efb64e7bb86e32d2bdcc9c5b6c2d62c703/blue_modules/redwallet-separation-http/ios/RedWalletSeparationHTTP.swift) · [Account eligibility](https://github.com/romanmodin/RedWallet/blob/6a5ac5efb64e7bb86e32d2bdcc9c5b6c2d62c703/screen/wallets/WalletDetails.tsx#L740)
+
+The protected signing workflow selected the internal-only export and checked the scope inside the signed IPA. Receipt 14974803906 identifies build 1795562313. Upload receipt 14978620063 matches its package digest. The full Lightning iOS simulator and watch-only signing jobs passed on the pinned source. This qualification covers internal iPhone testing. Physical results from earlier builds apply to those builds.
+
+[Signing](https://github.com/romanmodin/RedWallet/actions/runs/45508193659) · [Upload](https://github.com/romanmodin/RedWallet/actions/runs/45515564670) · [Lightning simulator](https://github.com/romanmodin/RedWallet/actions/runs/45456891729) · [Watch-only signing](https://github.com/romanmodin/RedWallet/actions/runs/45456872143)
+
+## Earlier qualification record
+
 
 Native SegWit watch-only standard SIGHASH_ALL (0x01) preparation, full funding transactions, preserved origins, exact reviewed-transaction/signature validation and broadcast-time separation checks are implemented. Unified remains the default. No private key is imported.
 

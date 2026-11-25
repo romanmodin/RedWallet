@@ -1,3 +1,5 @@
-In an XBT Lightning test wallet, open Funding and look under Balance Details. A positive, current On-chain available before fee amount appears in green. Compare it with Lightning Node Settings → Node and channel balances after refreshing. Funding shows the amount in your selected unit and Settings shows sats.
+This internal iPhone build adds Keystone QR signing for XBT Native SegWit watch-only accounts. Unified signing is the default.
 
-When a reserve applies, compare the green available amount with the confirmed on-chain total. Hide balances and check that the green amount is hidden too. With zero available or stale data, check that the value is not highlighted. Use test data only.
+Using a test account, open Wallet Details and select “Standard hardware signing (Keystone)”. Read the privacy notice. RedWallet checks coin separation before preparing a signing request and again before broadcast. Blockstream receives public funding transaction IDs. Both Blockstream and mempool.space see your IP address.
+
+If you have a prepared test fixture, open Send and check that the recipient, amount and fee on the Keystone match the iPhone. Stop at the review screen. A missing proof should block the signing request with “Coin separation could not be verified.” Testing here requires no live payment.
