@@ -388,7 +388,7 @@ describe('Lightning connection clock', () => {
       justifyContent: 'center',
     });
     expect(overlay.props.pointerEvents).toBe('none');
-    expect(within(overlay).getByTestId('svg-Svg').props).toMatchObject({ width: 100, height: 100 });
+    expect(within(overlay).getByTestId('svg-Svg').props).toMatchObject({ width: 70, height: 70, viewBox: '0 0 36 36' });
     expect(mockNavigation.setOptions).toHaveBeenCalledWith(expect.objectContaining({ headerTransparent: true }));
     fireEvent.press(screen.getByRole('button', { name: 'Expand Details' }));
     expect(screen.getByRole('button', { name: 'Collapse Details' })).toBeTruthy();

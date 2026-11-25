@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AccessibilityInfo, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-export const connectionClockDiameter = 100;
+export const connectionClockDiameter = 70;
 const tickCount = 36;
 const tickPaths = Array.from({ length: tickCount }, (_, index) => {
   const angle = -Math.PI / 2 - (2 * Math.PI * index) / tickCount;
