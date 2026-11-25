@@ -4,6 +4,7 @@ import {
   assertStandardHardwareReleased,
   FundingInput,
   FundingProof,
+  UnsupportedFundingSignatures,
   verifyStandardHardwareFunding,
   assertStandardHardwareResult,
   combineStandardHardwareResult,
@@ -17,7 +18,7 @@ import { HDLegacyP2PKHWallet } from './hd-legacy-p2pkh-wallet';
 import { HDSegwitBech32Wallet } from './hd-segwit-bech32-wallet';
 import { HDSegwitP2SHWallet } from './hd-segwit-p2sh-wallet';
 import { LegacyWallet } from './legacy-wallet';
-import { THDWalletForWatchOnly } from './types';
+import { CreateTransactionTarget, CreateTransactionUtxo, THDWalletForWatchOnly } from './types';
 import { HDTaprootWallet } from './hd-taproot-wallet';
 import { XbtTaprootWallet } from './xbt-taproot-wallet';
 import { assertSignedUnifiedTaprootTransactionMatchesPsbt, finalizeUnifiedTaprootInput } from '../xbt/unified-taproot-psbt';
@@ -64,27 +65,43 @@ export class WatchOnlyWallet extends LegacyWallet {
   }
 
   async prepareStandardHardwareSigning(inputs: FundingInput[]) {
-    proofGeneration.set(this, {});
+    const generation = {};
+    proofGeneration.set(this, generation);
     standardFunding.delete(this);
     pendingSigningRequests.delete(this);
     approvedExternalTransactions.delete(this);
     if (this.getHardwareSigningMode() !== 'standard') return;
+    const proof = await this.verifySigningInputs(inputs, generation);
+    if (proofGeneration.get(this) !== generation) throw new Error('Signing mode changed; review again');
+    standardFunding.set(this, proof);
+  }
+
+  private async verifySigningInputs(inputs: FundingInput[], generation: object, assertActive?: () => void) {
     assertStandardHardwareReleased();
     if (!this.allowSend()) throw new Error('Enable hardware signing first');
-    const generation = proofGeneration.get(this);
+    const assertCurrent = () => {
+      assertActive?.();
+      if (proofGeneration.get(this) !== generation || this.getHardwareSigningMode() !== 'standard' || !this.allowSend())
+        throw new Error('Signing mode changed; review again');
+    };
+    assertCurrent();
     const proof = await verifyStandardHardwareFunding(inputs, {
-      raw: ids => BlueElectrum.multiGetTransactionByTxid(ids, false),
-      history: addresses => BlueElectrum.multiGetHistoryByAddress(addresses),
-      tip: () => BlueElectrum.getReportedBlockTip(true),
-      separation: parents =>
-        verifyPublicFundingSeparation(parents, () => {
-          if (proofGeneration.get(this) !== generation || this.getHardwareSigningMode() !== 'standard' || !this.allowSend())
-            throw new Error('Signing mode changed; review again');
-        }),
+      raw: ids => {
+        assertActive?.();
+        return BlueElectrum.multiGetTransactionByTxid(ids, false);
+      },
+      history: addresses => {
+        assertActive?.();
+        return BlueElectrum.multiGetHistoryByAddress(addresses);
+      },
+      tip: () => {
+        assertActive?.();
+        return BlueElectrum.getReportedBlockTip(true);
+      },
+      separation: parents => verifyPublicFundingSeparation(parents, assertCurrent),
     });
-    if (proofGeneration.get(this) !== generation || this.getHardwareSigningMode() !== 'standard' || !this.allowSend())
-      throw new Error('Signing mode changed; review again');
-    standardFunding.set(this, proof);
+    assertCurrent();
+    return proof;
   }
 
   private requireStandardProof(request: bitcoin.Psbt, requireFresh = true) {
@@ -450,26 +467,65 @@ export class WatchOnlyWallet extends LegacyWallet {
     return result;
   }
 
-  /** Select inputs once, then verify exactly that unsigned request. */
+  /** Existing callers supply a specific input pool and never opt into reselection. */
   async createStandardHardwareTransaction(...args: Parameters<THDWalletForWatchOnly['createTransaction']>) {
+    const [utxos, targets, feeRate, changeAddress, sequence] = args;
+    return this.createStandardHardwareSend(utxos, targets, feeRate, changeAddress, sequence);
+  }
+
+  async createStandardHardwareSend(
+    selected: CreateTransactionUtxo[] | null | undefined,
+    targets: CreateTransactionTarget[],
+    feeRate: number,
+    changeAddress: string,
+    sequence?: number,
+    retry?: {
+      isActive: () => boolean;
+      reviewFee: (fee: number) => Promise<boolean>;
+    },
+  ) {
     assertStandardHardwareReleased();
     approvedExternalTransactions.delete(this);
     pendingSigningRequests.delete(this);
     standardFunding.delete(this);
-    proofGeneration.set(this, {});
-    if (!this.allowSend() || this.getHardwareSigningMode() !== 'standard' || !this._hdWalletInstance)
-      throw new Error('Enable standard hardware signing first');
-    const [utxos, targets, feeRate, changeAddress, sequence] = args;
-    const result = this._hdWalletInstance.createTransaction(
-      utxos,
-      targets,
-      feeRate,
-      changeAddress,
-      sequence,
-      true,
-      this.getMasterFingerprint(),
-    );
-    await this.prepareStandardHardwareSigning(requestFundingInputs(result.psbt));
+    const generation = {};
+    proofGeneration.set(this, generation);
+    const hd = this._hdWalletInstance;
+    if (!this.allowSend() || this.getHardwareSigningMode() !== 'standard' || !hd) throw new Error('Enable standard hardware signing first');
+
+    const assertActive = () => {
+      if (proofGeneration.get(this) !== generation || (retry && !retry.isActive())) throw new Error('Send request changed; review again');
+    };
+    const build = (coins: CreateTransactionUtxo[]) =>
+      hd.createTransaction(coins, targets, feeRate, changeAddress, sequence, true, this.getMasterFingerprint());
+    const pool = selected ?? this.getUtxo();
+    const retryDeadline = performance.now() + 45_000;
+    let result = build(pool);
+    let verified: FundingProof;
+    try {
+      verified = await this.verifySigningInputs(requestFundingInputs(result.psbt), generation, assertActive);
+    } catch (error) {
+      if (!(error instanceof UnsupportedFundingSignatures) || selected != null || !retry || targets.some(t => t.value === undefined))
+        throw error;
+      assertActive();
+      if (performance.now() >= retryDeadline) throw error;
+      const alternatives = pool.filter(coin => !error.matches(coin) && !this.getUTXOMetadata(coin.txid, coin.vout).frozen);
+      if (!alternatives.length) throw error;
+
+      // One alternative only. Rebuild outputs and fee and verify every input before exporting.
+      result = build(alternatives);
+      const assertRetryActive = () => {
+        assertActive();
+        if (performance.now() >= retryDeadline) throw new Error('Coin selection timed out; review the payment again');
+      };
+      verified = await this.verifySigningInputs(requestFundingInputs(result.psbt), generation, assertRetryActive);
+      assertRetryActive();
+      if (!(await retry.reviewFee(result.fee))) throw new Error('Updated payment cancelled');
+    }
+    assertActive();
+    if (selected == null && result.inputs.some(coin => this.getUTXOMetadata(coin.txid, coin.vout).frozen))
+      throw new Error('A selected coin was frozen; review the payment again');
+    standardFunding.set(this, verified);
     const proof = this.requireStandardProof(result.psbt);
     result.psbt.txInputs.forEach((input, index) => {
       result.psbt.data.inputs[index].sighashType = bitcoin.Transaction.SIGHASH_ALL;

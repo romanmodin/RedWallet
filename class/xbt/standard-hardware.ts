@@ -8,6 +8,23 @@ import { STANDARD_HARDWARE_RELEASE_ENABLED } from './standard-hardware-platform'
 export { STANDARD_HARDWARE_RELEASE_ENABLED };
 
 export type FundingInput = { txid: string; vout: number; value: number; address?: string };
+
+// Keep selected coin identifiers out of logs, including when an Error is serialized.
+export class UnsupportedFundingSignatures extends Error {
+  #txid: string;
+  #vout: number;
+
+  constructor(coin: FundingInput) {
+    super('Protection unverified: unsupported funding signatures');
+    this.#txid = coin.txid;
+    this.#vout = coin.vout;
+  }
+
+  matches(coin: { txid: string; vout: number }) {
+    return coin.txid === this.#txid && coin.vout === this.#vout;
+  }
+}
+
 export type FundingSource = {
   raw: (ids: string[]) => Promise<Record<string, string>>;
   history: (addresses: string[]) => Promise<Record<string, { tx_hash: string; height: number }[]>>;
@@ -70,7 +87,7 @@ export async function verifyStandardHardwareFunding(inputs: FundingInput[], sour
     confirmations.get(id)!.add(destination);
     return { output, destination };
   };
-  const verify = async (id: string, depth: number): Promise<number> => {
+  const verify = async (id: string, depth: number, selected: FundingInput): Promise<number> => {
     if (depth > MAX_DEPTH) throw new Error('Protection verification exceeds ancestry depth limit');
     if (visiting.has(id)) throw new Error('Protection unverified: cyclic funding history');
     const remainingDepth = verified.get(id);
@@ -86,8 +103,7 @@ export async function verifyStandardHardwareFunding(inputs: FundingInput[], sour
       return input.witness.length === 2 && signature?.length ? signature[signature.length - 1] : undefined;
     });
     const unified = modes.every(mode => mode === 0x21);
-    if (!unified && !modes.every(mode => mode === Transaction.SIGHASH_ALL))
-      throw new Error('Protection unverified: unsupported funding signatures');
+    if (!unified && !modes.every(mode => mode === Transaction.SIGHASH_ALL)) throw new UnsupportedFundingSignatures(selected);
     visiting.add(id);
     const parentIds = tx.ins.map(input => Buffer.from(input.hash).reverse().toString('hex'));
     await load(parentIds);
@@ -116,7 +132,7 @@ export async function verifyStandardHardwareFunding(inputs: FundingInput[], sour
       assertSignedBtcTransaction(tx.toHex(), request);
       for (let i = 0; i < tx.ins.length; i++) {
         recordOutput(parentIds[i], tx.ins[i].index);
-        ancestryDepth = Math.max(ancestryDepth, 1 + (await verify(parentIds[i], depth + 1)));
+        ancestryDepth = Math.max(ancestryDepth, 1 + (await verify(parentIds[i], depth + 1, selected)));
       }
     }
     visiting.delete(id);
@@ -130,7 +146,7 @@ export async function verifyStandardHardwareFunding(inputs: FundingInput[], sour
     if (!Number.isSafeInteger(input.value) || input.value <= 0 || output.value !== BigInt(input.value))
       throw new Error('Protection unverified: funding output mismatch');
     if (input.address !== destination) throw new Error('Protection unverified: funding address mismatch');
-    await verify(input.txid, 0);
+    await verify(input.txid, 0, input);
   }
   const addresses = [...new Set([...confirmations.values()].flatMap(values => [...values]))];
   const histories = await source.history(addresses);
