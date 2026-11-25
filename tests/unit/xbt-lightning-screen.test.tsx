@@ -901,15 +901,25 @@ test('channel limits show exact directional sats and apply only to a separately 
     fireEvent.press(s.getByText('Cancel'));
     fireEvent.press(s.getByText('Receive limits for new channel'));
     expect(s.getByLabelText('Maximum incoming in flight (sats)').props.value).toBe('');
+    fireEvent.changeText(s.getByLabelText('Minimum per incoming part (sats)'), '100000');
+    fireEvent.press(s.getByText('Apply to next opening'));
+    expect(s.getByText(/Enter positive whole sats/)).toBeTruthy();
+    expect(s.getByLabelText('Minimum per incoming part (sats)').props.value).toBe('100000');
     fireEvent.changeText(s.getByLabelText('Minimum per incoming part (sats)'), '2');
     fireEvent.changeText(s.getByLabelText('Maximum incoming in flight (sats)'), '800000');
     fireEvent.press(s.getByText('Apply to next opening'));
     expect(bridge.manage.mock.calls.some(c => c[0] === 'openWithReceiveLimits')).toBe(false);
+    fireEvent.changeText(s.getByLabelText('New channel sats'), '2');
+    expect(s.getByText('The minimum incoming part must be below the channel funding amount.')).toBeTruthy();
     fireEvent.changeText(s.getByLabelText('Lightning peer'), 'fixture-peer@host:9735');
+    fireEvent.press(s.getByText('Open private channel'));
+    expect(alert).not.toHaveBeenCalled();
+    fireEvent.changeText(s.getByLabelText('New channel sats'), '100000');
     fireEvent.press(s.getByText('Open private channel'));
     expect(alert.mock.calls.at(-1)![1]).toContain('Maximum incoming in flight: 800000 sats');
     const approve = alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Open channel')!.onPress!;
     await act(async () => approve());
+    expect(mockAuthorize).toHaveBeenCalledTimes(1);
     expect(bridge.manage).toHaveBeenCalledWith(
       'openWithReceiveLimits',
       JSON.stringify({ peer: 'fixture-peer', minimum: 2, maximum: 800000 }),

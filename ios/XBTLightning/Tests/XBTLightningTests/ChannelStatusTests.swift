@@ -59,17 +59,19 @@ final class ChannelStatusTests: XCTestCase {
         XCTAssertNil(old.receiveLimits)
     }
 
-    func testOpeningReceiveLimitsPreserveDefaultsAndRejectInvalidAmounts() throws {
-        let defaults = try ProtoFields(RegtestNode.openReceiveConstraints(minSats: nil, maxSats: nil))
+    func testOpeningReceiveLimitsPreserveDefaultsAndLeaveFundingHeadroom() throws {
+        let defaults = try ProtoFields(RegtestNode.openReceiveConstraints(minSats: nil, maxSats: nil, fundingSats: 100_000))
         XCTAssertEqual(defaults.integers[15], LightningAmounts.maxSats * 1_000)
         XCTAssertNil(defaults.integers[9])
-        let custom = try ProtoFields(RegtestNode.openReceiveConstraints(minSats: 23, maxSats: 800_000))
+        let custom = try ProtoFields(RegtestNode.openReceiveConstraints(minSats: 23, maxSats: 800_000, fundingSats: 100_000))
         XCTAssertEqual(custom.integers[9], 23_000)
         XCTAssertEqual(custom.integers[15], 800_000_000)
-        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 100, maxSats: 99))
-        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: nil, maxSats: UInt64.max))
-        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 0, maxSats: nil))
-        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: nil, maxSats: 0))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 100, maxSats: 99, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: nil, maxSats: UInt64.max, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 0, maxSats: nil, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: nil, maxSats: 0, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 100_000, maxSats: nil, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 100_001, maxSats: nil, fundingSats: 100_000))
     }
 
     func testTransitionsCountEachOutpointOnceAndClosingTakesPrecedence() throws {

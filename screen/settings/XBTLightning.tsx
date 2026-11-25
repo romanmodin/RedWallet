@@ -38,7 +38,12 @@ import XBTLightningChannelLimits, { ChannelPaymentLimits, OpeningLimits } from '
 import XBTLightningChannelFunds from '../../components/XBTLightningChannelFunds';
 import XBTLightningInvoice, { LightningReceiveInvoice } from '../../components/XBTLightningInvoice';
 
-import { validLightningChannelOpenSats, validLightningSats, validLightningFeeRate } from '../../blue_modules/lightning-amounts';
+import {
+  validLightningChannelOpenSats,
+  validLightningOpeningMinimum,
+  validLightningSats,
+  validLightningFeeRate,
+} from '../../blue_modules/lightning-amounts';
 import { LndPaymentTracker, LndPaymentOutcome, lndPaymentMessage } from '../../blue_modules/lnd-payment-status';
 
 import { isBolt12Offer, normalizeLightningRequest } from '../../blue_modules/lightning-request';
@@ -264,6 +269,7 @@ export default function XBTLightning({
     maximum: '',
   });
   const customOpeningLimits = !!(openingLimits.minimum || openingLimits.maximum);
+  const openingMinimumValid = validLightningOpeningMinimum(openingLimits.minimum, channelSats);
   const [routingFee, setRoutingFee] = useState('10');
   const [fundingAddress, setFundingAddress] = useState('');
   const [incoming, setIncoming] = useState<LightningReceiveInvoice>();
@@ -993,10 +999,20 @@ export default function XBTLightning({
                   onPress={() => setShowChannelLimits(true)}
                 />
               )}
+              {openingLimits.minimum && !openingMinimumValid && (
+                <SettingsFootnote>The minimum incoming part must be below the channel funding amount.</SettingsFootnote>
+              )}
               <SettingsListItem
                 title="Open private channel"
-                disabled={busy || !lightningPeer || !validLightningChannelOpenSats(channelSats) || !validLightningFeeRate(channelFeeRate)}
+                disabled={
+                  busy ||
+                  !lightningPeer ||
+                  !validLightningChannelOpenSats(channelSats) ||
+                  !validLightningFeeRate(channelFeeRate) ||
+                  !openingMinimumValid
+                }
                 onPress={() => {
+                  if (!openingMinimumValid) return;
                   const key = lightningPeer.trim().split('@')[0];
                   const sats = channelSats,
                     rate = channelFeeRate;
@@ -1539,6 +1555,7 @@ export default function XBTLightning({
                   refreshFailed={channelError}
                   hidden={hideBalances}
                   opening={openingLimits}
+                  fundingSats={channelSats}
                   onClose={() => setShowChannelLimits(false)}
                   onApply={value => {
                     setOpeningLimits(value);

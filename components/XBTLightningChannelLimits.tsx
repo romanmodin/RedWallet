@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
-import { MAX_LIGHTNING_SATS, validLightningSats } from '../blue_modules/lightning-amounts';
+import { MAX_LIGHTNING_SATS, validLightningOpeningMinimum, validLightningSats } from '../blue_modules/lightning-amounts';
 import { SettingsFootnote, SettingsListItem } from './SettingsSection';
 import { useTheme } from './themes';
 
@@ -28,15 +28,16 @@ type Props = {
   refreshFailed: boolean;
   hidden: boolean;
   opening: OpeningLimits;
+  fundingSats: string;
   onApply: (value: OpeningLimits) => void;
   onClose: () => void;
 };
 
-export default function XBTLightningChannelLimits({ channel, refreshFailed, hidden, opening, onApply, onClose }: Props) {
+export default function XBTLightningChannelLimits({ channel, refreshFailed, hidden, opening, fundingSats, onApply, onClose }: Props) {
   const { colors } = useTheme();
   const [draft, setDraft] = useState(opening);
   const valid =
-    (!draft.minimum || validLightningSats(draft.minimum)) &&
+    validLightningOpeningMinimum(draft.minimum, fundingSats) &&
     (!draft.maximum || validLightningSats(draft.maximum)) &&
     (!draft.minimum || !draft.maximum || Number(draft.minimum) <= Number(draft.maximum));
   const textColor = { color: colors.foregroundColor };
@@ -104,7 +105,7 @@ export default function XBTLightningChannelLimits({ channel, refreshFailed, hidd
           />
           {!valid && (
             <SettingsFootnote>
-              Enter positive whole sats within the XBT supply. The minimum must be at or below the maximum.
+              Enter positive whole sats within the XBT supply. The minimum must be at or below the maximum and below the channel funding amount.
             </SettingsFootnote>
           )}
           <SettingsListItem title="Apply to next opening" disabled={!valid} onPress={() => onApply(draft)} />

@@ -4,6 +4,7 @@ import {
   validLightningSats,
   validLightningFeeRate,
   validLightningChannelOpenSats,
+  validLightningOpeningMinimum,
 } from '../../blue_modules/lightning-amounts';
 
 test('large amounts stay exact across the bridge and millisatoshi conversion', () => {
@@ -29,6 +30,14 @@ test('the 1 XBT cap applies only to opening new channels', () => {
   for (const amount of ['44000000', '99999999', '100000000']) expect(validLightningChannelOpenSats(amount)).toBe(true);
   for (const amount of ['100000001', '140000000', '0', '-1', '1.1', '1e8']) expect(validLightningChannelOpenSats(amount)).toBe(false);
   expect(validLightningSats('140000000')).toBe(true);
+});
+
+test('an opening minimum is strictly below funding capacity', () => {
+  expect(validLightningOpeningMinimum('', '100000')).toBe(true);
+  expect(validLightningOpeningMinimum('99999', '100000')).toBe(true);
+  expect(validLightningOpeningMinimum('100000', '100000')).toBe(false);
+  expect(validLightningOpeningMinimum('100001', '100000')).toBe(false);
+  expect(validLightningOpeningMinimum('1', '100000001')).toBe(false);
 });
 
 test('fee rates keep LND signed products safe through maximum transaction size and close negotiation', () => {
