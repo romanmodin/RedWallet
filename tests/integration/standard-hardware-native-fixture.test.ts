@@ -105,18 +105,22 @@ real(
       await watch.fetchBalance();
       await watch.fetchTransactions();
       await watch.fetchUtxo();
-      expect(watch.getBalance()).toBe(999000);
-      expect(watch.getUtxo()).toHaveLength(1);
+      expect(watch.getBalance()).toBe(2999000);
+      expect(watch.getUtxo()).toHaveLength(2);
       // Enabling signing after discovery must preserve verified spendable coins.
       watch.setUseWithHardwareWalletEnabled(true);
       watch.setHardwareSigningMode('standard');
-      expect(watch.getUtxo()).toHaveLength(1);
-      const { psbt: request } = await watch.createStandardHardwareTransaction(
-        watch.getUtxo(),
-        [{ address: PUBLIC_RECIPIENT, value: 100000 }],
-        2,
-        watch._getInternalAddressByIndex(0),
-      );
+      expect(watch.getUtxo()).toHaveLength(2);
+      const targets = [{ address: PUBLIC_RECIPIENT, value: 100000 }];
+      const change = watch._getInternalAddressByIndex(0);
+      await expect(watch.createStandardHardwareTransaction(watch.getUtxo(), targets, 2, change)).rejects.toThrow('unsupported funding signatures');
+      const reviewFee = jest.fn(async (_fee: number) => true);
+      const { psbt: request, fee } = await watch.createStandardHardwareSend(undefined, targets, 2, change, undefined, {
+        isActive: () => true,
+        reviewFee,
+      });
+      expect(reviewFee.mock.calls).toEqual([[fee]]);
+      expect(BigInt(fee)).toBe(999000n - request.txOutputs.reduce((sum, out) => sum + out.value, 0n));
       const signed = fixture.sign(request);
       const hex = watch.combinePsbt(request, signed).toHex();
       await expect(watch.broadcastTx(hex)).resolves.toBe(true);
