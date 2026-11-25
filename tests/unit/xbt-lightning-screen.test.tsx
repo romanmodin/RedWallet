@@ -867,6 +867,74 @@ test.each(['pay', 'withdraw', 'open', 'close'])('declined authentication prevent
   }
 });
 
+test('channel limits show exact directional sats and apply only to a separately confirmed new opening', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const previousManage = bridge.manage.getMockImplementation();
+  bridge.manage.mockImplementation(async action =>
+    action === 'channelStatus'
+      ? [
+          {
+            point: 'limits:0',
+            peer: 'fixture-peer',
+            state: 'active',
+            active: true,
+            localSats: '100000',
+            sendLimits: { minPartMsat: '500', maxPendingMsat: '99000001' },
+            receiveLimits: {
+              minPartMsat: '1000',
+              maxPendingMsat: '2100000000000000000',
+            },
+          },
+        ]
+      : 'fixture-result',
+  );
+  const s = render(<XBTLightning />);
+  try {
+    await act(async () => {});
+    fireEvent.press(s.getByTestId('SelectChannel-limits:0'));
+    fireEvent.press(s.getByText('Channel limits'));
+    expect(s.getByText('Minimum per payment part: 0.5 sats')).toBeTruthy();
+    expect(s.getByText('Maximum in flight: 99,000.001 sats')).toBeTruthy();
+    expect(s.getByText('Maximum in flight: No RedWallet cap')).toBeTruthy();
+    fireEvent.changeText(s.getByLabelText('Maximum incoming in flight (sats)'), '0');
+    expect(s.getByText(/Enter positive whole sats/)).toBeTruthy();
+    fireEvent.press(s.getByText('Cancel'));
+    fireEvent.press(s.getByText('Receive limits for new channel'));
+    expect(s.getByLabelText('Maximum incoming in flight (sats)').props.value).toBe('');
+    fireEvent.changeText(s.getByLabelText('Minimum per incoming part (sats)'), '100000');
+    fireEvent.press(s.getByText('Apply to next opening'));
+    expect(s.getByText(/Enter positive whole sats/)).toBeTruthy();
+    expect(s.getByLabelText('Minimum per incoming part (sats)').props.value).toBe('100000');
+    fireEvent.changeText(s.getByLabelText('Minimum per incoming part (sats)'), '2');
+    fireEvent.changeText(s.getByLabelText('Maximum incoming in flight (sats)'), '800000');
+    fireEvent.press(s.getByText('Apply to next opening'));
+    expect(bridge.manage.mock.calls.some(c => c[0] === 'openWithReceiveLimits')).toBe(false);
+    fireEvent.changeText(s.getByLabelText('New channel sats'), '2');
+    expect(s.getByText('The minimum incoming part must be below the channel funding amount.')).toBeTruthy();
+    fireEvent.changeText(s.getByLabelText('Lightning peer'), 'fixture-peer@host:9735');
+    fireEvent.press(s.getByText('Open private channel'));
+    expect(alert).not.toHaveBeenCalled();
+    fireEvent.changeText(s.getByLabelText('New channel sats'), '100000');
+    fireEvent.press(s.getByText('Open private channel'));
+    expect(alert.mock.calls.at(-1)![1]).toContain('Maximum incoming in flight: 800000 sats');
+    const approve = alert.mock.calls.at(-1)![2]!.find(button => button.text === 'Open channel')!.onPress!;
+    await act(async () => approve());
+    expect(mockAuthorize).toHaveBeenCalledTimes(1);
+    expect(bridge.manage).toHaveBeenCalledWith(
+      'openWithReceiveLimits',
+      JSON.stringify({ peer: 'fixture-peer', minimum: 2, maximum: 800000 }),
+      '100000',
+      '1',
+    );
+    fireEvent.press(s.getByText('Receive limits for new channel'));
+    expect(s.getByLabelText('Maximum incoming in flight (sats)').props.value).toBe('');
+  } finally {
+    s.unmount();
+    alert.mockRestore();
+    bridge.manage.mockImplementation(previousManage!);
+  }
+});
+
 test('backup export uses secret reauthentication and a declined prompt never reaches native export', async () => {
   const s = render(<XBTLightning />);
   try {

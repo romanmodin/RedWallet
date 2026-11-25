@@ -53,15 +53,32 @@ extension RegtestNode {
             key.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
     }
 
-    public func openChannel(to key: String, sats: UInt64, feeRate: UInt64 = 1) async throws -> String {
+    static func openReceiveConstraints(minSats: UInt64?, maxSats: UInt64?, fundingSats: UInt64) throws -> Data {
+        let maximum = maxSats ?? LightningAmounts.maxSats
+        guard LightningAmounts.valid(maximum) else { throw NodeFailure.invalidAmount }
+        var fields = ProtoFields.field(15, integer: maximum * 1_000)
+        if let minimum = minSats {
+            guard LightningAmounts.valid(minimum), minimum < fundingSats, minimum <= maximum else { throw NodeFailure.invalidAmount }
+            fields += ProtoFields.field(9, integer: minimum * 1_000)
+        }
+        return fields
+    }
+
+    public func openChannel(to key: String, sats: UInt64, feeRate: UInt64 = 1,
+                            minReceiveSats: UInt64? = nil, maxReceiveSats: UInt64? = nil) async throws -> String {
         guard sats <= LightningAmounts.maxChannelOpenSats else { throw NodeFailure.channelOpeningLimit }
         guard validKey(key), LightningAmounts.valid(sats), LightningAmounts.validFeeRate(feeRate) else { throw NodeFailure.invalidAmount }
+        let receiveConstraints = try Self.openReceiveConstraints(
+            minSats: minReceiveSats,
+            maxSats: maxReceiveSats,
+            fundingSats: sats
+        )
         try await requireSynced()
         // An omitted remote_max_value_in_flight_msat stays tied to the opening
         // capacity after a splice. Allow the peer to use future inbound liquidity.
         let request = ProtoFields.field(3, data: Data(key.utf8)) + ProtoFields.field(4, integer: sats) +
             ProtoFields.field(1, integer: feeRate) + ProtoFields.field(8, integer: 1) +
-            ProtoFields.field(15, integer: LightningAmounts.maxSats * 1_000)
+            receiveConstraints
         let point = try ProtoFields(await rpc { LndmobileOpenChannelSync(request, $0) })
         let txid: String
         if let bytes = point.bytes[1]?.first, bytes.count == 32 {

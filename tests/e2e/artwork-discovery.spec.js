@@ -131,7 +131,9 @@ smoke('Native artwork framing and read-only CoinJoin discovery', () => {
     // Attachment can leave UIKit busy before the scroll as well as before
     // capture. Bound and trace each step so a failed native command is located.
     await setup('prepare-first-portrait', () => observeNativeRotation(device, scrollUpOnHomeScreen), 20000);
-    await setup('capture-first-portrait', () => capture('01-helmet-portrait', 'portrait'), 20000);
+    // A complete frame includes the screenshot and geometry reads on both sides.
+    // Use the same setup deadline as the other screenshot steps.
+    await setup('capture-first-portrait', () => capture('01-helmet-portrait', 'portrait'));
     await capture('02-helmet-landscape', 'landscape', 'ArtworkSkinSurface', true);
     await capture('02b-helmet-return-portrait', 'portrait', 'ArtworkSkinSurface', true);
     await element(by.id('SettingsButton')).tap();

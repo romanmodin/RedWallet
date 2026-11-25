@@ -44,6 +44,36 @@ final class ChannelStatusTests: XCTestCase {
         XCTAssertEqual(rows["force:0"]?.state, "forceClosing")
     }
 
+    func testNegotiatedPaymentLimitsUseThePhonePerspective() throws {
+        let send = ProtoFields.field(4, integer: 99_000_001) + ProtoFields.field(5, integer: 500)
+        let receive = ProtoFields.field(4, integer: 801_000_000)
+        let row = string(2, "peer") + string(3, "one:0") +
+            ProtoFields.field(29, data: send) + ProtoFields.field(30, data: receive)
+        let bytes = ProtoFields.field(11, data: row) + open("old:0", active: false)
+        let channels = try LightningChannelStatus.decode(open: bytes, pending: Data())
+        let channel = try XCTUnwrap(channels.first { $0.point == "one:0" })
+        XCTAssertEqual(channel.sendLimits, ["maxPendingMsat": "99000001", "minPartMsat": "500"])
+        XCTAssertEqual(channel.receiveLimits, ["maxPendingMsat": "801000000", "minPartMsat": "0"])
+        let old = try XCTUnwrap(channels.first { $0.point == "old:0" })
+        XCTAssertNil(old.sendLimits)
+        XCTAssertNil(old.receiveLimits)
+    }
+
+    func testOpeningReceiveLimitsPreserveDefaultsAndLeaveFundingHeadroom() throws {
+        let defaults = try ProtoFields(RegtestNode.openReceiveConstraints(minSats: nil, maxSats: nil, fundingSats: 100_000))
+        XCTAssertEqual(defaults.integers[15], LightningAmounts.maxSats * 1_000)
+        XCTAssertNil(defaults.integers[9])
+        let custom = try ProtoFields(RegtestNode.openReceiveConstraints(minSats: 23, maxSats: 800_000, fundingSats: 100_000))
+        XCTAssertEqual(custom.integers[9], 23_000)
+        XCTAssertEqual(custom.integers[15], 800_000_000)
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 100, maxSats: 99, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: nil, maxSats: UInt64.max, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 0, maxSats: nil, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: nil, maxSats: 0, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 100_000, maxSats: nil, fundingSats: 100_000))
+        XCTAssertThrowsError(try RegtestNode.openReceiveConstraints(minSats: 100_001, maxSats: nil, fundingSats: 100_000))
+    }
+
     func testTransitionsCountEachOutpointOnceAndClosingTakesPrecedence() throws {
         let opened = try LightningChannelStatus.decode(
             open: open("same:0", active: true), pending: pending("same:0", field: 2))

@@ -22,6 +22,10 @@ export function validLightningChannelOpenSats(value: string): boolean {
   return validLightningSats(value) && Number(value) <= MAX_LIGHTNING_CHANNEL_OPEN_SATS;
 }
 
+export function validLightningOpeningMinimum(minimum: string, fundingSats: string): boolean {
+  return !minimum || (validLightningSats(minimum) && validLightningChannelOpenSats(fundingSats) && Number(minimum) < Number(fundingSats));
+}
+
 export function validLightningFeeRate(value: string): boolean {
   return /^[1-9][0-9]*$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= MAX_LIGHTNING_FEE_RATE;
 }
