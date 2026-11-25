@@ -13,10 +13,10 @@ name: Assign verified BTC and XBT Lightning internal iOS beta
   workflow_dispatch:
     inputs:
       upload_run_id:
-        description: Verified BTC and XBT Lightning upload for build 1795374892
+        description: Verified BTC and XBT Lightning upload for build 1795562313
         required: true
         type: string
-        default: "45064500999"
+        default: "45515564670"
 permissions:
   contents: read
   actions: read
