@@ -1,4 +1,4 @@
-name: Kilobot QA internal TestFlight upload
+name: Kilobot QA TestFlight upload
 on:
   workflow_dispatch:
   pull_request:
@@ -30,26 +30,12 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
-      - name: Wait for the exact unsigned publisher archive
+      - name: Qualify the pinned build 6 archive and native CI receipts
         env:
           GH_TOKEN: ${{ github.token }}
-        working-directory: distribution/kilobot
-        run: |
-          python3 - <<'PYCODE'
-          import time
-          from fetch_archive import RUN, COMMIT, artifact, github
-          while True:
-              run = github(f"actions/runs/{RUN}")
-              if run["head_sha"] != COMMIT or run["run_attempt"] != 1:
-                  raise ValueError("Publisher run changed")
-              if run["status"] == "completed":
-                  item = artifact(run, github(f"actions/runs/{RUN}/artifacts"))
-                  print("Qualified archive", item["id"], item["digest"])
-                  break
-              time.sleep(60)
-          PYCODE
+        run: python3 distribution/kilobot/external_candidate.py
   certificate:
-    needs: verify
+    needs: archive
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     environment: ios-signing
     runs-on: macos-15
@@ -158,10 +144,23 @@ jobs:
         with:
           persist-credentials: false
           path: signing
+      - name: Install Apple-signed Transporter for TestFlight uploads
+        run: |
+          set -euo pipefail
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            'https://itunesconnect.apple.com/WebObjects/iTunesConnect.woa/ra/resources/download/public/Transporter__OSX/bin/' \
+            --output "$RUNNER_TEMP/Apple-Transporter.pkg"
+          pkgutil --check-signature "$RUNNER_TEMP/Apple-Transporter.pkg" > "$RUNNER_TEMP/Transporter-signature.txt"
+          grep -q 'Apple Inc.' "$RUNNER_TEMP/Transporter-signature.txt"
+          spctl --assess --type install "$RUNNER_TEMP/Apple-Transporter.pkg"
+          sudo installer -pkg "$RUNNER_TEMP/Apple-Transporter.pkg" -target /
+          /usr/local/itms/bin/iTMSTransporter -version
       - name: Authenticate and extract the isolated QA archive
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 signing/distribution/kilobot/fetch_archive.py
+        run: |
+          python3 signing/distribution/kilobot/external_candidate.py
+          python3 signing/distribution/kilobot/fetch_archive.py
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: Kilowallet_Encrypted_Identity
@@ -204,13 +203,36 @@ jobs:
           security find-identity -v -p codesigning "$keychain_path"
       - name: Provision, sign, and verify the QA app
         run: python3 signing/distribution/kilobot/sign_archive.py
-      - name: Upload the verified archive as TestFlight internal only
+      - name: Export and verify the isolated build 6 IPA
+        shell: bash
         run: |
           set -euo pipefail
-          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/KilobotQA.xcarchive" \
-            -exportOptionsPlist "$APPLE_EXPORT_OPTIONS" -exportPath "$RUNNER_TEMP/KilobotQA-export" \
-            -authenticationKeyPath "$APPLE_API_KEY_PATH" -authenticationKeyID "$APPLE_API_KEY_ID" \
-            -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID" -allowProvisioningUpdates
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/KilobotQA.xcarchive" -exportOptionsPlist "$APPLE_EXPORT_OPTIONS" -exportPath "$RUNNER_TEMP/KilobotQA-export"
+          shopt -s nullglob
+          files=("$RUNNER_TEMP/KilobotQA-export/"*.ipa)
+          test "${#files[@]}" = 1
+          cp "${files[0]}" "$RUNNER_TEMP/KilobotQA-build6.ipa"
+          python3 signing/distribution/kilobot/package_receipt.py "$RUNNER_TEMP/KilobotQA-build6.ipa" record
+      - name: Recheck Apple and upload the same verified IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -c 'import sys; sys.path.insert(0,"signing/distribution/kilobot"); from sign_archive import check_apple; check_apple()'
+          python3 signing/distribution/kilobot/package_receipt.py "$RUNNER_TEMP/KilobotQA-build6.ipa" check
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          cp "$APPLE_API_KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+          /usr/local/itms/bin/iTMSTransporter -m upload -assetFile "$RUNNER_TEMP/KilobotQA-build6.ipa" -v informational -apiKey "$APPLE_API_KEY_ID" -apiIssuer "$APPLE_API_ISSUER_ID"
+          cp kilobot-build6-package.json kilobot-build6-transporter-accepted.json
+      - name: Retain package and transport receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kilobot-qa-build6-receipts
+          path: |
+            kilobot-build6-package.json
+            kilobot-build6-transporter-accepted.json
+          if-no-files-found: warn
       - name: Clean up temporary credentials
         if: always()
         run: |
