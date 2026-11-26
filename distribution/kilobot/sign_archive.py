@@ -1,4 +1,4 @@
-"""Sign the pinned Kilobot iPhone archive for internal TestFlight distribution."""
+"""Sign the pinned Kilobot iPhone archive for external TestFlight eligibility."""
 import hashlib
 import os
 import plistlib
@@ -17,7 +17,7 @@ APP_ID = "6838899911"
 BUNDLE = "dev.kilowallet.tests.KilobotWallet"
 TEAM = "PPG9C98EY9"
 VERSION = "1.0.0"
-BUILD = "5"
+BUILD = "6"
 
 
 def check_apple():
@@ -65,15 +65,16 @@ def sign_archive():
         raise ValueError("Expected a physical iPhone executable")
     metadata = read_plist(archive / "Info.plist")
     props = metadata["ApplicationProperties"]
-    if props["ApplicationPath"] != "Applications/Kilowallet.app" or props["CFBundleIdentifier"] != BUNDLE:
+    if props.get("CFBundleVersion") != BUILD or props.get("CFBundleShortVersionString") != VERSION or props["ApplicationPath"] != "Applications/Kilowallet.app" or props["CFBundleIdentifier"] != BUNDLE:
         raise ValueError("Incorrect archived application path or identity")
 
     check_apple()
-    prepare_profile(kilobot_qa=True)
+    prepare_profile(kilobot_qa=True, kilobot_build6=True)
     options = read_plist(Path(os.environ["APPLE_EXPORT_OPTIONS"]))
-    if (options.get("testFlightInternalTestingOnly") is not True or options["destination"] != "upload"
+    if (options.get("testFlightInternalTestingOnly") is not False or options["destination"] != "export"
+            or options.get("method") != "app-store-connect" or options.get("manageAppVersionAndBuildNumber") is not False
             or options["teamID"] != TEAM or set(options["provisioningProfiles"]) != {BUNDLE}):
-        raise ValueError("Incorrect internal export options")
+        raise ValueError("Incorrect build 6 external QA export options")
     cert = (root / "Kilowallet-signing/distribution.cer").read_bytes()
     identity = hashlib.sha1(cert).hexdigest().upper()
     profile_uuid = options["provisioningProfiles"][BUNDLE]
@@ -110,7 +111,7 @@ def sign_archive():
         raise ValueError("Expected the verified Apple Distribution identity")
     props.update(SigningIdentity=authority[1], Team=TEAM)
     (archive / "Info.plist").write_bytes(plistlib.dumps(metadata))
-    print("Verified Kilobot QA 1.0.0 (5) distribution signature, isolated keychain, and internal-only export.")
+    print("Verified Kilobot QA 1.0.0 (6) distribution signature, isolated keychain, and external-eligible export.")
 
 
 if __name__ == "__main__":

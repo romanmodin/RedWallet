@@ -5,17 +5,17 @@ import unittest
 import zipfile
 from unittest.mock import patch
 
-from fetch_archive import COMMIT, NAME, REPO, RUN, WORKFLOW, artifact, checked_members
+from fetch_archive import ARTIFACT_ID, OUTER_DIGEST, COMMIT, NAME, REPO, RUN, WORKFLOW, artifact, checked_members
 from sign_archive import APP_ID, BUNDLE, check_app, check_apple
 
 
-class InternalOnlyTests(unittest.TestCase):
+class CandidateTests(unittest.TestCase):
     def test_archive_origin(self):
         repository = {"full_name": REPO}
         run = {"id": RUN, "run_attempt": 1, "head_sha": COMMIT, "repository": repository,
-               "head_repository": repository, "event": "push", "path": WORKFLOW,
+               "head_repository": repository, "event": "workflow_dispatch", "workflow_id":429494744, "head_branch":"qa/kilobot-external-build-6", "path": WORKFLOW,
                "status": "completed", "conclusion": "success"}
-        entry = {"id": 13, "name": NAME, "digest": "sha256:" + "1" * 64, "expired": False,
+        entry = {"id": ARTIFACT_ID, "name": NAME, "digest": OUTER_DIGEST, "expired": False,
                  "workflow_run": {"id": RUN, "head_sha": COMMIT}}
         listing = {"total_count": 1, "artifacts": [entry]}
         self.assertEqual(artifact(run, listing), entry)
@@ -39,7 +39,7 @@ class InternalOnlyTests(unittest.TestCase):
 
     def test_app_identity(self):
         info = {"CFBundleIdentifier": BUNDLE, "CFBundleDisplayName": "Kilobot QA",
-                "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "5",
+                "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "6",
                 "CFBundleExecutable": "Kilowallet", "CFBundleSupportedPlatforms": ["iPhoneOS"],
                 "ITSAppUsesNonExemptEncryption": False, "DTSDKName": "iphoneos26.5"}
         check_app(info)
@@ -52,6 +52,6 @@ class InternalOnlyTests(unittest.TestCase):
         app = {"data": {"id": APP_ID, "attributes": {"bundleId": BUNDLE}}}
         with patch("sign_archive.get", side_effect=[app, {"data": []}]):
             check_apple()
-        with patch("sign_archive.get", side_effect=[app, {"data": [{"attributes": {"version": "5"}}]}]):
+        with patch("sign_archive.get", side_effect=[app, {"data": [{"attributes": {"version": "6"}}]}]):
             with self.assertRaisesRegex(ValueError, "already in use"):
                 check_apple()

@@ -19,7 +19,9 @@ def validate_profile(data, identifier, certificate, team):
     if p['ExpirationDate']<=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None): raise RuntimeError('Expired profile')
     return p
 
-def main(*, kilobot_qa=False):
+def main(*, kilobot_qa=False, kilobot_build6=False):
+    if kilobot_build6 and not kilobot_qa:
+        raise ValueError("External QA export is restricted to the Kilobot QA bundle")
     targets = {"Kilobot QA": "dev.kilowallet.tests.KilobotWallet"} if kilobot_qa else ALLOWED
     certificate=Path(os.environ['RUNNER_TEMP']+'/Kilowallet-signing/distribution.cer').read_bytes()
     team=os.environ['TEAM_ID']
@@ -48,7 +50,9 @@ def main(*, kilobot_qa=False):
         settings[target]={'settings':{'base':{'CODE_SIGN_STYLE':'Manual','DEVELOPMENT_TEAM':team,'CODE_SIGN_IDENTITY':'Apple Distribution','PROVISIONING_PROFILE_SPECIFIER':p['UUID']}}}
     with open(os.environ['GITHUB_ENV'],'a') as out: out.write('KILOWALLET_PROFILE='+mapping[next(iter(targets.values()))]+'\n')
     options={'method':'app-store-connect','destination':'export','teamID':team,'signingStyle':'manual','signingCertificate':hashlib.sha1(certificate).hexdigest().upper(),'provisioningProfiles':mapping,'manageAppVersionAndBuildNumber':False,'uploadSymbols':True,'generateAppStoreInformation':True}
-    if kilobot_qa:
+    if kilobot_build6:
+        options.update(testFlightInternalTestingOnly=False, destination='export')
+    elif kilobot_qa:
         options.update(testFlightInternalTestingOnly=True, destination='upload')
     Path(os.environ['APPLE_EXPORT_OPTIONS']).write_bytes(plistlib.dumps(options))
     print('Verified dedicated Kilowallet store profile against the existing distribution certificate.')

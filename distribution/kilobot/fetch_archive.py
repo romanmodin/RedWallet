@@ -10,8 +10,11 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 REPO = "romanmodin/kilowallet-ios"
-RUN = 45475792490
-COMMIT = "b6277dd26e163183e4c45378ca832f77d32d7dc7"
+RUN = 45683827199
+COMMIT = "d104c567b58fcc0e3b6a0bad8a9b3e2c320fd989"
+ARTIFACT_ID = 15056019167
+OUTER_DIGEST = "sha256:6617a09973e2e38002ae790e88d135b1681540222cdf9624696644e158987265"
+INNER_DIGEST = "9281fa7f067f042543abc3ece85f2097dec8aa460e558914a3f8b4bb007ba70b"
 WORKFLOW = ".github/workflows/kilobot-testflight-archive.yml"
 NAME = "Kilobot-QA-unsigned-device-archive"
 ARCHIVE = "KilobotQA.xcarchive.zip"
@@ -24,7 +27,8 @@ def github(path):
 def artifact(run, listing):
     if (run["id"] != RUN or run["head_sha"] != COMMIT or run["run_attempt"] != 1
             or run["repository"]["full_name"] != REPO or run["head_repository"]["full_name"] != REPO
-            or run["event"] != "push" or run["path"] != WORKFLOW
+            or run["event"] != "workflow_dispatch" or run["workflow_id"] != 429494744
+            or run["head_branch"] != "qa/kilobot-external-build-6" or run["path"] != WORKFLOW
             or run["status"] != "completed" or run["conclusion"] != "success"):
         raise ValueError("Publisher archive run has not passed with the expected source")
     matches = [a for a in listing["artifacts"] if a["name"] == NAME]
@@ -32,8 +36,8 @@ def artifact(run, listing):
         raise ValueError("Expected one matching archive in the complete artifact list")
     item = matches[0]
     if (item["expired"] or item["workflow_run"]["id"] != RUN
-            or item["workflow_run"]["head_sha"] != COMMIT or not isinstance(item["id"], int)
-            or not re.fullmatch(r"sha256:[0-9a-f]{64}", item["digest"])):
+            or item["workflow_run"]["head_sha"] != COMMIT or item["id"] != ARTIFACT_ID
+            or item["digest"] != OUTER_DIGEST):
         raise ValueError("Invalid publisher artifact")
     return item
 
@@ -72,7 +76,7 @@ def main():
         with payload.open(ARCHIVE) as source, inner.open("wb") as output:
             shutil.copyfileobj(source, output)
     observed = digest(inner)
-    if checksum != [observed, ARCHIVE]:
+    if observed != INNER_DIGEST or checksum != [observed, ARCHIVE]:
         raise ValueError("Archive checksum mismatch")
     with zipfile.ZipFile(inner) as data:
         checked_members(data)
