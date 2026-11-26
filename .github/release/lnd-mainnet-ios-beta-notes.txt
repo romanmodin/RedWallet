@@ -1,5 +1,5 @@
-This internal iPhone build adds Keystone QR signing for XBT Native SegWit watch-only accounts. Unified signing is the default.
+On an XBT Native SegWit watch-only test account with both hardware-signing switches enabled, enter a fixed Send amount and leave coin selection on automatic. If the first selection has an unsupported funding signature, RedWallet tries one other selection and verifies the inputs again.
 
-Using a test account, open Wallet Details and select “Standard hardware signing (Keystone)”. Read the privacy notice. RedWallet checks coin separation before preparing a signing request and again before broadcast. Blockstream receives public funding transaction IDs. Both Blockstream and mempool.space see your IP address.
+When an alternative covers the payment and passes verification, RedWallet shows its exact network fee. Cancel to stay in Send, or confirm to review the unsigned request on Keystone. Compare the recipient, amount and fee. Stop at review. Use disposable test coins.
 
-If you have a prepared test fixture, open Send and check that the recipient, amount and fee on the Keystone match the iPhone. Stop at the review screen. A missing proof should block the signing request with “Coin separation could not be verified.” Testing here requires no live payment.
+If RedWallet cannot verify separation, signing stays blocked. The existing notice about sharing funding transaction IDs and IP addresses with the public proof services still applies.
