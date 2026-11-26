@@ -8,20 +8,20 @@ import subprocess
 import tempfile
 
 REPO = 'romanmodin/RedWallet'
-PUBLIC = '6a5ac5efb64e7bb86e32d2bdcc9c5b6c2d62c703'
-ORCHESTRATION = 'e0f53bba19d043def996bda697c50255c7c053f7'
+PUBLIC = '789d73acc6d383121255d21bcf733e9685d0d2dd'
+ORCHESTRATION = 'fba81384a851386c3371ea8119b5c74458d743ad'
 # This historical combined run predates linked signing and upload receipts.
 LEGACY_RUN = '43379269059'
-SIGNING_RUN = '45508193659'
-UPLOAD_RUN = '45515564670'
+SIGNING_RUN = '45745020655'
+UPLOAD_RUN = '45753312037'
 SIGNING_ATTEMPT = 1
 UPLOAD_ATTEMPT = 1
 GATE_RUNS = {
-    'CI_RUN_ID': '45456843517',
-    'IOS_RUN_ID': '45456891729',
-    'FUNDED_IOS_RUN_ID': '45456882120',
-    'LND_IOS_RUN_ID': '45456843515',
-    'HARDWARE_IOS_RUN_ID': '45456872143',
+    'CI_RUN_ID': '45535795375',
+    'IOS_RUN_ID': '45535963647',
+    'FUNDED_IOS_RUN_ID': '45535970826',
+    'LND_IOS_RUN_ID': '45535795320',
+    'HARDWARE_IOS_RUN_ID': '45535956429',
 }
 RELEASE_WORKFLOW = '.github/workflows/build-ios-approved-source.yml'
 gates = runpy.run_path(str(Path(__file__).with_name('verify-ios-release-gates.py')))
@@ -110,11 +110,11 @@ def main():
     gate_receipts = qualification(GATE_RUNS, legacy=SIGNING_RUN == UPLOAD_RUN == LEGACY_RUN)
     expected = {
         'lightningNetwork': 'mainnet',
-        'ipaSha256': 'b89426043518e88e256942e7f282b6f7fb457e18bf4aa7304fd215b1b440c8e5',
+        'ipaSha256': '58bd02be9090c6fba0ddc7319546bade91cb98556f3a6e41f8b86e903aa75bd7',
         'publicSourceCommit': PUBLIC,
         'sourceCommit': PUBLIC,
         'orchestrationCommit': ORCHESTRATION,
-        'productionTreeSha256': 'b0ca1fffc5e98d19c1da91d0d39806e4b8b411fd2843a9f5aa276dfbb3131a5a',
+        'productionTreeSha256': 'afe7bcdfe6c559f89804409156c976252603f5e35b092e47d3338d19f12c3ca5',
         'productionPathCount': 1183,
         'signatureVerification': 'passed',
         'sourceMappingVerification': 'passed',
@@ -126,7 +126,7 @@ def main():
     bundles = receipt['bundles']
     if len(bundles) != 2 or {b['bundleId'] for b in bundles} != {'com.romanmodin.redwallet', 'com.romanmodin.redwallet.Stickers'}:
         raise ValueError('Unexpected app or extension')
-    if any(b['version'] != '8.0.1' or b['build'] != '1795562313' or b['architectures'] != ['arm64'] for b in bundles):
+    if any(b['version'] != '8.0.1' or b['build'] != '1795661849' or b['architectures'] != ['arm64'] for b in bundles):
         raise ValueError('Wrong iPhone package')
     print('PASS: uploaded IPA, exact production source, and completed iOS/software gates verified')
 
