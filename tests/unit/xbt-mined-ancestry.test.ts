@@ -46,6 +46,45 @@ test('refuses the same reward and invalid spend edges', () => {
   expect(() => verifyMinedAncestry({ txid: f.spend.getId(), vout: 0 }, [f.spend.toHex(), f.mined.toHex()], f.proof, f.anchor)).toThrow();
 });
 
+test('a mixed-input transaction depends on its mined input even when it is the second input', () => {
+  const f = fixture();
+  const ordinary = new Transaction();
+  ordinary.addInput(Buffer.alloc(32, 7), 0);
+  ordinary.addOutput(Buffer.from([0x51]), 50000n);
+  const mixed = new Transaction();
+  mixed.addInput(ordinary.getHash(), 0);
+  mixed.addInput(f.spend.getHash(), 0);
+  mixed.addOutput(Buffer.from([0x51]), 120000n);
+  const selected = { txid: mixed.getId(), vout: 0 };
+  expect(verifyMinedAncestry(selected, [mixed.toHex(), ...f.path], f.proof, f.anchor).getId()).toBe(f.mined.getId());
+  expect(() => verifyMinedAncestry(selected, [mixed.toHex(), ordinary.toHex(), f.mined.toHex()], f.proof, f.anchor)).toThrow();
+});
+
+test('accepts a complete 64-transaction mining path and rejects a longer or truncated path', () => {
+  const f = fixture();
+  const chain = [f.mined];
+  for (let i = 1; i <= 64; i++) {
+    const next = new Transaction();
+    next.addInput(chain[i - 1].getHash(), 0);
+    next.addOutput(Buffer.from([0x51]), 100000n - BigInt(i));
+    chain.push(next);
+  }
+  const path = chain.map(tx => tx.toHex()).reverse();
+  expect(verifyMinedAncestry({ txid: chain[63].getId(), vout: 0 }, path.slice(1), f.proof, f.anchor).getId()).toBe(f.mined.getId());
+  const selected = { txid: chain[64].getId(), vout: 0 };
+  expect(() => verifyMinedAncestry(selected, path, f.proof, f.anchor)).toThrow();
+  expect(() => verifyMinedAncestry(selected, path.slice(0, 64), f.proof, f.anchor)).toThrow();
+});
+
+test('witness differences alone cannot distinguish the two reward outpoints', () => {
+  const f = fixture();
+  const otherWitness = Transaction.fromHex(f.canonical.toHex());
+  otherWitness.setWitness(0, [Buffer.alloc(32, 5)]);
+  expect(otherWitness.toHex()).not.toBe(f.canonical.toHex());
+  expect(otherWitness.getId()).toBe(f.canonical.getId());
+  expect(() => verifyMinedAncestry({ txid: otherWitness.getId(), vout: 0 }, [otherWitness.toHex()], f.proof, f.anchor)).toThrow();
+});
+
 test('refuses a stale or replaced anchor, wrong height, position or branch', () => {
   const { selected, path, proof, anchor } = fixture();
   for (const changed of [
