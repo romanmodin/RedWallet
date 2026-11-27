@@ -39,6 +39,20 @@ test('verifies a reward descendant against a different position-zero SHA-256 rew
   expect(() => verifyMinedAncestry(f.selected, f.path, f.proof, f.anchor)).not.toThrow();
 });
 
+test('checks parsed ancestry links with the mobile Buffer implementation', () => {
+  const f = fixture();
+  const unrelated = reward(3).toHex();
+  const originalBuffer = global.Buffer;
+  try {
+    global.Buffer = require('buffer/').Buffer;
+    expect(Buffer.isBuffer(Transaction.fromHex(f.path[0]).ins[0].hash)).toBe(false);
+    expect(verifyMinedAncestry(f.selected, f.path, f.proof, f.anchor).getId()).toBe(f.mined.getId());
+    expect(() => verifyMinedAncestry(f.selected, [f.path[0], unrelated], f.proof, f.anchor)).toThrow('separation');
+  } finally {
+    global.Buffer = originalBuffer;
+  }
+});
+
 test('refuses the same reward and invalid spend edges', () => {
   const f = fixture();
   expect(() => verifyMinedAncestry({ txid: f.canonical.getId(), vout: 0 }, [f.canonical.toHex()], f.proof, f.anchor)).toThrow();

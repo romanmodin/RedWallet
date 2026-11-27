@@ -103,7 +103,7 @@ export function verifyMinedAncestry(
     const tx = Transaction.fromHex(raw);
     if (child) {
       const hash = Buffer.from(tx.getHash());
-      if (!child.ins.some(input => input.index < tx.outs.length && hash.equals(input.hash))) fail();
+      if (!child.ins.some(input => input.index < tx.outs.length && hash.equals(Buffer.from(input.hash)))) fail();
     } else if (tx.getId() !== selected.txid || !tx.outs[selected.vout]) fail();
     child = tx;
   }
