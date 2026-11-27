@@ -129,7 +129,7 @@ function linkParents(rewardHeader: Buffer, median: number) {
   return parents;
 }
 
-test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip'] as const)(
+test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
   'collects only public SHA-256 reward evidence: %s',
   async scenario => {
     const f = fixture();
@@ -179,11 +179,18 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelat
       const parentHeaders = linkParents(header, 1819756800);
       const anchor = { header: header.toString('hex'), blockHash: xbtV2BlockHash(header), parentHeaders };
       let hash = anchor.blockHash;
-      const descendants = Array.from({ length: 99 }, (_, i) => {
+      const inclusionOffset = scenario === 'five confirmations' ? 101 : 100;
+      const sibling = reward(8, height + inclusionOffset);
+      const descendants = Array.from({ length: 105 }, (_, i) => {
         const child = Buffer.alloc(164);
         child.writeUInt32LE(0x80000000, 0);
         child.writeInt32LE(height + i + 1, 128);
         child.set(Buffer.from(hash, 'hex').reverse(), 4);
+        if (i + 1 === inclusionOffset) {
+          child.writeUInt16LE(2, 108);
+          const second = scenario === 'unconfirmed selected transaction' ? f.canonical : f.spend;
+          child.set(crypto.hash256(Buffer.concat([sibling.getHash(), second.getHash()])), 36);
+        }
         hash = xbtV2BlockHash(child);
         return child.toString('hex');
       });
@@ -204,7 +211,17 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelat
           hash: scenario === 'wrong XBT tip' || (tipReads === 2 && scenario === 'replaced XBT tip') ? '00'.repeat(32) : hash,
         };
       };
-      const result = verifyPublicMinedSeparation(f.selected, f.path, height, { anchor, merkle: [], descendants }, readTrustedTip, () => {});
+      const direct = scenario === 'direct reward';
+      const selectedInclusion = direct || scenario === 'missing selected proof' ? undefined : {
+        height: scenario === 'borrowed block height' ? height + inclusionOffset - 1 : height + inclusionOffset,
+        position: scenario === 'wrong selected position' ? 0 : 1,
+        merkle: [scenario === 'wrong selected sibling' ? f.mined.getId() : sibling.getId()],
+      };
+      const evidence = { anchor, merkle: [], descendants, selectedInclusion };
+      const result = verifyPublicMinedSeparation(
+        direct ? { txid: f.mined.getId(), vout: 0 } : f.selected,
+        direct ? [f.mined.toHex()] : f.path, height, evidence, readTrustedTip, () => {},
+      );
       if (timingCase) {
         const check = expect(result).rejects.toThrow('separation');
         await jest.runAllTimersAsync();
@@ -213,7 +230,7 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelat
         if (scenario === 'stalled final tip') expect(stalledSignal?.aborted).toBe(true);
         return;
       }
-      if (scenario === 'valid') {
+      if (scenario === 'valid' || direct) {
         await expect(result).resolves.toBeUndefined();
         expect(rewardAnchorReads).toBe(4);
       } else await expect(result).rejects.toThrow('separation');

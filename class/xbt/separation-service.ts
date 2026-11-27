@@ -3,7 +3,7 @@ import { getSeparationHTTPResponse } from './separation-http';
 import { hasFreshTipTime } from './separation-freshness';
 import { SEPARATION_EVIDENCE as EVIDENCE, SEPARATION_ANCHOR as ANCHOR } from './separation-http-policy';
 import { Transaction, crypto } from 'bitcoinjs-lib';
-import { verifyFundingConflict, verifyMinedAncestry, verifyXbtRewardForSpend } from './separation-proof';
+import { verifyFundingConflict, verifyMinedAncestry, verifyTransactionMerklePath, verifyXbtRewardForSpend } from './separation-proof';
 import { parseVerifiedParentTransaction } from './verified-transaction';
 
 // Fixed HTTPS sources; no wallet sessions, xpubs, addresses, PSBTs or broadcast.
@@ -146,6 +146,7 @@ export async function verifyPublicMinedSeparation(
     anchor: Omit<Parameters<typeof verifyXbtRewardForSpend>[2], 'tipHeight'>;
     merkle: readonly string[];
     descendants: readonly string[];
+    selectedInclusion?: { height: number; position: number; merkle: readonly string[] };
   },
   // This reader must independently authenticate the current XBT chain tip.
   // Never derive its result from the supplied headers or their provider.
@@ -193,10 +194,19 @@ export async function verifyPublicMinedSeparation(
   if (branch?.block_height !== height || branch.pos !== 0) unavailable();
   const reward = verifyMinedAncestry(selected, ancestry, {rawTransaction, header, position: branch.pos, merkle: branch.merkle},
     {height, tipHeight, blockHash, txCount: evidenceBlock.tx_count});
+  const selectedTx = Transaction.fromHex(ancestry[0]);
+  const directReward = selectedTx.getId() === reward.getId();
+  const inclusion = directReward ? undefined : xbtReward.selectedInclusion;
+  if (!directReward && !inclusion) return unavailable();
+  const selectedHeight = inclusion?.height ?? height;
+  if (inclusion && (
+    !Number.isSafeInteger(inclusion.height) || inclusion.height <= height ||
+    !Number.isSafeInteger(inclusion.position) || inclusion.position < 1 || !Array.isArray(inclusion.merkle)
+  )) return unavailable();
   const trustedTip = await readCurrentTip();
   const { descendants, anchor } = xbtReward;
   verifyXbtRewardForSpend(reward, xbtReward.merkle, { ...anchor, tipHeight: trustedTip.height });
-  if (descendants.length !== trustedTip.height - height) unavailable();
+  if (descendants.length !== trustedTip.height - height || trustedTip.height - selectedHeight + 1 < 6) unavailable();
   let previous = anchor.blockHash;
   for (let i = 0; i < descendants.length; i++) {
     if (i % 64 === 0) {
@@ -209,6 +219,9 @@ export async function verifyPublicMinedSeparation(
     if (!/^[0-9a-f]{328}$/i.test(raw)) unavailable();
     const child = Buffer.from(raw, 'hex');
     if (child.readInt32LE(128) !== height + i + 1 || Buffer.from(child.subarray(4, 36)).reverse().toString('hex') !== previous) unavailable();
+    if (inclusion && height + i + 1 === selectedHeight) {
+      verifyTransactionMerklePath(selectedTx, child.readUInt16LE(108), inclusion.position, inclusion.merkle, child.subarray(36, 68));
+    }
     previous = xbtV2BlockHash(child);
   }
   if (previous !== trustedTip.hash) unavailable();

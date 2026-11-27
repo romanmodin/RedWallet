@@ -11,6 +11,34 @@ const fail = (): never => {
   throw new Error('Coin separation proof is invalid or insufficiently confirmed');
 };
 
+export function verifyTransactionMerklePath(included: Transaction, count: number, position: number, merkle: readonly string[], root: Uint8Array): void {
+  if (
+    !Number.isSafeInteger(count) ||
+    count < 1 ||
+    count > 1000000 ||
+    !Number.isSafeInteger(position) ||
+    position < 0 ||
+    position >= count ||
+    !Array.isArray(merkle) ||
+    merkle.length !== Math.ceil(Math.log2(count)) ||
+    merkle.some(hash => !HASH.test(hash))
+  ) fail();
+  if (included.byteLength(false) === 64) fail();
+  let hash = Buffer.from(included.getHash());
+  let width = count;
+  for (const sibling of merkle) {
+    const other = Buffer.from(sibling, 'hex').reverse();
+    // Bitcoin duplicates the last node only at odd-width levels. Count is
+    // supplied by the authenticated block evidence.
+    const duplicatedLast = width % 2 === 1 && position === width - 1;
+    if (hash.equals(other) !== duplicatedLast) fail();
+    hash = Buffer.from(crypto.hash256(position % 2 ? Buffer.concat([other, hash]) : Buffer.concat([hash, other])));
+    position = Math.floor(position / 2);
+    width = Math.ceil(width / 2);
+  }
+  if (position !== 0 || !hash.equals(Buffer.from(root))) fail();
+}
+
 function verifyInclusion(proof: ConflictProof, anchor: BtcChainAnchor): Transaction {
   if (
     !Number.isSafeInteger(anchor.height) ||
@@ -19,15 +47,6 @@ function verifyInclusion(proof: ConflictProof, anchor: BtcChainAnchor): Transact
     anchor.tipHeight - anchor.height + 1 < 6 ||
     !HASH.test(anchor.blockHash) ||
     !/^[0-9a-f]{160}$/i.test(proof.header) ||
-    !Number.isSafeInteger(anchor.txCount) ||
-    anchor.txCount < 1 ||
-    anchor.txCount > 1000000 ||
-    !Number.isSafeInteger(proof.position) ||
-    proof.position < 0 ||
-    proof.position >= anchor.txCount ||
-    !Array.isArray(proof.merkle) ||
-    proof.merkle.length !== Math.ceil(Math.log2(anchor.txCount)) ||
-    proof.merkle.some(hash => !HASH.test(hash)) ||
     proof.rawTransaction.length > 2_000_000 ||
     !/^(?:[0-9a-f]{2})+$/i.test(proof.rawTransaction)
   )
@@ -36,21 +55,7 @@ function verifyInclusion(proof: ConflictProof, anchor: BtcChainAnchor): Transact
   const headerHash = Buffer.from(crypto.hash256(header)).reverse().toString('hex');
   if (headerHash !== anchor.blockHash.toLowerCase()) fail();
   const included = Transaction.fromHex(proof.rawTransaction);
-  if (included.byteLength(false) === 64) fail();
-  let hash = Buffer.from(included.getHash());
-  let position = proof.position;
-  let width = anchor.txCount;
-  for (const sibling of proof.merkle) {
-    const other = Buffer.from(sibling, 'hex').reverse();
-    // Bitcoin duplicates the last node only at odd-width levels. Count is
-    // obtained from the independent anchor source, not from this proof.
-    const duplicatedLast = width % 2 === 1 && position === width - 1;
-    if (hash.equals(other) !== duplicatedLast) fail();
-    hash = Buffer.from(crypto.hash256(position % 2 ? Buffer.concat([other, hash]) : Buffer.concat([hash, other])));
-    position = Math.floor(position / 2);
-    width = Math.ceil(width / 2);
-  }
-  if (position !== 0 || !hash.equals(Buffer.from(header.subarray(36, 68)))) fail();
+  verifyTransactionMerklePath(included, anchor.txCount, proof.position, proof.merkle, header.subarray(36, 68));
   return included;
 }
 
@@ -123,20 +128,9 @@ export function verifyXbtRewardForSpend(
   if (
     header.readInt32LE(0) >= 0 ||
     height < 961640 ||
-    !count ||
-    !rewardAtHeight(reward, height) ||
-    reward.byteLength(false) === 64 ||
-    merkle.length !== Math.ceil(Math.log2(count))
-  )
-    fail();
-  let hash = Buffer.from(reward.getHash());
-  for (const sibling of merkle) {
-    if (!HASH.test(sibling)) fail();
-    const right = Buffer.from(sibling, 'hex').reverse();
-    if (hash.equals(right)) fail();
-    hash = Buffer.from(crypto.hash256(Buffer.concat([hash, right])));
-  }
-  if (!hash.equals(header.subarray(36, 68))) fail();
+    !rewardAtHeight(reward, height)
+  ) fail();
+  verifyTransactionMerklePath(reward, count, 0, merkle, header.subarray(36, 68));
   // Knots b4c8f9f4, Consensus::CoinbaseMaturityPolicy. Rewards covered by
   // the rolling rule retain it when a later block crosses the RDTS expiry.
   const depth = anchor.tipHeight - height + 1;
