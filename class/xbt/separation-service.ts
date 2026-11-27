@@ -2,7 +2,7 @@ import { getSeparationHTTPResponse } from './separation-http';
 import { hasFreshTipTime } from './separation-freshness';
 import { SEPARATION_EVIDENCE as EVIDENCE, SEPARATION_ANCHOR as ANCHOR } from './separation-http-policy';
 import { Transaction, crypto } from 'bitcoinjs-lib';
-import { verifyFundingConflict, verifyMinedAncestry } from './separation-proof';
+import { verifyFundingConflict, verifyMinedAncestry, verifyXbtRewardForSpend } from './separation-proof';
 import { parseVerifiedParentTransaction } from './verified-transaction';
 
 // Fixed HTTPS sources; no wallet sessions, xpubs, addresses, PSBTs or broadcast.
@@ -141,6 +141,7 @@ export async function verifyPublicMinedSeparation(
   selected: { txid: string; vout: number },
   ancestry: readonly string[],
   height: number,
+  xbtReward: { anchor: Parameters<typeof verifyXbtRewardForSpend>[2]; merkle: readonly string[] },
   assertAuthorized: () => void,
 ): Promise<void> {
   assertAuthorized();
@@ -160,8 +161,9 @@ export async function verifyPublicMinedSeparation(
   const [rawTransaction, branch] = await Promise.all([get(EVIDENCE, '/tx/' + id + '/hex', 2000000), json('/tx/' + id + '/merkle-proof')]);
   parseVerifiedParentTransaction(id, rawTransaction);
   if (branch?.block_height !== height || branch.pos !== 0) unavailable();
-  verifyMinedAncestry(selected, ancestry, {rawTransaction, header, position: branch.pos, merkle: branch.merkle},
+  const reward = verifyMinedAncestry(selected, ancestry, {rawTransaction, header, position: branch.pos, merkle: branch.merkle},
     {height, tipHeight, blockHash, txCount: evidenceBlock.tx_count});
+  verifyXbtRewardForSpend(reward, xbtReward.merkle, xbtReward.anchor);
   if ((await tip()) - height + 1 < 6 || (await agreedHashAt(height)) !== blockHash) unavailable();
   assertAuthorized();
 }

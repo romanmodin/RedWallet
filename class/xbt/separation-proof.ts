@@ -11,23 +11,6 @@ const fail = (): never => {
   throw new Error('Coin separation proof is invalid or insufficiently confirmed');
 };
 
-/** A different confirmed BTC transaction spending any funding input makes that
- * funding body impossible on the anchored BTC chain. Signature-only changes do
- * not count: they may preserve the txid. Recheck the anchor before broadcasting.
- */
-export function verifyFundingConflict(funding: Transaction, proof: ConflictProof, anchor: BtcChainAnchor): string {
-  if (proof.position < 1) fail();
-  const conflict = verifyInclusion(proof, anchor);
-  if (funding.isCoinbase() || conflict.isCoinbase() || conflict.getId() === funding.getId()) fail();
-  if (
-    !conflict.ins.some(input =>
-      funding.ins.some(other => input.index === other.index && Buffer.from(input.hash).equals(Buffer.from(other.hash))),
-    )
-  )
-    fail();
-  return conflict.getId();
-}
-
 function verifyInclusion(proof: ConflictProof, anchor: BtcChainAnchor): Transaction {
   if (
     !Number.isSafeInteger(anchor.height) ||
@@ -71,6 +54,29 @@ function verifyInclusion(proof: ConflictProof, anchor: BtcChainAnchor): Transact
   return included;
 }
 
+/** A different confirmed BTC transaction spending any funding input makes that
+ * funding body impossible on the anchored BTC chain. Signature-only changes do
+ * not count: they may preserve the txid. Recheck the anchor before broadcasting.
+ */
+export function verifyFundingConflict(funding: Transaction, proof: ConflictProof, anchor: BtcChainAnchor): string {
+  if (proof.position < 1) fail();
+  const conflict = verifyInclusion(proof, anchor);
+  if (funding.isCoinbase() || conflict.isCoinbase() || conflict.getId() === funding.getId()) fail();
+  if (
+    !conflict.ins.some(input =>
+      funding.ins.some(other => input.index === other.index && Buffer.from(input.hash).equals(Buffer.from(other.hash))),
+    )
+  )
+    fail();
+  return conflict.getId();
+}
+
+function rewardAtHeight(tx: Transaction, height: number): boolean {
+  const encoded = script.number.encode(height);
+  const prefix = Buffer.concat([Buffer.from([encoded.length]), encoded]);
+  return tx.isCoinbase() && tx.ins[0].index === 0xffffffff && Buffer.from(tx.ins[0].script.subarray(0, prefix.length)).equals(prefix);
+}
+
 /** Verify one selected outpoint's dependency on a coinbase excluded by the supplied
  * current SHA-256 chain anchor. This does not certify XBT inclusion or maturity.
  * Each entry is the raw creating transaction for the previous outpoint in the path.
@@ -80,7 +86,7 @@ export function verifyMinedAncestry(
   path: readonly string[],
   proof: ConflictProof,
   anchor: BtcChainAnchor,
-): void {
+): Transaction {
   if (!path.length || path.length > 64 || proof.position !== 0 || !Number.isSafeInteger(selected.vout) || selected.vout < 0) fail();
   const canonical = verifyInclusion(proof, anchor);
   if (!rewardAtHeight(canonical, anchor.height)) fail();
@@ -96,13 +102,8 @@ export function verifyMinedAncestry(
     } else if (tx.getId() !== selected.txid || !tx.outs[selected.vout]) fail();
     child = tx;
   }
-  if (!child || !rewardAtHeight(child, anchor.height) || child.getId() === canonical.getId()) fail();
-}
-
-function rewardAtHeight(tx: Transaction, height: number): boolean {
-  const encoded = script.number.encode(height);
-  const prefix = Buffer.concat([Buffer.from([encoded.length]), encoded]);
-  return tx.isCoinbase() && tx.ins[0].index === 0xffffffff && Buffer.from(tx.ins[0].script.subarray(0, prefix.length)).equals(prefix);
+  if (!child || !rewardAtHeight(child, anchor.height) || child.getId() === canonical.getId()) return fail();
+  return child;
 }
 
 /** Caller must independently authenticate the reward block hash and the tip on the same

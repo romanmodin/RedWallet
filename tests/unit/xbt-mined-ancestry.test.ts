@@ -72,7 +72,25 @@ test('a fresh proof after a reorg fails if the replacement block includes the sa
   expect(() => verifyMinedAncestry(f.selected, f.path, f.proof, anchor)).toThrow();
 });
 
-test.each(['valid', 'replaced at final check', 'metadata disagreement'] as const)(
+function linkParents(rewardHeader: Buffer, median: number) {
+  const parents: string[] = [];
+  let previous = Buffer.alloc(32);
+  for (let i = 11; i > 0; i--) {
+    const parent = Buffer.alloc(164);
+    parent.writeUInt32LE(0x80000000, 0);
+    parent.writeInt32LE(rewardHeader.readInt32LE(128) - i, 128);
+    parent.writeUInt32LE(median + i - 6 - 120, 68);
+    parent[110] = 4;
+    parent.writeUInt32LE(120, 104);
+    parent.set(previous, 4);
+    previous = Buffer.from(xbtV2BlockHash(parent), 'hex').reverse();
+    parents.unshift(parent.toString('hex'));
+  }
+  rewardHeader.set(previous, 4);
+  return parents;
+}
+
+test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward'] as const)(
   'collects only public SHA-256 reward evidence: %s',
   async scenario => {
     const f = fixture();
@@ -114,7 +132,14 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement'] as const
       } as Response;
     });
     try {
-      const result = verifyPublicMinedSeparation(f.selected, f.path, height, () => {});
+      const header = Buffer.alloc(164);
+      header.writeUInt32LE(0x80000000, 0);
+      header.writeUInt16LE(1, 108);
+      header.writeInt32LE(height, 128);
+      header.set((scenario === 'unrelated XBT reward' ? reward(9) : f.mined).getHash(), 36);
+      const parentHeaders = linkParents(header, 1790000000);
+      const anchor = { header: header.toString('hex'), blockHash: xbtV2BlockHash(header), tipHeight: height + 6479, parentHeaders };
+      const result = verifyPublicMinedSeparation(f.selected, f.path, height, { anchor, merkle: [] }, () => {});
       if (scenario === 'valid') {
         await expect(result).resolves.toBeUndefined();
         expect(rewardAnchorReads).toBe(4);
@@ -125,24 +150,6 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement'] as const
     }
   },
 );
-
-function linkParents(rewardHeader: Buffer, median: number) {
-  const parents: string[] = [];
-  let previous = Buffer.alloc(32);
-  for (let i = 11; i > 0; i--) {
-    const parent = Buffer.alloc(164);
-    parent.writeUInt32LE(0x80000000, 0);
-    parent.writeInt32LE(rewardHeader.readInt32LE(128) - i, 128);
-    parent.writeUInt32LE(median + i - 6 - 120, 68);
-    parent[110] = 4;
-    parent.writeUInt32LE(120, 104);
-    parent.set(previous, 4);
-    previous = Buffer.from(xbtV2BlockHash(parent), 'hex').reverse();
-    parents.unshift(parent.toString('hex'));
-  }
-  rewardHeader.set(previous, 4);
-  return parents;
-}
 
 test.each([
   [979918, 1819756799, 6480],
