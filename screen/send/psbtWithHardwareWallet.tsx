@@ -139,6 +139,11 @@ const PsbtWithHardwareWallet = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkPSBT, routeParamsTXHex]);
 
+  const replayWarning =
+    standardXbt && wallet.replayCheckSkippedFor(routeParamsPSBT.current)
+      ? 'XBT-only protection is off for this send. This payment could also be replayed on the SHA-256 chain.'
+      : undefined;
+
   const broadcast = async () => {
     setIsLoading(true);
     const isBiometricsEnabled = await isBiometricUseCapableAndEnabled();
@@ -236,6 +241,7 @@ const PsbtWithHardwareWallet = () => {
           {wallet instanceof BtcWatchOnlyWallet && routeParamsPSBT.current && (
             <BlueText testID="BtcSignedTransactionReview">{'Signature verified\n\n' + btcReview}</BlueText>
           )}
+          {replayWarning && <BlueText>{replayWarning}</BlueText>}
           <BlueText style={[styles.hexLabel, stylesHook.hexLabel]}>{loc.send.create_this_is_hex}</BlueText>
           <TextInput
             testID="SignedTransactionHex"
@@ -324,8 +330,8 @@ const PsbtWithHardwareWallet = () => {
         <BlueCard>
           <BlueText testID="StandardHardwareSigningNotice">XBT · Standard hardware signing (0x01)</BlueText>
           <BlueText>
-            Coin separation checked against Blockstream and mempool.space. Sending depends on those services agreeing on the SHA-256 chain.
-            RedWallet checks again before broadcast. Your device produces a standard signature, not Unified protection.
+            {replayWarning ??
+              'Coin separation checked against Blockstream and mempool.space. Sending depends on those services agreeing on the SHA-256 chain. RedWallet checks again before broadcast. Your device produces a standard signature, not Unified protection.'}
           </BlueText>
         </BlueCard>
       )}
@@ -337,7 +343,11 @@ const PsbtWithHardwareWallet = () => {
           <>
             <SecondButton
               testID="CopyUnsignedPsbtButton"
-              icon={{ name: 'copy', type: 'font-awesome', color: colors.secondButtonTextColor }}
+              icon={{
+                name: 'copy',
+                type: 'font-awesome',
+                color: colors.secondButtonTextColor,
+              }}
               title={loc.send.psbt_clipboard}
               onPress={() => {
                 Clipboard.setString(psbt.toBase64());

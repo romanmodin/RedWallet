@@ -294,6 +294,20 @@ suite('Standard hardware iOS qualification', () => {
         assert.deepEqual(fixture.transport.broadcasts, []);
         observed.missingProofBlocked = true;
 
+        step('exporting this send only after explicit replay opt-out');
+        await element(by.id('SkipReplayCheckOnce')).tap();
+        await confirmDialog('Disable XBT-only protection for this send?', false);
+        await nativeExpect(element(by.id('StandardHardwareSigningNotice'))).not.toExist();
+        const proofReads = fixture.explorerRequests.length;
+        await element(by.id('SkipReplayCheckOnce')).tap();
+        await confirmDialog('Disable XBT-only protection for this send?', true);
+        await waitForId('StandardHardwareSigningNotice', 60000);
+        await waitForText('XBT-only protection is off for this send. This payment could also be replayed on the SHA-256 chain.');
+        assert.equal(fixture.explorerRequests.length, proofReads);
+        assert.deepEqual(fixture.transport.broadcasts, []);
+        await goBack();
+        await waitForId('CreateTransactionButton');
+
         step('blocking redirects and bounded-response failures over real native HTTPS');
         for (const mode of ['redirect', 'oversized', 'slow'] as const) {
           fixture.proof = mode;

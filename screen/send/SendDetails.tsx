@@ -596,7 +596,7 @@ const SendDetails = () => {
     [setParams, wallet],
   );
 
-  const createTransaction = async () => {
+  const createTransaction = async (skipReplayCheck = false) => {
     assert(wallet, 'Internal error: wallet is not set');
     const visit = signingScreenVisit.current;
     Keyboard.dismiss();
@@ -690,12 +690,14 @@ const SendDetails = () => {
       if (
         !(await (isBtcWallet(wallet)
           ? confirm('Confirm BTC payment', 'BTC and XBT addresses look the same. Confirm that every recipient expects Bitcoin (BTC).')
-          : confirmXbtPayment()))
+          : skipReplayCheck
+            ? confirm('Disable XBT-only protection for this send?', 'Confirm the recipient expects XBT. If these coins also exist on the SHA-256 chain, someone could replay this payment there. Your next send will use protection again.')
+            : confirmXbtPayment()))
       ) {
         setIsLoading(false);
         return;
       }
-      await createPsbtTransaction(visit);
+      await createPsbtTransaction(visit, skipReplayCheck);
     } catch (Err: any) {
       setIsLoading(false);
       presentAlert({ title: loc.errors.error, message: Err.message });
@@ -709,7 +711,7 @@ const SendDetails = () => {
     });
   }, [navigation]);
 
-  const createPsbtTransaction = async (visit: number) => {
+  const createPsbtTransaction = async (visit: number, skipReplayCheck: boolean) => {
     if (!wallet) return;
     const change = await getChangeAddressAsync();
     assert(change, 'Could not get change address');
@@ -745,6 +747,7 @@ const SendDetails = () => {
     const { tx, outputs, psbt, fee } =
       wallet instanceof WatchOnlyWallet && wallet.getHardwareSigningMode() === 'standard'
         ? await wallet.createStandardHardwareSend(utxos, targets, requestedSatPerByte, change, sequence, {
+            skipReplayCheck,
             isActive: () => signingScreenVisit.current === visit && navigation.isFocused(),
             reviewFee: updatedFee =>
               confirm(
@@ -1504,7 +1507,10 @@ const SendDetails = () => {
         {isLoading ? (
           <ActivityIndicator />
         ) : (
-          <Button onPress={createTransaction} disabled={isDisabled} title={loc.send.details_next} testID="CreateTransactionButton" />
+          <Button onPress={() => createTransaction()} disabled={isDisabled} title={loc.send.details_next} testID="CreateTransactionButton" />
+        )}
+        {!isLoading && wallet?.type === WatchOnlyWallet.type && wallet instanceof WatchOnlyWallet && wallet.getHardwareSigningMode() === 'standard' && (
+          <Button title="Disable XBT-only protection for this send" testID="SkipReplayCheckOnce" disabled={isDisabled} onPress={() => createTransaction(true)} />
         )}
       </View>
     );

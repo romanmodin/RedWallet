@@ -540,3 +540,25 @@ it('prepares and combines a standard request with the mobile Buffer implementati
     else delete mobileBuffer[Symbol.species];
   }
 });
+
+it('signs a previously blocked selection only for the reviewed opt-out send', async () => {
+  const f = automaticSendFixture([true]);
+  const { psbt } = await f.watch.createStandardHardwareSend(f.pool, f.targets, 1, f.change, undefined, {
+    ...f.retry,
+    skipReplayCheck: true,
+  });
+  expect(f.watch.replayCheckSkippedFor(psbt)).toBe(true);
+  const returned = psbt.clone();
+  returned.signInput(0, fixture(31).key);
+  const tx = f.watch.combinePsbt(psbt, returned);
+  const broadcast = jest.spyOn(BlueElectrum, 'broadcastStandardHardware').mockResolvedValue(tx.getId());
+  await expect(f.watch.broadcastTx(tx.toHex())).resolves.toBe(true);
+  expect(broadcast).toHaveBeenCalledWith(tx.toHex(), expect.anything(), expect.any(Function), true);
+  await expect(f.watch.createStandardHardwareSend(f.pool, f.targets, 1, f.change)).rejects.toThrow('unsupported funding signatures');
+  expect(f.watch.replayCheckSkippedFor(psbt)).toBe(false);
+});
+
+it('still rejects mismatched selected amounts when the replay check is skipped', async () => {
+  const f = fixture();
+  await expect(verifyStandardHardwareFunding([{ ...f.coins[0], value: 1 }], f.source, true)).rejects.toThrow('funding output mismatch');
+});

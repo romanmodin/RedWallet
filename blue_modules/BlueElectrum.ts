@@ -1936,7 +1936,12 @@ const semVerToInt = function (semver: string): number {
 };
 
 /** Separate, proof-gated transport; existing Unified-only callers remain unchanged. */
-export async function broadcastStandardHardware(hex: string, request: Psbt, assertStillAuthorized: () => void): Promise<string> {
+export async function broadcastStandardHardware(
+  hex: string,
+  request: Psbt,
+  assertStillAuthorized: () => void,
+  skipReplayCheck = false,
+): Promise<string> {
   assertStandardHardwareReleased();
   assertStandardHardwareResult(hex, request);
   const client = mainClient;
@@ -1953,12 +1958,16 @@ export async function broadcastStandardHardware(hex: string, request: Psbt, asse
     assertCurrent();
     return result;
   };
-  await verifyStandardHardwareFunding(requestFundingInputs(request), {
-    raw: ids => checked(() => multiGetTransactionByTxid(ids, false)),
-    history: addresses => checked(() => multiGetHistoryByAddress(addresses)),
-    tip: () => checked(() => getReportedBlockTip(true)),
-    separation: parents => verifyPublicFundingSeparation(parents, assertCurrent),
-  });
+  await verifyStandardHardwareFunding(
+    requestFundingInputs(request),
+    {
+      raw: ids => checked(() => multiGetTransactionByTxid(ids, false)),
+      history: addresses => checked(() => multiGetHistoryByAddress(addresses)),
+      tip: () => checked(() => getReportedBlockTip(true)),
+      separation: parents => verifyPublicFundingSeparation(parents, assertCurrent),
+    },
+    skipReplayCheck,
+  );
   assertCurrent();
   return client.blockchainTransaction_broadcast(hex);
 }
