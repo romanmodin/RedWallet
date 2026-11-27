@@ -12,7 +12,7 @@ class BetaReleaseError < StandardError; end
 class RedWalletBetaRelease
   APP_ID = '6817118871'
   BUNDLE_ID = 'com.romanmodin.redwallet'
-  BUILD = '1795661849'
+  BUILD = '1795793230'
   VERSION = '8.0.1'
   GROUPS = [
     { id: '0bc2722a-48b6-4520-871d-dd5a4a8988cb', name: 'Roman iPhone Testing', internal: true }
@@ -64,8 +64,20 @@ class RedWalletBetaRelease
     api('GET', "/v1/builds/#{id}", { 'include' => 'buildBetaDetail,betaAppReviewSubmission,betaGroups,preReleaseVersion' })
   end
 
+  def checked_group_ids(info)
+    ids = info.fetch('included').select { |item| item['type'] == 'betaGroups' }.map { |group| group.fetch('id') }
+    relationship = info.dig('data', 'relationships', 'betaGroups') || {}
+    total = relationship.dig('meta', 'paging', 'total')
+    if relationship.dig('links', 'next') || (total && total != ids.length) ||
+       (relationship.key?('data') && relationship.fetch('data').map { |group| group.fetch('id') }.sort != ids.sort)
+      raise BetaReleaseError, 'Incomplete build tester group response'
+    end
+    raise BetaReleaseError, 'Build has an unexpected tester group' unless (ids - GROUPS.map { |group| group[:id] }).empty?
+    ids
+  end
+
   def add_group(build_id, group_id)
-    ids = build_info(build_id).fetch('included', []).select { |item| item['type'] == 'betaGroups' }.map { |group| group.fetch('id') }
+    ids = checked_group_ids(build_info(build_id))
     return if ids.include?(group_id)
     api('POST', "/v1/builds/#{build_id}/relationships/betaGroups",
         payload: { data: [{ type: 'betaGroups', id: group_id }] })
@@ -133,6 +145,7 @@ class RedWalletBetaRelease
     build_id = build.fetch('id')
     @report[:appleBuildId] = build_id
 
+    checked_group_ids(build_info(build_id))
     localizations = api('GET', "/v1/builds/#{build_id}/betaBuildLocalizations").fetch('data')
     english = localizations.find { |localization| localization.dig('attributes', 'locale') == 'en-US' }
     if english
@@ -160,7 +173,7 @@ class RedWalletBetaRelease
       break if beta&.dig('attributes', 'internalBuildState') == 'IN_BETA_TESTING'
       sleep 10
     end
-    groups = info.fetch('included', []).select { |item| item['type'] == 'betaGroups' }.map { |item| item['id'] }
+    groups = checked_group_ids(info)
     raise BetaReleaseError, 'Tester group assignment was not confirmed' unless GROUPS.all? { |group| groups.include?(group[:id]) }
     beta = info.fetch('included', []).find { |item| item['type'] == 'buildBetaDetails' }
     status = if beta&.dig('attributes', 'internalBuildState') == 'IN_BETA_TESTING'
