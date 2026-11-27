@@ -159,14 +159,19 @@ function linkParents(rewardHeader: Buffer, median: number) {
   const parents: string[] = [];
   let previous = Buffer.alloc(32);
   for (let i = 11; i > 0; i--) {
-    const parent = Buffer.alloc(164);
-    parent.writeUInt32LE(0x80000000, 0);
-    parent.writeInt32LE(rewardHeader.readInt32LE(128) - i, 128);
-    parent.writeUInt32LE(median + i - 6 - 120, 68);
-    parent[110] = 4;
-    parent.writeUInt32LE(120, 104);
+    const height = rewardHeader.readInt32LE(128) - i;
+    const v2 = height >= 961640;
+    const parent = Buffer.alloc(v2 ? 164 : 80);
+    const timestamp = median + i - 6;
+    parent.writeUInt32LE(v2 ? 0x80000000 : 4, 0);
+    parent.writeUInt32LE(v2 ? timestamp - 120 : timestamp, 68);
+    if (v2) {
+      parent.writeInt32LE(height, 128);
+      parent[110] = 4;
+      parent.writeUInt32LE(120, 104);
+    }
     parent.set(previous, 4);
-    previous = Buffer.from(xbtV2BlockHash(parent), 'hex').reverse();
+    previous = v2 ? Buffer.from(xbtV2BlockHash(parent), 'hex').reverse() : Buffer.from(crypto.hash256(parent));
     parents.unshift(parent.toString('hex'));
   }
   rewardHeader.set(previous, 4);
@@ -290,6 +295,8 @@ test.each(['valid', 'rolling maturity', 'replaced at final check', 'metadata dis
 );
 
 test.each([
+  [961640, 1790000000, 6480], // All eleven parents use legacy headers.
+  [961645, 1790000000, 6480], // The parent window spans both header formats.
   [979918, 1819756799, 6480],
   [979919, 1819756799, 25920],
   [999999, 1819756800, 100],
