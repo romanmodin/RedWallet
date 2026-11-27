@@ -76,7 +76,7 @@ export class WatchOnlyWallet extends LegacyWallet {
     standardFunding.set(this, proof);
   }
 
-  private async verifySigningInputs(inputs: FundingInput[], generation: object, assertActive?: () => void) {
+  private async verifySigningInputs(inputs: FundingInput[], generation: object, assertActive?: () => void, skipReplayCheck = false) {
     assertStandardHardwareReleased();
     if (!this.allowSend()) throw new Error('Enable hardware signing first');
     const assertCurrent = () => {
@@ -85,23 +85,32 @@ export class WatchOnlyWallet extends LegacyWallet {
         throw new Error('Signing mode changed; review again');
     };
     assertCurrent();
-    const proof = await verifyStandardHardwareFunding(inputs, {
-      raw: ids => {
-        assertActive?.();
-        return BlueElectrum.multiGetTransactionByTxid(ids, false);
+    const proof = await verifyStandardHardwareFunding(
+      inputs,
+      {
+        raw: ids => {
+          assertActive?.();
+          return BlueElectrum.multiGetTransactionByTxid(ids, false);
+        },
+        history: addresses => {
+          assertActive?.();
+          return BlueElectrum.multiGetHistoryByAddress(addresses);
+        },
+        tip: () => {
+          assertActive?.();
+          return BlueElectrum.getReportedBlockTip(true);
+        },
+        separation: parents => verifyPublicFundingSeparation(parents, assertCurrent),
       },
-      history: addresses => {
-        assertActive?.();
-        return BlueElectrum.multiGetHistoryByAddress(addresses);
-      },
-      tip: () => {
-        assertActive?.();
-        return BlueElectrum.getReportedBlockTip(true);
-      },
-      separation: parents => verifyPublicFundingSeparation(parents, assertCurrent),
-    });
+      skipReplayCheck,
+    );
     assertCurrent();
     return proof;
+  }
+
+  replayCheckSkippedFor(request?: bitcoin.Psbt | string) {
+    if (!request || !standardFunding.get(this)?.replayCheckSkipped) return false;
+    return pendingSigningRequests.get(this) === (typeof request === 'string' ? request : request.toBase64());
   }
 
   private requireStandardProof(request: bitcoin.Psbt, requireFresh = true) {
@@ -411,17 +420,22 @@ export class WatchOnlyWallet extends LegacyWallet {
         const encoded = pendingSigningRequests.get(this);
         if (!encoded) throw new Error('Review the transaction again');
         const request = bitcoin.Psbt.fromBase64(encoded);
-        this.requireStandardProof(request, false);
+        const funding = this.requireStandardProof(request, false);
         const tx = assertStandardHardwareResult(_args[0], request);
-        const result = await BlueElectrum.broadcastStandardHardware(_args[0], request, () => {
-          if (
-            !this.allowSend() ||
-            this.getHardwareSigningMode() !== 'standard' ||
-            pendingSigningRequests.get(this) !== encoded ||
-            approvedExternalTransactions.get(this) !== _args[0]
-          )
-            throw new Error('Signing request changed during protection verification');
-        });
+        const result = await BlueElectrum.broadcastStandardHardware(
+          _args[0],
+          request,
+          () => {
+            if (
+              !this.allowSend() ||
+              this.getHardwareSigningMode() !== 'standard' ||
+              pendingSigningRequests.get(this) !== encoded ||
+              approvedExternalTransactions.get(this) !== _args[0]
+            )
+              throw new Error('Signing request changed during protection verification');
+          },
+          funding.replayCheckSkipped,
+        );
         if (result !== tx.getId()) throw new Error('Unexpected XBT broadcast response');
         if (approvedExternalTransactions.get(this) === _args[0] && pendingSigningRequests.get(this) === encoded)
           approvedExternalTransactions.delete(this);
@@ -480,6 +494,7 @@ export class WatchOnlyWallet extends LegacyWallet {
     changeAddress: string,
     sequence?: number,
     retry?: {
+      skipReplayCheck?: boolean;
       isActive: () => boolean;
       reviewFee: (fee: number) => Promise<boolean>;
     },
@@ -503,7 +518,7 @@ export class WatchOnlyWallet extends LegacyWallet {
     let result = build(pool);
     let verified: FundingProof;
     try {
-      verified = await this.verifySigningInputs(requestFundingInputs(result.psbt), generation, assertActive);
+      verified = await this.verifySigningInputs(requestFundingInputs(result.psbt), generation, assertActive, retry?.skipReplayCheck);
     } catch (error) {
       if (!(error instanceof UnsupportedFundingSignatures) || selected != null || !retry || targets.some(t => t.value === undefined))
         throw error;

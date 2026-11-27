@@ -114,11 +114,25 @@ real(
       const targets = [{ address: PUBLIC_RECIPIENT, value: 100000 }];
       const change = watch._getInternalAddressByIndex(0);
       await expect(watch.createStandardHardwareTransaction(watch.getUtxo(), targets, 2, change)).rejects.toThrow('unsupported funding signatures');
+      const priorReads = fixture.explorerRequests.length;
+      const once = await watch.createStandardHardwareSend(undefined, targets, 2, change, undefined, {
+        skipReplayCheck: true,
+        isActive: () => true,
+        reviewFee: async () => { throw new Error('Unexpected coin reselection'); },
+      });
+      expect(once.psbt.inputCount).toBe(1);
+      expect(once.psbt.data.inputs[0].witnessUtxo?.value).toBe(2000000n);
+      expect(watch.replayCheckSkippedFor(once.psbt)).toBe(true);
+      expect(fixture.explorerRequests).toHaveLength(priorReads);
+      expect(fixture.transport.broadcasts).toEqual([]);
       const reviewFee = jest.fn(async (_fee: number) => true);
       const { psbt: request, fee } = await watch.createStandardHardwareSend(undefined, targets, 2, change, undefined, {
         isActive: () => true,
         reviewFee,
       });
+      expect(watch.replayCheckSkippedFor(request)).toBe(false);
+      expect(watch.replayCheckSkippedFor(once.psbt)).toBe(false);
+      expect(fixture.explorerRequests.length).toBeGreaterThan(priorReads);
       expect(reviewFee.mock.calls).toEqual([[fee]]);
       expect(BigInt(fee)).toBe(999000n - request.txOutputs.reduce((sum, out) => sum + out.value, 0n));
       const signed = fixture.sign(request);

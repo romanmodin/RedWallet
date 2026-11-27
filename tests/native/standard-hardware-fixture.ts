@@ -40,6 +40,7 @@ export class StandardHardwareNativeFixture {
   funding!: bitcoin.Transaction;
   sameBodyStandard!: bitcoin.Transaction;
   conflict!: bitcoin.Transaction;
+  largerOutpoint!: { txid: string; vout: number };
   private ancestor!: bitcoin.Transaction;
   private ancestorIndex = 0;
   private conflictBlock: any;
@@ -64,18 +65,19 @@ export class StandardHardwareNativeFixture {
     const miner = await this.core.rpc('getnewaddress', ['', 'bech32m'], true);
     this.xbtMiner = await this.knots.rpc('getnewaddress', [], true);
     const script = bitcoin.address.toOutputScript(PUBLIC_RECEIVE_ADDRESS);
-    await this.core.rpc('generatetoaddress', [101, miner], false, 120000);
+    await this.core.rpc('generatetoaddress', [149, miner], false, 120000);
     const largerAddress = bitcoin.payments.p2wpkh({
       pubkey: account.derivePath('0/1').publicKey,
       network: bitcoin.networks.regtest,
     }).address!;
     const smallerAddress = bitcoin.address.fromOutputScript(script, bitcoin.networks.regtest);
     const ancestorId = await this.core.rpc('sendmany', ['', { [smallerAddress]: 0.01, [largerAddress]: 0.02 }], true);
-    await this.core.rpc('generatetoaddress', [48, miner], false, 120000);
     this.ancestor = bitcoin.Transaction.fromHex(await this.core.rpc('getrawtransaction', [ancestorId]));
     assert(this.ancestor.ins.length > 0 && this.ancestor.ins.every(input => input.witness.length === 1));
     const largerScript = bitcoin.address.toOutputScript(largerAddress, bitcoin.networks.regtest);
-    assert(this.ancestor.outs.some(out => out.value === 2000000n && Buffer.from(out.script).equals(Buffer.from(largerScript))));
+    const largerIndex = this.ancestor.outs.findIndex(out => out.value === 2000000n && Buffer.from(out.script).equals(Buffer.from(largerScript)));
+    assert(largerIndex >= 0);
+    this.largerOutpoint = { txid: ancestorId, vout: largerIndex };
     this.ancestorIndex = this.ancestor.outs.findIndex(out => Buffer.from(out.script).equals(Buffer.from(script)));
     assert(this.ancestorIndex >= 0 && this.ancestor.outs[this.ancestorIndex].value === 1000000n);
     for (let height = 1; height <= 149; height++) {
@@ -86,6 +88,10 @@ export class StandardHardwareNativeFixture {
     await this.knots.rpc('generatetoaddress', [1, this.xbtMiner]);
     assert.equal((await this.knots.rpc('getblockheader', [await this.knots.rpc('getbestblockhash'), false])).length, 328);
 
+    // Confirm the same Taproot-funded payment on both branches after activation.
+    // The larger output is eligible for standard signing but still replayable.
+    assert.equal(await this.knots.rpc('sendrawtransaction', [this.ancestor.toHex()]), ancestorId);
+    await this.knots.rpc('generatetoaddress', [1, this.xbtMiner]);
     const parent = (unified: boolean, value = 999000n) => {
       const p = new bitcoin.Psbt();
       p.addInput({
@@ -120,6 +126,10 @@ export class StandardHardwareNativeFixture {
     await this.core.rpc('generatetoaddress', [2, miner]);
     await this.core.rpc('sendrawtransaction', [this.conflict.toHex()]);
     const hashes = await this.core.rpc('generatetoaddress', [6, miner]);
+    for (const node of [this.core, this.knots]) {
+      const output = await node.rpc('gettxout', [ancestorId, largerIndex]);
+      assert(output?.confirmations >= 6 && output.scriptPubKey.hex === Buffer.from(largerScript).toString('hex'));
+    }
     this.conflictBlock = await this.core.rpc('getblock', [hashes[0]]);
     this.header = await this.core.rpc('getblockheader', [hashes[0], false]);
     assert.equal(this.conflictBlock.tx.length, 2);

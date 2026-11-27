@@ -53,6 +53,15 @@ async function text(id: string): Promise<string> {
   for (const key of ['text', 'value', 'label']) if (typeof a[key] === 'string') return a[key] as string;
   throw new Error('Missing native text ' + id);
 }
+async function copyUnsignedRequest() {
+  await visible('CopyUnsignedPsbtButton', 'PsbtWithHardwareScrollView');
+  await element(by.id('CopyUnsignedPsbtButton')).tap();
+  const encoded = execFileSync('xcrun', ['simctl', 'pbpaste', device.id], {
+    encoding: 'utf8',
+  }).trim();
+  return bitcoin.Psbt.fromBase64(encoded);
+}
+
 async function confirmDialog(title: string, accept: boolean) {
   await waitForText(title, 15000);
   assert.equal(await dismissAlertByText(accept ? english._.yes : english._.cancel, 15000, false), true);
@@ -294,6 +303,35 @@ suite('Standard hardware iOS qualification', () => {
         assert.deepEqual(fixture.transport.broadcasts, []);
         observed.missingProofBlocked = true;
 
+        step('exporting this send only after explicit replay opt-out');
+        await tapAfterTransition(() => element(by.id('SkipReplayCheckOnce')).tap());
+        await confirmDialog('Disable XBT-only protection for this send?', false);
+        await waitFor(element(by.text('Disable XBT-only protection for this send?')))
+          .not.toExist()
+          .withTimeout(15000);
+        await waitForId('CreateTransactionButton');
+        await waitForId('SkipReplayCheckOnce');
+        await nativeExpect(element(by.id('StandardHardwareSigningNotice'))).not.toExist();
+        await nativeExpect(element(by.id('PSBTHex'))).not.toExist();
+        assert.deepEqual(fixture.transport.broadcasts, []);
+        observed.oneSendOverrideCancelledBeforeExport = true;
+        const proofReads = fixture.explorerRequests.length;
+        await tapAfterTransition(() => element(by.id('SkipReplayCheckOnce')).tap());
+        await confirmDialog('Disable XBT-only protection for this send?', true);
+        await waitForId('StandardHardwareSigningNotice', 60000);
+        await waitForText('XBT-only protection is off for this send. This payment could also be replayed on the SHA-256 chain.');
+        const unprotected = await copyUnsignedRequest();
+        assert.equal(unprotected.inputCount, 1);
+        assert.equal(Buffer.from(unprotected.txInputs[0].hash).reverse().toString('hex'), fixture.largerOutpoint.txid);
+        assert.equal(unprotected.txInputs[0].index, fixture.largerOutpoint.vout);
+        assert(unprotected.txOutputs.some(output => output.address === PUBLIC_RECIPIENT && output.value === 100000n));
+        assert(unprotected.data.inputs.every(input => input.sighashType === bitcoin.Transaction.SIGHASH_ALL && !input.partialSig && !input.finalScriptWitness));
+        assert.equal(fixture.explorerRequests.length, proofReads);
+        assert.deepEqual(fixture.transport.broadcasts, []);
+        observed.oneSendOverrideExportVerified = true;
+        await goBack();
+        await waitForId('CreateTransactionButton');
+
         step('blocking redirects and bounded-response failures over real native HTTPS');
         for (const mode of ['redirect', 'oversized', 'slow'] as const) {
           fixture.proof = mode;
@@ -321,6 +359,7 @@ suite('Standard hardware iOS qualification', () => {
           assert(fixture.faultResponses[mode] > beforeFault, mode + ' emitted its own TLS fault response');
           assert.deepEqual(fixture.transport.broadcasts, []);
           await nativeExpect(element(by.id('PSBTHex'))).not.toExist();
+          if (mode === 'redirect') observed.nextSendProtectionRestored = true;
           if (mode === 'slow') observed.nativeHTTPTimeoutElapsedMs = Date.now() - started;
         }
         assert(fixture.redirectResponses > 0);
@@ -349,12 +388,7 @@ suite('Standard hardware iOS qualification', () => {
         await confirmDialog('Review network fee', true);
         await waitForId('StandardHardwareSigningNotice', 60000);
         await visible('TextHelperForPSBT', 'PsbtWithHardwareScrollView');
-        await visible('CopyUnsignedPsbtButton', 'PsbtWithHardwareScrollView');
-        await element(by.id('CopyUnsignedPsbtButton')).tap();
-        const encoded = execFileSync('xcrun', ['simctl', 'pbpaste', device.id], {
-          encoding: 'utf8',
-        }).trim();
-        const request = bitcoin.Psbt.fromBase64(encoded);
+        const request = await copyUnsignedRequest();
         // The fixture signer asserts the exact replacement outpoint and recipient amount.
         const signed = fixture.sign(request);
         observed.automaticReselectionVerified = true;

@@ -7,7 +7,12 @@ import { parseVerifiedParentTransaction } from './verified-transaction';
 import { STANDARD_HARDWARE_RELEASE_ENABLED } from './standard-hardware-platform';
 export { STANDARD_HARDWARE_RELEASE_ENABLED };
 
-export type FundingInput = { txid: string; vout: number; value: number; address?: string };
+export type FundingInput = {
+  txid: string;
+  vout: number;
+  value: number;
+  address?: string;
+};
 
 // Keep selected coin identifiers out of logs, including when an Error is serialized.
 export class UnsupportedFundingSignatures extends Error {
@@ -31,7 +36,11 @@ export type FundingSource = {
   tip: () => Promise<number | null>;
   separation?: (parents: Transaction[]) => Promise<void>;
 };
-export type FundingProof = { checkedAt: number; parents: Record<string, string> };
+export type FundingProof = {
+  checkedAt: number;
+  replayCheckSkipped?: true;
+  parents: Record<string, string>;
+};
 export function assertStandardHardwareReleased(): void {
   if (!STANDARD_HARDWARE_RELEASE_ENABLED) throw new Error('Standard hardware signing is unavailable until coin separation can be verified');
 }
@@ -47,7 +56,11 @@ const TXID = /^[0-9a-f]{64}$/;
  * persisted: the complete bounded proof is collected again before broadcast.
  * Coinbase, mixed signature modes and non-P2WPKH ancestry remain unsupported.
  */
-export async function verifyStandardHardwareFunding(inputs: FundingInput[], source: FundingSource): Promise<FundingProof> {
+export async function verifyStandardHardwareFunding(
+  inputs: FundingInput[],
+  source: FundingSource,
+  skipReplayCheck = false,
+): Promise<FundingProof> {
   if (!inputs.length || inputs.length > MAX_INPUTS) throw new Error('Compatibility mode supports 1–64 selected inputs');
   const outpoints = new Set<string>();
   for (const input of inputs) {
@@ -146,7 +159,7 @@ export async function verifyStandardHardwareFunding(inputs: FundingInput[], sour
     if (!Number.isSafeInteger(input.value) || input.value <= 0 || output.value !== BigInt(input.value))
       throw new Error('Protection unverified: funding output mismatch');
     if (input.address !== destination) throw new Error('Protection unverified: funding address mismatch');
-    await verify(input.txid, 0, input);
+    if (!skipReplayCheck) await verify(input.txid, 0, input);
   }
   const addresses = [...new Set([...confirmations.values()].flatMap(values => [...values]))];
   const histories = await source.history(addresses);
@@ -168,10 +181,16 @@ export async function verifyStandardHardwareFunding(inputs: FundingInput[], sour
         throw new Error('Protection unverified: funding ancestry needs six XBT confirmations');
     }
   }
-  if (!source.separation) throw new Error('Protection unverified: separation verifier unavailable');
-  await source.separation([...roots.values()]);
+  if (!skipReplayCheck) {
+    if (!source.separation) throw new Error('Protection unverified: separation verifier unavailable');
+    await source.separation([...roots.values()]);
+  }
   // PSBTs contain their immediate funding transactions, not the entire ancestry.
-  return { checkedAt: Date.now(), parents: Object.fromEntries(ids.map(id => [id, raws.get(id)!])) };
+  return {
+    checkedAt: Date.now(),
+    ...(skipReplayCheck ? { replayCheckSkipped: true as const } : {}),
+    parents: Object.fromEntries(ids.map(id => [id, raws.get(id)!])),
+  };
 }
 
 export function requestFundingInputs(request: Psbt): FundingInput[] {
