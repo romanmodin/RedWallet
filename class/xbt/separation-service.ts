@@ -2,7 +2,7 @@ import { getSeparationHTTPResponse } from './separation-http';
 import { hasFreshTipTime } from './separation-freshness';
 import { SEPARATION_EVIDENCE as EVIDENCE, SEPARATION_ANCHOR as ANCHOR } from './separation-http-policy';
 import { Transaction, crypto } from 'bitcoinjs-lib';
-import { verifyFundingConflict } from './separation-proof';
+import { verifyFundingConflict, verifyMinedAncestry } from './separation-proof';
 import { parseVerifiedParentTransaction } from './verified-transaction';
 
 // Fixed HTTPS sources; no wallet sessions, xpubs, addresses, PSBTs or broadcast.
@@ -15,15 +15,7 @@ const unavailable = (): never => {
   throw new Error('Coin separation could not be verified. Standard signing is blocked.');
 };
 
-export async function verifyPublicFundingSeparation(funding: Transaction[], assertAuthorized: () => void): Promise<void> {
-  assertAuthorized();
-  if (!funding.length || funding.length > 64) unavailable();
-  // Validate the complete bounded batch before any network request. Budget for
-  // every candidate input, proof/metadata lookups and the final anchor recheck;
-  // a fixed 128-call limit incorrectly rejected valid larger coin selections.
-  if (funding.some((parent) => parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64)) unavailable();
-  // Two checkpoint reads and five requests for each of the opening and closing tip checks.
-  const requestLimit = 12 + funding.reduce((total, parent) => total + parent.ins.length + 9, 0);
+function chainEvidence(requestLimit: number, assertAuthorized: () => void) {
   // Collection has an elapsed-time budget independent of the phone’s wall clock.
   const deadline = performance.now() + 45000;
   let requests = 0;
@@ -73,6 +65,19 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
     if (computedHash !== hash) unavailable();
     return height;
   };
+  return { get, json, agreedHashAt, tip };
+}
+
+export async function verifyPublicFundingSeparation(funding: Transaction[], assertAuthorized: () => void): Promise<void> {
+  assertAuthorized();
+  if (!funding.length || funding.length > 64) unavailable();
+  // Validate the complete bounded batch before any network request. Budget for
+  // every candidate input, proof/metadata lookups and the final anchor recheck;
+  // a fixed 128-call limit incorrectly rejected valid larger coin selections.
+  if (funding.some((parent) => parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64)) unavailable();
+  // Two checkpoint reads and five requests for each of the opening and closing tip checks.
+  const requestLimit = 12 + funding.reduce((total, parent) => total + parent.ins.length + 9, 0);
+  const { get, json, agreedHashAt, tip } = chainEvidence(requestLimit, assertAuthorized);
   if ((await agreedHashAt(CHECKPOINT_HEIGHT)) !== CHECKPOINT_HASH) unavailable();
   const startTip = await tip();
   const anchors = new Map<number, string>();
@@ -126,5 +131,37 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
     if (endTip - height + 1 < 6) unavailable();
     if ((await agreedHashAt(height)) !== hash) unavailable();
   }
+  assertAuthorized();
+}
+
+
+// Public queries disclose only SHA-256 block data and its own mining reward.
+// The XBT outpoint and its raw ancestry stay on the device.
+export async function verifyPublicMinedSeparation(
+  selected: { txid: string; vout: number },
+  ancestry: readonly string[],
+  height: number,
+  assertAuthorized: () => void,
+): Promise<void> {
+  assertAuthorized();
+  if (!Number.isSafeInteger(height) || height < CHECKPOINT_HEIGHT || height > 999999999) unavailable();
+  const { get, json, agreedHashAt, tip } = chainEvidence(22, assertAuthorized);
+  if ((await agreedHashAt(CHECKPOINT_HEIGHT)) !== CHECKPOINT_HASH) unavailable();
+  const tipHeight = await tip();
+  if (tipHeight - height + 1 < 6) unavailable();
+  const blockHash = await agreedHashAt(height);
+  const endpoint = '/block/' + blockHash;
+  const [id, header, evidenceBlock, anchorBlock] = await Promise.all([
+    get(EVIDENCE, endpoint + '/txid/0', 64), get(EVIDENCE, endpoint + '/header', 160),
+    json(endpoint), get(ANCHOR, endpoint).then(value => JSON.parse(value)),
+  ]);
+  if (!HASH.test(id) || [evidenceBlock, anchorBlock].some(block => block?.id !== blockHash || block.height !== height) ||
+    evidenceBlock.tx_count !== anchorBlock.tx_count) unavailable();
+  const [rawTransaction, branch] = await Promise.all([get(EVIDENCE, '/tx/' + id + '/hex', 2000000), json('/tx/' + id + '/merkle-proof')]);
+  parseVerifiedParentTransaction(id, rawTransaction);
+  if (branch?.block_height !== height || branch.pos !== 0) unavailable();
+  verifyMinedAncestry(selected, ancestry, {rawTransaction, header, position: branch.pos, merkle: branch.merkle},
+    {height, tipHeight, blockHash, txCount: evidenceBlock.tx_count});
+  if ((await tip()) - height + 1 < 6 || (await agreedHashAt(height)) !== blockHash) unavailable();
   assertAuthorized();
 }
