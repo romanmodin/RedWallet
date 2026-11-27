@@ -508,9 +508,11 @@ export class WatchOnlyWallet extends LegacyWallet {
       if (!(error instanceof UnsupportedFundingSignatures) || selected != null || !retry || targets.some(t => t.value === undefined))
         throw error;
       assertActive();
-      if (performance.now() >= retryDeadline) throw error;
+      if (performance.now() >= retryDeadline)
+        throw new Error('Protection unverified: funding verification reached the time limit before another coin selection could be tried.');
       const alternatives = pool.filter(coin => !error.matches(coin) && !this.getUTXOMetadata(coin.txid, coin.vout).frozen);
-      if (!alternatives.length) throw error;
+      if (!alternatives.length)
+        throw new Error('Protection unverified: no other unfrozen coins were available to try after the funding signature check failed.');
 
       // One alternative only. Rebuild outputs and fee and verify every input before exporting.
       result = build(alternatives);
@@ -518,7 +520,13 @@ export class WatchOnlyWallet extends LegacyWallet {
         assertActive();
         if (performance.now() >= retryDeadline) throw new Error('Coin selection timed out; review the payment again');
       };
-      verified = await this.verifySigningInputs(requestFundingInputs(result.psbt), generation, assertRetryActive);
+      try {
+        verified = await this.verifySigningInputs(requestFundingInputs(result.psbt), generation, assertRetryActive);
+      } catch (retryError) {
+        if (retryError instanceof UnsupportedFundingSignatures)
+          throw new Error('Protection unverified: both coin selections contained unsupported funding signatures.');
+        throw retryError;
+      }
       assertRetryActive();
       if (!(await retry.reviewFee(result.fee))) throw new Error('Updated payment cancelled');
     }

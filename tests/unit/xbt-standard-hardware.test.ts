@@ -444,10 +444,27 @@ it('uses the explicit Coin Control pool once and preserves Send Max', async () =
   expect(f.retry.reviewFee).not.toHaveBeenCalled();
 });
 
+it('explains when the original verification used up the retry window', async () => {
+  jest.useFakeTimers();
+  try {
+    const f = automaticSendFixture([true, false]);
+    const original = f.raw.getMockImplementation()!;
+    f.raw.mockImplementationOnce(async (...args) => {
+      jest.advanceTimersByTime(45_001);
+      return original(...args);
+    });
+    await expect(f.send()).rejects.toThrow('time limit before another coin selection');
+    expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[1].txid);
+    expect(f.retry.reviewFee).not.toHaveBeenCalled();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 it('does not reintroduce a frozen alternate', async () => {
   const f = automaticSendFixture([true, false]);
   f.watch.setUTXOMetadata(f.pool[1].txid, 0, { frozen: true });
-  await expect(f.send()).rejects.toThrow('unsupported funding signatures');
+  await expect(f.send()).rejects.toThrow('no other unfrozen coins');
   expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[1].txid);
   expect(f.retry.reviewFee).not.toHaveBeenCalled();
 });
@@ -464,7 +481,7 @@ it('refuses a coin frozen while the rebuilt fee is being reviewed', async () => 
 
 it('stops at one alternative and never queries a third coin', async () => {
   const f = automaticSendFixture([true, true, false]);
-  await expect(f.send()).rejects.toThrow('unsupported funding signatures');
+  await expect(f.send()).rejects.toThrow('both coin selections contained unsupported funding signatures');
   expect(f.raw.mock.calls.flat(2)).toContain(f.pool[1].txid);
   expect(f.raw.mock.calls.flat(2)).not.toContain(f.pool[2].txid);
   expect(f.retry.reviewFee).not.toHaveBeenCalled();
