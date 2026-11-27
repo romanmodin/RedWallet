@@ -82,11 +82,7 @@ export function verifyMinedAncestry(
 ): void {
   if (!path.length || path.length > 64 || proof.position !== 0 || !Number.isSafeInteger(selected.vout) || selected.vout < 0) fail();
   const canonical = verifyInclusion(proof, anchor);
-  const height = script.number.encode(anchor.height);
-  const prefix = Buffer.concat([Buffer.from([height.length]), height]);
-  const matchesHeight = (tx: Transaction) =>
-    tx.isCoinbase() && tx.ins[0].index === 0xffffffff && Buffer.from(tx.ins[0].script.subarray(0, prefix.length)).equals(prefix);
-  if (!matchesHeight(canonical)) fail();
+  if (!rewardAtHeight(canonical, anchor.height)) fail();
   let child: Transaction | undefined;
   let chars = 0;
   for (const raw of path) {
@@ -99,5 +95,56 @@ export function verifyMinedAncestry(
     } else if (tx.getId() !== selected.txid || !tx.outs[selected.vout]) fail();
     child = tx;
   }
-  if (!child || !matchesHeight(child) || child.getId() === canonical.getId()) fail();
+  if (!child || !rewardAtHeight(child, anchor.height) || child.getId() === canonical.getId()) fail();
+}
+
+function rewardAtHeight(tx: Transaction, height: number): boolean {
+  const encoded = script.number.encode(height);
+  const prefix = Buffer.concat([Buffer.from([encoded.length]), encoded]);
+  return tx.isCoinbase() && tx.ins[0].index === 0xffffffff && Buffer.from(tx.ins[0].script.subarray(0, prefix.length)).equals(prefix);
+}
+
+/** Caller must independently authenticate the reward header, its parent's median
+ * time past and the tip on the same XBT branch. A copied Electrum header alone
+ * cannot establish that trust. Checks maturity for admission to the next block.
+ */
+export function verifyXbtRewardForSpend(
+  reward: Transaction,
+  merkle: readonly string[],
+  anchor: { header: string; tipHeight: number; parentMedianTimePast: number },
+): void {
+  if (
+    !/^[a-f0-9]{328}$/i.test(anchor.header) ||
+    !Number.isSafeInteger(anchor.tipHeight) ||
+    anchor.tipHeight > 0x7fffffff ||
+    !Number.isSafeInteger(anchor.parentMedianTimePast) ||
+    anchor.parentMedianTimePast <= 0 ||
+    anchor.parentMedianTimePast > 0xffffffff
+  )
+    fail();
+  const header = Buffer.from(anchor.header, 'hex');
+  const count = header.readUInt16LE(108);
+  const height = header.readInt32LE(128);
+  if (
+    header.readInt32LE(0) >= 0 ||
+    height < 961640 ||
+    !count ||
+    !rewardAtHeight(reward, height) ||
+    reward.byteLength(false) === 64 ||
+    merkle.length !== Math.ceil(Math.log2(count))
+  )
+    fail();
+  let hash = Buffer.from(reward.getHash());
+  for (const sibling of merkle) {
+    if (!HASH.test(sibling)) fail();
+    const right = Buffer.from(sibling, 'hex').reverse();
+    if (hash.equals(right)) fail();
+    hash = Buffer.from(crypto.hash256(Buffer.concat([hash, right])));
+  }
+  if (!hash.equals(header.subarray(36, 68))) fail();
+  // Knots b4c8f9f4, Consensus::CoinbaseMaturityPolicy. Rewards covered by
+  // the rolling rule retain it when a later block crosses the RDTS expiry.
+  const depth = anchor.tipHeight - height + 1;
+  const minimum = anchor.parentMedianTimePast >= 1819756800 ? 100 : height >= 979919 ? 25920 : 6480;
+  if (depth < minimum) throw new Error('XBT mining reward is immature');
 }
