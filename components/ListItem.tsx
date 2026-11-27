@@ -38,6 +38,7 @@ export interface ListItemProps {
   rightTitle?: string;
   rightTitleStyle?: StyleProp<TextStyle>;
   rightTitleSelectable?: boolean;
+  rightTitleAdjustsFontSizeToFit?: boolean;
   rightSubtitle?: string | React.ReactNode;
   rightSubtitleStyle?: StyleProp<TextStyle>;
   chevron?: boolean;
@@ -64,6 +65,7 @@ const ListItem: React.FC<ListItemProps> = React.memo(
     rightTitle,
     rightTitleStyle,
     rightTitleSelectable,
+    rightTitleAdjustsFontSizeToFit = true,
     rightSubtitle,
     rightSubtitleStyle,
     chevron,
@@ -146,7 +148,7 @@ const ListItem: React.FC<ListItemProps> = React.memo(
               <Text
                 style={rightTitleStyle}
                 numberOfLines={1}
-                adjustsFontSizeToFit
+                adjustsFontSizeToFit={rightTitleAdjustsFontSizeToFit}
                 minimumFontScale={0.75}
                 accessibilityRole="text"
                 selectable={rightTitleSelectable}

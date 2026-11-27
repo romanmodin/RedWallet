@@ -226,3 +226,17 @@ test.each([false, true])('real storage write failure must restore previously hid
     s.unmount();
   }
 });
+
+test('the home feed keeps transaction amounts at their text size across a refreshed row', () => {
+  const wallet = hiddenWallet();
+  wallet.hideBalance = false;
+  mockStorage.wallets = [wallet];
+  const row = (value: number) => (
+    <TransactionListItem item={{ hash: 'fixture', value, timestamp: 1700000100, confirmations: 8 } as any}
+      itemPriceUnit={BitcoinUnit.BTC} walletID={wallet.getID()} />
+  );
+  const view = render(row(123456789));
+  expect(view.getByText('1.23456789').props.adjustsFontSizeToFit).toBe(false);
+  view.rerender(row(-234567891));
+  expect(view.getByText('-2.34567891').props.adjustsFontSizeToFit).toBe(false);
+});

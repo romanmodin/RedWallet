@@ -590,6 +590,7 @@ const TransactionListItemComponent: React.FC<TransactionListItemProps> = ({
           subtitle={dateLine}
           chevron={false}
           rightTitle={rowTitle}
+          rightTitleAdjustsFontSizeToFit={false}
           rightTitleStyle={rowTitleStyle}
           rightSubtitle={noteForCopy}
           rightSubtitleStyle={styles.rightColumn}
