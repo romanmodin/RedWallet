@@ -1,5 +1,3 @@
-On an XBT Native SegWit watch-only test account with both hardware-signing switches enabled, enter a fixed Send amount and leave coin selection on automatic. If the first selection has an unsupported funding signature, RedWallet tries one other selection and verifies the inputs again.
+For an XBT Native SegWit watch-only test account using standard Keystone signing, Next keeps XBT-only protection on. To sign once without checking replay separation, tap “Disable XBT-only protection for this send” and read the confirmation. If the same coins exist on the SHA-256 chain, the payment could be replayed there.
 
-When an alternative covers the payment and passes verification, RedWallet shows its exact network fee. Cancel to stay in Send, or confirm to review the unsigned request on Keystone. Compare the recipient, amount and fee. Stop at review. Use disposable test coins.
-
-If RedWallet cannot verify separation, signing stays blocked. The existing notice about sharing funding transaction IDs and IP addresses with the public proof services still applies.
+Use disposable test coins. Cancel the confirmation first and verify that no signing QR appears. Choose the one-send option again, confirm, and compare the recipient, amount and fee on Keystone. No seed or password is needed on the phone. Start a new Send and use Next to check that replay protection is back on.

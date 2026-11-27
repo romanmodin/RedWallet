@@ -6,7 +6,7 @@ require_relative 'distribute-ios-beta'
 class FixtureBetaRelease < RedWalletBetaRelease
   attr_reader :writes, :assigned
   attr_accessor :wrong_app, :wrong_group, :wrong_build, :expired, :compliance, :review_state, :existing, :external_state, :internal_state, :missing_group, :duplicate_group, :incomplete_groups
-  attr_accessor :final_attributes, :final_build_id
+  attr_accessor :final_attributes, :final_build_id, :extra_group, :extra_after_assignment, :partial_membership
   def initialize(notes_path:, receipt_path:)
     super(key_path: nil, notes_path: notes_path, receipt_path: receipt_path, token: Object.new)
     @writes = []; @assigned = []; @compliance = false; @review_state = 'WAITING_FOR_REVIEW'
@@ -45,10 +45,14 @@ class FixtureBetaRelease < RedWalletBetaRelease
     end
     if path == '/v1/builds/fixture-build'
       ids = existing ? GROUPS.map { |g| g[:id] } : assigned
+      ids = ids + ['another-group'] if extra_group || (extra_after_assignment && !assigned.empty?)
       external = external_state || (review_state == 'APPROVED' ? 'IN_BETA_TESTING' :
                                    review_state.nil? ? 'READY_FOR_BETA_SUBMISSION' : 'WAITING_FOR_BETA_REVIEW')
       attributes = { 'processingState' => 'VALID', 'expired' => false, 'version' => BUILD }.merge(final_attributes || {})
-      return { 'data' => { 'id' => final_build_id || 'fixture-build', 'attributes' => attributes }, 'included' =>
+      relationship = { 'data' => ids.map { |id| { 'type' => 'betaGroups', 'id' => id } },
+                       'meta' => { 'paging' => { 'total' => ids.length + (partial_membership ? 1 : 0) } } }
+      return { 'data' => { 'id' => final_build_id || 'fixture-build', 'attributes' => attributes,
+                           'relationships' => { 'betaGroups' => relationship } }, 'included' =>
         [{ 'type' => 'buildBetaDetails', 'attributes' => { 'internalBuildState' => internal_state || 'IN_BETA_TESTING',
               'externalBuildState' => external } },
          { 'type' => 'betaAppReviewSubmissions', 'attributes' => { 'betaReviewState' => review_state } }] +
@@ -70,7 +74,7 @@ Dir.mktmpdir('redwallet-beta-fixtures') do |dir|
                                              sourceCommit: 'fixture', orchestrationCommit: 'fixture' }))
     factory = -> { FixtureBetaRelease.new(notes_path: 'notes.txt', receipt_path: 'receipt.json') }
     report = -> { JSON.parse(File.read('testflight-beta-verification.json')) }
-    [:wrong_app, :wrong_group, :wrong_build, :expired, :missing_group, :duplicate_group, :incomplete_groups].each do |failure|
+    [:wrong_app, :wrong_group, :wrong_build, :expired, :missing_group, :duplicate_group, :incomplete_groups, :extra_group, :partial_membership].each do |failure|
       release = factory.call
       release.public_send("#{failure}=", true)
       begin
@@ -80,6 +84,14 @@ Dir.mktmpdir('redwallet-beta-fixtures') do |dir|
         check(release.writes.empty?, 'Identity failure mutated Apple state')
         check(report.call['status'] == 'BLOCKED', 'Rejection must be reported')
       end
+    end
+    release = factory.call
+    release.extra_after_assignment = true
+    begin
+      release.run
+      raise 'Unexpected concurrent tester assignment was accepted'
+    rescue BetaReleaseError
+      check(report.call['status'] == 'BLOCKED', 'Unexpected group must block availability')
     end
     release = factory.call; release.compliance = nil
     begin
