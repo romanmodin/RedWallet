@@ -12,9 +12,9 @@ function reward(tag: number, height = 975000) {
   return tx;
 }
 
-function fixture() {
-  const mined = reward(1);
-  const canonical = reward(2);
+function fixture(height = 975000) {
+  const mined = reward(1, height);
+  const canonical = reward(2, height);
   const spend = new Transaction();
   spend.addInput(mined.getHash(), 0);
   spend.addOutput(Buffer.from([0x51]), 90000n);
@@ -23,8 +23,8 @@ function fixture() {
   const root = crypto.hash256(Buffer.concat([canonical.getHash(), sibling]));
   header.set(root, 36);
   const anchor = {
-    height: 975000,
-    tipHeight: 975005,
+    height,
+    tipHeight: height + 5,
     blockHash: Buffer.from(crypto.hash256(header)).reverse().toString('hex'),
     txCount: 2,
   };
@@ -159,10 +159,11 @@ function linkParents(rewardHeader: Buffer, median: number) {
   return parents;
 }
 
-test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
+test.each(['valid', 'rolling maturity', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
   'collects only public SHA-256 reward evidence: %s',
   async scenario => {
-    const f = fixture();
+    const rolling = scenario === 'rolling maturity';
+    const f = fixture(rolling ? 979919 : 975000);
     const { height, blockHash, tipHeight } = f.anchor;
     const now = 2000000000;
     const tipHeader = Buffer.alloc(80);
@@ -206,12 +207,13 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelat
       header.writeUInt16LE(1, 108);
       header.writeInt32LE(height, 128);
       header.set((scenario === 'unrelated XBT reward' ? reward(9) : f.mined).getHash(), 36);
-      const parentHeaders = linkParents(header, 1819756800);
+      const parentHeaders = linkParents(header, rolling ? 1790000000 : 1819756800);
       const anchor = { header: header.toString('hex'), blockHash: xbtV2BlockHash(header), parentHeaders };
       let hash = anchor.blockHash;
-      const inclusionOffset = scenario === 'five confirmations' ? 101 : 100;
+      const maturity = rolling ? 25920 : 100;
+      const inclusionOffset = maturity + Number(scenario === 'five confirmations');
       const sibling = reward(8, height + inclusionOffset);
-      const descendants = Array.from({ length: 105 }, (_, i) => {
+      const descendants = Array.from({ length: maturity + 5 }, (_, i) => {
         const child = Buffer.alloc(164);
         child.writeUInt32LE(0x80000000, 0);
         child.writeInt32LE(height + i + 1, 128);
@@ -260,7 +262,7 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelat
         if (scenario === 'stalled final tip') expect(stalledSignal?.aborted).toBe(true);
         return;
       }
-      if (scenario === 'valid' || direct) {
+      if (scenario === 'valid' || rolling || direct) {
         await expect(result).resolves.toBeUndefined();
         expect(rewardAnchorReads).toBe(4);
       } else await expect(result).rejects.toThrow('separation');
@@ -270,6 +272,7 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelat
       fetch.mockRestore();
     }
   },
+  90000,
 );
 
 test.each([
