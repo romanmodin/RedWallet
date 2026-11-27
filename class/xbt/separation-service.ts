@@ -66,7 +66,7 @@ function chainEvidence(requestLimit: number, assertAuthorized: () => void) {
     if (computedHash !== hash) unavailable();
     return height;
   };
-  return { get, json, agreedHashAt, tip };
+  return { get, json, agreedHashAt, tip, deadline };
 }
 
 export async function verifyPublicFundingSeparation(funding: Transaction[], assertAuthorized: () => void): Promise<void> {
@@ -149,12 +149,34 @@ export async function verifyPublicMinedSeparation(
   },
   // This reader must independently authenticate the current XBT chain tip.
   // Never derive its result from the supplied headers or their provider.
-  readTrustedXbtTip: () => Promise<{ height: number; hash: string }>,
+  readTrustedXbtTip: (signal: AbortSignal) => Promise<{ height: number; hash: string }>,
   assertAuthorized: () => void,
 ): Promise<void> {
   assertAuthorized();
   if (!Number.isSafeInteger(height) || height < CHECKPOINT_HEIGHT || height > 999999999) unavailable();
-  const { get, json, agreedHashAt, tip } = chainEvidence(22, assertAuthorized);
+  const { get, json, agreedHashAt, tip, deadline } = chainEvidence(22, assertAuthorized);
+  const readCurrentTip = async () => {
+    assertAuthorized();
+    const now = performance.now();
+    if (now >= deadline) return unavailable();
+    const stopAt = Math.min(deadline, now + 8000);
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error('Coin separation could not be verified before the tip read timed out.'));
+        controller.abort();
+      }, stopAt - now);
+    });
+    try {
+      const current = await Promise.race([readTrustedXbtTip(controller.signal), timeout]);
+      assertAuthorized();
+      if (performance.now() >= stopAt) return unavailable();
+      return current;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   if ((await agreedHashAt(CHECKPOINT_HEIGHT)) !== CHECKPOINT_HASH) unavailable();
   const tipHeight = await tip();
   if (tipHeight - height + 1 < 6) unavailable();
@@ -171,7 +193,7 @@ export async function verifyPublicMinedSeparation(
   if (branch?.block_height !== height || branch.pos !== 0) unavailable();
   const reward = verifyMinedAncestry(selected, ancestry, {rawTransaction, header, position: branch.pos, merkle: branch.merkle},
     {height, tipHeight, blockHash, txCount: evidenceBlock.tx_count});
-  const trustedTip = await readTrustedXbtTip();
+  const trustedTip = await readCurrentTip();
   const { descendants, anchor } = xbtReward;
   verifyXbtRewardForSpend(reward, xbtReward.merkle, { ...anchor, tipHeight: trustedTip.height });
   if (descendants.length !== trustedTip.height - height) unavailable();
@@ -181,6 +203,7 @@ export async function verifyPublicMinedSeparation(
       // Yield during long histories so cancellation and elapsed deadlines can fire.
       await new Promise(resolve => setTimeout(resolve, 0));
       assertAuthorized();
+      if (performance.now() >= deadline) unavailable();
     }
     const raw = descendants[i];
     if (!/^[0-9a-f]{328}$/i.test(raw)) unavailable();
@@ -190,7 +213,7 @@ export async function verifyPublicMinedSeparation(
   }
   if (previous !== trustedTip.hash) unavailable();
   if ((await tip()) - height + 1 < 6 || (await agreedHashAt(height)) !== blockHash) unavailable();
-  const currentTip = await readTrustedXbtTip();
+  const currentTip = await readCurrentTip();
   if (currentTip.height !== trustedTip.height || currentTip.hash !== previous) unavailable();
   assertAuthorized();
 }

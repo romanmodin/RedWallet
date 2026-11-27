@@ -129,7 +129,7 @@ function linkParents(rewardHeader: Buffer, median: number) {
   return parents;
 }
 
-test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip'] as const)(
+test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip'] as const)(
   'collects only public SHA-256 reward evidence: %s',
   async scenario => {
     const f = fixture();
@@ -189,17 +189,37 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement', 'unrelat
       });
       if (scenario === 'broken XBT link') descendants[56] = descendants[55];
       let tipReads = 0;
-      const readTrustedTip = async () => ({
-        height: height + descendants.length,
-        hash: scenario === 'wrong XBT tip' || (++tipReads === 2 && scenario === 'replaced XBT tip') ? '00'.repeat(32) : hash,
-      });
+      const timingCase = scenario === 'late final tip' || scenario === 'stalled final tip';
+      if (timingCase) jest.useFakeTimers();
+      let stalledSignal: AbortSignal | undefined;
+      const readTrustedTip = async (signal?: AbortSignal) => {
+        tipReads++;
+        if (tipReads === 2 && scenario === 'late final tip') jest.advanceTimersByTime(45001);
+        if (tipReads === 2 && scenario === 'stalled final tip') {
+          stalledSignal = signal;
+          return new Promise<{ height: number; hash: string }>(() => {});
+        }
+        return {
+          height: height + descendants.length,
+          hash: scenario === 'wrong XBT tip' || (tipReads === 2 && scenario === 'replaced XBT tip') ? '00'.repeat(32) : hash,
+        };
+      };
       const result = verifyPublicMinedSeparation(f.selected, f.path, height, { anchor, merkle: [], descendants }, readTrustedTip, () => {});
+      if (timingCase) {
+        const check = expect(result).rejects.toThrow('separation');
+        await jest.runAllTimersAsync();
+        await check;
+        expect(tipReads).toBe(2);
+        if (scenario === 'stalled final tip') expect(stalledSignal?.aborted).toBe(true);
+        return;
+      }
       if (scenario === 'valid') {
         await expect(result).resolves.toBeUndefined();
         expect(rewardAnchorReads).toBe(4);
       } else await expect(result).rejects.toThrow('separation');
       expect(calls.some(url => url.includes(f.selected.txid) || url.includes(f.mined.getId()))).toBe(false);
     } finally {
+      jest.useRealTimers();
       fetch.mockRestore();
     }
   },
