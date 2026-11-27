@@ -1,38 +1,10 @@
+import { fixture, reward, linkParents } from '../helpers/mined-ancestry-fixture';
 import { xbtV2BlockHash } from '../../class/xbt/block-header-hash';
-import { Psbt, Transaction, crypto, script } from 'bitcoinjs-lib';
+import { Psbt, Transaction, crypto } from 'bitcoinjs-lib';
 import { verifyMinedAncestry, verifyXbtRewardForSpend } from '../../class/xbt/separation-proof';
 import { verifyPublicMinedSeparation } from '../../class/xbt/separation-service';
 import { assertStandardHardwareResult, requestFundingInputs } from '../../class/xbt/standard-hardware';
 import regtestControl from '../fixtures/xbt-bitcoin-regtest-rejection.json';
-
-function reward(tag: number, height = 975000) {
-  const tx = new Transaction();
-  tx.addInput(Buffer.alloc(32), 0xffffffff, 0xffffffff, Buffer.from(script.compile([script.number.encode(height), Buffer.alloc(8, tag)])));
-  tx.addOutput(Buffer.from([0x51]), 100000n);
-  return tx;
-}
-
-function fixture(height = 975000) {
-  const mined = reward(1, height);
-  const canonical = reward(2, height);
-  const spend = new Transaction();
-  spend.addInput(mined.getHash(), 0);
-  spend.addOutput(Buffer.from([0x51]), 90000n);
-  const header = Buffer.alloc(80);
-  const sibling = Buffer.alloc(32, 9);
-  const root = crypto.hash256(Buffer.concat([canonical.getHash(), sibling]));
-  header.set(root, 36);
-  const anchor = {
-    height,
-    tipHeight: height + 5,
-    blockHash: Buffer.from(crypto.hash256(header)).reverse().toString('hex'),
-    txCount: 2,
-  };
-  const proof = { rawTransaction: canonical.toHex(), position: 0, merkle: [sibling.toString('hex')], header: header.toString('hex') };
-  const selected = { txid: spend.getId(), vout: 0 };
-  const path = [spend.toHex(), mined.toHex()];
-  return { selected, path, mined, canonical, spend, proof, anchor };
-}
 
 test('verifies a reward descendant against a different position-zero SHA-256 reward', () => {
   const f = fixture();
@@ -154,29 +126,6 @@ test('a fresh proof after a reorg fails if the replacement block includes the sa
   expect(() => verifyMinedAncestry(f.selected, f.path, proof, anchor)).toThrow();
   expect(() => verifyMinedAncestry(f.selected, f.path, f.proof, anchor)).toThrow();
 });
-
-function linkParents(rewardHeader: Buffer, median: number) {
-  const parents: string[] = [];
-  let previous = Buffer.alloc(32);
-  for (let i = 11; i > 0; i--) {
-    const height = rewardHeader.readInt32LE(128) - i;
-    const v2 = height >= 961640;
-    const parent = Buffer.alloc(v2 ? 164 : 80);
-    const timestamp = median + i - 6;
-    parent.writeUInt32LE(v2 ? 0x80000000 : 4, 0);
-    parent.writeUInt32LE(v2 ? timestamp - 120 : timestamp, 68);
-    if (v2) {
-      parent.writeInt32LE(height, 128);
-      parent[110] = 4;
-      parent.writeUInt32LE(120, 104);
-    }
-    parent.set(previous, 4);
-    previous = v2 ? Buffer.from(xbtV2BlockHash(parent), 'hex').reverse() : Buffer.from(crypto.hash256(parent));
-    parents.unshift(parent.toString('hex'));
-  }
-  rewardHeader.set(previous, 4);
-  return parents;
-}
 
 test.each(['valid', 'rolling maturity', 'early reward spend', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
   'collects only public SHA-256 reward evidence: %s',

@@ -216,6 +216,19 @@ jobs:
           compression-level: 0
           if-no-files-found: error
 
+      - name: Check synthetic ancestry in iPhone Hermes
+        if: github.head_ref == 'feat/prove-mined-ancestry-339'
+        timeout-minutes: 12
+        run: bash .github/scripts/check-ios-mined-ancestry.sh
+
+      - name: Archive iPhone ancestry result
+        if: github.head_ref == 'feat/prove-mined-ancestry-339'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ios-synthetic-ancestry
+          path: ios-ancestry-result.json
+          if-no-files-found: error
+
       - name: Exercise Fabric unmounts in a disposable simulator
         if: hashFiles('.github/scripts/test-ios-fabric-unmount.rb') != '' || github.head_ref == 'release/ios-combined-lightning-fabric-unmount-20261118'
         env:
