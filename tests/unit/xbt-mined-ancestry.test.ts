@@ -1,7 +1,9 @@
 import { xbtV2BlockHash } from '../../class/xbt/block-header-hash';
-import { Transaction, crypto, script } from 'bitcoinjs-lib';
+import { Psbt, Transaction, crypto, script } from 'bitcoinjs-lib';
 import { verifyMinedAncestry, verifyXbtRewardForSpend } from '../../class/xbt/separation-proof';
 import { verifyPublicMinedSeparation } from '../../class/xbt/separation-service';
+import { assertStandardHardwareResult, requestFundingInputs } from '../../class/xbt/standard-hardware';
+import regtestControl from '../fixtures/xbt-bitcoin-regtest-rejection.json';
 
 function reward(tag: number, height = 975000) {
   const tx = new Transaction();
@@ -44,6 +46,34 @@ test('refuses the same reward and invalid spend edges', () => {
   expect(() => verifyMinedAncestry({ ...f.selected, vout: 1 }, f.path, f.proof, f.anchor)).toThrow();
   f.spend.ins[0].index = 1;
   expect(() => verifyMinedAncestry({ txid: f.spend.getId(), vout: 0 }, [f.spend.toHex(), f.mined.toHex()], f.proof, f.anchor)).toThrow();
+});
+
+test('a valid two-input standard return accepted by SHA-256 does not establish mined separation', () => {
+  const funding = Transaction.fromHex(regtestControl.fixture.fundingHex);
+  const signedHex = regtestControl.signed.bitcoinControlHex;
+  const signed = Transaction.fromHex(signedHex);
+  const request = new Psbt().setVersion(signed.version).setLocktime(signed.locktime);
+  for (const input of signed.ins) {
+    request.addInput({
+      hash: input.hash,
+      index: input.index,
+      sequence: input.sequence,
+      nonWitnessUtxo: Buffer.from(funding.toBuffer()),
+      witnessUtxo: funding.outs[input.index],
+      sighashType: Transaction.SIGHASH_ALL,
+    });
+  }
+  for (const output of signed.outs) request.addOutput(output);
+  expect(regtestControl.receipts.bitcoinControlHex.allowed).toBe(true);
+  expect(regtestControl.bitcoinControlConfirmations).toBeGreaterThan(0);
+  expect(assertStandardHardwareResult(signedHex, request).getId()).toBe(regtestControl.receipts.bitcoinControlHex.txid);
+
+  const evidence = fixture();
+  const inputs = requestFundingInputs(request);
+  expect(inputs).toHaveLength(2);
+  for (const input of inputs) {
+    expect(() => verifyMinedAncestry(input, [funding.toHex(), evidence.mined.toHex()], evidence.proof, evidence.anchor)).toThrow('separation');
+  }
 });
 
 test('a mixed-input transaction depends on its mined input even when it is the second input', () => {
