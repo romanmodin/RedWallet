@@ -113,13 +113,13 @@ export function verifyMinedAncestry(
 
 /** Caller must independently authenticate the reward block hash and the tip on the same
  * XBT branch. The linked parent headers provide the median time past. A copied Electrum header alone
- * cannot establish that trust. Checks maturity for admission to the next block.
+ * cannot establish that trust. Checks maturity for admission to the next block and returns the first eligible spend height.
  */
 export function verifyXbtRewardForSpend(
   reward: Transaction,
   merkle: readonly string[],
   anchor: { header: string; blockHash: string; tipHeight: number; parentHeaders: readonly string[] },
-): void {
+): number {
   if (!/^[a-f0-9]{328}$/i.test(anchor.header) || !Number.isSafeInteger(anchor.tipHeight) || anchor.tipHeight > 0x7fffffff) fail();
   const header = Buffer.from(anchor.header, 'hex');
   if (xbtV2BlockHash(header) !== anchor.blockHash) fail();
@@ -136,4 +136,5 @@ export function verifyXbtRewardForSpend(
   const depth = anchor.tipHeight - height + 1;
   const minimum = rewardParentMedianTime(header, anchor.parentHeaders) >= 1819756800 ? 100 : height >= 979919 ? 25920 : 6480;
   if (depth < minimum) throw new Error('XBT mining reward is immature');
+  return height + minimum;
 }

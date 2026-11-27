@@ -178,7 +178,7 @@ function linkParents(rewardHeader: Buffer, median: number) {
   return parents;
 }
 
-test.each(['valid', 'rolling maturity', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
+test.each(['valid', 'rolling maturity', 'early reward spend', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
   'collects only public SHA-256 reward evidence: %s',
   async scenario => {
     const rolling = scenario === 'rolling maturity';
@@ -230,7 +230,7 @@ test.each(['valid', 'rolling maturity', 'replaced at final check', 'metadata dis
       const anchor = { header: header.toString('hex'), blockHash: xbtV2BlockHash(header), parentHeaders };
       let hash = anchor.blockHash;
       const maturity = rolling ? 25920 : 100;
-      const inclusionOffset = maturity + Number(scenario === 'five confirmations');
+      const inclusionOffset = maturity + Number(scenario === 'five confirmations') - Number(scenario === 'early reward spend');
       const sibling = reward(8, height + inclusionOffset);
       const descendants = Array.from({ length: maturity + 5 }, (_, i) => {
         const child = Buffer.alloc(164);

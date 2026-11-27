@@ -205,7 +205,8 @@ export async function verifyPublicMinedSeparation(
   )) return unavailable();
   const trustedTip = await readCurrentTip();
   const { descendants, anchor } = xbtReward;
-  verifyXbtRewardForSpend(reward, xbtReward.merkle, { ...anchor, tipHeight: trustedTip.height });
+  const firstSpendHeight = verifyXbtRewardForSpend(reward, xbtReward.merkle, { ...anchor, tipHeight: trustedTip.height });
+  if (inclusion && selectedHeight < firstSpendHeight) unavailable();
   if (descendants.length !== trustedTip.height - height || trustedTip.height - selectedHeight + 1 < 6) unavailable();
   let previous = anchor.blockHash;
   for (let i = 0; i < descendants.length; i++) {
