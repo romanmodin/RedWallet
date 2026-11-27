@@ -1,3 +1,4 @@
+import { xbtV2BlockHash } from './block-header-hash';
 import { getSeparationHTTPResponse } from './separation-http';
 import { hasFreshTipTime } from './separation-freshness';
 import { SEPARATION_EVIDENCE as EVIDENCE, SEPARATION_ANCHOR as ANCHOR } from './separation-http-policy';
@@ -141,7 +142,14 @@ export async function verifyPublicMinedSeparation(
   selected: { txid: string; vout: number },
   ancestry: readonly string[],
   height: number,
-  xbtReward: { anchor: Parameters<typeof verifyXbtRewardForSpend>[2]; merkle: readonly string[] },
+  xbtReward: {
+    anchor: Omit<Parameters<typeof verifyXbtRewardForSpend>[2], 'tipHeight'>;
+    merkle: readonly string[];
+    descendants: readonly string[];
+  },
+  // This reader must independently authenticate the current XBT chain tip.
+  // Never derive its result from the supplied headers or their provider.
+  readTrustedXbtTip: () => Promise<{ height: number; hash: string }>,
   assertAuthorized: () => void,
 ): Promise<void> {
   assertAuthorized();
@@ -163,7 +171,26 @@ export async function verifyPublicMinedSeparation(
   if (branch?.block_height !== height || branch.pos !== 0) unavailable();
   const reward = verifyMinedAncestry(selected, ancestry, {rawTransaction, header, position: branch.pos, merkle: branch.merkle},
     {height, tipHeight, blockHash, txCount: evidenceBlock.tx_count});
-  verifyXbtRewardForSpend(reward, xbtReward.merkle, xbtReward.anchor);
+  const trustedTip = await readTrustedXbtTip();
+  const { descendants, anchor } = xbtReward;
+  verifyXbtRewardForSpend(reward, xbtReward.merkle, { ...anchor, tipHeight: trustedTip.height });
+  if (descendants.length !== trustedTip.height - height) unavailable();
+  let previous = anchor.blockHash;
+  for (let i = 0; i < descendants.length; i++) {
+    if (i % 64 === 0) {
+      // Yield during long histories so cancellation and elapsed deadlines can fire.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assertAuthorized();
+    }
+    const raw = descendants[i];
+    if (!/^[0-9a-f]{328}$/i.test(raw)) unavailable();
+    const child = Buffer.from(raw, 'hex');
+    if (child.readInt32LE(128) !== height + i + 1 || Buffer.from(child.subarray(4, 36)).reverse().toString('hex') !== previous) unavailable();
+    previous = xbtV2BlockHash(child);
+  }
+  if (previous !== trustedTip.hash) unavailable();
   if ((await tip()) - height + 1 < 6 || (await agreedHashAt(height)) !== blockHash) unavailable();
+  const currentTip = await readTrustedXbtTip();
+  if (currentTip.height !== trustedTip.height || currentTip.hash !== previous) unavailable();
   assertAuthorized();
 }
