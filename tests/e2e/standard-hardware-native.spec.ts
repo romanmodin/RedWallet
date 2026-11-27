@@ -321,7 +321,9 @@ suite('Standard hardware iOS qualification', () => {
         await waitForId('StandardHardwareSigningNotice', 60000);
         await waitForText('XBT-only protection is off for this send. This payment could also be replayed on the SHA-256 chain.');
         const unprotected = await copyUnsignedRequest();
-        assert(unprotected.inputCount > 0);
+        assert.equal(unprotected.inputCount, 1);
+        assert.equal(Buffer.from(unprotected.txInputs[0].hash).reverse().toString('hex'), fixture.largerOutpoint.txid);
+        assert.equal(unprotected.txInputs[0].index, fixture.largerOutpoint.vout);
         assert(unprotected.txOutputs.some(output => output.address === PUBLIC_RECIPIENT && output.value === 100000n));
         assert(unprotected.data.inputs.every(input => input.sighashType === bitcoin.Transaction.SIGHASH_ALL && !input.partialSig && !input.finalScriptWitness));
         assert.equal(fixture.explorerRequests.length, proofReads);
