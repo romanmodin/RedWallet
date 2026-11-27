@@ -306,7 +306,14 @@ suite('Standard hardware iOS qualification', () => {
         step('exporting this send only after explicit replay opt-out');
         await tapAfterTransition(() => element(by.id('SkipReplayCheckOnce')).tap());
         await confirmDialog('Disable XBT-only protection for this send?', false);
+        await waitFor(element(by.text('Disable XBT-only protection for this send?')))
+          .not.toExist()
+          .withTimeout(15000);
+        await waitForId('CreateTransactionButton');
+        await waitForId('SkipReplayCheckOnce');
         await nativeExpect(element(by.id('StandardHardwareSigningNotice'))).not.toExist();
+        await nativeExpect(element(by.id('PSBTHex'))).not.toExist();
+        assert.deepEqual(fixture.transport.broadcasts, []);
         observed.oneSendOverrideCancelledBeforeExport = true;
         const proofReads = fixture.explorerRequests.length;
         await tapAfterTransition(() => element(by.id('SkipReplayCheckOnce')).tap());
