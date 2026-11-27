@@ -1,3 +1,4 @@
+import { rewardParentMedianTime, xbtV2BlockHash } from './block-header-hash';
 import { Transaction, crypto, script } from 'bitcoinjs-lib';
 
 /** Supplied by a trusted current BTC chain view separate from the proof source.
@@ -104,25 +105,18 @@ function rewardAtHeight(tx: Transaction, height: number): boolean {
   return tx.isCoinbase() && tx.ins[0].index === 0xffffffff && Buffer.from(tx.ins[0].script.subarray(0, prefix.length)).equals(prefix);
 }
 
-/** Caller must independently authenticate the reward header, its parent's median
- * time past and the tip on the same XBT branch. A copied Electrum header alone
+/** Caller must independently authenticate the reward block hash and the tip on the same
+ * XBT branch. The linked parent headers provide the median time past. A copied Electrum header alone
  * cannot establish that trust. Checks maturity for admission to the next block.
  */
 export function verifyXbtRewardForSpend(
   reward: Transaction,
   merkle: readonly string[],
-  anchor: { header: string; tipHeight: number; parentMedianTimePast: number },
+  anchor: { header: string; blockHash: string; tipHeight: number; parentHeaders: readonly string[] },
 ): void {
-  if (
-    !/^[a-f0-9]{328}$/i.test(anchor.header) ||
-    !Number.isSafeInteger(anchor.tipHeight) ||
-    anchor.tipHeight > 0x7fffffff ||
-    !Number.isSafeInteger(anchor.parentMedianTimePast) ||
-    anchor.parentMedianTimePast <= 0 ||
-    anchor.parentMedianTimePast > 0xffffffff
-  )
-    fail();
+  if (!/^[a-f0-9]{328}$/i.test(anchor.header) || !Number.isSafeInteger(anchor.tipHeight) || anchor.tipHeight > 0x7fffffff) fail();
   const header = Buffer.from(anchor.header, 'hex');
+  if (xbtV2BlockHash(header) !== anchor.blockHash) fail();
   const count = header.readUInt16LE(108);
   const height = header.readInt32LE(128);
   if (
@@ -145,6 +139,6 @@ export function verifyXbtRewardForSpend(
   // Knots b4c8f9f4, Consensus::CoinbaseMaturityPolicy. Rewards covered by
   // the rolling rule retain it when a later block crosses the RDTS expiry.
   const depth = anchor.tipHeight - height + 1;
-  const minimum = anchor.parentMedianTimePast >= 1819756800 ? 100 : height >= 979919 ? 25920 : 6480;
+  const minimum = rewardParentMedianTime(header, anchor.parentHeaders) >= 1819756800 ? 100 : height >= 979919 ? 25920 : 6480;
   if (depth < minimum) throw new Error('XBT mining reward is immature');
 }

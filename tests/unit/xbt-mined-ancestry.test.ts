@@ -1,3 +1,4 @@
+import { xbtV2BlockHash } from '../../class/xbt/block-header-hash';
 import { Transaction, crypto, script } from 'bitcoinjs-lib';
 import { verifyMinedAncestry, verifyXbtRewardForSpend } from '../../class/xbt/separation-proof';
 import { verifyPublicMinedSeparation } from '../../class/xbt/separation-service';
@@ -125,6 +126,24 @@ test.each(['valid', 'replaced at final check', 'metadata disagreement'] as const
   },
 );
 
+function linkParents(rewardHeader: Buffer, median: number) {
+  const parents: string[] = [];
+  let previous = Buffer.alloc(32);
+  for (let i = 11; i > 0; i--) {
+    const parent = Buffer.alloc(164);
+    parent.writeUInt32LE(0x80000000, 0);
+    parent.writeInt32LE(rewardHeader.readInt32LE(128) - i, 128);
+    parent.writeUInt32LE(median + i - 6 - 120, 68);
+    parent[110] = 4;
+    parent.writeUInt32LE(120, 104);
+    parent.set(previous, 4);
+    previous = Buffer.from(xbtV2BlockHash(parent), 'hex').reverse();
+    parents.unshift(parent.toString('hex'));
+  }
+  rewardHeader.set(previous, 4);
+  return parents;
+}
+
 test.each([
   [979918, 1819756799, 6480],
   [979919, 1819756799, 25920],
@@ -136,7 +155,8 @@ test.each([
   header.writeUInt16LE(1, 108);
   header.writeInt32LE(height, 128);
   header.set(coin.getHash(), 36);
-  const anchor = { header: header.toString('hex'), parentMedianTimePast, tipHeight: height + depth - 1 };
+  const parentHeaders = linkParents(header, parentMedianTimePast);
+  const anchor = { blockHash: xbtV2BlockHash(header), header: header.toString('hex'), parentHeaders, tipHeight: height + depth - 1 };
   expect(() => verifyXbtRewardForSpend(coin, [], anchor)).not.toThrow();
   expect(() => verifyXbtRewardForSpend(coin, [], { ...anchor, tipHeight: anchor.tipHeight - 1 })).toThrow('immature');
   expect(() => verifyXbtRewardForSpend(reward(5, height), [], anchor)).toThrow();
@@ -152,8 +172,10 @@ test('binds an XBT reward to the first transaction of the anchored v2 block', ()
   header.writeInt32LE(975000, 128);
   header.set(crypto.hash256(Buffer.concat([coin.getHash(), sibling])), 36);
   const branch = [Buffer.from(sibling).reverse().toString('hex')];
-  const anchor = { header: header.toString('hex'), tipHeight: 990000, parentMedianTimePast: 1790000000 };
+  const parentHeaders = linkParents(header, 1790000000);
+  const anchor = { blockHash: xbtV2BlockHash(header), header: header.toString('hex'), tipHeight: 990000, parentHeaders };
   expect(() => verifyXbtRewardForSpend(coin, branch, anchor)).not.toThrow();
+  expect(() => verifyXbtRewardForSpend(coin, branch, { ...anchor, parentHeaders: [...parentHeaders].reverse() })).toThrow('Invalid XBT parent height');
   header.set(crypto.hash256(Buffer.concat([sibling, coin.getHash()])), 36);
   expect(() => verifyXbtRewardForSpend(coin, branch, { ...anchor, header: header.toString('hex') })).toThrow();
 });
