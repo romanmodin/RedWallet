@@ -171,11 +171,17 @@ export async function verifyPublicMinedSeparation(
     });
     try {
       const current = await Promise.race([readTrustedXbtTip(controller.signal), timeout]);
-      assertAuthorized();
-      if (performance.now() >= stopAt) return unavailable();
-      return current;
+      if (!current || performance.now() >= stopAt) return unavailable();
+      // Snapshot both primitives before the reader can reuse its response on a later read.
+      const { height: tipHeight, hash } = current;
+      if (!Number.isSafeInteger(tipHeight) || tipHeight < height || tipHeight > 0x7fffffff ||
+        typeof hash !== 'string' || hash.length !== 64 || !HASH.test(hash)) return unavailable();
+      return { height: tipHeight, hash };
+    } catch {
+      return unavailable();
     } finally {
       clearTimeout(timer);
+      assertAuthorized();
     }
   };
   if ((await agreedHashAt(CHECKPOINT_HEIGHT)) !== CHECKPOINT_HASH) unavailable();

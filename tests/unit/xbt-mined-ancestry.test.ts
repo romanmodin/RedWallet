@@ -127,7 +127,7 @@ test('a fresh proof after a reorg fails if the replacement block includes the sa
   expect(() => verifyMinedAncestry(f.selected, f.path, f.proof, anchor)).toThrow();
 });
 
-test.each(['valid', 'rolling maturity', 'early reward spend', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
+test.each(['valid', 'rolling maturity', 'early reward spend', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'missing initial tip', 'unavailable final tip', 'mutated final height', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
   'collects only public SHA-256 reward evidence: %s',
   async scenario => {
     const rolling = scenario === 'rolling maturity';
@@ -199,8 +199,15 @@ test.each(['valid', 'rolling maturity', 'early reward spend', 'replaced at final
       const timingCase = scenario === 'late final tip' || scenario === 'stalled final tip';
       if (timingCase) jest.useFakeTimers();
       let stalledSignal: AbortSignal | undefined;
+      const sharedTip = { height: height + descendants.length, hash };
       const readTrustedTip = async (signal?: AbortSignal) => {
         tipReads++;
+        if (scenario === 'missing initial tip') return JSON.parse('null');
+        if (tipReads === 2 && scenario === 'unavailable final tip') throw new Error('synthetic provider detail');
+        if (scenario === 'mutated final height') {
+          if (tipReads === 2) sharedTip.height++;
+          return sharedTip;
+        }
         if (tipReads === 2 && scenario === 'late final tip') jest.advanceTimersByTime(45001);
         if (tipReads === 2 && scenario === 'stalled final tip') {
           stalledSignal = signal;
