@@ -2,6 +2,7 @@ import '../../shim';
 import { AppRegistry } from 'react-native';
 import FS from 'react-native-fs';
 import { discoverMinedAncestry } from '../../class/xbt/mined-ancestry-discovery';
+import { verifySyntheticOneXbtRequest } from './mined-ancestry-protected-case';
 import { fixture, reward } from '../helpers/mined-ancestry-fixture';
 import { verifyMinedAncestry } from '../../class/xbt/separation-proof';
 
@@ -22,7 +23,8 @@ async function checkAncestry() {
     found.push(verify(candidate.path).getId());
   }
   const secondParentDiscovered = found.length === 1 && found[0] === f.mined.getId();
-  return { secondParentDiscovered, hermes: !!global.HermesInternal, linked, unrelatedRejected };
+  const protectedCase = await verifySyntheticOneXbtRequest();
+  return { ...protectedCase, secondParentDiscovered, hermes: !!global.HermesInternal, linked, unrelatedRejected };
 }
 
 AppRegistry.registerComponent('BlueWallet', () => () => null);
