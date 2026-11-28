@@ -38,3 +38,17 @@ test('oversized fanout stops before querying any of its parents', async () => {
   await expect(candidates.next()).rejects.toThrow('limit');
   expect(read).toHaveBeenCalledTimes(1);
 });
+
+test('an omitted sibling does not hide an independently provable mining path', async () => {
+  const f = fixture(975000, true);
+  const available: Record<string, string> = { [f.selected.txid]: f.spend.toHex(), [f.mined.getId()]: f.mined.toHex() };
+  // A partial Electrum batch contains only transactions available from the history source.
+  const read = async (ids: string[]) => Object.fromEntries(ids.filter(id => id in available).map(id => [id, available[id]]));
+  const candidates = discoverMinedAncestry(f.selected, read, () => {});
+  await expect(candidates.next()).resolves.toEqual({ done: false, value: { height: 975000, path: f.path } });
+  await expect(candidates.next()).resolves.toMatchObject({ done: true });
+  delete available[f.mined.getId()];
+  await expect(discoverMinedAncestry(f.selected, read, () => {}).next()).resolves.toMatchObject({ done: true });
+  delete available[f.selected.txid];
+  await expect(discoverMinedAncestry(f.selected, read, () => {}).next()).rejects.toThrow(/missing/i);
+});

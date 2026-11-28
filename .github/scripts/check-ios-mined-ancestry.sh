@@ -25,5 +25,5 @@ for ((i=0; i<90; i++)); do
   if [[ -s "$report" ]]; then break; fi
   sleep 1
 done
-jq -e '. == {"hermes":true,"linked":true,"unrelatedRejected":true,"secondParentDiscovered":true,"unsignedOneXbtVerified":true,"replacedTipRejected":true}' "$report"
+jq -e '. == {"hermes":true,"linked":true,"unrelatedRejected":true,"secondParentDiscovered":true,"unsignedOneXbtVerified":true,"partialHistoryVerified":true,"replacedTipRejected":true}' "$report"
 jq --arg head "$(git rev-parse HEAD)" --arg runtime "$runtime" '. + {sourceCommit:$head,runtime:$runtime}' "$report" > ios-ancestry-result.json

@@ -7,7 +7,7 @@ import { requestFundingInputs } from '../../class/xbt/standard-hardware';
 import { fixture, linkParents, reward } from '../helpers/mined-ancestry-fixture';
 
 // Both chains and the independent tip reader are fixtures. No signer or network.
-export async function verifySyntheticOneXbtRequest() {
+export async function verifySyntheticOneXbtRequest({ omitSharedParent = false } = {}) {
   const height = 975000;
   const f = fixture(height, true);
   const request = new Psbt();
@@ -37,9 +37,10 @@ export async function verifySyntheticOneXbtRequest() {
     blocks.push(child.toString('hex'));
   }
   const raw = Object.fromEntries([f.spend, f.mined, f.sharedReward].map(tx => [tx.getId(), tx.toHex()]));
+  if (omitSharedParent) delete raw[f.sharedReward.getId()];
   const current = () => {};
   const recheck = async (tipHash: string) => {
-    const read = async (ids: string[]) => Object.fromEntries(ids.map(id => [id, raw[id]]));
+    const read = async (ids: string[]) => Object.fromEntries(ids.filter(id => id in raw).map(id => [id, raw[id]]));
     let proven = 0;
     for await (const candidate of discoverMinedAncestry(selected, read, current)) {
       const rewardPoint = { txid: Transaction.fromHex(candidate.path[candidate.path.length - 1]).getId(), height: candidate.height };

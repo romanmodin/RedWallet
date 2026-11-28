@@ -23,8 +23,8 @@ async function checkAncestry() {
     found.push(verify(candidate.path).getId());
   }
   const secondParentDiscovered = found.length === 1 && found[0] === f.mined.getId();
-  const protectedCase = await verifySyntheticOneXbtRequest();
-  return { ...protectedCase, secondParentDiscovered, hermes: !!global.HermesInternal, linked, unrelatedRejected };
+  const protectedCase = await verifySyntheticOneXbtRequest({ omitSharedParent: true });
+  return { ...protectedCase, partialHistoryVerified: protectedCase.unsignedOneXbtVerified, secondParentDiscovered, hermes: !!global.HermesInternal, linked, unrelatedRejected };
 }
 
 AppRegistry.registerComponent('BlueWallet', () => () => null);

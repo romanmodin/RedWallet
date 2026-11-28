@@ -28,6 +28,9 @@ export async function* discoverMinedAncestry(
     for (const step of frontier) {
       assertCurrent();
       const raw = response[step.txid];
+      // Electrum may omit an unavailable parent in a batch. Only fully linked
+      // paths can yield a candidate, so other parents can still be searched.
+      if (step.child && raw === undefined) continue;
       if (typeof raw !== 'string' || !raw.length || raw.length > 2_000_000 || chars + raw.length > 16_000_000)
         throw new Error('Missing or oversized XBT ancestry');
       if (raw.length % 2 || /[^a-f0-9]/i.test(raw)) throw new Error('Malformed XBT ancestry');
