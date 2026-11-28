@@ -15,7 +15,7 @@ import LNDViewInvoice from '../screen/lnd/lndViewInvoice';
 import LnurlAuth from '../screen/lnd/lnurlAuth';
 import LnurlPay from '../screen/lnd/lnurlPay';
 import LnurlPaySuccess from '../screen/lnd/lnurlPaySuccess';
-import Broadcast from '../screen/send/Broadcast';
+import Broadcast, { Sha256Broadcast } from '../screen/send/Broadcast';
 import IsItMyAddress from '../screen/settings/IsItMyAddress';
 import Success from '../screen/send/success';
 import CPFP from '../screen/transactions/CPFP';
@@ -460,6 +460,11 @@ const DetailViewStackScreensStack = () => {
           })(theme)}
         />
 
+        <DetailViewStack.Screen
+          name="Sha256Broadcast"
+          component={Sha256Broadcast}
+          options={settingsScreenOptions(loc.send.broadcast_sha256)}
+        />
         <DetailViewStack.Screen name="Broadcast" component={Broadcast} options={settingsScreenOptions(loc.send.create_broadcast)} />
         <DetailViewStack.Screen
           name="IsItMyAddress"

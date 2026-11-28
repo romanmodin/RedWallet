@@ -1,13 +1,22 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as bitcoin from 'bitcoinjs-lib';
-import Broadcast from '../../screen/send/Broadcast';
+import Broadcast, { Sha256Broadcast } from '../../screen/send/Broadcast';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import presentAlert from '../../components/Alert';
 import { majorTomToGroundControl } from '../../blue_modules/notifications';
 import loc from '../../loc';
 
-jest.mock('../../blue_modules/BlueElectrum', () => ({ ensureConnected: jest.fn() }));
+const mockSha256Broadcast = jest.fn();
+const mockSha256Wallet = jest.fn((_id: string) => ({
+  broadcastV2: mockSha256Broadcast,
+}));
+jest.mock('../../blue_modules/BtcElectrum', () => ({
+  forWallet: (id: string) => mockSha256Wallet(id),
+}));
+jest.mock('../../blue_modules/BlueElectrum', () => ({
+  ensureConnected: jest.fn(),
+}));
 jest.mock('../../class/wallets/hd-segwit-bech32-wallet', () => ({
   HDSegwitBech32Wallet: jest.fn().mockImplementation(() => ({ broadcastTx: mockBroadcastTx })),
 }));
@@ -112,4 +121,19 @@ test.each([false, new Error('Server rejected transaction')])('never shows succes
   expect(view.queryByText(transaction.getId())).toBeNull();
   expect(majorTomToGroundControl).not.toHaveBeenCalled();
   expect(mockBroadcastTx).toHaveBeenCalledTimes(1);
+});
+
+test.each([true, false])('SHA-256 tool uses only the selected wallet and displays its result (accepted=%s)', async accepted => {
+  if (accepted) mockSha256Broadcast.mockResolvedValueOnce(transaction.getId());
+  else mockSha256Broadcast.mockRejectedValueOnce(new Error('SHA-256 server rejected transaction'));
+  const screen = render(<Sha256Broadcast route={{ params: { walletID: 'blue-wallet' } }} />);
+  fireEvent.changeText(screen.getByTestId('TxHex'), hex);
+  fireEvent.press(screen.getByText(loc.send.broadcast_sha256));
+  await waitFor(() => expect(screen.getByText(accepted ? transaction.getId() : loc.send.broadcastError)).toBeTruthy());
+  expect(mockSha256Wallet).toHaveBeenCalledWith('blue-wallet');
+  expect(mockSha256Broadcast).toHaveBeenCalledWith(hex);
+  expect(BlueElectrum.ensureConnected).not.toHaveBeenCalled();
+  expect(mockBroadcastTx).not.toHaveBeenCalled();
+  expect(majorTomToGroundControl).not.toHaveBeenCalled();
+  expect(screen.queryByText(loc.settings.open_link_in_explorer)).toBeNull();
 });

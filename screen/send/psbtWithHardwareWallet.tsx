@@ -13,6 +13,7 @@ import { DynamicQRCode } from '../../components/DynamicQRCode';
 import SaveFileButton from '../../components/SaveFileButton';
 import { SecondButton } from '../../components/SecondButton';
 import { useTheme } from '../../components/themes';
+import { authorizeInForeground } from '../../blue_modules/foreground-authorization';
 import { useBiometrics, unlockWithBiometrics } from '../../hooks/useBiometrics';
 import loc from '../../loc';
 import { useStorage } from '../../hooks/context/useStorage';
@@ -149,7 +150,10 @@ const PsbtWithHardwareWallet = () => {
     const isBiometricsEnabled = await isBiometricUseCapableAndEnabled();
 
     if (isBiometricsEnabled) {
-      if (!(await unlockWithBiometrics())) {
+      const approved = isBtcWallet(wallet)
+        ? await authorizeInForeground(unlockWithBiometrics, () => navigation.isFocused())
+        : await unlockWithBiometrics();
+      if (!approved) {
         setIsLoading(false);
         return;
       }
@@ -186,7 +190,7 @@ const PsbtWithHardwareWallet = () => {
         return;
       }
       if (wallet instanceof BtcWatchOnlyWallet) wallet.acceptSignedTransaction(txHex, reviewed);
-      if (!(await walletElectrum(wallet).ensureConnected())) {
+      if (!isBtcWallet(wallet) && !(await walletElectrum(wallet).ensureConnected())) {
         throw new Error(loc.errors.network);
       }
 
@@ -201,11 +205,15 @@ const PsbtWithHardwareWallet = () => {
         setIsLoading(false);
         const txDecoded = bitcoin.Transaction.fromHex(txHex);
         const txid = txDecoded.getId();
-        majorTomToGroundControl([], [], [txid]);
+        if (!isBtcWallet(wallet)) majorTomToGroundControl([], [], [txid]);
         if (memo) {
           txMetadata[txid] = { memo };
         }
-        navigation.navigate('Success', { amount: undefined });
+        navigation.navigate('Success', {
+          amount: undefined,
+          walletID,
+          assetTicker: isBtcWallet(wallet) ? 'BTC' : 'XBT',
+        });
         await new Promise(resolve => setTimeout(resolve, 3000)); // sleep to make sure network propagates
         fetchAndSaveWalletTransactions(wallet.getID());
       } else {
@@ -292,6 +300,7 @@ const PsbtWithHardwareWallet = () => {
 
   const openScanner = async () => {
     navigation.navigate('ScanQRCode', {
+      walletID,
       showFileImportButton: true,
     });
   };

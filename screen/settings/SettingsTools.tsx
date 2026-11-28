@@ -1,5 +1,9 @@
 import React from 'react';
 import { NativeModules, StyleSheet } from 'react-native';
+import { useStorage } from '../../hooks/context/useStorage';
+import { isBtcWallet } from '../../blue_modules/wallet-network';
+import presentAlert from '../../components/Alert';
+import type { TWallet } from '../../class/wallets/types';
 import { useTheme } from '../../components/themes';
 
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
@@ -15,6 +19,27 @@ const SettingsTools: React.FC = () => {
 
   const navigateToBroadcast = () => {
     navigation.navigate('Broadcast');
+  };
+
+  const { wallets } = useStorage();
+  const openSha256Broadcast = () => {
+    const availableWallets = wallets.filter(isBtcWallet);
+    if (!availableWallets.length) {
+      presentAlert({ message: loc.send.broadcast_sha256_wallet });
+      return;
+    }
+    const open = (wallet: TWallet) => navigation.navigate('Sha256Broadcast', { walletID: wallet.getID() });
+    if (availableWallets.length === 1) {
+      open(availableWallets[0]);
+      return;
+    }
+    navigation.navigate('SelectWallet', {
+      availableWallets,
+      onWalletSelect: (wallet: TWallet) => {
+        navigation.goBack();
+        open(wallet);
+      },
+    });
   };
 
   const navigateToGenerateWord = () => {
@@ -59,11 +84,12 @@ const SettingsTools: React.FC = () => {
           testID="IsItMyAddress"
           chevron
         />
+        <SettingsListItem title={loc.send.broadcast_xbt} iconName="paperPlane" onPress={navigateToBroadcast} testID="Broadcast" chevron />
         <SettingsListItem
-          title={loc.settings.network_broadcast}
+          title={loc.send.broadcast_sha256}
           iconName="paperPlane"
-          onPress={navigateToBroadcast}
-          testID="Broadcast"
+          onPress={openSha256Broadcast}
+          testID="Sha256Broadcast"
           chevron
         />
         <SettingsListItem

@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
 import { ActivityIndicator, Keyboard, Linking, StyleSheet, TextInput, View, Text } from 'react-native';
 
+import * as BtcElectrum from '../../blue_modules/BtcElectrum';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
@@ -23,7 +24,15 @@ const BROADCAST_RESULT = Object.freeze({
   error: 'error',
 });
 
-const Broadcast: React.FC = () => {
+type BroadcastNetwork = { chain: 'xbt' } | { chain: 'sha256'; walletID: string };
+
+const Broadcast = () => <BroadcastForm chain="xbt" />;
+export const Sha256Broadcast = ({ route }: { route: { params: { walletID: string } } }) => (
+  <BroadcastForm key={route.params.walletID} chain="sha256" walletID={route.params.walletID} />
+);
+
+const BroadcastForm = (network: BroadcastNetwork) => {
+  const submitting = useRef(false);
   const [tx, setTx] = useState<string | undefined>();
   const [txHex, setTxHex] = useState<string | undefined>();
   const { colors } = useTheme();
@@ -45,6 +54,8 @@ const Broadcast: React.FC = () => {
   const handleUpdateTxHex = (nextValue: string) => setTxHex(nextValue.trim());
 
   const handleBroadcast = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
     Keyboard.dismiss();
     setBroadcastResult(BROADCAST_RESULT.pending);
     try {
@@ -52,25 +63,23 @@ const Broadcast: React.FC = () => {
       // Check complete byte pairs because hex decoding can ignore invalid suffixes.
       if (!txHex || !/^(?:[0-9a-f]{2})+$/i.test(txHex)) throw new Error(loc.errors.broadcast);
       const newTx = bitcoin.Transaction.fromHex(txHex);
-      if (!(await BlueElectrum.ensureConnected())) {
-        throw new Error(loc.errors.network);
-      }
-      const walletObj = new HDSegwitBech32Wallet();
-      const result = await walletObj.broadcastTx(txHex);
-      if (result) {
-        const txid = newTx.getId();
-        setTx(txid);
-
-        setBroadcastResult(BROADCAST_RESULT.success);
-        triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
-        majorTomToGroundControl([], [], [txid]);
+      const txid = newTx.getId();
+      if (network.chain === 'sha256') {
+        await BtcElectrum.forWallet(network.walletID).broadcastV2(txHex);
       } else {
-        setBroadcastResult(BROADCAST_RESULT.error);
+        if (!(await BlueElectrum.ensureConnected())) throw new Error(loc.errors.network);
+        if (!(await new HDSegwitBech32Wallet().broadcastTx(txHex))) throw new Error(loc.errors.broadcast);
+        majorTomToGroundControl([], [], [txid]);
       }
+      setTx(txid);
+      setBroadcastResult(BROADCAST_RESULT.success);
+      triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
     } catch (error: any) {
       presentAlert({ title: loc.errors.error, message: error.message });
       triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
       setBroadcastResult(BROADCAST_RESULT.error);
+    } finally {
+      submitting.current = false;
     }
   };
 
@@ -113,13 +122,17 @@ const Broadcast: React.FC = () => {
               <View
                 style={[
                   styles.input,
-                  { borderColor: colors.formBorder, borderBottomColor: colors.formBorder, backgroundColor: colors.inputBackgroundColor },
+                  {
+                    borderColor: colors.formBorder,
+                    borderBottomColor: colors.formBorder,
+                    backgroundColor: colors.inputBackgroundColor,
+                  },
                 ]}
               >
                 <TextInput
                   style={[styles.text, { color: colors.foregroundColor }]}
                   multiline
-                  editable
+                  editable={broadcastResult !== BROADCAST_RESULT.pending}
                   placeholderTextColor={colors.placeholderTextColor}
                   value={txHex}
                   onChangeText={handleUpdateTxHex}
@@ -131,7 +144,7 @@ const Broadcast: React.FC = () => {
               <BlueSpacing20 />
 
               <Button
-                title={loc.send.broadcastButton}
+                title={network.chain === 'sha256' ? loc.send.broadcast_sha256 : loc.send.broadcastButton}
                 onPress={handleBroadcast}
                 disabled={broadcastResult === BROADCAST_RESULT.pending || txHex?.length === 0 || txHex === undefined}
                 testID="BroadcastButton"
@@ -139,12 +152,18 @@ const Broadcast: React.FC = () => {
 
               <BlueSpacing10 />
 
-              <Button title={loc.multisig.scan_or_open_file} onPress={handleQRScan} />
+              <Button
+                title={loc.multisig.scan_or_open_file}
+                onPress={handleQRScan}
+                disabled={broadcastResult === BROADCAST_RESULT.pending}
+              />
 
               <BlueSpacing20 />
             </>
           )}
-          {BROADCAST_RESULT.success === broadcastResult && tx && <SuccessScreen tx={tx} url={getTransactionExplorerUrl(tx)} />}
+          {BROADCAST_RESULT.success === broadcastResult && tx && (
+            <SuccessScreen tx={tx} url={network.chain === 'sha256' ? undefined : getTransactionExplorerUrl(tx)} />
+          )}
         </View>
       </SettingsSection>
     </SettingsScrollView>

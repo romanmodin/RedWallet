@@ -19,7 +19,9 @@ export const BTC_CHECKPOINT_HASH = '00000000000000000001d82da6ecccf08e07afa383f9
 const REQUEST_TIMEOUT = 15_000;
 let selectedWallet: string | undefined;
 let foreground = true;
-let generation = 0;
+let sessionVersion = 0;
+let maintenanceTimer: ReturnType<typeof setTimeout> | undefined;
+const HEALTH_CHECK_INTERVAL = 20_000;
 let client: any;
 let connecting: Promise<boolean> | undefined;
 let connected = false;
@@ -46,10 +48,8 @@ export function isBitcoinCheckpoint(header: unknown): boolean {
   );
 }
 
-export function forceDisconnect(): void {
-  generation++;
+function disconnectTransport(): void {
   connected = false;
-  connecting = undefined;
   const old = client;
   client = undefined;
   try {
@@ -61,18 +61,41 @@ export function forceDisconnect(): void {
   emit();
 }
 
+// Only read public chain headers while maintaining a selected foreground wallet.
+function scheduleHealthCheck(delay: number): void {
+  clearTimeout(maintenanceTimer);
+  const walletID = selectedWallet;
+  if (!walletID || !foreground) return;
+  const version = sessionVersion;
+  maintenanceTimer = setTimeout(async () => {
+    try {
+      await ensureConnected(walletID, true);
+    } catch {
+      // A manual send reports configuration and connectivity errors to the user.
+    } finally {
+      if (version === sessionVersion) scheduleHealthCheck(HEALTH_CHECK_INTERVAL);
+    }
+  }, delay);
+}
+
+export function forceDisconnect(): void {
+  sessionVersion++;
+  connecting = undefined;
+  disconnectTransport();
+  scheduleHealthCheck(0);
+}
+
 /** Merely storing/restoring a BTC wallet must never create a connection. */
 export function selectWallet(walletID?: string): void {
   if (selectedWallet === walletID) return;
-  forceDisconnect();
   selectedWallet = walletID;
-  emit();
+  forceDisconnect();
 }
 
 export function setForeground(value: boolean): void {
+  if (foreground === value) return;
   foreground = value;
-  if (!value) forceDisconnect();
-  emit();
+  forceDisconnect();
 }
 
 export const isSelected = (walletID: string): boolean => foreground && selectedWallet === walletID;
@@ -220,62 +243,56 @@ export function resetPreferredServer(): Promise<void> {
   });
 }
 
-async function ensureConnected(walletID: string, refreshTip = false): Promise<boolean> {
-  if (!isSelected(walletID)) return false;
-  if (connected && client && !refreshTip) return true;
-  if (connected && client) {
-    const active = client;
-    const epoch = generation;
+async function checkConnection(walletID: string, version: number): Promise<boolean> {
+  const current = () => isSelected(walletID) && version === sessionVersion;
+  const active = client;
+  if (connected && active) {
     try {
       const latest: any = await bounded(active.blockchainHeaders_subscribe());
-      if (!isSelected(walletID) || epoch !== generation || active !== client) return false;
-      if (!Number.isSafeInteger(latest?.height) || latest.height < BTC_CHECKPOINT_HEIGHT) throw new Error('Invalid Bitcoin chain height');
-      tip = latest.height;
-      return true;
-    } catch {
-      if (active === client) forceDisconnect();
-      return false;
-    }
-  }
-  if (connecting) return connecting;
-  const epoch = generation;
-  const attempt = (async () => {
-    for (const peer of [await getPreferredServer()]) {
-      if (!isSelected(walletID) || epoch !== generation) return false;
-      const candidate = makeClient(peer);
-      client = candidate;
-      candidate.onError = () => {
-        if (client === candidate) forceDisconnect();
-      };
-      try {
-        await bounded(candidate.initElectrum({ client: 'RedWallet BTC', version: '1.4' }, { maxRetry: 0 }));
-        if (!isSelected(walletID) || generation !== epoch || candidate !== client) {
-          candidate.close();
-          return false;
-        }
-        const header = await bounded(candidate.blockchainBlock_header(BTC_CHECKPOINT_HEIGHT));
-        if (!isBitcoinCheckpoint(header)) throw new Error('This server is not on the Bitcoin SHA-256 chain.');
-        if (!isSelected(walletID) || generation !== epoch || candidate !== client) {
-          candidate.close();
-          return false;
-        }
-        const latest: any = await bounded(candidate.blockchainHeaders_subscribe());
-        if (!Number.isSafeInteger(latest?.height) || latest.height < BTC_CHECKPOINT_HEIGHT) throw new Error('Invalid Bitcoin chain height');
-        if (!isSelected(walletID) || generation !== epoch || candidate !== client) {
-          candidate.close();
-          return false;
-        }
+      if (!current()) return false;
+      if (active === client && Number.isSafeInteger(latest?.height) && latest.height >= BTC_CHECKPOINT_HEIGHT) {
         tip = latest.height;
-        connected = true;
-        emit();
         return true;
-      } catch {
-        candidate.close();
-        if (client === candidate) client = undefined;
       }
+    } catch {
+      // A stale socket can be replaced before any transaction is submitted.
     }
+    if (!current()) return false;
+    if (client === active) disconnectTransport();
+  }
+
+  const server = await getPreferredServer();
+  if (!current()) return false;
+  const candidate = makeClient(server);
+  client = candidate;
+  const ownsClient = () => current() && client === candidate;
+  const onDisconnect = () => {
+    if (client === candidate) disconnectTransport();
+  };
+  candidate.onError = onDisconnect;
+  try {
+    await bounded(candidate.initElectrum({ client: 'RedWallet BTC', version: '1.4' }, { maxRetry: 0, callback: onDisconnect }));
+    if (!ownsClient()) return false;
+    const header = await bounded(candidate.blockchainBlock_header(BTC_CHECKPOINT_HEIGHT));
+    if (!ownsClient() || !isBitcoinCheckpoint(header)) return false;
+    const latest: any = await bounded(candidate.blockchainHeaders_subscribe());
+    if (!ownsClient() || !Number.isSafeInteger(latest?.height) || latest.height < BTC_CHECKPOINT_HEIGHT) return false;
+    tip = latest.height;
+    connected = true;
+    emit();
+    return true;
+  } catch {
     return false;
-  })();
+  } finally {
+    if (candidate === client && !connected) disconnectTransport();
+  }
+}
+
+async function ensureConnected(walletID: string, refreshTip = false): Promise<boolean> {
+  if (!isSelected(walletID)) return false;
+  if (connecting) return connecting;
+  if (connected && client && !refreshTip) return true;
+  const attempt = checkConnection(walletID, sessionVersion);
   connecting = attempt;
   try {
     return await attempt;
@@ -286,15 +303,28 @@ async function ensureConnected(walletID: string, refreshTip = false): Promise<bo
 
 async function rpc<T>(walletID: string, method: string, params: unknown[]): Promise<T> {
   requireSelected(walletID);
-  const epoch = generation;
-  if (!(await ensureConnected(walletID))) throw new Error('Could not connect to the Bitcoin server.');
+  const version = sessionVersion;
+  const broadcast = method === 'blockchain.transaction.broadcast';
+  if (!(await ensureConnected(walletID, broadcast))) {
+    throw new Error(
+      broadcast ? 'Could not verify the SHA-256 server. The transaction was not submitted.' : 'Could not connect to the Bitcoin server.',
+    );
+  }
   requireSelected(walletID);
-  if (epoch !== generation) throw new Error('Bitcoin wallet selection changed.');
+  if (version !== sessionVersion || !connected || !client) throw new Error('Bitcoin wallet connection changed.');
   const active = client;
-  const result = await bounded<T>(active.request(method, params));
-  requireSelected(walletID);
-  if (epoch !== generation || active !== client) throw new Error('Bitcoin wallet selection changed.');
-  return result;
+  try {
+    const result = await bounded<T>(active.request(method, params));
+    requireSelected(walletID);
+    if (version !== sessionVersion || active !== client) throw new Error('Bitcoin wallet selection changed.');
+    return result;
+  } catch (error) {
+    if (!broadcast) throw error;
+    if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'number') {
+      throw new Error(`SHA-256 server rejected the transaction (code ${error.code}).`);
+    }
+    throw new Error('SHA-256 submission status is unknown. Check transaction history before trying again.');
+  }
 }
 
 const scriptHash = (address: string) =>

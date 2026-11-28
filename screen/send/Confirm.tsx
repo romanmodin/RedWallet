@@ -16,6 +16,7 @@ import Button from '../../components/Button';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import SafeArea from '../../components/SafeArea';
 import { satoshiToBTC, satoshiToLocalCurrency } from '../../blue_modules/currency';
+import { authorizeInForeground } from '../../blue_modules/foreground-authorization';
 import { unlockWithBiometrics, useBiometrics } from '../../hooks/useBiometrics';
 import { TWallet, CreateTransactionTarget } from '../../class/wallets/types';
 import PayjoinTransaction from '../../class/payjoin-transaction';
@@ -218,7 +219,10 @@ const Confirm: React.FC = () => {
       }
       // Perform biometric authentication first
       if (await isBiometricUseCapableAndEnabled()) {
-        if (!(await unlockWithBiometrics())) {
+        const approved = isBtcWallet(wallet)
+          ? await authorizeInForeground(unlockWithBiometrics, () => navigation.isFocused())
+          : await unlockWithBiometrics();
+        if (!approved) {
           // Stop execution if biometric unlock fails
           dispatch({ type: ActionType.SET_LOADING, payload: false });
           dispatch({ type: ActionType.SET_BUTTON_DISABLED, payload: false });
@@ -256,7 +260,7 @@ const Confirm: React.FC = () => {
 
       const txid = bitcoin.Transaction.fromHex(tx).getId();
       txidsToWatch.push(txid);
-      majorTomToGroundControl([], [], txidsToWatch);
+      if (!isBtcWallet(wallet)) majorTomToGroundControl([], [], txidsToWatch);
       let amount = 0;
       for (const recipient of recipients) {
         if (recipient.value) {
@@ -287,7 +291,7 @@ const Confirm: React.FC = () => {
   };
 
   const broadcastTransaction = async (transaction: string) => {
-    if (!(await walletElectrum(wallet).ensureConnected())) {
+    if (!isBtcWallet(wallet) && !(await walletElectrum(wallet).ensureConnected())) {
       throw new Error(loc.errors.network);
     }
 

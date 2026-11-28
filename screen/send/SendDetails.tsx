@@ -707,9 +707,10 @@ const SendDetails = () => {
   };
   const navigateToQRCodeScanner = useCallback(() => {
     navigation.navigate('ScanQRCode', {
+      walletID: wallet?.getID(),
       showFileImportButton: true,
     });
-  }, [navigation]);
+  }, [navigation, wallet]);
 
   const createPsbtTransaction = async (visit: number, skipReplayCheck: boolean) => {
     if (!wallet) return;
@@ -831,9 +832,9 @@ const SendDetails = () => {
     const newWallet = wallets.find(w => w.getID() === routeParams.walletID);
     if (newWallet) {
       setWallet(newWallet);
-      selectWalletNetwork(newWallet);
+      if (navigation.isFocused()) selectWalletNetwork(newWallet);
     }
-  }, [routeParams.walletID, wallets]);
+  }, [navigation, routeParams.walletID, wallets]);
 
   const setTransactionMemo = (memo: string) => {
     setParams({ transactionMemo: memo });
