@@ -8,12 +8,17 @@ export function reward(tag: number, height = 975000) {
   return tx;
 }
 
-export function fixture(height = 975000) {
+export function fixture(height = 975000, oneXbtSend = false) {
   const mined = reward(1, height);
   const canonical = reward(2, height);
+  // Public scripts and unsigned transactions only.
+  const sharedReward = reward(7, 900000);
+  if (oneXbtSend) mined.outs[0].value = 250000000n;
   const spend = new Transaction();
+  if (oneXbtSend) spend.addInput(sharedReward.getHash(), 0);
   spend.addInput(mined.getHash(), 0);
-  spend.addOutput(Buffer.from([0x51]), 90000n);
+  if (oneXbtSend) spend.addOutput(Buffer.concat([Buffer.from([0, 20]), Buffer.alloc(20, 17)]), 200000000n);
+  else spend.addOutput(Buffer.from([0x51]), 90000n);
   const header = Buffer.alloc(80);
   const sibling = Buffer.alloc(32, 9);
   const root = crypto.hash256(Buffer.concat([canonical.getHash(), sibling]));
@@ -27,7 +32,7 @@ export function fixture(height = 975000) {
   const proof = { rawTransaction: canonical.toHex(), position: 0, merkle: [sibling.toString('hex')], header: header.toString('hex') };
   const selected = { txid: spend.getId(), vout: 0 };
   const path = [spend.toHex(), mined.toHex()];
-  return { selected, path, mined, canonical, spend, proof, anchor };
+  return { selected, path, mined, canonical, spend, proof, anchor, sharedReward };
 }
 
 export function linkParents(rewardHeader: Buffer, median: number) {

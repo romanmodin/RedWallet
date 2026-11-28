@@ -1,4 +1,5 @@
 import { fixture, reward, linkParents } from '../helpers/mined-ancestry-fixture';
+import { discoverMinedAncestry } from '../../class/xbt/mined-ancestry-discovery';
 import { xbtV2BlockHash } from '../../class/xbt/block-header-hash';
 import { Psbt, Transaction, crypto } from 'bitcoinjs-lib';
 import { verifyMinedAncestry, verifyXbtRewardForSpend } from '../../class/xbt/separation-proof';
@@ -127,11 +128,12 @@ test('a fresh proof after a reorg fails if the replacement block includes the sa
   expect(() => verifyMinedAncestry(f.selected, f.path, f.proof, anchor)).toThrow();
 });
 
-test.each(['valid', 'rolling maturity', 'early reward spend', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'missing initial tip', 'unavailable final tip', 'mutated final height', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
+test.each(['valid', 'discover for one XBT', 'rolling maturity', 'early reward spend', 'replaced at final check', 'metadata disagreement', 'unrelated XBT reward', 'broken XBT link', 'wrong XBT tip', 'replaced XBT tip', 'missing initial tip', 'unavailable final tip', 'mutated final height', 'late final tip', 'stalled final tip', 'direct reward', 'missing selected proof', 'unconfirmed selected transaction', 'wrong selected position', 'five confirmations', 'borrowed block height', 'wrong selected sibling'] as const)(
   'collects only public SHA-256 reward evidence: %s',
   async scenario => {
     const rolling = scenario === 'rolling maturity';
-    const f = fixture(rolling ? 979919 : 975000);
+    const discovering = scenario === 'discover for one XBT';
+    const f = fixture(rolling ? 979919 : 975000, discovering);
     const { height, blockHash, tipHeight } = f.anchor;
     const now = 2000000000;
     const tipHeader = Buffer.alloc(80);
@@ -225,6 +227,30 @@ test.each(['valid', 'rolling maturity', 'early reward spend', 'replaced at final
         merkle: [scenario === 'wrong selected sibling' ? f.mined.getId() : sibling.getId()],
       };
       const evidence = { anchor, merkle: [], descendants, selectedInclusion };
+      if (discovering) {
+        const request = new Psbt();
+        request.addInput({ hash: f.selected.txid, index: 0, witnessUtxo: f.spend.outs[0] });
+        request.addOutput({ script: Buffer.from([0x51]), value: 100000000n });
+        request.addOutput({ script: f.spend.outs[0].script, value: 99999000n });
+        const [selected] = requestFundingInputs(request);
+        const raws = Object.fromEntries([f.spend, f.sharedReward, f.mined].map(tx => [tx.getId(), tx.toHex()]));
+        const readRaw = jest.fn(async (ids: string[]) => Object.fromEntries(ids.map(id => [id, raws[id]])));
+        let verified = 0;
+        for await (const candidate of discoverMinedAncestry(selected, readRaw, () => {})) {
+          await verifyPublicMinedSeparation(selected, candidate.path, candidate.height, evidence, readTrustedTip, () => {});
+          // The same request needs a fresh proof at broadcast time. Simulate a
+          // replacement XBT tip at that boundary, without changing the PSBT.
+          await expect(verifyPublicMinedSeparation(selected, candidate.path, candidate.height, evidence, async () => ({
+            height: height + descendants.length, hash: '11'.repeat(32),
+          }), () => {})).rejects.toThrow('separation');
+          verified++;
+        }
+        expect(verified).toBe(1);
+        expect(readRaw.mock.calls).toEqual([[[f.spend.getId()]], [[f.sharedReward.getId(), f.mined.getId()]]]);
+        expect(tipReads).toBe(2);
+        expect(calls.some(url => Object.keys(raws).some(txid => url.includes(txid)))).toBe(false);
+        return;
+      }
       const result = verifyPublicMinedSeparation(
         direct ? { txid: f.mined.getId(), vout: 0 } : f.selected,
         direct ? [f.mined.toHex()] : f.path, height, evidence, readTrustedTip, () => {},
