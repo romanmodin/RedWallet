@@ -371,3 +371,110 @@ test('server configuration changes are serialized, so the most recent explicit c
     ssl: 51002,
   });
 });
+
+function syntheticPayment() {
+  const tx = new bitcoin.Transaction();
+  tx.addInput(new Uint8Array(32).fill(7), 0);
+  tx.addOutput(new Uint8Array([0x51]), 1234n);
+  tx.setWitness(0, [bitcoin.script.signature.encode(new Uint8Array(64).fill(1), 1), new Uint8Array(33).fill(2)]);
+  return tx;
+}
+
+test('a stale connection at Send now is replaced and verified before submitting once', async () => {
+  const tx = syntheticPayment();
+  Btc.selectWallet('blue');
+  const wallet = Btc.forWallet('blue');
+  await wallet.ensureConnected();
+  mockClients[0].blockchainHeaders_subscribe.mockRejectedValueOnce(new Error('closed'));
+  const replacement = {
+    initElectrum: jest.fn().mockResolvedValue({}),
+    blockchainBlock_header: jest.fn().mockResolvedValue(mockHeader),
+    blockchainHeaders_subscribe: jest.fn().mockResolvedValue({ height: 981001 }),
+    request: jest.fn().mockResolvedValue(tx.getId()),
+    close: jest.fn(),
+  };
+  require('electrum-client').mockImplementationOnce(() => replacement);
+  await expect(wallet.broadcastV2(tx.toHex())).resolves.toBe(tx.getId());
+  expect(mockClients[0].request).not.toHaveBeenCalled();
+  expect(replacement.blockchainBlock_header).toHaveBeenCalledWith(Btc.BTC_CHECKPOINT_HEIGHT);
+  expect(replacement.request).toHaveBeenCalledTimes(1);
+  expect(replacement.request).toHaveBeenCalledWith('blockchain.transaction.broadcast', [tx.toHex()]);
+});
+
+test('never submits bytes to a replacement on the wrong chain', async () => {
+  Btc.selectWallet('blue');
+  const wallet = Btc.forWallet('blue');
+  await wallet.ensureConnected();
+  mockClients[0].blockchainHeaders_subscribe.mockRejectedValueOnce(new Error('lost'));
+  const replacement = {
+    initElectrum: jest.fn().mockResolvedValue({}),
+    blockchainBlock_header: jest.fn().mockResolvedValue(XBT_MAINNET_CHECKPOINT_HEADER),
+    request: jest.fn(),
+    close: jest.fn(),
+  };
+  require('electrum-client').mockImplementationOnce(() => replacement);
+  await expect(wallet.broadcastV2(syntheticPayment().toHex())).rejects.toThrow('not submitted');
+  expect(replacement.request).not.toHaveBeenCalled();
+  expect(replacement.close).toHaveBeenCalled();
+});
+
+test('losing the reply after submission reports uncertainty and never resubmits', async () => {
+  Btc.selectWallet('blue');
+  const wallet = Btc.forWallet('blue');
+  await wallet.ensureConnected();
+  mockClients[0].request.mockRejectedValueOnce(new Error('socket closed'));
+  await expect(wallet.broadcastV2(syntheticPayment().toHex())).rejects.toThrow('status is unknown');
+  expect(mockClients[0].request).toHaveBeenCalledTimes(1);
+  expect(mockClients).toHaveLength(1);
+});
+
+test('a wallet change during the final health check cancels submission even after switching back', async () => {
+  Btc.selectWallet('blue');
+  const wallet = Btc.forWallet('blue');
+  await wallet.ensureConnected();
+  let finish!: (tip: object) => void;
+  mockClients[0].blockchainHeaders_subscribe.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      }),
+  );
+  const pending = wallet.broadcastV2(syntheticPayment().toHex());
+  Btc.selectWallet('other');
+  Btc.selectWallet('blue');
+  finish({ height: 981001 });
+  await expect(pending).rejects.toThrow('not submitted');
+  expect(mockClients[0].request).not.toHaveBeenCalled();
+});
+
+test('holds one foreground session across wallet routes, recovers an idle close, and stops on exit', async () => {
+  jest.useFakeTimers();
+  try {
+    Btc.selectWallet('blue');
+    await jest.advanceTimersByTimeAsync(0);
+    expect(Btc.getConnectionState()).toBe('connected');
+    Btc.selectWallet('blue');
+    await jest.advanceTimersByTimeAsync(20_000);
+    expect(mockClients).toHaveLength(1);
+    const onClose = mockClients[0].initElectrum.mock.calls[0][1].callback;
+    onClose();
+    expect(Btc.getConnectionState()).toBe('selected');
+    await jest.advanceTimersByTimeAsync(20_000);
+    expect(mockClients).toHaveLength(2);
+    expect(Btc.getConnectionState()).toBe('connected');
+    Btc.setForeground(false);
+    await jest.advanceTimersByTimeAsync(60_000);
+    expect(mockClients).toHaveLength(2);
+    Btc.setForeground(true);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockClients).toHaveLength(3);
+    Btc.selectWallet();
+    await jest.advanceTimersByTimeAsync(60_000);
+    expect(Btc.getConnectionState()).toBe('inactive');
+    expect(mockClients).toHaveLength(3);
+    expect(mockClients.every(client => client.request.mock.calls.length === 0)).toBe(true);
+  } finally {
+    Btc.selectWallet();
+    jest.useRealTimers();
+  }
+});

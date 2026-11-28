@@ -7,6 +7,7 @@ import { ElectrumServerItem } from '../screen/settings/ElectrumSettings';
 import { SendDetailsParams, TNavigationWrapper } from './SendDetailsStackParamList';
 
 export type ScanQRCodeParamList = {
+  walletID?: string;
   cameraStatusGranted?: boolean;
   backdoorPressed?: boolean;
   launchedBy?: string;
@@ -67,6 +68,7 @@ export type DetailViewStackParamList = {
   LNDViewAdditionalInvoiceInformation: { invoiceId: string };
   LNDViewAdditionalInvoicePreImage: { invoiceId: string };
   Broadcast: object;
+  Sha256Broadcast: { walletID: string };
   IsItMyAddress: object;
   GenerateWord: undefined;
   LnurlPay: undefined;

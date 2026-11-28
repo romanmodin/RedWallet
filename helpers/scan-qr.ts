@@ -14,10 +14,14 @@ const requestCameraAuthorization = () => {
 };
 
 const scanQrHelper = async (): Promise<string> => {
+  const source = navigationRef.getCurrentRoute();
   await requestCameraAuthorization();
+  if (!source || !navigationRef.isReady() || navigationRef.getCurrentRoute()?.key !== source.key) return '';
+  const walletID = (source.params as { walletID?: string } | undefined)?.walletID;
   return new Promise(resolve => {
     if (navigationRef.isReady()) {
       navigationRef.navigate('ScanQRCode', {
+        walletID,
         showFileImportButton: true,
         onBarScanned: (data: string, useBBQR: true) => {
           // this is not a flag of most recent BBQR format, its a flag if in a lifetime or app there was a BBQR scan
