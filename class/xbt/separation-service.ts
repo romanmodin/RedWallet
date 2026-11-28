@@ -1,8 +1,9 @@
+import { xbtV2BlockHash } from './block-header-hash';
 import { getSeparationHTTPResponse } from './separation-http';
 import { hasFreshTipTime } from './separation-freshness';
 import { SEPARATION_EVIDENCE as EVIDENCE, SEPARATION_ANCHOR as ANCHOR } from './separation-http-policy';
 import { Transaction, crypto } from 'bitcoinjs-lib';
-import { verifyFundingConflict } from './separation-proof';
+import { verifyFundingConflict, verifyMinedAncestry, verifyTransactionMerklePath, verifyXbtRewardForSpend } from './separation-proof';
 import { parseVerifiedParentTransaction } from './verified-transaction';
 
 // Fixed HTTPS sources; no wallet sessions, xpubs, addresses, PSBTs or broadcast.
@@ -15,15 +16,7 @@ const unavailable = (): never => {
   throw new Error('Coin separation could not be verified. Standard signing is blocked.');
 };
 
-export async function verifyPublicFundingSeparation(funding: Transaction[], assertAuthorized: () => void): Promise<void> {
-  assertAuthorized();
-  if (!funding.length || funding.length > 64) unavailable();
-  // Validate the complete bounded batch before any network request. Budget for
-  // every candidate input, proof/metadata lookups and the final anchor recheck;
-  // a fixed 128-call limit incorrectly rejected valid larger coin selections.
-  if (funding.some((parent) => parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64)) unavailable();
-  // Two checkpoint reads and five requests for each of the opening and closing tip checks.
-  const requestLimit = 12 + funding.reduce((total, parent) => total + parent.ins.length + 9, 0);
+function chainEvidence(requestLimit: number, assertAuthorized: () => void) {
   // Collection has an elapsed-time budget independent of the phone’s wall clock.
   const deadline = performance.now() + 45000;
   let requests = 0;
@@ -73,6 +66,19 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
     if (computedHash !== hash) unavailable();
     return height;
   };
+  return { get, json, agreedHashAt, tip, deadline };
+}
+
+export async function verifyPublicFundingSeparation(funding: Transaction[], assertAuthorized: () => void): Promise<void> {
+  assertAuthorized();
+  if (!funding.length || funding.length > 64) unavailable();
+  // Validate the complete bounded batch before any network request. Budget for
+  // every candidate input, proof/metadata lookups and the final anchor recheck;
+  // a fixed 128-call limit incorrectly rejected valid larger coin selections.
+  if (funding.some((parent) => parent.isCoinbase() || !parent.ins.length || parent.ins.length > 64)) unavailable();
+  // Two checkpoint reads and five requests for each of the opening and closing tip checks.
+  const requestLimit = 12 + funding.reduce((total, parent) => total + parent.ins.length + 9, 0);
+  const { get, json, agreedHashAt, tip } = chainEvidence(requestLimit, assertAuthorized);
   if ((await agreedHashAt(CHECKPOINT_HEIGHT)) !== CHECKPOINT_HASH) unavailable();
   const startTip = await tip();
   const anchors = new Map<number, string>();
@@ -126,5 +132,108 @@ export async function verifyPublicFundingSeparation(funding: Transaction[], asse
     if (endTip - height + 1 < 6) unavailable();
     if ((await agreedHashAt(height)) !== hash) unavailable();
   }
+  assertAuthorized();
+}
+
+
+// Public queries disclose only SHA-256 block data and its own mining reward.
+// The XBT outpoint and its raw ancestry stay on the device.
+export async function verifyPublicMinedSeparation(
+  selected: { txid: string; vout: number },
+  ancestry: readonly string[],
+  height: number,
+  xbtReward: {
+    anchor: Omit<Parameters<typeof verifyXbtRewardForSpend>[2], 'tipHeight'>;
+    merkle: readonly string[];
+    descendants: readonly string[];
+    selectedInclusion?: { height: number; position: number; merkle: readonly string[] };
+  },
+  // This reader must independently authenticate the current XBT chain tip.
+  // Never derive its result from the supplied headers or their provider.
+  readTrustedXbtTip: (signal: AbortSignal) => Promise<{ height: number; hash: string }>,
+  assertAuthorized: () => void,
+): Promise<void> {
+  assertAuthorized();
+  if (!Number.isSafeInteger(height) || height < CHECKPOINT_HEIGHT || height > 999999999) unavailable();
+  const { get, json, agreedHashAt, tip, deadline } = chainEvidence(22, assertAuthorized);
+  const readCurrentTip = async () => {
+    assertAuthorized();
+    const now = performance.now();
+    if (now >= deadline) return unavailable();
+    const stopAt = Math.min(deadline, now + 8000);
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error('Coin separation could not be verified before the tip read timed out.'));
+        controller.abort();
+      }, stopAt - now);
+    });
+    try {
+      const current = await Promise.race([readTrustedXbtTip(controller.signal), timeout]);
+      if (!current || performance.now() >= stopAt) return unavailable();
+      // Snapshot both primitives before the reader can reuse its response on a later read.
+      const { height: tipHeight, hash } = current;
+      if (!Number.isSafeInteger(tipHeight) || tipHeight < height || tipHeight > 0x7fffffff ||
+        typeof hash !== 'string' || hash.length !== 64 || !HASH.test(hash)) return unavailable();
+      return { height: tipHeight, hash };
+    } catch {
+      return unavailable();
+    } finally {
+      clearTimeout(timer);
+      assertAuthorized();
+    }
+  };
+  if ((await agreedHashAt(CHECKPOINT_HEIGHT)) !== CHECKPOINT_HASH) unavailable();
+  const tipHeight = await tip();
+  if (tipHeight - height + 1 < 6) unavailable();
+  const blockHash = await agreedHashAt(height);
+  const endpoint = '/block/' + blockHash;
+  const [id, header, evidenceBlock, anchorBlock] = await Promise.all([
+    get(EVIDENCE, endpoint + '/txid/0', 64), get(EVIDENCE, endpoint + '/header', 160),
+    json(endpoint), get(ANCHOR, endpoint).then(value => JSON.parse(value)),
+  ]);
+  if (!HASH.test(id) || [evidenceBlock, anchorBlock].some(block => block?.id !== blockHash || block.height !== height) ||
+    evidenceBlock.tx_count !== anchorBlock.tx_count) unavailable();
+  const [rawTransaction, branch] = await Promise.all([get(EVIDENCE, '/tx/' + id + '/hex', 2000000), json('/tx/' + id + '/merkle-proof')]);
+  parseVerifiedParentTransaction(id, rawTransaction);
+  if (branch?.block_height !== height || branch.pos !== 0) unavailable();
+  const reward = verifyMinedAncestry(selected, ancestry, {rawTransaction, header, position: branch.pos, merkle: branch.merkle},
+    {height, tipHeight, blockHash, txCount: evidenceBlock.tx_count});
+  const selectedTx = Transaction.fromHex(ancestry[0]);
+  const directReward = selectedTx.getId() === reward.getId();
+  const inclusion = directReward ? undefined : xbtReward.selectedInclusion;
+  if (!directReward && !inclusion) return unavailable();
+  const selectedHeight = inclusion?.height ?? height;
+  if (inclusion && (
+    !Number.isSafeInteger(inclusion.height) || inclusion.height <= height ||
+    !Number.isSafeInteger(inclusion.position) || inclusion.position < 1 || !Array.isArray(inclusion.merkle)
+  )) return unavailable();
+  const trustedTip = await readCurrentTip();
+  const { descendants, anchor } = xbtReward;
+  const firstSpendHeight = verifyXbtRewardForSpend(reward, xbtReward.merkle, { ...anchor, tipHeight: trustedTip.height });
+  if (inclusion && selectedHeight < firstSpendHeight) unavailable();
+  if (descendants.length !== trustedTip.height - height || trustedTip.height - selectedHeight + 1 < 6) unavailable();
+  let previous = anchor.blockHash;
+  for (let i = 0; i < descendants.length; i++) {
+    if (i % 64 === 0) {
+      // Yield during long histories so cancellation and elapsed deadlines can fire.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assertAuthorized();
+      if (performance.now() >= deadline) unavailable();
+    }
+    const raw = descendants[i];
+    if (!/^[0-9a-f]{328}$/i.test(raw)) unavailable();
+    const child = Buffer.from(raw, 'hex');
+    if (child.readInt32LE(128) !== height + i + 1 || Buffer.from(child.subarray(4, 36)).reverse().toString('hex') !== previous) unavailable();
+    if (inclusion && height + i + 1 === selectedHeight) {
+      verifyTransactionMerklePath(selectedTx, child.readUInt16LE(108), inclusion.position, inclusion.merkle, child.subarray(36, 68));
+    }
+    previous = xbtV2BlockHash(child);
+  }
+  if (previous !== trustedTip.hash) unavailable();
+  if ((await tip()) - height + 1 < 6 || (await agreedHashAt(height)) !== blockHash) unavailable();
+  const currentTip = await readCurrentTip();
+  if (currentTip.height !== trustedTip.height || currentTip.hash !== previous) unavailable();
   assertAuthorized();
 }

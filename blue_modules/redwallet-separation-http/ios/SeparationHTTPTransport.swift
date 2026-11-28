@@ -66,6 +66,7 @@ final class SeparationHTTPTransport: NSObject, URLSessionDataDelegate, @unchecke
         guard evidence else { throw SeparationHTTPFailure.invalidRequest }
         if matches(#"^/block/[0-9a-f]{64}/header$"#) { return 160 }
         if matches(#"^/tx/[0-9a-f]{64}/hex$"#) { return 2_000_000 }
+        if matches(#"^/block/[0-9a-f]{64}/txid/0$"#) { return 64 }
         if matches(#"^/tx/[0-9a-f]{64}/merkle-proof$"#) { return 16384 }
         if matches(#"^/tx/[0-9a-f]{64}/outspend/(0|[1-9][0-9]{0,9})$"#),
            let index = UInt64(path.split(separator: "/").last!), index <= UInt32.max { return 16384 }
