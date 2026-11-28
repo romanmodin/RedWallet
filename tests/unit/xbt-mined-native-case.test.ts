@@ -71,3 +71,27 @@ test('a changed recipient list during review invalidates the request', async () 
   };
   await expect(verifyMinedRequestFunding(request, collect, changed, () => {})).rejects.toThrow('request changed');
 });
+
+test.each(['pre-expiry', 'rolling'] as const)(
+  'accepts the first mature spend under the %s rule',
+  async rewardEra => {
+    const { request, collect, readTip } = syntheticMinedRequest({
+      rewardEra,
+      omitSharedParent: true,
+    });
+    await verifyMinedRequestFunding(request, collect, readTip, () => {});
+  },
+  90000,
+);
+
+test.each(['pre-expiry', 'rolling'] as const)(
+  'rejects an early spend under the %s rule even after the tip matures',
+  async rewardEra => {
+    const { request, collect, readTip } = syntheticMinedRequest({
+      rewardEra,
+      earlySpend: true,
+    });
+    await expect(verifyMinedRequestFunding(request, collect, readTip, () => {})).rejects.toThrow(/separation/i);
+  },
+  90000,
+);

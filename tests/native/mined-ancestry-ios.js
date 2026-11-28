@@ -27,7 +27,9 @@ async function checkAncestry() {
   const protectedCase = await verifySyntheticOneXbtRequest({ omitSharedParent: true });
   const pair = syntheticMinedRequest({ twoInputs: true, omitSharedParent: true });
   await verifyMinedRequestFunding(pair.request, pair.collect, pair.readTip, () => {});
-  return { ...protectedCase, twoInputsVerified: pair.request.inputCount === 2, partialHistoryVerified: protectedCase.unsignedOneXbtVerified, secondParentDiscovered, hermes: !!global.HermesInternal, linked, unrelatedRejected };
+  const mature = syntheticMinedRequest({ rewardEra: 'pre-expiry', omitSharedParent: true });
+  await verifyMinedRequestFunding(mature.request, mature.collect, mature.readTip, () => {});
+  return { ...protectedCase, preExpiryMatureSendVerified: true, twoInputsVerified: pair.request.inputCount === 2, partialHistoryVerified: protectedCase.unsignedOneXbtVerified, secondParentDiscovered, hermes: !!global.HermesInternal, linked, unrelatedRejected };
 }
 
 AppRegistry.registerComponent('BlueWallet', () => () => null);
