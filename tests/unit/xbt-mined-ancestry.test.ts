@@ -1,3 +1,4 @@
+import { collectMinedXbtEvidence } from '../../class/xbt/mined-ancestry-evidence';
 import { fixture, reward, linkParents } from '../helpers/mined-ancestry-fixture';
 import { discoverMinedAncestry } from '../../class/xbt/mined-ancestry-discovery';
 import { xbtV2BlockHash } from '../../class/xbt/block-header-hash';
@@ -235,16 +236,34 @@ test.each(['valid', 'discover for one XBT', 'rolling maturity', 'early reward sp
         const [selected] = requestFundingInputs(request);
         const raws = Object.fromEntries([f.spend, f.sharedReward, f.mined].map(tx => [tx.getId(), tx.toHex()]));
         const readRaw = jest.fn(async (ids: string[]) => Object.fromEntries(ids.map(id => [id, raws[id]])));
+        const blocks = [...parentHeaders].reverse().concat(anchor.header, descendants);
+        const lookup = jest.fn(async (method: string, params: (number | string)[]) => {
+          const [key, arg] = params;
+          if (method === 'blockchain.transaction.get_merkle') {
+            if (key === f.mined.getId() && arg === height) return { block_height: arg, pos: 0, merkle: [] };
+            if (key === selected.txid && arg === height + inclusionOffset) return { block_height: arg, pos: 1, merkle: [sibling.getId()] };
+          }
+          if (method === 'blockchain.block.headers' && typeof key === 'number' && typeof arg === 'number') {
+            // A server may return fewer headers than requested.
+            const index = key - (height - 11);
+            const batch = blocks.slice(index, index + Math.min(arg, 31));
+            return { count: batch.length, hex: batch.join('') };
+          }
+          throw new Error('Unexpected synthetic RPC');
+        });
         let verified = 0;
         for await (const candidate of discoverMinedAncestry(selected, readRaw, () => {})) {
-          await verifyPublicMinedSeparation(selected, candidate.path, candidate.height, evidence, readTrustedTip, () => {});
-          // The same request needs a fresh proof at broadcast time. Simulate a
-          // replacement XBT tip at that boundary, without changing the PSBT.
-          await expect(verifyPublicMinedSeparation(selected, candidate.path, candidate.height, evidence, async () => ({
+          const rewardId = Transaction.fromHex(candidate.path[candidate.path.length - 1]).getId();
+          const collect = () => collectMinedXbtEvidence({ txid: rewardId, height: candidate.height },
+            { txid: selected.txid, height: height + inclusionOffset }, height + descendants.length, lookup, () => {});
+          await verifyPublicMinedSeparation(selected, candidate.path, candidate.height, await collect(), readTrustedTip, () => {});
+          // Recollect before broadcast and reject a changed independent anchor.
+          await expect(verifyPublicMinedSeparation(selected, candidate.path, candidate.height, await collect(), async () => ({
             height: height + descendants.length, hash: '11'.repeat(32),
           }), () => {})).rejects.toThrow('separation');
           verified++;
         }
+        expect(lookup.mock.calls.filter(([method]) => method === 'blockchain.transaction.get_merkle')).toHaveLength(4);
         expect(verified).toBe(1);
         expect(readRaw.mock.calls).toEqual([[[f.spend.getId()]], [[f.sharedReward.getId(), f.mined.getId()]]]);
         expect(tipReads).toBe(2);
