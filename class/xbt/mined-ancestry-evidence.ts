@@ -19,7 +19,7 @@ export async function collectMinedXbtEvidence(
   const first = reward.height - 11;
   if (
     ![reward, selected].every(
-      (p) => typeof p.txid === 'string' && p.txid.length === 64 && /^[0-9a-f]+$/.test(p.txid) && Number.isSafeInteger(p.height),
+      p => typeof p.txid === 'string' && p.txid.length === 64 && /^[0-9a-f]+$/.test(p.txid) && Number.isSafeInteger(p.height),
     ) ||
     reward.height < XBT_MAINNET_CHECKPOINT_HEIGHT ||
     !Number.isSafeInteger(tipHeight) ||
@@ -40,7 +40,7 @@ export async function collectMinedXbtEvidence(
     const stopAt = Math.min(deadline, now + 8000);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const timeout = new Promise<never>((_, reject) => {
+      const timeout = new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => reject(new Error('XBT evidence request timed out')), Math.max(0, stopAt - performance.now()));
       });
       const value = await Promise.race([read(method, params), timeout]);
@@ -63,7 +63,7 @@ export async function collectMinedXbtEvidence(
       (coinbase ? position !== 0 : position <= 0) ||
       !Array.isArray(reply.merkle) ||
       reply.merkle.length > 16 ||
-      !reply.merkle.every((h) => typeof h === 'string' && /^[0-9a-f]{64}$/.test(h))
+      !reply.merkle.every(h => typeof h === 'string' && /^[0-9a-f]{64}$/.test(h))
     )
       return invalid();
     return {

@@ -13,10 +13,13 @@ const coin = f.canonical.getId();
 const bodies = new Map([
   ['/block-height/961640', '00000000000000000001d82da6ecccf08e07afa383f9212b0e1b95cc72430c00'],
   ['/blocks/tip/height', String(tipHeight)],
-  ['/block-height/' + tipHeight, tip], ['/block/' + tip + '/header', tipHeader.toString('hex')],
-  ['/block-height/' + height, blockHash], ['/block/' + blockHash + '/header', f.proof.header],
+  ['/block-height/' + tipHeight, tip],
+  ['/block/' + tip + '/header', tipHeader.toString('hex')],
+  ['/block-height/' + height, blockHash],
+  ['/block/' + blockHash + '/header', f.proof.header],
   ['/block/' + blockHash, JSON.stringify({ id: blockHash, height, tx_count: 2 })],
-  ['/block/' + blockHash + '/txid/0', coin], ['/tx/' + coin + '/hex', f.canonical.toHex()],
+  ['/block/' + blockHash + '/txid/0', coin],
+  ['/tx/' + coin + '/hex', f.canonical.toHex()],
   ['/tx/' + coin + '/merkle-proof', JSON.stringify({ block_height: height, pos: 0, merkle: f.proof.merkle })],
 ]);
 export async function getSeparationHTTPResponse(url: string, limit: number, signal: AbortSignal) {

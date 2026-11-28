@@ -20,8 +20,8 @@ test('reads mixed-format headers across the fork with the packaged Electrum clie
   const blocks = [...parents].reverse().concat(header.toString('hex'));
   const calls: unknown[] = [];
   const host = '127.0.0.1';
-  const server = createServer((socket) => {
-    createInterface({ input: socket }).on('line', (line) => {
+  const server = createServer(socket => {
+    createInterface({ input: socket }).on('line', line => {
       const { id, method, params } = JSON.parse(line);
       calls.push([method, params]);
       let result: unknown;
@@ -51,7 +51,7 @@ test('reads mixed-format headers across the fork with the packaged Electrum clie
     expect(evidence.selectedInclusion).toBeUndefined();
   } finally {
     client.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>(resolve => server.close(() => resolve()));
   }
 });
 test.each([
@@ -60,7 +60,7 @@ test.each([
   { count: 1, hex: '00'.repeat(164) },
   { count: 1, hex: 'GG'.repeat(80) },
   { count: 7, hex: '00'.repeat(7 * 80) },
-])('rejects malformed header page %# before further requests', async (page) => {
+])('rejects malformed header page %# before further requests', async page => {
   const read = jest.fn().mockResolvedValueOnce(proof).mockResolvedValueOnce(page);
   await expect(collect(read)).rejects.toThrow('evidence');
   expect(read).toHaveBeenCalledTimes(2);
@@ -69,7 +69,7 @@ test.each([
   { ...proof, block_height: reward.height + 1 },
   { ...proof, pos: 1 },
   { ...proof, merkle: ['abc'] },
-])('rejects a mismatched reward proof %# before requesting headers', async (wrong) => {
+])('rejects a mismatched reward proof %# before requesting headers', async wrong => {
   const read = jest.fn().mockResolvedValue(wrong);
   await expect(collect(read)).rejects.toThrow('evidence');
   expect(read).toHaveBeenCalledTimes(1);
@@ -91,9 +91,9 @@ test('a stalled read times out without requesting more evidence', async () => {
   jest.useFakeTimers();
   try {
     const read = jest.fn(() => new Promise<never>(() => {}));
-    const check = expect(collect(read)).rejects.toThrow('evidence');
+    const result = collect(read).catch((error: unknown) => error);
     await jest.advanceTimersByTimeAsync(8001);
-    await check;
+    expect(await result).toEqual(new Error('XBT mining evidence is unavailable or inconsistent'));
     expect(read).toHaveBeenCalledTimes(1);
   } finally {
     jest.useRealTimers();

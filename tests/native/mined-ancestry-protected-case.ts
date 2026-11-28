@@ -40,9 +40,13 @@ export async function verifySyntheticOneXbtRequest() {
   const current = () => {};
   const recheck = async (tipHash: string) => {
     const read = async (ids: string[]) => Object.fromEntries(ids.map(id => [id, raw[id]]));
+    let proven = 0;
     for await (const candidate of discoverMinedAncestry(selected, read, current)) {
       const rewardPoint = { txid: Transaction.fromHex(candidate.path[candidate.path.length - 1]).getId(), height: candidate.height };
-      const evidence = await collectMinedXbtEvidence(rewardPoint, { txid: selected.txid, height: height + 100 }, height + 105,
+      const evidence = await collectMinedXbtEvidence(
+        rewardPoint,
+        { txid: selected.txid, height: height + 100 },
+        height + 105,
         async (method, [id, arg]) => {
           if (method === 'blockchain.block.headers') {
             const index = Number(id) - height + 11;
@@ -52,12 +56,20 @@ export async function verifySyntheticOneXbtRequest() {
           if (id === f.mined.getId() && arg === height) return { pos: 0, block_height: height, merkle: [] };
           if (id === selected.txid && arg === height + 100) return { pos: 1, block_height: arg, merkle: [sibling.getId()] };
           throw new Error('Unexpected fixture transaction');
-        }, current);
-      await verifyPublicMinedSeparation(selected, candidate.path, candidate.height, evidence,
-        async () => ({ height: height + 105, hash: tipHash }), current);
-      return;
+        },
+        current,
+      );
+      await verifyPublicMinedSeparation(
+        selected,
+        candidate.path,
+        candidate.height,
+        evidence,
+        async () => ({ height: height + 105, hash: tipHash }),
+        current,
+      );
+      proven++;
     }
-    throw new Error('Synthetic mining path missing');
+    if (proven !== 1) throw new Error('Unexpected number of synthetic mining paths');
   };
   await recheck(hash);
   try {
